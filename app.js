@@ -1,3 +1,57 @@
+// ============================================================
+// GOOGLE DRIVE SYNC
+// ============================================================
+const DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
+const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'agentCredentials'];
+
+async function driveGet(key) {
+    try {
+        const res = await fetch(`${DRIVE_API_URL}?key=${key}`);
+        const json = await res.json();
+        return json.success && json.data !== null ? json.data : null;
+    } catch (e) {
+        console.warn(`Drive read failed for ${key}:`, e);
+        return null;
+    }
+}
+
+async function driveSet(key, value) {
+    try {
+        await fetch(DRIVE_API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ key, value })
+        });
+    } catch (e) {
+        console.warn(`Drive write failed for ${key}:`, e);
+    }
+}
+
+async function syncFromDrive() {
+    const banner = document.getElementById('syncBanner');
+    if (banner) banner.style.display = 'flex';
+    for (const key of SYNC_KEYS) {
+        const data = await driveGet(key);
+        if (data !== null) {
+            localStorage.setItem(key, JSON.stringify(data));
+        }
+    }
+    if (banner) banner.style.display = 'none';
+}
+
+async function syncToDrive(key, value) {
+    await driveSet(key, value);
+}
+
+// Wrap localStorage.setItem to auto-sync to Drive
+const _origSetItem = localStorage.setItem.bind(localStorage);
+localStorage.setItem = function(key, value) {
+    _origSetItem(key, value);
+    if (SYNC_KEYS.includes(key)) {
+        try { driveSet(key, JSON.parse(value)); } catch(e) {}
+    }
+};
+// ============================================================
+
 // Data Management
 let currentUser = null;
 let currentRole = null;
@@ -59,7 +113,8 @@ function initializeCredentials() {
 }
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await syncFromDrive();  // Pull latest data from Google Drive first
     initializeCredentials();
     initializeCommissionData();
     initializeCarrierData();
