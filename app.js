@@ -173,6 +173,7 @@ function saveEntry() {
         id: Date.now(),
         agent: currentUser,
         customerName: document.getElementById('customerName').value,
+        source: document.getElementById('source').value,
         policyType: document.getElementById('policyType').value,
         lineOfBusiness: document.getElementById('lineOfBusiness').value,
         company: document.getElementById('company').value,
@@ -183,6 +184,7 @@ function saveEntry() {
         agencyCommission: parseFloat(document.getElementById('agencyCommission').value) || 0,
         totalPremium: parseFloat(document.getElementById('totalPremium').value),
         paymentType: document.getElementById('paymentType').value,
+        paymentMethod2: document.getElementById('paymentMethod2').value,
         policyNumber: document.getElementById('policyNumber').value,
         binderNumber: document.getElementById('binderNumber').value,
         entryDate: document.getElementById('entryDate').value,
@@ -530,12 +532,13 @@ function exportToCSV(entries, filename) {
         return;
     }
 
-    const headers = ['Agent', 'Date', 'Customer', 'Policy Type', 'Line of Business', 'Company', 'Down', 'Agency Fee', 'Base Premium', 'Agency Commission', 'Total Premium', 'Payment Type', 'Policy #', 'Binder #', 'Term', 'Status'];
+    const headers = ['Agent', 'Date', 'Customer', 'Source', 'Policy Type', 'Line of Business', 'Company', 'Down', 'Agency Fee', 'Base Premium', 'Agency Commission', 'Total Premium', 'Payment Method', 'Second Payment Method', 'Commission Type', 'Policy #', 'Binder #', 'Term', 'Status'];
 
     const rows = entries.map(e => [
         e.agent,
         e.entryDate,
         e.customerName,
+        e.source || '',
         e.policyType,
         e.lineOfBusiness,
         e.company,
@@ -544,6 +547,8 @@ function exportToCSV(entries, filename) {
         e.basePremium,
         e.agencyCommission || 0,
         e.totalPremium,
+        e.paymentMethod || '',
+        e.paymentMethod2 || '',
         e.paymentType,
         e.policyNumber,
         e.binderNumber,
