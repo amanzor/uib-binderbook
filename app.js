@@ -475,12 +475,27 @@ let editingId = null;
 function openEditModal(id) {
     editingId = id;
     const entry = allData.find(d => d.id === id);
-    if (entry) {
-        document.getElementById('editCustomerName').value = entry.customerName;
-        document.getElementById('editTotalPremium').value = entry.totalPremium;
-        document.getElementById('editStatus').value = entry.status;
-        document.getElementById('editModal').classList.add('active');
-    }
+    if (!entry) return;
+    document.getElementById('editCustomerName').value = entry.customerName || '';
+    document.getElementById('editSource').value = entry.source || '';
+    document.getElementById('editPolicyType').value = entry.policyType || '';
+    document.getElementById('editLineOfBusiness').value = entry.lineOfBusiness || '';
+    document.getElementById('editCompany').value = entry.company || '';
+    document.getElementById('editMga').value = entry.mga || '';
+    document.getElementById('editDown').value = entry.down || '';
+    document.getElementById('editAgencyFee').value = entry.agencyFee || '';
+    document.getElementById('editBasePremium').value = entry.basePremium || '';
+    document.getElementById('editTotalPremium').value = entry.totalPremium || '';
+    document.getElementById('editPaymentMethod').value = entry.paymentMethod || '';
+    document.getElementById('editPaymentMethod2').value = entry.paymentMethod2 || '';
+    document.getElementById('editPolicyNumber').value = entry.policyNumber || '';
+    document.getElementById('editEntryDate').value = entry.entryDate || '';
+    document.getElementById('editEffDate').value = entry.effDate || '';
+    document.getElementById('editTerm').value = entry.term || '';
+    document.getElementById('editAgencyCommission').value = entry.agencyCommission || '';
+    document.getElementById('editPaymentType').value = entry.paymentType || '';
+    document.getElementById('editStatus').value = entry.status || '';
+    document.getElementById('editModal').classList.add('active');
 }
 
 function closeModal() {
@@ -490,18 +505,30 @@ function closeModal() {
 
 function updateEntry() {
     const entry = allData.find(d => d.id === editingId);
-    if (entry) {
-        entry.customerName = document.getElementById('editCustomerName').value;
-        entry.totalPremium = parseFloat(document.getElementById('editTotalPremium').value);
-        entry.status = document.getElementById('editStatus').value;
-        localStorage.setItem('binderData', JSON.stringify(allData));
-        closeModal();
-        if (currentRole === 'agent') {
-            loadAgentData();
-        } else {
-            loadAdminDashboard();
-        }
-    }
+    if (!entry) return;
+    entry.customerName = document.getElementById('editCustomerName').value;
+    entry.source = document.getElementById('editSource').value;
+    entry.policyType = document.getElementById('editPolicyType').value;
+    entry.lineOfBusiness = document.getElementById('editLineOfBusiness').value;
+    entry.company = document.getElementById('editCompany').value;
+    entry.mga = document.getElementById('editMga').value;
+    entry.down = parseFloat(document.getElementById('editDown').value) || 0;
+    entry.agencyFee = parseFloat(document.getElementById('editAgencyFee').value) || 0;
+    entry.basePremium = parseFloat(document.getElementById('editBasePremium').value) || 0;
+    entry.totalPremium = parseFloat(document.getElementById('editTotalPremium').value) || 0;
+    entry.paymentMethod = document.getElementById('editPaymentMethod').value;
+    entry.paymentMethod2 = document.getElementById('editPaymentMethod2').value;
+    entry.policyNumber = document.getElementById('editPolicyNumber').value;
+    entry.entryDate = document.getElementById('editEntryDate').value;
+    entry.effDate = document.getElementById('editEffDate').value;
+    entry.term = document.getElementById('editTerm').value;
+    entry.agencyCommission = parseFloat(document.getElementById('editAgencyCommission').value) || 0;
+    entry.paymentType = document.getElementById('editPaymentType').value;
+    entry.status = document.getElementById('editStatus').value;
+    entry.agentCommissionShare = parseFloat(((entry.agencyFee + entry.agencyCommission) * 0.5).toFixed(2));
+    localStorage.setItem('binderData', JSON.stringify(allData));
+    closeModal();
+    if (currentRole === 'agent') loadAgentData(); else loadAdminDashboard();
 }
 
 function deleteEntry(id) {
