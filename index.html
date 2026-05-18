@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UIB Binder Book - Universal Insurance Brokers</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #001F5C 0%, #0066CC 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #001F5C 0%, #0066CC 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+
+        /* Primary Button - UIB Blue */
+        .btn-primary {
+            background: linear-gradient(135deg, #0066CC 0%, #0052B3 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 102, 204, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            border-bottom: 4px solid #001F5C;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #0073E6 0%, #005FCC 100%);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 102, 204, 0.5),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            border-bottom-width: 5px;
+        }
+
+        .btn-primary:active {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 102, 204, 0.3),
+                        inset 0 2px 4px rgba(0, 0, 0, 0.2);
+            border-bottom-width: 2px;
+        }
+
+        /* Secondary Button - Accent */
+        .btn-secondary {
+            background: linear-gradient(135deg, #FF6B9D 0%, #E84A75 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            border-bottom: 4px solid #C41B4E;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #FF7FAE 0%, #F05985 100%);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(255, 107, 157, 0.5),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            border-bottom-width: 5px;
+        }
+
+        .btn-secondary:active {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(255, 107, 157, 0.3),
+                        inset 0 2px 4px rgba(0, 0, 0, 0.2);
+            border-bottom-width: 2px;
+        }
+
+        /* Success Button - Green */
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            border-bottom: 4px solid #155724;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #34ce57 0%, #28a745 100%);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.5),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            border-bottom-width: 5px;
+        }
+
+        .btn-success:active {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 188, 212, 0.3),
+                        inset 0 2px 4px rgba(0, 0, 0, 0.2);
+            border-bottom-width: 2px;
+        }
+
+        /* Danger Button - Red */
+        .btn-danger {
+            background: linear-gradient(135deg, #FF5252 0%, #E53935 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 82, 82, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            border-bottom: 4px solid #C62828;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #FF6B6B 0%, #F44336 100%);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(255, 82, 82, 0.5),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            border-bottom-width: 5px;
+        }
+
+        .btn-danger:active {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(255, 82, 82, 0.3),
+                        inset 0 2px 4px rgba(0, 0, 0, 0.2);
+            border-bottom-width: 2px;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Login Screen */
+        .login-container {
+            max-width: 400px;
+            margin: 60px auto;
+            text-align: center;
+        }
+
+        .login-container h2 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .agent-list {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .agent-btn {
+            padding: 20px;
+            background: linear-gradient(135deg, #F0F8FF 0%, #E6F3FF 100%);
+            border: 3px solid #0066CC;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 600;
+            color: #0066CC;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .agent-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 102, 204, 0.05);
+            border-radius: 10px;
+        }
+
+        .agent-btn:hover {
+            background: linear-gradient(135deg, #0066CC 0%, #0052B3 100%);
+            color: white;
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0, 102, 204, 0.4);
+            border-color: #001F5C;
+        }
+
+        /* Agent Dashboard */
+        .form-section {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .form-section h3 {
+            color: #001F5C;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 4px solid #0066CC;
+            padding-bottom: 10px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #0066CC;
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.2);
+            background: linear-gradient(to bottom, white, #F0F8FF);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        /* Data Table */
+        .table-container {
+            overflow-x: auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        table thead {
+            background: #0066CC;
+            color: white;
+        }
+
+        table th,
+        table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        table tbody tr {
+            transition: background 0.2s ease;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        /* Reports */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #0066CC 0%, #001F5C 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0, 102, 204, 0.4),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .stat-card h4 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .chart-container h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+
+        /* Filter Controls */
+        .filter-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+
+        .user-info {
+            background: #e8eef7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info span {
+            font-weight: 600;
+            color: #0066CC;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-content h3 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .footer-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .success-message {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-10px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .password-input {
+            padding: 8px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 100%;
+            max-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏢 UIB Binder Book</h1>
+            <p>Universal Insurance Brokers - Sales & Commission Management</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Login Section -->
+            <div id="loginSection" class="section active">
+                <div class="login-container">
+                    <h2>Select Your Account</h2>
+                    <div class="agent-list" id="agentList"></div>
+                    <button class="btn-primary" onclick="showAdminLogin()">Admin Login</button>
+                </div>
+            </div>
+
+            <!-- Agent Dashboard -->
+            <div id="agentSection" class="section">
+                <div class="user-info">
+                    <span id="userDisplay"></span>
+                    <button class="btn-primary btn-sm" onclick="showAgentCommissions()">💰 My Commissions</button>
+                    <button class="btn-danger btn-sm" onclick="logout()">Logout</button>
+                </div>
+
+                <div class="success-message" id="successMessage">✓ Policy entry saved successfully!</div>
+
+                <div class="form-section">
+                    <h3>📋 Daily Sales Entry</h3>
+                    <form id="agentForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Customer Name *</label>
+                                <input type="text" id="customerName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Policy Type *</label>
+                                <select id="policyType" required>
+                                    <option value="">Select Type</option>
+                                    <option value="New">New</option>
+                                    <option value="Rewrite">Rewrite</option>
+                                    <option value="Renew A-B">Renew A-B</option>
+                                    <option value="Renewal">Renewal</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Line of Business *</label>
+                                <select id="lineOfBusiness" required>
+                                    <option value="">Select Line</option>
+                                    <option value="BOP">BOP</option>
+                                    <option value="Boat">Boat</option>
+                                    <option value="Builders Risk">Builders Risk</option>
+                                    <option value="Business Owner">Business Owner</option>
+                                    <option value="Classic Collectors">Classic Collectors</option>
+                                    <option value="Commercial Auto">Commercial Auto</option>
+                                    <option value="Commercial Property">Commercial Property</option>
+                                    <option value="Excess Liability">Excess Liability</option>
+                                    <option value="Flood">Flood</option>
+                                    <option value="Garage Keepers">Garage Keepers</option>
+                                    <option value="General Liability">General Liability</option>
+                                    <option value="Home Owners DP1">Home Owners DP1</option>
+                                    <option value="Home Owners DP2">Home Owners DP2</option>
+                                    <option value="Home Owners DP3">Home Owners DP3</option>
+                                    <option value="Home Owners H3">Home Owners H3</option>
+                                    <option value="Home Owners H4">Home Owners H4</option>
+                                    <option value="Home Owners H6">Home Owners H6</option>
+                                    <option value="Home Owners H8">Home Owners H8</option>
+                                    <option value="Inland Marine">Inland Marine</option>
+                                    <option value="Motorcycle/ATV">Motorcycle/ATV</option>
+                                    <option value="Personal Auto">Personal Auto</option>
+                                    <option value="Professional Liability">Professional Liability</option>
+                                    <option value="Surety Bond">Surety Bond</option>
+                                    <option value="Trucking">Trucking</option>
+                                    <option value="Umbrella">Umbrella</option>
+                                    <option value="Workers Comp">Workers Comp</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Insurance Company *</label>
+                                <select id="company" required>
+                                    <option value="">Select Company</option>
+                                    <option value="AIG">AIG</option>
+                                    <option value="Admiral">Admiral</option>
+                                    <option value="AmWins">AmWins</option>
+                                    <option value="American Tradition">American Tradition</option>
+                                    <option value="Ascendant">Ascendant</option>
+                                    <option value="Atunne">Atunne</option>
+                                    <option value="Avatar">Avatar</option>
+                                    <option value="Bristol West">Bristol West</option>
+                                    <option value="Brit Global">Brit Global</option>
+                                    <option value="Citizens">Citizens</option>
+                                    <option value="Edison">Edison</option>
+                                    <option value="FedNat">FedNat</option>
+                                    <option value="Florida Penninsula">Florida Penninsula</option>
+                                    <option value="Foremost Star">Foremost Star</option>
+                                    <option value="Gainsco">Gainsco</option>
+                                    <option value="Granada">Granada</option>
+                                    <option value="Grundy">Grundy</option>
+                                    <option value="Guard">Guard</option>
+                                    <option value="Hagerty">Hagerty</option>
+                                    <option value="Heritage">Heritage</option>
+                                    <option value="Hiscox">Hiscox</option>
+                                    <option value="Hudson">Hudson</option>
+                                    <option value="Imperial Flood">Imperial Flood</option>
+                                    <option value="Infinity">Infinity</option>
+                                    <option value="Johnson&Johnson">Johnson&Johnson</option>
+                                    <option value="Mercury">Mercury</option>
+                                    <option value="Monarch">Monarch</option>
+                                    <option value="Mount Vernon Fire">Mount Vernon Fire</option>
+                                    <option value="NICO">NICO</option>
+                                    <option value="National General">National General</option>
+                                    <option value="Next Insurance">Next Insurance</option>
+                                    <option value="Ocean Harbor">Ocean Harbor</option>
+                                    <option value="Peoples Trust">Peoples Trust</option>
+                                    <option value="ProPronto">ProPronto</option>
+                                    <option value="Progressive">Progressive</option>
+                                    <option value="Responssive Auto">Responssive Auto</option>
+                                    <option value="Scottdale">Scottdale</option>
+                                    <option value="Southern Oak">Southern Oak</option>
+                                    <option value="State National">State National</option>
+                                    <option value="Swifft">Swifft</option>
+                                    <option value="TYPTAP">TYPTAP</option>
+                                    <option value="The Hearth">The Hearth</option>
+                                    <option value="Tokio Marine">Tokio Marine</option>
+                                    <option value="UPC">UPC</option>
+                                    <option value="USLI">USLI</option>
+                                    <option value="United Auto">United Auto</option>
+                                    <option value="United Specialty">United Specialty</option>
+                                    <option value="Universal North">Universal North</option>
+                                    <option value="Universal P&C">Universal P&C</option>
+                                    <option value="Windhaven">Windhaven</option>
+                                    <option value="Wright Flood">Wright Flood</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>MGA / Premium Finance</label>
+                                <select id="mga">
+                                    <option value="">Select MGA (Optional)</option>
+                                    <option value="5Star">5Star</option>
+                                    <option value="ACI-Ascendant">ACI-Ascendant</option>
+                                    <option value="All Risk">All Risk</option>
+                                    <option value="Appalachian">Appalachian</option>
+                                    <option value="Bass Underwriters">Bass Underwriters</option>
+                                    <option value="FastComp">FastComp</option>
+                                    <option value="Hiscox-London">Hiscox-London</option>
+                                    <option value="Hull&Co">Hull&Co</option>
+                                    <option value="London Underwriters">London Underwriters</option>
+                                    <option value="MJ Kelly">MJ Kelly</option>
+                                    <option value="Phyladelphia">Phyladelphia</option>
+                                    <option value="SCU">SCU</option>
+                                    <option value="Security Underwriters">Security Underwriters</option>
+                                    <option value="Shelly Middle Brooks">Shelly Middle Brooks</option>
+                                    <option value="Surety One">Surety One</option>
+                                    <option value="Tapco">Tapco</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Down Payment ($)</label>
+                                <input type="number" id="down" step="0.01" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Base Premium ($) *</label>
+                                <input type="number" id="basePremium" step="0.01" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Total Premium ($) *</label>
+                                <input type="number" id="totalPremium" step="0.01" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Payment Method *</label>
+                                <select id="paymentMethod" required>
+                                    <option value="">Select Method</option>
+                                    <option value="CC-Agency">CC-Agency</option>
+                                    <option value="CC-Client">CC-Client</option>
+                                    <option value="CC-Company">CC-Company</option>
+                                    <option value="Cash">Cash</option>
+                                    <option value="Check">Check</option>
+                                    <option value="ACH to Agency">ACH to Agency</option>
+                                    <option value="Direct Billing">Direct Billing</option>
+                                    <option value="EFT">EFT</option>
+                                    <option value="Escrow">Escrow</option>
+                                    <option value="Money Order">Money Order</option>
+                                    <option value="Premium Finance">Premium Finance</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Policy Number</label>
+                                <input type="text" id="policyNumber">
+                            </div>
+                            <div class="form-group">
+                                <label>Binder Number (Auto-Generated)</label>
+                                <input type="text" id="binderNumber" readonly style="background-color: #f0f0f0; cursor: not-allowed;">
+                            </div>
+                            <div class="form-group">
+                                <label>Entry Date *</label>
+                                <input type="date" id="entryDate" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Effective Date *</label>
+                                <input type="date" id="effDate" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Term (Months) *</label>
+                                <select id="term" required>
+                                    <option value="">Select Term</option>
+                                    <option value="6">6 Months</option>
+                                    <option value="12">12 Months</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Payment Type *</label>
+                            <select id="paymentType" required>
+                                <option value="">Select Payment Type</option>
+                                <option value="Monthly Paid">📅 Monthly Paid</option>
+                                <option value="Gross Paid">🔥 Gross Paid</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-success">Save Policy Entry</button>
+                            <button type="reset" class="btn-primary">Clear Form</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div>
+                    <h3 style="color: #333; margin: 30px 0 20px 0; font-size: 1.3em;">📊 Your Submissions</h3>
+                    <div class="filter-section">
+                        <div class="filter-group">
+                            <label>Filter by Month:</label>
+                            <input type="month" id="agentFilter">
+                        </div>
+                        <button class="btn-primary btn-sm" onclick="filterAgentData()">Filter</button>
+                        <button class="btn-secondary btn-sm" onclick="resetAgentFilter()">Reset</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Policy Type</th>
+                                    <th>Line of Business</th>
+                                    <th>Company</th>
+                                    <th>Total Premium</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="agentTable">
+                                <tr><td colspan="7" class="no-data">No entries yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="footer-buttons">
+                    <button class="btn-secondary" onclick="exportAgentData()">📥 Export My Data (CSV)</button>
+                    <button class="btn-danger" onclick="logout()">Logout</button>
+                </div>
+            </div>
+
+            <!-- Admin Dashboard -->
+            <div id="adminSection" class="section">
+                <div class="user-info">
+                    <span>Admin Dashboard</span>
+                    <button class="btn-danger btn-sm" onclick="logout()">Logout</button>
+                </div>
+
+                <div class="filter-section">
+                    <div class="filter-group">
+                        <label>Filter by Agent:</label>
+                        <select id="agentFilter">
+                            <option value="">All Agents</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Filter by Month:</label>
+                        <input type="month" id="monthFilter">
+                    </div>
+                    <button class="btn-primary btn-sm" onclick="filterAdminData()">Filter</button>
+                    <button class="btn-secondary btn-sm" onclick="resetAdminFilter()">Reset</button>
+                </div>
+
+                <div class="stats-grid" id="statsGrid"></div>
+
+                <div class="chart-container">
+                    <h3>📈 Sales by Agent</h3>
+                    <div id="agentChart"></div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>📊 Sales by Line of Business</h3>
+                    <div id="businessChart"></div>
+                </div>
+
+                <div>
+                    <h3 style="color: #333; margin: 30px 0 20px 0; font-size: 1.3em;">📋 All Entries</h3>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Agent</th>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Policy Type</th>
+                                    <th>Line of Business</th>
+                                    <th>Company</th>
+                                    <th>MGA</th>
+                                    <th>Binder #</th>
+                                    <th>Total Premium</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminTable">
+                                <tr><td colspan="10" class="no-data">No data available</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="footer-buttons">
+                    <button class="btn-primary" onclick="exportAllData()">📥 Export All Data (CSV)</button>
+                    <button class="btn-success" onclick="exportToExcel()">📊 Export to Excel</button>
+                    <button class="btn-primary" onclick="showCommissionDashboard()">💰 View All Commissions</button>
+                    <button class="btn-primary" onclick="showCarrierManagement()">🏢 Manage Carriers</button>
+                    <button class="btn-primary" onclick="showAgentManagement()">👥 Manage Agents</button>
+                    <button class="btn-primary" onclick="showPasswordManagement()">🔐 Manage Agent Passwords</button>
+                    <button class="btn-danger" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Login Modal -->
+    <div id="agentLoginModal" class="modal">
+        <div class="modal-content">
+            <h3>🔐 <span id="loginAgentName"></span> Login</h3>
+            <form id="agentLoginForm">
+                <input type="hidden" id="selectedAgent">
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Password</label>
+                    <input type="password" id="agentPassword" placeholder="Enter your password" autofocus>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeAgentLoginModal()">Cancel</button>
+                    <button type="submit" class="btn-success">Login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div id="adminLoginModal" class="modal">
+        <div class="modal-content">
+            <h3>🔐 Admin Login</h3>
+            <form id="adminLoginForm">
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Password</label>
+                    <input type="password" id="adminPassword" placeholder="Enter admin password" autofocus>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeAdminLoginModal()">Cancel</button>
+                    <button type="submit" class="btn-success">Login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h3>Edit Policy Entry</h3>
+            <form id="editForm">
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Customer Name</label>
+                    <input type="text" id="editCustomerName">
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Total Premium</label>
+                    <input type="number" id="editTotalPremium" step="0.01">
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Status</label>
+                    <select id="editStatus">
+                        <option value="">Pending</option>
+                        <option value="Clean">Clean</option>
+                        <option value="Alta">Alta</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-success">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Password Management Modal -->
+    <div id="passwordManagementModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h3>🔐 Manage Agent Passwords</h3>
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table style="width: 100%; margin-bottom: 20px;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding: 10px; border-bottom: 2px solid #0066CC;">Agent Name</th>
+                            <th style="text-align: left; padding: 10px; border-bottom: 2px solid #0066CC;">Password</th>
+                            <th style="text-align: center; padding: 10px; border-bottom: 2px solid #0066CC;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="passwordTable">
+                        <tr><td colspan="3" class="no-data">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closePasswordManagementModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Commission Dashboard Modal -->
+    <div id="commissionDashboardModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 80vh; overflow-y: auto;">
+            <h3>💰 All Agent Commissions</h3>
+            <div class="filter-section">
+                <div class="filter-group">
+                    <label>Filter by Agent:</label>
+                    <select id="commissionAgentFilter">
+                        <option value="">All Agents</option>
+                    </select>
+                </div>
+                <button class="btn-primary btn-sm" onclick="filterCommissions()">Filter</button>
+                <button class="btn-secondary btn-sm" onclick="resetCommissionFilter()">Reset</button>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Total Commissions</h4>
+                    <div class="number" id="totalCommissions">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Average Commission</h4>
+                    <div class="number" id="avgCommission">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Active Agents</h4>
+                    <div class="number" id="activeCommissionAgents">0</div>
+                </div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Agent</th>
+                            <th>Type</th>
+                            <th>Carrier</th>
+                            <th>Line of Business</th>
+                            <th>Month</th>
+                            <th>Commission</th>
+                            <th>Total (Agent)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="commissionTable">
+                        <tr><td colspan="7" class="no-data">No commission data available</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeCommissionDashboard()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Commission Modal -->
+    <div id="agentCommissionModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <h3>💰 My Commission Statement</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Total YTD Commissions</h4>
+                    <div class="number" id="agentTotalCommissions">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Monthly Average</h4>
+                    <div class="number" id="agentAvgCommission">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Transactions</h4>
+                    <div class="number" id="agentCommissionCount">0</div>
+                </div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Carrier</th>
+                            <th>Line of Business</th>
+                            <th>Month</th>
+                            <th>Commission</th>
+                        </tr>
+                    </thead>
+                    <tbody id="agentCommissionTable">
+                        <tr><td colspan="4" class="no-data">No commission data available</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-primary" onclick="exportAgentCommissions()">📋 Export Statement</button>
+                <button type="button" class="btn-secondary" onclick="closeAgentCommissions()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Carrier Management Modal -->
+    <div id="carrierManagementModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 80vh; overflow-y: auto;">
+            <h3>🏢 Carrier Management</h3>
+            <div class="modal-actions" style="margin-bottom: 20px;">
+                <button type="button" class="btn-success" onclick="openAddCarrierModal()">➕ Add New Carrier</button>
+                <button type="button" class="btn-secondary" onclick="closeCarrierManagement()">Close</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Carrier Name</th>
+                            <th>Phone #1</th>
+                            <th>General Email</th>
+                            <th>Commission Rules</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="carrierListTable">
+                        <tr><td colspan="5" class="no-data">No carriers added yet</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Carrier Modal -->
+    <div id="addEditCarrierModal" class="modal">
+        <div class="modal-content" style="max-width: 700px; max-height: 80vh; overflow-y: auto;">
+            <h3>🏢 <span id="carrierFormTitle">Add New Carrier</span></h3>
+            <form id="carrierForm">
+                <!-- Carrier Basic Info Section -->
+                <h4 style="margin-top: 20px; margin-bottom: 15px;">Carrier Information</h4>
+
+                <div class="form-group">
+                    <label>Carrier Name *</label>
+                    <input type="text" id="carrierName" placeholder="e.g., AIG, State Farm" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Phone #1</label>
+                    <input type="tel" id="carrierPhone1" placeholder="(555) 123-4567">
+                </div>
+
+                <div class="form-group">
+                    <label>Phone #2</label>
+                    <input type="tel" id="carrierPhone2" placeholder="(555) 123-4567">
+                </div>
+
+                <div class="form-group">
+                    <label>Phone #3</label>
+                    <input type="tel" id="carrierPhone3" placeholder="(555) 123-4567">
+                </div>
+
+                <div class="form-group">
+                    <label>Underwriting Email</label>
+                    <input type="email" id="carrierEmailUnderwriting" placeholder="underwriting@carrier.com">
+                </div>
+
+                <div class="form-group">
+                    <label>General Email</label>
+                    <input type="email" id="carrierEmailGeneral" placeholder="info@carrier.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Miscellaneous Email</label>
+                    <input type="email" id="carrierEmailMiscellaneous" placeholder="support@carrier.com">
+                </div>
+
+                <!-- Commission Rules Section -->
+                <h4 style="margin-top: 25px; margin-bottom: 15px;">Commission Rules</h4>
+                <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">Define commission rates for different combinations of Line of Business and Payment Type</p>
+
+                <div class="table-container" style="margin-bottom: 15px;">
+                    <table style="width: 100%; border: 1px solid #ddd;">
+                        <thead>
+                            <tr style="background-color: #0066CC; color: white;">
+                                <th>Line of Business</th>
+                                <th>Payment Type</th>
+                                <th>Rate (%)</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="commissionRulesTable">
+                            <tr><td colspan="4" class="no-data" style="text-align: center;">No commission rules yet. Click "Add Rule" to add one.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <button type="button" class="btn-secondary" onclick="addCommissionRuleRow()" style="margin-bottom: 20px; padding: 8px 16px; font-size: 14px;">➕ Add Commission Rule</button>
+
+                <!-- Action Buttons -->
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeAddEditCarrierModal()">Cancel</button>
+                    <button type="submit" class="btn-success">💾 Save Carrier</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Agent Management Modal -->
+    <div id="agentManagementModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 80vh; overflow-y: auto;">
+            <h3>👥 Agent Management</h3>
+            <div class="modal-actions" style="margin-bottom: 20px;">
+                <button type="button" class="btn-success" onclick="openAddAgentModal()">➕ Add New Agent</button>
+                <button type="button" class="btn-secondary" onclick="closeAgentManagement()">Close</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Agent Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>License Types</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="agentListTable">
+                        <tr><td colspan="5" class="no-data">No agents added yet</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Agent Modal -->
+    <div id="addEditAgentModal" class="modal">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+            <h3>👥 <span id="agentFormTitle">Add New Agent</span></h3>
+            <form id="agentForm">
+                <h4 style="margin-top: 20px; margin-bottom: 15px;">Agent Information</h4>
+
+                <div class="form-group">
+                    <label>Agent Name *</label>
+                    <input type="text" id="agentName" placeholder="e.g., John Smith" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Home Address *</label>
+                    <input type="text" id="agentAddress" placeholder="123 Main St, City, State ZIP" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Date of Birth *</label>
+                    <input type="date" id="agentDOB" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="agentEmail" placeholder="john.smith@example.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number *</label>
+                    <input type="tel" id="agentPhone" placeholder="(555) 123-4567" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Insurance License Type(s) *</label>
+                    <div style="border: 1px solid #ddd; padding: 10px; border-radius: 4px; background-color: #f9f9f9;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                            <label style="display: flex; align-items: center; margin: 0;">
+                                <input type="checkbox" value="440" class="licenseCheckbox"> <span style="margin-left: 5px;">440</span>
+                            </label>
+                            <label style="display: flex; align-items: center; margin: 0;">
+                                <input type="checkbox" value="215" class="licenseCheckbox"> <span style="margin-left: 5px;">215</span>
+                            </label>
+                            <label style="display: flex; align-items: center; margin: 0;">
+                                <input type="checkbox" value="240" class="licenseCheckbox"> <span style="margin-left: 5px;">240</span>
+                            </label>
+                            <label style="display: flex; align-items: center; margin: 0;">
+                                <input type="checkbox" value="2044" class="licenseCheckbox"> <span style="margin-left: 5px;">2044</span>
+                            </label>
+                            <label style="display: flex; align-items: center; margin: 0;">
+                                <input type="checkbox" value="220" class="licenseCheckbox"> <span style="margin-left: 5px;">220</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Upload Documentation (PDF, Image, etc.)</label>
+                    <input type="file" id="agentDocumentation" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                    <small style="color: #666; display: block; margin-top: 5px;">Accepted formats: PDF, JPG, PNG, DOC, DOCX</small>
+                    <div id="docStatusMessage" style="margin-top: 10px; font-size: 0.9em;"></div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeAddEditAgentModal()">Cancel</button>
+                    <button type="submit" class="btn-success">💾 Save Agent</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
