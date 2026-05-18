@@ -877,9 +877,40 @@ function loadCommissionData() {
 }
 
 function initializeCarrierData() {
+    const defaultCarriers = [
+        "AIG", "Admiral", "AmWins", "American Tradition", "Ascendant", "Atunne", "Avatar",
+        "Bristol West", "Brit Global", "Citizens", "Edison", "FedNat", "Florida Penninsula",
+        "Foremost Star", "Gainsco", "Granada", "Grundy", "Guard", "Hagerty", "Heritage",
+        "Hiscox", "Hudson", "Imperial Flood", "Infinity", "Johnson&Johnson", "Mercury",
+        "Monarch", "Mount Vernon Fire", "NICO", "National General", "Next Insurance",
+        "Ocean Harbor", "Peoples Trust", "ProPronto", "Progressive", "Responssive Auto",
+        "Scottdale", "Southern Oak", "State National", "Swifft", "TYPTAP", "The Hearth",
+        "Tokio Marine", "UPC", "USLI", "United Auto", "United Specialty", "Universal North",
+        "Universal P&C", "Windhaven", "Wright Flood"
+    ];
+
     const stored = localStorage.getItem('carrierMasterData');
-    if (!stored) {
-        localStorage.setItem('carrierMasterData', JSON.stringify({}));
+    let carrierData = stored ? JSON.parse(stored) : {};
+
+    let updated = false;
+    defaultCarriers.forEach(name => {
+        if (!carrierData[name]) {
+            carrierData[name] = {
+                carrierName: name,
+                phoneNumbers: ["", "", ""],
+                emails: { underwriting: "", general: "", miscellaneous: "" },
+                commissionRules: []
+            };
+            updated = true;
+        }
+    });
+
+    if (!stored || updated) {
+        carrierMasterData = carrierData;
+        _origSetItem('carrierMasterData', JSON.stringify(carrierData));
+        driveSet('carrierMasterData', carrierData);
+    } else {
+        carrierMasterData = carrierData;
     }
 }
 
