@@ -166,7 +166,9 @@ function saveEntry() {
         company: document.getElementById('company').value,
         mga: document.getElementById('mga').value,
         down: parseFloat(document.getElementById('down').value) || 0,
+        agencyFee: parseFloat(document.getElementById('agencyFee').value) || 0,
         basePremium: parseFloat(document.getElementById('basePremium').value),
+        agencyCommission: parseFloat(document.getElementById('agencyCommission').value) || 0,
         totalPremium: parseFloat(document.getElementById('totalPremium').value),
         paymentType: document.getElementById('paymentType').value,
         policyNumber: document.getElementById('policyNumber').value,
@@ -514,7 +516,7 @@ function exportToCSV(entries, filename) {
         return;
     }
 
-    const headers = ['Agent', 'Date', 'Customer', 'Policy Type', 'Line of Business', 'Company', 'Down', 'Base Premium', 'Total Premium', 'Payment Type', 'Policy #', 'Binder #', 'Term', 'Status'];
+    const headers = ['Agent', 'Date', 'Customer', 'Policy Type', 'Line of Business', 'Company', 'Down', 'Agency Fee', 'Base Premium', 'Agency Commission', 'Total Premium', 'Payment Type', 'Policy #', 'Binder #', 'Term', 'Status'];
 
     const rows = entries.map(e => [
         e.agent,
@@ -524,7 +526,9 @@ function exportToCSV(entries, filename) {
         e.lineOfBusiness,
         e.company,
         e.down,
+        e.agencyFee || 0,
         e.basePremium,
+        e.agencyCommission || 0,
         e.totalPremium,
         e.paymentType,
         e.policyNumber,
