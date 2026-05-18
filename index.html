@@ -702,8 +702,16 @@
                                 <input type="number" id="down" step="0.01" min="0">
                             </div>
                             <div class="form-group">
+                                <label>Agency Fee ($)</label>
+                                <input type="number" id="agencyFee" step="0.01" min="0">
+                            </div>
+                            <div class="form-group">
                                 <label>Base Premium ($) *</label>
                                 <input type="number" id="basePremium" step="0.01" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Agency Commission ($)</label>
+                                <input type="number" id="agencyCommission" step="0.01" min="0">
                             </div>
                             <div class="form-group">
                                 <label>Total Premium ($) *</label>
@@ -750,14 +758,14 @@
                                     <option value="12">12 Months</option>
                                 </select>
                             </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Payment Type *</label>
-                            <select id="paymentType" required>
-                                <option value="">Select Payment Type</option>
-                                <option value="Monthly Paid">📅 Monthly Paid</option>
-                                <option value="Gross Paid">🔥 Gross Paid</option>
-                            </select>
+                            <div class="form-group">
+                                <label>Commission Type *</label>
+                                <select id="paymentType" required>
+                                    <option value="">Select Commission Type</option>
+                                    <option value="Monthly Paid">📅 Monthly Paid</option>
+                                    <option value="Gross Paid">🔥 Gross Paid</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="form-actions">
                             <button type="submit" class="btn-success">Save Policy Entry</button>
