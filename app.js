@@ -540,8 +540,24 @@ function saveEntry() {
     showSuccess();
     document.getElementById('agentForm').reset();
     document.getElementById('agentCommission').value = '';
+    // Hide auto-calc breakdown labels
+    const rateLabel = document.getElementById('commissionRateLabel');
+    const breakdown = document.getElementById('commissionBreakdown');
+    if (rateLabel) { rateLabel.style.display = 'none'; rateLabel.textContent = ''; }
+    if (breakdown) { breakdown.style.display = 'none'; breakdown.textContent = ''; }
+    closeDailySalesModal();
     setTodayDate();
     loadAgentData();
+}
+
+function openDailySalesModal() {
+    setTodayDate();
+    generateBinderNumber();
+    document.getElementById('dailySalesModal').classList.add('active');
+}
+
+function closeDailySalesModal() {
+    document.getElementById('dailySalesModal').classList.remove('active');
 }
 
 function showSuccess() {

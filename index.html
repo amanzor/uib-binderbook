@@ -615,14 +615,20 @@
             <div id="agentSection" class="section">
                 <div class="user-info">
                     <span id="userDisplay"></span>
+                    <button class="btn-success btn-sm" onclick="openDailySalesModal()">📋 Daily Sales Entry</button>
                     <button class="btn-primary btn-sm" onclick="showAgentCommissions()">💰 My Commissions</button>
                     <button class="btn-danger btn-sm" onclick="logout()">Logout</button>
                 </div>
 
                 <div class="success-message" id="successMessage">✓ Policy entry saved successfully!</div>
 
-                <div class="form-section">
-                    <h3>📋 Daily Sales Entry</h3>
+                <!-- Daily Sales Entry Modal -->
+                <div id="dailySalesModal" class="modal">
+                    <div class="modal-content" style="max-width: 860px; max-height: 92vh; overflow-y: auto;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                            <h3 style="margin:0;">📋 Daily Sales Entry</h3>
+                            <button type="button" class="btn-danger btn-sm" onclick="closeDailySalesModal()">✕ Close</button>
+                        </div>
                     <form id="agentForm">
                         <div class="form-grid">
                             <div class="form-group">
@@ -871,7 +877,8 @@
                             <button type="reset" class="btn-primary">Clear Form</button>
                         </div>
                     </form>
-                </div>
+                    </div><!-- end modal-content -->
+                </div><!-- end dailySalesModal -->
 
                 <div>
                     <h3 style="color: #333; margin: 30px 0 20px 0; font-size: 1.3em;">📊 Your Submissions</h3>
