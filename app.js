@@ -288,6 +288,11 @@ function initializeCredentials() {
     return credentials;
 }
 
+// Render all <i data-lucide> tags into SVGs (call after any DOM update)
+function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     // Show agents immediately — don't wait for Drive sync
@@ -308,9 +313,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById(id)?.addEventListener('input', autoCalculateCommission);
     });
 
+    // Render Lucide icons in static HTML
+    refreshIcons();
+
     // Sync from Drive in background — won't block the UI
     syncFromDrive().then(() => {
         initializeAgentButtons(); // Refresh agent buttons after sync
+        refreshIcons();
     });
 
     // Start polling Drive every 30 seconds for live updates
@@ -387,6 +396,7 @@ function initializeAgentButtons() {
     agentList.innerHTML = '';
 
     AGENTS.forEach(agent => {
+
         const btn = document.createElement('button');
         btn.className = 'agent-btn';
         btn.innerHTML = `
@@ -396,6 +406,7 @@ function initializeAgentButtons() {
         btn.onclick = () => showAgentLoginModal(agent);
         agentList.appendChild(btn);
     });
+    refreshIcons();
 }
 
 function showAgentLoginModal(agent) {
@@ -973,11 +984,12 @@ function renderAgentTable(entries) {
             <td>${entry.company}</td>
             <td>$${entry.totalPremium.toFixed(2)}</td>
             <td>
-                <button class="btn-primary btn-sm" onclick="openEditModal(${entry.id})">Edit</button>
-                <button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})">Delete</button>
+                <button class="btn-primary btn-sm" onclick="openEditModal(${entry.id})"><i data-lucide="pencil"></i> Edit</button>
+                <button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})"><i data-lucide="trash-2"></i> Delete</button>
             </td>
         </tr>
     `).join('');
+    refreshIcons();
 }
 
 function filterAgentData() {
@@ -1128,10 +1140,11 @@ function renderAdminTable(entries) {
             <td>${entry.binderNumber}</td>
             <td>$${entry.totalPremium.toFixed(2)}</td>
             <td>
-                <button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})">Delete</button>
+                <button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})"><i data-lucide="trash-2"></i> Delete</button>
             </td>
         </tr>
     `).join('');
+    refreshIcons();
 }
 
 function filterAdminData() {
@@ -1448,11 +1461,12 @@ function loadCarrierList() {
             <td>${carrier.emails && carrier.emails.general ? carrier.emails.general : '-'}</td>
             <td>${rulesCount} rule(s)</td>
             <td>
-                <button class="btn-secondary" onclick="editCarrier('${name}')" style="padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️ Edit</button>
-                <button class="btn-danger" onclick="deleteCarrier('${name}')" style="padding: 5px 10px; font-size: 12px;">🗑️ Delete</button>
+                <button class="btn-secondary" onclick="editCarrier('${name}')" style="padding: 5px 10px; font-size: 12px; margin-right: 5px;"><i data-lucide="pencil"></i> Edit</button>
+                <button class="btn-danger" onclick="deleteCarrier('${name}')" style="padding: 5px 10px; font-size: 12px;"><i data-lucide="trash-2"></i> Delete</button>
             </td>
         </tr>`;
     }).join('');
+    refreshIcons();
 }
 
 function openAddCarrierModal() {
@@ -1661,13 +1675,14 @@ function loadAgentList() {
             <td>${agentData.phone || '-'}</td>
             <td>${licenses}</td>
             <td>
-                <button class="btn-primary btn-sm" onclick="editAgent('${agentName}')">Edit</button>
-                <button class="btn-danger btn-sm" onclick="deleteAgent('${agentName}')">Delete</button>
+                <button class="btn-primary btn-sm" onclick="editAgent('${agentName}')"><i data-lucide="pencil"></i> Edit</button>
+                <button class="btn-danger btn-sm" onclick="deleteAgent('${agentName}')"><i data-lucide="trash-2"></i> Delete</button>
             </td>
         </tr>`;
     });
 
     tbody.innerHTML = tableHTML;
+    refreshIcons();
 }
 
 // Open Add Agent Modal
@@ -1938,6 +1953,7 @@ function loadCommissionDashboard() {
     });
 
     displayAllCommissions(commissions);
+    refreshIcons();
 }
 
 function displayAllCommissions(commissions) {
@@ -2045,8 +2061,8 @@ function displayAllCommissions(commissions) {
             ? `$${c.premium.toFixed(2)}×${c.rate}%=$${c.amount.toFixed(2)}`
             : `$${c.amount.toFixed(2)}`;
         const deleteBtn = c.isAgentShare
-            ? `<button class="btn-danger btn-sm" onclick="deleteAgentShareByMonth('${c.agent}','${c.month}')">Delete</button>`
-            : `<button class="btn-danger btn-sm" onclick="deleteCommissionEntry('${c.agent}','${c.type.includes('Monthly') ? 'monthlyPaidCommissionCarriers' : 'grossPaidCarriers'}','${c.carrier}','${c.month}')">Delete</button>`;
+            ? `<button class="btn-danger btn-sm" onclick="deleteAgentShareByMonth('${c.agent}','${c.month}')"><i data-lucide="trash-2"></i> Delete</button>`
+            : `<button class="btn-danger btn-sm" onclick="deleteCommissionEntry('${c.agent}','${c.type.includes('Monthly') ? 'monthlyPaidCommissionCarriers' : 'grossPaidCarriers'}','${c.carrier}','${c.month}')"><i data-lucide="trash-2"></i> Delete</button>`;
         return `<tr>
             <td><strong>${c.agent}</strong></td>
             <td>${c.type}</td>
@@ -2058,6 +2074,7 @@ function displayAllCommissions(commissions) {
             <td>${deleteBtn}</td>
         </tr>`;
     }).join('');
+    refreshIcons();
 }
 
 function deleteCommissionEntry(agent, carrierType, carrier, month) {
