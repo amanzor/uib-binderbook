@@ -100,16 +100,23 @@ let _lobSelectCounter = 0;
 function createLobMultiSelectHTML(selectedLobs = []) {
     const selected = Array.isArray(selectedLobs) ? selectedLobs : (selectedLobs ? [selectedLobs] : []);
     const id = 'lobms_' + (++_lobSelectCounter);
+    const allChecked = selected.length === ALL_LOBS.length;
     const checkboxes = ALL_LOBS.map(lob => {
         const checked = selected.includes(lob) ? 'checked' : '';
         return `<label><input type="checkbox" value="${lob}" ${checked} onchange="updateLobBtn('${id}')"> ${lob}</label>`;
     }).join('');
     const btnLabel = selected.length === 0 ? 'Select LOB(s)' :
+                     selected.length === ALL_LOBS.length ? 'All LOBs' :
                      selected.length === 1 ? selected[0] :
                      selected.length + ' selected';
     return `<div class="lob-multiselect" id="${id}">
         <button type="button" class="lob-multiselect-btn" onclick="toggleLobDropdown('${id}')">${btnLabel} ▾</button>
-        <div class="lob-dropdown">${checkboxes}</div>
+        <div class="lob-dropdown">
+            <label style="border-bottom:1px solid #ddd; font-weight:600; background:#f5f5f5;">
+                <input type="checkbox" id="${id}_all" ${allChecked ? 'checked' : ''} onchange="toggleLobSelectAll('${id}')"> Select All
+            </label>
+            ${checkboxes}
+        </div>
     </div>`;
 }
 
@@ -120,17 +127,33 @@ function toggleLobDropdown(id) {
     if (!isOpen) dropdown.classList.add('open');
 }
 
+function toggleLobSelectAll(id) {
+    const container = document.getElementById(id);
+    const selectAllCb = document.getElementById(id + '_all');
+    container.querySelectorAll('.lob-dropdown input[type=checkbox]:not(#' + id + '_all)').forEach(cb => {
+        cb.checked = selectAllCb.checked;
+    });
+    updateLobBtn(id);
+}
+
 function updateLobBtn(id) {
     const container = document.getElementById(id);
-    const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+    const allCbs = Array.from(container.querySelectorAll('.lob-dropdown input[type=checkbox]:not(#' + id + '_all)'));
+    const checked = allCbs.filter(cb => cb.checked).map(cb => cb.value);
+    // Sync the Select All checkbox state
+    const selectAllCb = document.getElementById(id + '_all');
+    if (selectAllCb) selectAllCb.checked = checked.length === ALL_LOBS.length;
     const btn = container.querySelector('.lob-multiselect-btn');
-    btn.textContent = checked.length === 0 ? 'Select LOB(s) ▾' :
-                      checked.length === 1 ? checked[0] + ' ▾' :
+    btn.textContent = checked.length === 0           ? 'Select LOB(s) ▾' :
+                      checked.length === ALL_LOBS.length ? 'All LOBs ▾' :
+                      checked.length === 1            ? checked[0] + ' ▾' :
                       checked.length + ' selected ▾';
 }
 
 function getLobSelections(rowEl) {
-    return Array.from(rowEl.querySelectorAll('.lob-multiselect input[type=checkbox]:checked')).map(cb => cb.value);
+    return Array.from(rowEl.querySelectorAll('.lob-multiselect input[type=checkbox]:checked'))
+        .filter(cb => !cb.id.endsWith('_all'))
+        .map(cb => cb.value);
 }
 
 // Close LOB dropdowns when clicking outside
