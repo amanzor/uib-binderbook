@@ -192,18 +192,16 @@
         .lob-multiselect-btn:hover { border-color: #0066CC; }
         .lob-dropdown {
             display: none;
-            position: absolute;
-            z-index: 9999;
+            position: fixed;
+            z-index: 99999;
             background: white;
             border: 1px solid #ccc;
             border-radius: 4px;
-            max-height: 220px;
+            max-height: 240px;
             overflow-y: auto;
             min-width: 220px;
-            width: max-content;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            top: 100%;
-            left: 0;
+            width: 260px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
         }
         .lob-dropdown.open { display: block; }
         .lob-dropdown label {
@@ -1410,7 +1408,7 @@
 
     <!-- Add/Edit Carrier Modal -->
     <div id="addEditCarrierModal" class="modal">
-        <div class="modal-content" style="max-width: 700px; max-height: 80vh; overflow-y: auto;">
+        <div class="modal-content" style="max-width: 860px; max-height: 90vh; overflow-y: auto;">
             <h3>🏢 <span id="carrierFormTitle">Add New Carrier</span></h3>
             <form id="carrierForm">
                 <!-- Carrier Basic Info Section -->
@@ -1455,19 +1453,26 @@
                 <h4 style="margin-top: 25px; margin-bottom: 15px;">Commission Rules</h4>
                 <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">Define commission rates for different combinations of Line of Business and Payment Type</p>
 
-                <div class="table-container" style="margin-bottom: 15px;">
-                    <table style="width: 100%; border: 1px solid #ddd;">
+                <div id="commissionRulesTableContainer" style="margin-bottom: 15px; overflow: visible; border-radius: 6px; border: 1px solid #ddd;">
+                    <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+                        <colgroup>
+                            <col style="width: 36%;">
+                            <col style="width: 26%;">
+                            <col style="width: 13%;">
+                            <col style="width: 13%;">
+                            <col style="width: 12%;">
+                        </colgroup>
                         <thead>
                             <tr style="background-color: #0066CC; color: white;">
-                                <th>Line of Business</th>
-                                <th>Payment Type</th>
-                                <th>New (%)</th>
-                                <th>Renew (%)</th>
-                                <th>Action</th>
+                                <th style="padding: 10px 8px; text-align: left;">Line of Business</th>
+                                <th style="padding: 10px 8px; text-align: left;">Payment Type</th>
+                                <th style="padding: 10px 8px; text-align: center;">New (%)</th>
+                                <th style="padding: 10px 8px; text-align: center;">Renew (%)</th>
+                                <th style="padding: 10px 8px; text-align: center;">Del</th>
                             </tr>
                         </thead>
                         <tbody id="commissionRulesTable">
-                            <tr><td colspan="5" class="no-data" style="text-align: center;">No commission rules yet. Click "Add Rule" to add one.</td></tr>
+                            <tr><td colspan="5" class="no-data" style="text-align: center; padding: 16px;">No commission rules yet. Click "Add Rule" to add one.</td></tr>
                         </tbody>
                     </table>
                 </div>

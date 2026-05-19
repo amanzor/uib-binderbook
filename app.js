@@ -121,10 +121,35 @@ function createLobMultiSelectHTML(selectedLobs = []) {
 }
 
 function toggleLobDropdown(id) {
-    const dropdown = document.querySelector('#' + id + ' .lob-dropdown');
+    const container = document.getElementById(id);
+    const btn = container.querySelector('.lob-multiselect-btn');
+    const dropdown = container.querySelector('.lob-dropdown');
     const isOpen = dropdown.classList.contains('open');
+
+    // Close all open dropdowns first
     document.querySelectorAll('.lob-dropdown.open').forEach(d => d.classList.remove('open'));
-    if (!isOpen) dropdown.classList.add('open');
+
+    if (!isOpen) {
+        // Position the fixed dropdown under the button
+        const rect = btn.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const dropH = 240;
+
+        dropdown.style.left  = rect.left + 'px';
+        dropdown.style.width = Math.max(rect.width, 220) + 'px';
+
+        if (spaceBelow >= dropH || spaceBelow >= 120) {
+            // Open downward
+            dropdown.style.top    = (rect.bottom + 2) + 'px';
+            dropdown.style.bottom = 'auto';
+        } else {
+            // Open upward
+            dropdown.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
+            dropdown.style.top    = 'auto';
+        }
+
+        dropdown.classList.add('open');
+    }
 }
 
 function toggleLobSelectAll(id) {
@@ -1110,16 +1135,16 @@ function editCarrier(carrierName) {
             const lobs = Array.isArray(rule.lineOfBusiness) ? rule.lineOfBusiness : (rule.lineOfBusiness ? [rule.lineOfBusiness] : []);
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td style="min-width:160px;">${createLobMultiSelectHTML(lobs)}</td>
-                <td>
-                    <select style="width: 100%; padding: 5px;">
+                <td style="padding:6px 4px;">${createLobMultiSelectHTML(lobs)}</td>
+                <td style="padding:6px 4px;">
+                    <select style="width: 100%; padding: 5px; font-size:13px;">
                         <option value="Monthly Paid" ${rule.paymentType === 'Monthly Paid' ? 'selected' : ''}>Monthly Paid</option>
                         <option value="Gross Paid" ${rule.paymentType === 'Gross Paid' ? 'selected' : ''}>Gross Paid</option>
                     </select>
                 </td>
-                <td><input type="number" step="0.1" value="${rule.newRate ?? rule.commissionRate ?? ''}" placeholder="New %" style="width: 80px; padding: 5px;" /></td>
-                <td><input type="number" step="0.1" value="${rule.renewRate ?? ''}" placeholder="Renew %" style="width: 80px; padding: 5px;" /></td>
-                <td><button type="button" class="btn-danger" onclick="removeCommissionRuleRow(this)" style="padding: 5px 10px; font-size: 12px;">❌</button></td>
+                <td style="padding:6px 4px; text-align:center;"><input type="number" step="0.1" value="${rule.newRate ?? rule.commissionRate ?? ''}" placeholder="0.0" style="width: 100%; padding: 5px; font-size:13px; text-align:center;" /></td>
+                <td style="padding:6px 4px; text-align:center;"><input type="number" step="0.1" value="${rule.renewRate ?? ''}" placeholder="0.0" style="width: 100%; padding: 5px; font-size:13px; text-align:center;" /></td>
+                <td style="padding:6px 4px; text-align:center;"><button type="button" class="btn-danger" onclick="removeCommissionRuleRow(this)" style="padding: 4px 8px; font-size: 12px;">❌</button></td>
             `;
             rulesTable.appendChild(row);
         });
@@ -1148,17 +1173,17 @@ function addCommissionRuleRow() {
 
     const newRow = document.createElement('tr');
     newRow.innerHTML = `
-        <td style="min-width:160px;">${createLobMultiSelectHTML([])}</td>
-        <td>
-            <select style="width: 100%; padding: 5px;">
+        <td style="padding:6px 4px;">${createLobMultiSelectHTML([])}</td>
+        <td style="padding:6px 4px;">
+            <select style="width: 100%; padding: 5px; font-size:13px;">
                 <option value="">Select Type</option>
                 <option value="Monthly Paid">Monthly Paid</option>
                 <option value="Gross Paid">Gross Paid</option>
             </select>
         </td>
-        <td><input type="number" step="0.1" placeholder="New %" style="width: 80px; padding: 5px;" /></td>
-        <td><input type="number" step="0.1" placeholder="Renew %" style="width: 80px; padding: 5px;" /></td>
-        <td><button type="button" class="btn-danger" onclick="removeCommissionRuleRow(this)" style="padding: 5px 10px; font-size: 12px;">❌</button></td>
+        <td style="padding:6px 4px; text-align:center;"><input type="number" step="0.1" placeholder="0.0" style="width: 100%; padding: 5px; font-size:13px; text-align:center;" /></td>
+        <td style="padding:6px 4px; text-align:center;"><input type="number" step="0.1" placeholder="0.0" style="width: 100%; padding: 5px; font-size:13px; text-align:center;" /></td>
+        <td style="padding:6px 4px; text-align:center;"><button type="button" class="btn-danger" onclick="removeCommissionRuleRow(this)" style="padding: 4px 8px; font-size: 12px;">❌</button></td>
     `;
 
     rulesTable.appendChild(newRow);
