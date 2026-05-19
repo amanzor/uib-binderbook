@@ -538,6 +538,7 @@
                     <div class="agent-list" id="agentList"></div>
                     <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:10px;">
                         <button class="btn-success" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
+                        <button class="btn-primary" onclick="showProspectsSection()"><i data-lucide="users"></i> View Prospects</button>
                         <button class="btn-purple" onclick="openDailyVerificationModal()"><i data-lucide="file-check"></i> Daily Verification Log</button>
                         <button class="btn-primary" onclick="showAdminLogin()"><i data-lucide="lock"></i> Admin Login</button>
                     </div>
@@ -792,6 +793,67 @@
                         </div>
                     </form>
                 </div>
+            </div>
+
+            <!-- Prospects Section -->
+            <div id="prospectsSection" class="section">
+                <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button class="btn-secondary btn-sm" onclick="showSection('loginSection')"><i data-lucide="arrow-left"></i> Back</button>
+                        <strong><i data-lucide="users"></i> All Prospects</strong>
+                    </div>
+                    <button class="btn-success btn-sm" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
+                </div>
+
+                <!-- Filters -->
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin:16px 0;">
+                    <input type="text" id="prospectSearch" placeholder="Search name, phone, email…"
+                        oninput="renderProspectsTable()"
+                        style="flex:1; min-width:180px; padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
+                    <select id="prospectFilterAgent" onchange="renderProspectsTable()"
+                        style="padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
+                        <option value="">All Agents</option>
+                        <option>Alberto Manzor</option>
+                        <option>Randy Diaz</option>
+                        <option>Amanda Montano</option>
+                        <option>Uriel Rendon</option>
+                        <option>Jorge Castro</option>
+                        <option>Lazaro Reigoza</option>
+                    </select>
+                    <select id="prospectFilterStatus" onchange="renderProspectsTable()"
+                        style="padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
+                        <option value="">All Statuses</option>
+                        <option>Open</option>
+                        <option>Contacted</option>
+                        <option>Quoted</option>
+                        <option>Closed</option>
+                        <option>Lost</option>
+                    </select>
+                </div>
+
+                <!-- Table -->
+                <div style="overflow-x:auto;">
+                    <table class="data-table" style="width:100%;">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Phone</th>
+                                <th>Email</th>
+                                <th>LOB</th>
+                                <th>Source</th>
+                                <th>Assigned Agent</th>
+                                <th>Follow-Up</th>
+                                <th>Status</th>
+                                <th>Date Added</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="prospectsTableBody">
+                            <tr><td colspan="10" style="text-align:center; color:var(--gray-400); padding:32px;">No prospects found.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p id="prospectCount" style="margin-top:10px; font-size:13px; color:var(--gray-500);"></p>
             </div>
 
             <!-- Agent Dashboard -->

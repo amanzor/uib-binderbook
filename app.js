@@ -953,6 +953,79 @@ function saveProspect(e) {
     const msg = document.getElementById('prospectSuccessMsg');
     msg.style.display = 'block';
     setTimeout(() => { msg.style.display = 'none'; }, 3000);
+
+    // Refresh list if prospects section is open
+    if (document.getElementById('prospectsSection')?.classList.contains('active')) {
+        renderProspectsTable();
+    }
+}
+
+// ── Prospects List Section ─────────────────────────────────────
+function showProspectsSection() {
+    showSection('prospectsSection');
+    renderProspectsTable();
+    refreshIcons();
+    if (window.UIBMotion) UIBMotion.animateSection(document.getElementById('prospectsSection'));
+}
+
+function renderProspectsTable() {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const search    = (document.getElementById('prospectSearch')?.value || '').toLowerCase();
+    const agentF    = document.getElementById('prospectFilterAgent')?.value || '';
+    const statusF   = document.getElementById('prospectFilterStatus')?.value || '';
+
+    const filtered = prospects.filter(p => {
+        const name = `${p.firstName} ${p.lastName}`.toLowerCase();
+        const matchSearch = !search ||
+            name.includes(search) ||
+            (p.phone || '').toLowerCase().includes(search) ||
+            (p.email || '').toLowerCase().includes(search) ||
+            (p.lob || '').toLowerCase().includes(search);
+        const matchAgent  = !agentF  || p.agent === agentF;
+        const matchStatus = !statusF || p.status === statusF;
+        return matchSearch && matchAgent && matchStatus;
+    });
+
+    // Sort newest first
+    filtered.sort((a, b) => b.id.localeCompare(a.id));
+
+    const tbody = document.getElementById('prospectsTableBody');
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--gray-400);padding:32px;">No prospects found.</td></tr>';
+        document.getElementById('prospectCount').textContent = '';
+        return;
+    }
+
+    const statusColors = {
+        'Open':      'background:#eff6ff;color:#1d4ed8;',
+        'Contacted': 'background:#fef9c3;color:#854d0e;',
+        'Quoted':    'background:#f0fdf4;color:#166534;',
+        'Closed':    'background:#d1fae5;color:#065f46;',
+        'Lost':      'background:#fef2f2;color:#991b1b;'
+    };
+
+    tbody.innerHTML = filtered.map(p => {
+        const fullName  = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+        const sStyle    = statusColors[p.status] || '';
+        const followUp  = p.followUpDate ? new Date(p.followUpDate + 'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+        return `<tr>
+            <td style="font-weight:600;">${fullName}</td>
+            <td>${p.phone || '—'}</td>
+            <td>${p.email || '—'}</td>
+            <td>${p.lob || '—'}</td>
+            <td>${p.source || '—'}</td>
+            <td>${p.agent || '—'}</td>
+            <td>${followUp}</td>
+            <td><span style="padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;${sStyle}">${p.status || 'Open'}</span></td>
+            <td style="font-size:12px;color:var(--gray-500);">${p.dateAdded || '—'}</td>
+            <td style="max-width:200px;font-size:12px;color:var(--gray-600);">${p.notes || '—'}</td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('prospectCount').textContent =
+        `Showing ${filtered.length} of ${prospects.length} prospect${prospects.length !== 1 ? 's' : ''}`;
+
+    if (window.UIBMotion) UIBMotion.animateTableRows(tbody);
 }
 
 // ── Daily Sales Entry Modal ────────────────────────────────────
