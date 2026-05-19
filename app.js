@@ -85,7 +85,36 @@ let currentRole = null;
 let allData = JSON.parse(localStorage.getItem('binderData')) || [];
 let carrierMasterData = JSON.parse(localStorage.getItem('carrierMasterData')) || {};
 
-// All Lines of Business — matches the policy entry dropdown
+// ── Eastern Time helpers ──────────────────────────────────────
+// Returns "YYYY-MM-DD" in America/New_York time
+function getEasternDateString() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+// Returns a human-readable timestamp in Eastern Time, e.g. "05/18/2026, 03:45:00 PM ET"
+function getEasternTimestamp() {
+    return new Date().toLocaleString('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: true
+    }) + ' ET';
+}
+
+// Returns "May 2026" (or whichever month) in Eastern Time
+function getEasternMonthYear() {
+    return new Date().toLocaleDateString('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric', month: 'long'
+    });
+}
+
+// Returns the 4-digit year in Eastern Time
+function getEasternYear() {
+    return parseInt(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).split('-')[0], 10);
+}
+
+// ── All Lines of Business — matches the policy entry dropdown ─
 const ALL_LOBS = [
     "BOP", "Boat", "Builders Risk", "Business Owner", "Classic Collectors",
     "Commercial Auto", "Commercial Property", "Excess Liability", "Flood",
@@ -382,7 +411,7 @@ document.getElementById('agentLoginForm')?.addEventListener('submit', (e) => {
 });
 
 function setTodayDate() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getEasternDateString();
     const entryDate = document.getElementById('entryDate');
     if (entryDate) entryDate.value = today;
 }
@@ -390,7 +419,7 @@ function setTodayDate() {
 function generateBinderNumber() {
     if (!currentUser) return;
 
-    const year = new Date().getFullYear();
+    const year = getEasternYear();
     const agentInitials = currentUser.split(' ').map(n => n[0]).join('').toUpperCase();
 
     // Count entries for this agent in this year
@@ -484,7 +513,7 @@ function saveEntry() {
         effDate: document.getElementById('effDate').value,
         term: document.getElementById('term').value,
         location: _selectedSalesLocation || '',
-        timestamp: new Date().toISOString()
+        timestamp: getEasternTimestamp()
     };
     entry.agentCommissionShare = parseFloat(((entry.agencyFee + entry.agencyCommission) * 0.5).toFixed(2));
 
@@ -574,7 +603,7 @@ function selectDealerAndOpenLog(dealerName) {
     });
 
     // Set today's date
-    const today = new Date().toISOString().split('T')[0];
+    const today = getEasternDateString();
     document.getElementById('vl_date').value = today;
 
     // Populate agent dropdown
@@ -608,7 +637,7 @@ function resetVerificationForm() {
     clearSignaturePad('vl_customerSigCanvas');
     clearSignaturePad('vl_agentSigCanvas');
     document.getElementById('vl_verifiedBy').value = '';
-    const today = new Date().toISOString().split('T')[0];
+    const today = getEasternDateString();
     document.getElementById('vl_date').value = today;
 }
 
@@ -706,7 +735,7 @@ function saveVerificationLog(e) {
         agentConfirmed: agentConfirm,
         customerSig,
         agentSig,
-        timestamp:     new Date().toISOString()
+        timestamp:     getEasternTimestamp()
     };
 
     const logs = JSON.parse(localStorage.getItem('verificationLogs')) || [];
@@ -814,7 +843,7 @@ function downloadVerificationForm(entry) {
 // ── New Prospect ──────────────────────────────────────────────
 function openNewProspectModal() {
     // Set today's date
-    const today = new Date().toISOString().split('T')[0];
+    const today = getEasternDateString();
     document.getElementById('prospectDateAdded').value = today;
 
     // Populate agent dropdown from agentMasterData
@@ -856,7 +885,7 @@ function saveProspect(e) {
     localStorage.setItem('prospectData', JSON.stringify(prospects));
 
     document.getElementById('prospectForm').reset();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getEasternDateString();
     document.getElementById('prospectDateAdded').value = today;
     const msg = document.getElementById('prospectSuccessMsg');
     msg.style.display = 'block';
@@ -1764,8 +1793,8 @@ document.getElementById('manageAgentForm')?.addEventListener('submit', (e) => {
         licenses: selectedLicenses,
         documentationPath: documentationPath,
         documentationFileName: documentationFileName,
-        createdAt: isEditing ? (agents[isEditing]?.createdAt || new Date().toISOString()) : new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: isEditing ? (agents[isEditing]?.createdAt || getEasternTimestamp()) : getEasternTimestamp(),
+        updatedAt: getEasternTimestamp()
     };
 
     // If editing, remove old entry and use new name
@@ -1815,10 +1844,7 @@ function calculateCommission(premium, rate) {
 }
 
 function getMonthYear() {
-    const now = new Date();
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'];
-    return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+    return getEasternMonthYear();
 }
 
 function recalculateAllCommissions() {
@@ -2185,7 +2211,7 @@ function exportAgentCommissions() {
 
     let csvLines = [
         `Commission Statement - ${agent}`,
-        `Generated: ${new Date().toLocaleDateString()}`,
+        `Generated: ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })} ET`,
         ''
     ];
 
@@ -2239,6 +2265,6 @@ function exportAgentCommissions() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${agent}_commissions_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `${agent}_commissions_${getEasternDateString()}.csv`;
     a.click();
 }
