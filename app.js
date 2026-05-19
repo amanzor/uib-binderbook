@@ -85,6 +85,61 @@ let currentRole = null;
 let allData = JSON.parse(localStorage.getItem('binderData')) || [];
 let carrierMasterData = JSON.parse(localStorage.getItem('carrierMasterData')) || {};
 
+// All Lines of Business — matches the policy entry dropdown
+const ALL_LOBS = [
+    "BOP", "Boat", "Builders Risk", "Business Owner", "Classic Collectors",
+    "Commercial Auto", "Commercial Property", "Excess Liability", "Flood",
+    "Garage Keepers", "General Liability", "Home Owners DP1", "Home Owners DP2",
+    "Home Owners DP3", "Home Owners H3", "Home Owners H4", "Home Owners H6",
+    "Home Owners H8", "Inland Marine", "Motorcycle/ATV", "Personal Auto",
+    "Professional Liability", "Surety Bond", "Trucking", "Umbrella", "Workers Comp"
+];
+
+let _lobSelectCounter = 0;
+
+function createLobMultiSelectHTML(selectedLobs = []) {
+    const selected = Array.isArray(selectedLobs) ? selectedLobs : (selectedLobs ? [selectedLobs] : []);
+    const id = 'lobms_' + (++_lobSelectCounter);
+    const checkboxes = ALL_LOBS.map(lob => {
+        const checked = selected.includes(lob) ? 'checked' : '';
+        return `<label><input type="checkbox" value="${lob}" ${checked} onchange="updateLobBtn('${id}')"> ${lob}</label>`;
+    }).join('');
+    const btnLabel = selected.length === 0 ? 'Select LOB(s)' :
+                     selected.length === 1 ? selected[0] :
+                     selected.length + ' selected';
+    return `<div class="lob-multiselect" id="${id}">
+        <button type="button" class="lob-multiselect-btn" onclick="toggleLobDropdown('${id}')">${btnLabel} ▾</button>
+        <div class="lob-dropdown">${checkboxes}</div>
+    </div>`;
+}
+
+function toggleLobDropdown(id) {
+    const dropdown = document.querySelector('#' + id + ' .lob-dropdown');
+    const isOpen = dropdown.classList.contains('open');
+    document.querySelectorAll('.lob-dropdown.open').forEach(d => d.classList.remove('open'));
+    if (!isOpen) dropdown.classList.add('open');
+}
+
+function updateLobBtn(id) {
+    const container = document.getElementById(id);
+    const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+    const btn = container.querySelector('.lob-multiselect-btn');
+    btn.textContent = checked.length === 0 ? 'Select LOB(s) ▾' :
+                      checked.length === 1 ? checked[0] + ' ▾' :
+                      checked.length + ' selected ▾';
+}
+
+function getLobSelections(rowEl) {
+    return Array.from(rowEl.querySelectorAll('.lob-multiselect input[type=checkbox]:checked')).map(cb => cb.value);
+}
+
+// Close LOB dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.lob-multiselect')) {
+        document.querySelectorAll('.lob-dropdown.open').forEach(d => d.classList.remove('open'));
+    }
+});
+
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdgftX1s0VD0UqEpt0oKASpEeob_B4J6nwkYpVmNPn54kxYT910ly7NI9ab5RRW1o-tQ/exec';
 
 const SHEET_HEADERS = [
@@ -1027,26 +1082,24 @@ function editCarrier(carrierName) {
     // Load commission rules
     const rulesTable = document.getElementById('commissionRulesTable');
     if (carrier.commissionRules && carrier.commissionRules.length > 0) {
-        rulesTable.innerHTML = carrier.commissionRules.map((rule, index) => `
-            <tr>
-                <td>
-                    <select style="width: 100%; padding: 5px;">
-                        <option value="Commercial" ${rule.lineOfBusiness === 'Commercial' ? 'selected' : ''}>Commercial</option>
-                        <option value="Personal" ${rule.lineOfBusiness === 'Personal' ? 'selected' : ''}>Personal</option>
-                        <option value="Surety" ${rule.lineOfBusiness === 'Surety' ? 'selected' : ''}>Surety</option>
-                    </select>
-                </td>
+        rulesTable.innerHTML = '';
+        carrier.commissionRules.forEach((rule) => {
+            const lobs = Array.isArray(rule.lineOfBusiness) ? rule.lineOfBusiness : (rule.lineOfBusiness ? [rule.lineOfBusiness] : []);
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td style="min-width:160px;">${createLobMultiSelectHTML(lobs)}</td>
                 <td>
                     <select style="width: 100%; padding: 5px;">
                         <option value="Monthly Paid" ${rule.paymentType === 'Monthly Paid' ? 'selected' : ''}>Monthly Paid</option>
                         <option value="Gross Paid" ${rule.paymentType === 'Gross Paid' ? 'selected' : ''}>Gross Paid</option>
                     </select>
                 </td>
-                <td><input type="number" step="0.1" value="${rule.newRate ?? rule.commissionRate ?? ''}" placeholder="New %" style="width: 100%; padding: 5px;" /></td>
-                <td><input type="number" step="0.1" value="${rule.renewRate ?? ''}" placeholder="Renew %" style="width: 100%; padding: 5px;" /></td>
+                <td><input type="number" step="0.1" value="${rule.newRate ?? rule.commissionRate ?? ''}" placeholder="New %" style="width: 80px; padding: 5px;" /></td>
+                <td><input type="number" step="0.1" value="${rule.renewRate ?? ''}" placeholder="Renew %" style="width: 80px; padding: 5px;" /></td>
                 <td><button type="button" class="btn-danger" onclick="removeCommissionRuleRow(this)" style="padding: 5px 10px; font-size: 12px;">❌</button></td>
-            </tr>
-        `).join('');
+            `;
+            rulesTable.appendChild(row);
+        });
     } else {
         rulesTable.innerHTML = '<tr><td colspan="5" class="no-data" style="text-align: center;">No commission rules yet. Click "Add Rule" to add one.</td></tr>';
     }
@@ -1068,17 +1121,11 @@ function deleteCarrier(carrierName) {
 function addCommissionRuleRow() {
     const rulesTable = document.getElementById('commissionRulesTable');
     const isEmpty = rulesTable.querySelector('td[colspan]');
+    if (isEmpty) rulesTable.innerHTML = '';
 
     const newRow = document.createElement('tr');
     newRow.innerHTML = `
-        <td>
-            <select style="width: 100%; padding: 5px;">
-                <option value="">Select LOB</option>
-                <option value="Commercial">Commercial</option>
-                <option value="Personal">Personal</option>
-                <option value="Surety">Surety</option>
-            </select>
-        </td>
+        <td style="min-width:160px;">${createLobMultiSelectHTML([])}</td>
         <td>
             <select style="width: 100%; padding: 5px;">
                 <option value="">Select Type</option>
@@ -1086,14 +1133,10 @@ function addCommissionRuleRow() {
                 <option value="Gross Paid">Gross Paid</option>
             </select>
         </td>
-        <td><input type="number" step="0.1" placeholder="New %" style="width: 100%; padding: 5px;" /></td>
-        <td><input type="number" step="0.1" placeholder="Renew %" style="width: 100%; padding: 5px;" /></td>
+        <td><input type="number" step="0.1" placeholder="New %" style="width: 80px; padding: 5px;" /></td>
+        <td><input type="number" step="0.1" placeholder="Renew %" style="width: 80px; padding: 5px;" /></td>
         <td><button type="button" class="btn-danger" onclick="removeCommissionRuleRow(this)" style="padding: 5px 10px; font-size: 12px;">❌</button></td>
     `;
-
-    if (isEmpty) {
-        rulesTable.innerHTML = '';
-    }
 
     rulesTable.appendChild(newRow);
 }
@@ -1124,14 +1167,14 @@ document.getElementById('carrierForm')?.addEventListener('submit', (e) => {
     rulesTable.querySelectorAll('tr').forEach(row => {
         const cells = row.querySelectorAll('td');
         if (cells.length < 5) return; // skip empty-state row
-        const lob         = cells[0].querySelector('select')?.value;
+        const lobs        = getLobSelections(row);
         const paymentType = cells[1].querySelector('select')?.value;
         const newRate     = parseFloat(cells[2].querySelector('input')?.value);
         const renewRate   = parseFloat(cells[3].querySelector('input')?.value);
 
-        if (lob && paymentType && (!isNaN(newRate) || !isNaN(renewRate))) {
+        if (lobs.length > 0 && paymentType && (!isNaN(newRate) || !isNaN(renewRate))) {
             rules.push({
-                lineOfBusiness: lob,
+                lineOfBusiness: lobs,
                 paymentType:    paymentType,
                 newRate:        isNaN(newRate)   ? null : newRate,
                 renewRate:      isNaN(renewRate) ? null : renewRate
@@ -1358,9 +1401,10 @@ function getCommissionRate(carrierName, lob, paymentType, policyType) {
         return 0;
     }
 
-    const rule = carrier.commissionRules.find(r =>
-        r.lineOfBusiness === lob && r.paymentType === paymentType
-    );
+    const rule = carrier.commissionRules.find(r => {
+        const rLobs = Array.isArray(r.lineOfBusiness) ? r.lineOfBusiness : [r.lineOfBusiness];
+        return rLobs.includes(lob) && r.paymentType === paymentType;
+    });
 
     if (!rule) return 0;
 
