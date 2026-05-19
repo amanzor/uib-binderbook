@@ -1322,57 +1322,14 @@ function clearAllEntries() {
 }
 
 // Commission Data Management
-let commissionData = {
-    "Alberto Manzor": {
-        "monthlyPaidCommissionCarriers": {
-            "AIG": { "May 2024": { "amount": 450.00, "lob": "Commercial" }, "Jun 2024": { "amount": 480.00, "lob": "Commercial" } },
-            "Travelers": { "May 2024": { "amount": 380.00, "lob": "Personal" }, "Jun 2024": { "amount": 420.00, "lob": "Personal" } }
-        },
-        "grossPaidCarriers": {
-            "State Farm": { "May 2024": { "amount": 320.00, "lob": "Personal" }, "Jun 2024": { "amount": 350.00, "lob": "Personal" } },
-            "Allstate": { "May 2024": { "amount": 290.00, "lob": "Commercial" }, "Jun 2024": { "amount": 310.00, "lob": "Commercial" } }
-        }
-    },
-    "Randy Diaz": {
-        "monthlyPaidCommissionCarriers": {
-            "AIG": { "May 2024": { "amount": 520.00, "lob": "Surety" }, "Jun 2024": { "amount": 550.00, "lob": "Surety" } },
-            "Liberty Mutual": { "May 2024": { "amount": 410.00, "lob": "Commercial" }, "Jun 2024": { "amount": 440.00, "lob": "Commercial" } }
-        },
-        "grossPaidCarriers": {
-            "State Farm": { "May 2024": { "amount": 380.00, "lob": "Personal" }, "Jun 2024": { "amount": 410.00, "lob": "Personal" } }
-        }
-    },
-    "Amanda Montano": {
-        "monthlyPaidCommissionCarriers": {},
-        "grossPaidCarriers": {}
-    },
-    "Uriel Rendon": {
-        "monthlyPaidCommissionCarriers": {
-            "Travelers": { "May 2024": { "amount": 340.00, "lob": "Commercial" }, "Jun 2024": { "amount": 360.00, "lob": "Commercial" } }
-        },
-        "grossPaidCarriers": {
-            "Allstate": { "May 2024": { "amount": 260.00, "lob": "Personal" }, "Jun 2024": { "amount": 280.00, "lob": "Personal" } }
-        }
-    },
-    "Jorge Castro": {
-        "monthlyPaidCommissionCarriers": {
-            "AIG": { "May 2024": { "amount": 580.00, "lob": "Surety" }, "Jun 2024": { "amount": 620.00, "lob": "Surety" } },
-            "Travelers": { "May 2024": { "amount": 490.00, "lob": "Commercial" }, "Jun 2024": { "amount": 530.00, "lob": "Commercial" } },
-            "Liberty Mutual": { "May 2024": { "amount": 420.00, "lob": "Personal" }, "Jun 2024": { "amount": 460.00, "lob": "Personal" } }
-        },
-        "grossPaidCarriers": {
-            "State Farm": { "May 2024": { "amount": 450.00, "lob": "Personal" }, "Jun 2024": { "amount": 480.00, "lob": "Personal" } },
-            "Allstate": { "May 2024": { "amount": 380.00, "lob": "Commercial" }, "Jun 2024": { "amount": 410.00, "lob": "Commercial" } }
-        }
-    },
-    "Lazaro Reigoza": {
-        "monthlyPaidCommissionCarriers": {},
-        "grossPaidCarriers": {}
-    }
-};
+let commissionData = {};
 
 function initializeCommissionData() {
-    localStorage.setItem('commissionData', JSON.stringify(commissionData));
+    // Only seed if nothing is stored yet — never overwrite real data
+    if (!localStorage.getItem('commissionData')) {
+        _origSetItem('commissionData', JSON.stringify({}));
+    }
+    commissionData = JSON.parse(localStorage.getItem('commissionData')) || {};
 }
 
 function loadCommissionData() {
@@ -1953,8 +1910,11 @@ function clearAllCommissions() {
             localStorage.setItem('commissionData', JSON.stringify({}));
             allData = allData.map(e => ({ ...e, agentCommissionShare: 0 }));
             localStorage.setItem('binderData', JSON.stringify(allData));
+            // Also wipe Google Drive so old data doesn't sync back
+            driveSet('commissionData', {});
+            driveSet('binderData', allData);
             loadCommissionDashboard();
-            alert('All commission entries have been cleared.');
+            alert('✅ All commission entries have been cleared.');
         }
     }
 }
