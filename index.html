@@ -1477,25 +1477,29 @@
                         </label>
                     </div>
 
-                    <!-- Entry table -->
-                    <div style="overflow-y:auto;flex:1;border:1px solid var(--gray-200);border-radius:var(--radius-sm);">
-                        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <!-- Entry table — columns match April 26 Excel tab -->
+                    <div style="overflow-x:auto;overflow-y:auto;flex:1;border:1px solid var(--gray-200);border-radius:var(--radius-sm);">
+                        <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap;">
                             <thead style="position:sticky;top:0;background:#fff;z-index:1;">
-                                <tr style="border-bottom:2px solid var(--gray-200);">
-                                    <th style="padding:9px 10px;width:36px;"></th>
-                                    <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Date</th>
-                                    <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Agent</th>
-                                    <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Customer</th>
-                                    <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Carrier</th>
-                                    <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">LOB</th>
-                                    <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Type</th>
-                                    <th style="padding:9px 10px;text-align:right;font-weight:600;color:var(--gray-600);">Premium</th>
-                                    <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Policy #</th>
-                                    <th style="padding:9px 10px;text-align:right;font-weight:600;color:var(--gray-600);">Est. Commission</th>
+                                <tr style="border-bottom:2px solid var(--gray-200);background:var(--gray-50);">
+                                    <th style="padding:8px 10px;width:34px;"></th>
+                                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Client Name</th>
+                                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Status</th>
+                                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Transaction</th>
+                                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--gray-600);">LOB</th>
+                                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Carrier</th>
+                                    <th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--gray-600);">Down Pmt</th>
+                                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Pmt Type</th>
+                                    <th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--gray-600);">Base Prem</th>
+                                    <th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--gray-600);">Written Prem</th>
+                                    <th style="padding:8px 10px;text-align:center;font-weight:600;color:var(--gray-600);">Term</th>
+                                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Policy #</th>
+                                    <th style="padding:8px 10px;text-align:center;font-weight:600;color:var(--gray-600);">Rate</th>
+                                    <th style="padding:8px 10px;text-align:right;font-weight:600;color:var(--gray-600);">Commission</th>
                                 </tr>
                             </thead>
                             <tbody id="uicPickerTableBody">
-                                <tr><td colspan="10" style="text-align:center;padding:32px;color:var(--gray-400);">No entries found.</td></tr>
+                                <tr><td colspan="14" style="text-align:center;padding:32px;color:var(--gray-400);">No entries found.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -2369,7 +2373,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260521k"></script>
-    <script src="app.js?v=20260521k"></script>
+    <script src="motion.js?v=20260521l"></script>
+    <script src="app.js?v=20260521l"></script>
 </body>
 </html>

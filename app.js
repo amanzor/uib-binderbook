@@ -2815,35 +2815,67 @@ function _renderUICPickerTable() {
     if (!tbody) return;
 
     if (!_uicPickerEntries.length) {
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--gray-400);">No entries match your search.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--gray-400);">No entries match your search.</td></tr>';
         document.getElementById('uicPickerSelCount').textContent = '0 entries selected';
         return;
     }
 
+    // Transaction label: match April 26 tab values
+    const txnLabel = pt => {
+        if (!pt) return '-';
+        const p = pt.toLowerCase();
+        if (p.includes('renew')) return 'Renewal';
+        if (p.includes('rewrite')) return 'Rewrite';
+        if (p.includes('end'))   return 'End';
+        if (p.includes('canc'))  return 'Canc';
+        return 'New';
+    };
+
+    // Status label: Active / Renewed / —
+    const statusLabel = pt => {
+        if (!pt) return '-';
+        const p = pt.toLowerCase();
+        if (p.includes('renew')) return 'Renewed';
+        if (p.includes('end') || p.includes('canc')) return '-';
+        return 'Active';
+    };
+
     tbody.innerHTML = _uicPickerEntries.map((e, idx) => {
-        const premium = parseFloat(e.basePremium) || 0;
-        const rate    = getCommissionRate(e.company, e.lineOfBusiness, e.paymentType || 'Monthly Paid', e.policyType || 'New');
-        const estComm = rate > 0 ? calculateCommission(premium, rate) : null;
-        const commCell = estComm != null
-            ? `<span style="color:#059669;font-weight:700;">$${estComm.toFixed(2)}</span><span style="font-size:11px;color:var(--gray-400);display:block;">${rate}% of $${premium.toLocaleString()}</span>`
-            : `<span style="color:var(--gray-400);font-size:12px;">No rule</span>`;
-        const date = e.entryDate || '';
-        const bg   = idx % 2 === 0 ? '' : 'background:#f9fafb;';
-        return `<tr style="${bg}border-bottom:1px solid var(--gray-100);" data-idx="${idx}">
-            <td style="padding:8px 10px;text-align:center;">
+        const basePrem    = parseFloat(e.basePremium)   || 0;
+        const writtenPrem = parseFloat(e.totalPremium)  || basePrem;
+        const downPmt     = parseFloat(e.down)          || 0;
+        const rate        = getCommissionRate(e.company, e.lineOfBusiness, e.paymentType || 'Monthly Paid', e.policyType || 'New');
+        const commission  = rate > 0 ? calculateCommission(basePrem, rate) : null;
+
+        const commCell = commission != null
+            ? `<span style="color:#059669;font-weight:700;">$${commission.toFixed(2)}</span>`
+            : `<span style="color:var(--gray-400);">—</span>`;
+        const rateCell = rate > 0
+            ? `${rate}%`
+            : `<span style="color:var(--gray-400);">—</span>`;
+
+        const fmt = n => n > 0 ? '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+        const bg  = idx % 2 === 0 ? '' : 'background:#f9fafb;';
+
+        return `<tr style="${bg}border-bottom:1px solid var(--gray-100);">
+            <td style="padding:7px 10px;text-align:center;">
                 <input type="checkbox" class="uic-pick-cb" data-idx="${idx}"
                     onchange="_uicUpdateSelCount()"
                     style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer;">
             </td>
-            <td style="padding:8px 10px;white-space:nowrap;">${date}</td>
-            <td style="padding:8px 10px;">${e.agent || '-'}</td>
-            <td style="padding:8px 10px;font-weight:500;">${e.customerName || '-'}</td>
-            <td style="padding:8px 10px;">${e.company || '-'}</td>
-            <td style="padding:8px 10px;font-size:12px;color:var(--gray-500);">${e.lineOfBusiness || '-'}</td>
-            <td style="padding:8px 10px;font-size:12px;">${e.policyType || '-'}</td>
-            <td style="padding:8px 10px;text-align:right;">$${premium.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-            <td style="padding:8px 10px;font-size:12px;color:var(--gray-500);">${e.policyNumber || '-'}</td>
-            <td style="padding:8px 10px;text-align:right;">${commCell}</td>
+            <td style="padding:7px 10px;font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;">${e.customerName || '-'}</td>
+            <td style="padding:7px 10px;color:var(--gray-500);">${statusLabel(e.policyType)}</td>
+            <td style="padding:7px 10px;">${txnLabel(e.policyType)}</td>
+            <td style="padding:7px 10px;color:var(--gray-500);">${e.lineOfBusiness || '-'}</td>
+            <td style="padding:7px 10px;">${e.company || '-'}</td>
+            <td style="padding:7px 10px;text-align:right;">${downPmt > 0 ? fmt(downPmt) : '—'}</td>
+            <td style="padding:7px 10px;">${e.paymentType || '-'}</td>
+            <td style="padding:7px 10px;text-align:right;">${fmt(basePrem)}</td>
+            <td style="padding:7px 10px;text-align:right;">${fmt(writtenPrem)}</td>
+            <td style="padding:7px 10px;text-align:center;">${e.term || '—'}</td>
+            <td style="padding:7px 10px;color:var(--gray-500);">${e.policyNumber || '-'}</td>
+            <td style="padding:7px 10px;text-align:center;">${rateCell}</td>
+            <td style="padding:7px 10px;text-align:right;">${commCell}</td>
         </tr>`;
     }).join('');
 
