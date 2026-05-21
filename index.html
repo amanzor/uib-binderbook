@@ -197,7 +197,10 @@
         .lob-dropdown label input[type=checkbox] { margin:0; cursor:pointer; accent-color:var(--blue); }
 
         /* ── Layout ──────────────────────────────────────────────── */
-        .main-content { padding: 36px 48px; }
+        .main-content {
+            padding: 36px 48px;
+            min-height: calc(100vh - 120px); /* fill below header */
+        }
 
         .section { display:none; }
         .section.active { display:block; animation:fadeIn .25s ease; }
