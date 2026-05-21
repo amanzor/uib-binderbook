@@ -318,18 +318,26 @@ function closeAgentEmailLogin() {
 
 function submitAgentEmailLogin(e) {
     e.preventDefault();
-    const email    = document.getElementById('agentLoginEmail').value.trim().toLowerCase();
+    const input    = document.getElementById('agentLoginEmail').value.trim().toLowerCase();
     const password = document.getElementById('agentLoginPassword').value;
     const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
     const errEl = document.getElementById('agentLoginError');
 
-    // Find agent whose email matches
-    const match = Object.entries(credentials).find(([name, cred]) =>
-        cred.email && cred.email.toLowerCase() === email && cred.password === password
-    );
+    // Match by email (if set) OR by agent name (case-insensitive)
+    const match = Object.entries(credentials).find(([name, cred]) => {
+        const emailMatch = cred.email && cred.email.toLowerCase() === input;
+        const nameMatch  = name.toLowerCase() === input;
+        return (emailMatch || nameMatch) && cred.password === password;
+    });
 
     if (!match) {
-        errEl.textContent = 'Invalid email or password. Please try again.';
+        // Give a helpful message if no credentials are configured at all
+        const hasAnyEmail = Object.values(credentials).some(c => c.email);
+        if (!hasAnyEmail) {
+            errEl.textContent = 'No credentials set up yet. Enter your agent name (e.g. "alberto manzor") and default password (e.g. "alberto").';
+        } else {
+            errEl.textContent = 'Invalid username or password. Try your email or full name.';
+        }
         errEl.style.display = 'block';
         return;
     }
