@@ -198,12 +198,21 @@
 
         /* ── Layout ──────────────────────────────────────────────── */
         .main-content {
-            padding: 36px 48px;
-            min-height: calc(100vh - 120px); /* fill below header */
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 120px);
+            padding: 0;
         }
 
         .section { display:none; }
-        .section.active { display:block; animation:fadeIn .25s ease; }
+        .section.active {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: calc(100vh - 120px);
+            padding: 36px 48px;
+            animation: fadeIn .25s ease;
+        }
         @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
 
         /* ── Login Screen ────────────────────────────────────────── */
