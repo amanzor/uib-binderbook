@@ -43,21 +43,21 @@
 
         body {
             font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-            background: linear-gradient(140deg, #0d1f3c 0%, #1a3362 45%, #1d4ed8 100%);
+            background: var(--white);
             min-height: 100vh;
-            padding: 12px 8px;
+            padding: 0;
             -webkit-font-smoothing: antialiased;
         }
 
         /* ── App Shell ──────────────────────────────────────────── */
         .container {
-            max-width: 1600px;
+            max-width: 100%;
             width: 100%;
-            margin: 0 auto;
+            margin: 0;
             background: var(--white);
-            border-radius: var(--radius-xl);
-            box-shadow: var(--shadow-xl);
-            min-height: calc(100vh - 24px);
+            border-radius: 0;
+            box-shadow: none;
+            min-height: 100vh;
             overflow: visible;
         }
 
@@ -69,7 +69,7 @@
             text-align: center;
             position: relative;
             overflow: hidden;
-            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+            border-radius: 0;
         }
         header::before {
             content: '';
