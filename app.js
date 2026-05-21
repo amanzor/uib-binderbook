@@ -348,7 +348,7 @@ function submitAgentEmailLogin(e) {
     // Save or clear remembered username
     const remember = document.getElementById('rememberAgentEmail')?.checked;
     if (remember) {
-        localStorage.setItem('rememberedAgentEmail', email);
+        localStorage.setItem('rememberedAgentEmail', input);
     } else {
         localStorage.removeItem('rememberedAgentEmail');
     }
