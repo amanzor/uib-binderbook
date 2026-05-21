@@ -999,12 +999,13 @@
 
             <!-- Agent Dashboard -->
             <div id="agentSection" class="section">
-                <div class="user-info">
+                <div class="user-info" style="justify-content:space-between;">
                     <span id="userDisplay"></span>
-                    <button class="btn-success btn-sm" onclick="openDailySalesModal()"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
-                    <button class="btn-success btn-sm" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
-                    <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
-                    <button class="btn-danger btn-sm" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
+                    <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
+                        <button class="btn-success btn-sm" onclick="openDailySalesModal()"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
+                        <button class="btn-success btn-sm" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
+                        <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
+                    </div>
                 </div>
 
                 <div class="success-message" id="successMessage"><i data-lucide="check-circle"></i> Policy entry saved successfully!</div>
