@@ -550,7 +550,14 @@
                     <h2><i data-lucide="book-open"></i> UIB Binder Book</h2>
                     <p class="login-subtitle">Select your account to continue</p>
 
-                    <p style="font-size:12px;color:var(--gray-400);margin-bottom:10px;">— select your profile below —</p>
+                    <!-- Agent Login -->
+                    <div style="margin-bottom:18px;">
+                        <button class="btn-primary" style="width:100%;max-width:320px;padding:13px 20px;font-size:15px;border-radius:var(--radius-md);" onclick="openAgentEmailLogin()">
+                            <i data-lucide="log-in"></i> Agent Login
+                        </button>
+                    </div>
+
+                    <p style="font-size:12px;color:var(--gray-400);margin-bottom:10px;">— or select your profile below —</p>
                     <div class="agent-list" id="agentList"></div>
                     <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px; max-width:720px; margin-left:auto; margin-right:auto; align-items:stretch;">
                         <button class="btn-success login-action-btn" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
