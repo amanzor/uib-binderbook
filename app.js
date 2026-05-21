@@ -648,13 +648,20 @@ function initializeAgentButtons() {
 }
 
 function showAgentLoginModal(agent) {
-    const modal = document.getElementById('agentLoginModal');
-    document.getElementById('loginAgentName').textContent = agent;
-    document.getElementById('agentPassword').value = '';
-    document.getElementById('selectedAgent').value = agent;
-    modal.classList.add('active');
-    if (window.UIBMotion) UIBMotion.animateModalOpen(modal);
-    document.getElementById('agentPassword').focus();
+    // Pre-fill the unified Agent Login modal with the agent's name
+    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
+    const cred = credentials[agent] || {};
+
+    // Use email if set, otherwise use agent name as username
+    const username = cred.email || agent.toLowerCase();
+    document.getElementById('agentLoginEmail').value = username;
+    document.getElementById('agentLoginPassword').value = '';
+    document.getElementById('agentLoginError').style.display = 'none';
+
+    const m = document.getElementById('agentEmailLoginModal');
+    m.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    setTimeout(() => document.getElementById('agentLoginPassword').focus(), 120);
 }
 
 function closeAgentLoginModal() {
