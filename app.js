@@ -872,13 +872,23 @@ function saveEntry() {
             commData[agent][carrierType][carrier] = {};
         }
 
-        // Store commission with breakdown
-        commData[agent][carrierType][carrier][month] = {
-            amount: commission,
-            lob: lob,
-            rate: rate,
-            premium: premium
-        };
+        // Accumulate into same carrier/month bucket (multiple policies → sum)
+        const existing = commData[agent][carrierType][carrier][month];
+        if (existing) {
+            existing.amount   = parseFloat((existing.amount + commission).toFixed(2));
+            existing.premium  = parseFloat((existing.premium + premium).toFixed(2));
+            // Merge LOB label if different
+            if (existing.lob && existing.lob !== lob && !existing.lob.includes(lob)) {
+                existing.lob = existing.lob + ', ' + lob;
+            }
+        } else {
+            commData[agent][carrierType][carrier][month] = {
+                amount:  commission,
+                lob:     lob,
+                rate:    rate,
+                premium: premium
+            };
+        }
 
         // Save updated commission data
         localStorage.setItem('commissionData', JSON.stringify(commData));
@@ -2303,61 +2313,57 @@ function getMonthYear() {
 
 function recalculateAllCommissions() {
     const allPolicies = JSON.parse(localStorage.getItem('binderData')) || [];
-    const carriers = JSON.parse(localStorage.getItem('carrierMasterData')) || {};
 
-    // Initialize empty commission data
+    // Rebuild from scratch — start with an empty slate
     let newCommissionData = {};
 
-    // Iterate through all policies
     allPolicies.forEach(policy => {
-        const agent = policy.agent;
-        const carrier = policy.company;
-        const lob = policy.lineOfBusiness;
-        const premium = parseFloat(policy.totalPremium) || 0;
+        const agent       = policy.agent;
+        const carrier     = policy.company;
+        const lob         = policy.lineOfBusiness;
+        // Use basePremium (same field as savePolicyEntry) — fall back to totalPremium for legacy records
+        const premium     = parseFloat(policy.basePremium || policy.totalPremium) || 0;
         const paymentType = policy.paymentType || 'Monthly Paid';
         const policyType  = policy.policyType  || 'New';
-        const month = policy.entryDate ? new Date(policy.entryDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : getMonthYear();
+        const month       = policy.entryDate
+            ? new Date(policy.entryDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+            : getMonthYear();
 
-        // Get commission rate
+        if (!agent || !carrier || !lob || premium <= 0) return;
+
         const rate = getCommissionRate(carrier, lob, paymentType, policyType);
+        if (rate <= 0) return;
 
-        if (rate > 0) {
-            // Calculate commission
-            const commission = calculateCommission(premium, rate);
+        const commission  = calculateCommission(premium, rate);
+        const carrierType = paymentType === 'Monthly Paid' ? 'monthlyPaidCommissionCarriers' : 'grossPaidCarriers';
 
-            // Determine carrier type
-            const carrierType = paymentType === 'Monthly Paid' ? 'monthlyPaidCommissionCarriers' : 'grossPaidCarriers';
+        // Build nested structure
+        if (!newCommissionData[agent])                          newCommissionData[agent] = { monthlyPaidCommissionCarriers: {}, grossPaidCarriers: {} };
+        if (!newCommissionData[agent][carrierType])             newCommissionData[agent][carrierType] = {};
+        if (!newCommissionData[agent][carrierType][carrier])    newCommissionData[agent][carrierType][carrier] = {};
 
-            // Initialize agent structure if needed
-            if (!newCommissionData[agent]) {
-                newCommissionData[agent] = {
-                    monthlyPaidCommissionCarriers: {},
-                    grossPaidCarriers: {}
-                };
+        // Accumulate — multiple policies same carrier/month add together
+        const existing = newCommissionData[agent][carrierType][carrier][month];
+        if (existing) {
+            existing.amount  = parseFloat((existing.amount + commission).toFixed(2));
+            existing.premium = parseFloat((existing.premium + premium).toFixed(2));
+            if (existing.lob && existing.lob !== lob && !existing.lob.includes(lob)) {
+                existing.lob = existing.lob + ', ' + lob;
             }
-
-            // Initialize carrier in type if needed
-            if (!newCommissionData[agent][carrierType]) {
-                newCommissionData[agent][carrierType] = {};
-            }
-
-            if (!newCommissionData[agent][carrierType][carrier]) {
-                newCommissionData[agent][carrierType][carrier] = {};
-            }
-
-            // Store commission with breakdown
-            newCommissionData[agent][carrierType][carrier][month] = {
-                amount: commission,
-                lob: lob,
-                rate: rate,
-                premium: premium
-            };
+        } else {
+            newCommissionData[agent][carrierType][carrier][month] = { amount: commission, lob, rate, premium };
         }
     });
 
-    // Update global and localStorage
+    // Persist and refresh any open dashboard
     commissionData = newCommissionData;
     localStorage.setItem('commissionData', JSON.stringify(newCommissionData));
+
+    // Refresh dashboard if it's open
+    const dashModal = document.getElementById('commissionDashboardModal');
+    if (dashModal && dashModal.classList.contains('active')) {
+        displayAllCommissions(newCommissionData);
+    }
 }
 
 // Commission Dashboard Functions
