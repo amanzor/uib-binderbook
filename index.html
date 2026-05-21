@@ -235,7 +235,52 @@
         .login-subtitle {
             color: var(--gray-400);
             font-size: .9rem;
-            margin-bottom: 32px;
+            margin-bottom: 24px;
+        }
+
+        /* ── Agent Cards ─────────────────────────────────────────── */
+        .agent-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .agent-btn {
+            padding: 18px 12px;
+            background: var(--white);
+            border: 1.5px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray-700);
+            transition: all .2s ease;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .agent-btn .agent-avatar {
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--blue) 0%, var(--navy) 100%);
+            color: white;
+            font-size: 16px;
+            font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .agent-btn:hover {
+            background: var(--blue-pale);
+            border-color: var(--blue-light);
+            color: var(--blue);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(29,78,216,.15);
+        }
+        .agent-btn:hover .agent-avatar {
+            background: linear-gradient(135deg, var(--blue-light) 0%, var(--blue) 100%);
         }
 
         /* ── User Info Bar ───────────────────────────────────────── */
@@ -527,16 +572,12 @@
             <div id="loginSection" class="section active">
                 <div class="login-container">
                     <h2><i data-lucide="book-open"></i> UIB Binder Book</h2>
-                    <p class="login-subtitle">Sign in to your account to continue</p>
+                    <p class="login-subtitle">Select your profile to sign in</p>
 
-                    <!-- Agent Login -->
-                    <div style="margin-bottom:24px;">
-                        <button class="btn-primary" style="width:100%;max-width:320px;padding:13px 20px;font-size:15px;border-radius:var(--radius-md);" onclick="openAgentEmailLogin()">
-                            <i data-lucide="log-in"></i> Agent Login
-                        </button>
-                    </div>
+                    <!-- Agent Cards -->
+                    <div class="agent-list" id="agentList"></div>
 
-                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:0; max-width:720px; margin-left:auto; margin-right:auto; align-items:stretch;">
+                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px; max-width:720px; margin-left:auto; margin-right:auto; align-items:stretch;">
                         <button class="btn-success login-action-btn" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
                         <button class="btn-purple login-action-btn" onclick="openDailyVerificationModal()"><i data-lucide="file-check"></i> Daily Verification Log</button>
                         <button class="btn-primary login-action-btn" onclick="showAdminLogin()" style="grid-row:span 2;"><i data-lucide="lock"></i> Admin Login</button>

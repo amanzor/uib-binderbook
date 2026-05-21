@@ -530,6 +530,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeCommissionData();
     initializeCarrierData();
     initializeAgentData();
+    initializeAgentButtons();
     setTodayDate();
 
     ['agencyFee', 'agencyCommission'].forEach(id => {
@@ -554,6 +555,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Sync from Drive in background — won't block the UI
     syncFromDrive().then(() => {
+        initializeAgentButtons();
         refreshIcons();
     });
 
@@ -646,19 +648,23 @@ function initializeAgentButtons() {
 }
 
 function showAgentLoginModal(agent) {
-    // Pre-fill the unified Agent Login modal with the agent's name
     const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
     const cred = credentials[agent] || {};
 
-    // Use email if set, otherwise use agent name as username
+    // Pre-fill username: use saved email if configured, else agent full name
     const username = cred.email || agent.toLowerCase();
     document.getElementById('agentLoginEmail').value = username;
     document.getElementById('agentLoginPassword').value = '';
     document.getElementById('agentLoginError').style.display = 'none';
 
+    // Update modal title to show which agent is signing in
+    const titleEl = document.querySelector('#agentEmailLoginModal h3');
+    if (titleEl) titleEl.innerHTML = `<i data-lucide="log-in"></i> Sign in as ${agent.split(' ')[0]}`;
+
     const m = document.getElementById('agentEmailLoginModal');
     m.classList.add('active');
     if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    refreshIcons();
     setTimeout(() => document.getElementById('agentLoginPassword').focus(), 120);
 }
 
