@@ -96,9 +96,12 @@
             { duration: 0.22, easing: EASE_IO });
 
         // Content spring pop
+        // After animation completes, clear the transform so position:fixed children
+        // (like .lob-dropdown) are anchored to the viewport, not this element.
         animate(content,
             { opacity: [0, 1], transform: ['scale(0.92) translateY(14px)', 'scale(1) translateY(0)'] },
-            { duration: 0.4, easing: SPRING });
+            { duration: 0.4, easing: SPRING })
+            .finished.then(() => { content.style.transform = 'none'; });
     }
 
     function animateModalClose(modalEl, callback) {
