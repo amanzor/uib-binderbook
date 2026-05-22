@@ -1444,6 +1444,64 @@
                     </div>
                 </div>
 
+                <!-- ════════════════════════════════════════════════════
+                     INLINE PRODUCTION DASHBOARD (agent view)
+                     ════════════════════════════════════════════════════ -->
+                <div style="margin-top:36px;border:1px solid var(--gray-200);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);">
+
+                    <!-- Header -->
+                    <div style="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%);color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <i data-lucide="bar-chart-2" style="width:22px;height:22px;"></i>
+                            <div>
+                                <h3 style="margin:0;font-size:1.05rem;font-weight:800;letter-spacing:-0.2px;">Production Dashboard</h3>
+                                <p style="margin:0;font-size:11px;opacity:0.75;" id="apd_headerSub">Loading…</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filter bar -->
+                    <div style="background:#f8fafc;border-bottom:1px solid var(--gray-200);padding:12px 20px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                        <!-- Period tabs -->
+                        <div style="display:flex;gap:3px;background:#e2e8f0;border-radius:8px;padding:3px;flex-shrink:0;">
+                            <button id="apd_tab_today"  onclick="apdSetPeriod('today')"  class="prod-tab prod-tab-active">Today</button>
+                            <button id="apd_tab_month"  onclick="apdSetPeriod('month')"  class="prod-tab">This Month</button>
+                            <button id="apd_tab_year"   onclick="apdSetPeriod('year')"   class="prod-tab">This Year</button>
+                            <button id="apd_tab_all"    onclick="apdSetPeriod('all')"    class="prod-tab">All Time</button>
+                            <button id="apd_tab_custom" onclick="apdSetPeriod('custom')" class="prod-tab">Custom</button>
+                        </div>
+                        <!-- Custom range -->
+                        <div id="apd_customRange" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <input type="date" id="apd_dateFrom" onchange="apdApplyFilters()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;background:#fff;">
+                            <span style="color:var(--gray-500);font-size:12px;font-weight:600;">→</span>
+                            <input type="date" id="apd_dateTo"   onchange="apdApplyFilters()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;background:#fff;">
+                        </div>
+                        <!-- Dropdowns -->
+                        <select id="apd_agentFilter"    onchange="apdApplyFilters()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;background:#fff;min-width:130px;"></select>
+                        <select id="apd_lobFilter"      onchange="apdApplyFilters()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;background:#fff;min-width:130px;"></select>
+                        <select id="apd_locationFilter" onchange="apdApplyFilters()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;background:#fff;min-width:130px;"></select>
+                        <!-- View toggle + export -->
+                        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
+                            <button id="apd_viewTable" onclick="apdSwitchView('table')" class="btn-primary btn-sm" style="display:flex;align-items:center;gap:5px;">
+                                <i data-lucide="table-2" style="width:13px;height:13px;"></i> Table
+                            </button>
+                            <button id="apd_viewChart" onclick="apdSwitchView('chart')" class="btn-secondary btn-sm" style="display:flex;align-items:center;gap:5px;">
+                                <i data-lucide="bar-chart-2" style="width:13px;height:13px;"></i> Charts
+                            </button>
+                            <button onclick="apdExportCSV()" class="btn-success btn-sm" style="display:flex;align-items:center;gap:5px;">
+                                <i data-lucide="download" style="width:13px;height:13px;"></i> Export
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stats cards -->
+                    <div id="apd_statsRow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 20px;background:#fff;border-bottom:1px solid var(--gray-200);"></div>
+
+                    <!-- Body (table or chart) -->
+                    <div id="apd_body" style="padding:20px;background:#fff;"></div>
+
+                </div><!-- end inline production dashboard -->
+
                 <div class="footer-buttons">
                     <button class="btn-secondary" onclick="exportAgentData()">📥 Export My Data (CSV)</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
@@ -2750,7 +2808,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260522w"></script>
-    <script src="app.js?v=20260522w"></script>
+    <script src="motion.js?v=20260522x"></script>
+    <script src="app.js?v=20260522x"></script>
 </body>
 </html>
