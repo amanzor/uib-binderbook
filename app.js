@@ -2751,34 +2751,59 @@ function resetUICFilters() {
 }
 
 // ── UIC Entry Picker ───────────────────────────────────────────
-let _uicPickerEntries = [];   // full list, rebuilt on open
-let _uicPickerSource  = 'binder';  // 'binder' | 'excel'
+let _uicPickerEntries = [];
+let _uicPickerSource  = 'binder';   // 'binder' | 'excel' | 'manual'
 let _uicExcelWorkbook = null;
 
 function uicSetSource(src) {
     _uicPickerSource = src;
-    const binderActive = src === 'binder';
-    // Toggle tab styles
-    const bb = document.getElementById('uicSrcBinderBtn');
-    const eb = document.getElementById('uicSrcExcelBtn');
-    if (bb) { bb.style.background = binderActive ? 'var(--primary)' : 'var(--gray-100)'; bb.style.color = binderActive ? '#fff' : 'var(--gray-600)'; }
-    if (eb) { eb.style.background = binderActive ? 'var(--gray-100)' : 'var(--primary)'; eb.style.color = binderActive ? 'var(--gray-600)' : '#fff'; }
-    // Show/hide filter panels
-    const bf = document.getElementById('uicBinderFilters');
-    const ec = document.getElementById('uicExcelControls');
-    if (bf) bf.style.display = binderActive ? 'flex' : 'none';
-    if (ec) ec.style.display = binderActive ? 'none' : 'block';
-    // Reset table
-    _uicPickerEntries = [];
-    const selectAll = document.getElementById('uicPickerSelectAll');
-    if (selectAll) selectAll.checked = false;
-    if (binderActive) {
+
+    // Tab underline highlight
+    ['binder','excel','manual'].forEach(s => {
+        const btn = document.getElementById('uicSrc' + s.charAt(0).toUpperCase() + s.slice(1) + 'Btn');
+        if (!btn) return;
+        const active = s === src;
+        btn.style.borderBottomColor = active ? 'var(--primary)' : 'transparent';
+        btn.style.color             = active ? 'var(--primary)' : 'var(--gray-500)';
+        btn.style.fontWeight        = active ? '700' : '600';
+    });
+
+    // Panel visibility
+    const show = id => { const el = document.getElementById(id); if (el) el.style.display = 'flex'; };
+    const hide = id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
+    const showBlock = id => { const el = document.getElementById(id); if (el) el.style.display = 'block'; };
+
+    hide('uicBinderFilters'); hide('uicExcelControls');
+    hide('uicManualPanel');   hide('uicPickerTableWrap');
+
+    const addBtn    = document.getElementById('uicAddSelectedBtn');
+    const saveBtn   = document.getElementById('uicSaveManualBtn');
+    const selCount  = document.getElementById('uicPickerSelCount');
+
+    if (src === 'binder') {
+        show('uicBinderFilters'); showBlock('uicPickerTableWrap');
+        if (addBtn)  addBtn.style.display  = '';
+        if (saveBtn) saveBtn.style.display = 'none';
+        if (selCount) selCount.style.display = '';
         filterUICEntryList();
-    } else {
-        const tbody = document.getElementById('uicPickerTableBody');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--gray-400);">Click the drop zone above or drag an Excel file to load entries.</td></tr>';
-        document.getElementById('uicPickerSelCount').textContent = '0 entries selected';
+    } else if (src === 'excel') {
+        showBlock('uicExcelControls'); showBlock('uicPickerTableWrap');
+        if (addBtn)  addBtn.style.display  = '';
+        if (saveBtn) saveBtn.style.display = 'none';
+        if (selCount) selCount.style.display = '';
+        // If no file yet, show placeholder
+        if (!_uicExcelWorkbook) {
+            const tbody = document.getElementById('uicPickerTableBody');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:40px;color:var(--gray-400);">Upload an Excel file above to load entries.</td></tr>';
+            if (selCount) selCount.textContent = '0 entries selected';
+        }
+    } else if (src === 'manual') {
+        showBlock('uicManualPanel');
+        if (addBtn)  addBtn.style.display  = 'none';
+        if (saveBtn) saveBtn.style.display = '';
+        if (selCount) selCount.style.display = 'none';
     }
+
     refreshIcons();
 }
 
@@ -2818,6 +2843,35 @@ function openUICEntryPicker() {
     const fileInput = document.getElementById('uicExcelFileInput');
     if (fileInput) fileInput.value = '';
 
+    // Populate manual entry dropdowns
+    const manualAgentSel = document.getElementById('uicManualAgent');
+    if (manualAgentSel) {
+        manualAgentSel.innerHTML = '<option value="">— Select Agent —</option>';
+        binderAgents.forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; manualAgentSel.appendChild(o); });
+    }
+    const manualLOBSel = document.getElementById('uicManualLOB');
+    if (manualLOBSel) {
+        manualLOBSel.innerHTML = '<option value="">— Select LOB —</option>';
+        ALL_LOBS.forEach(l => { const o = document.createElement('option'); o.value = l; o.textContent = l; manualLOBSel.appendChild(o); });
+    }
+    const manualCarrierSel = document.getElementById('uicManualCarrier');
+    if (manualCarrierSel) {
+        manualCarrierSel.innerHTML = '<option value="">— Select Carrier —</option>';
+        Object.keys(carrierMasterData).sort().forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; manualCarrierSel.appendChild(o); });
+    }
+
+    // Reset manual form
+    ['uicManualClientName','uicManualDownPmt','uicManualBasePrem','uicManualWrittenPrem','uicManualTerm','uicManualPolicyNum','uicManualRate','uicManualCommission']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const manualStatus = document.getElementById('uicManualStatus');
+    if (manualStatus) manualStatus.value = 'Active';
+    const manualTxn = document.getElementById('uicManualTransaction');
+    if (manualTxn) manualTxn.value = 'New';
+    const manualPmtType = document.getElementById('uicManualPaymentType');
+    if (manualPmtType) manualPmtType.value = '';
+    const rateNote = document.getElementById('uicManualRateNote');
+    if (rateNote) rateNote.textContent = '';
+
     // Start on binder tab
     _uicPickerSource = 'binder';
     const selectAll = document.getElementById('uicPickerSelectAll');
@@ -2825,14 +2879,101 @@ function openUICEntryPicker() {
 
     modal.classList.add('active');
     if (window.UIBMotion) UIBMotion.animateModalOpen(modal);
-
-    // Make sure binder tab is visually active
     uicSetSource('binder');
     refreshIcons();
 }
 
 function closeUICEntryPicker() {
     document.getElementById('uicEntryPickerModal')?.classList.remove('active');
+}
+
+// ── Manual entry helpers ──────────────────────────────────────
+function uicAutoCalcManualCommission() {
+    const carrier     = document.getElementById('uicManualCarrier')?.value    || '';
+    const lob         = document.getElementById('uicManualLOB')?.value        || '';
+    const paymentType = document.getElementById('uicManualPaymentType')?.value || '';
+    const transaction = document.getElementById('uicManualTransaction')?.value || 'New';
+    const basePrem    = parseFloat(document.getElementById('uicManualBasePrem')?.value) || 0;
+
+    const rateNote    = document.getElementById('uicManualRateNote');
+    const rateField   = document.getElementById('uicManualRate');
+    const commField   = document.getElementById('uicManualCommission');
+
+    if (!carrier || !lob || !paymentType || basePrem <= 0) {
+        if (rateNote) rateNote.textContent = '';
+        return;
+    }
+
+    const isRenewal = transaction === 'Renewal' || transaction === 'Rewrite';
+    const rate = getCommissionRate(carrier, lob, paymentType, isRenewal ? 'Renewal' : 'New');
+
+    if (rate > 0) {
+        if (rateField && !rateField.dataset.manualOverride) {
+            rateField.value = rate;
+        }
+        const usedRate = parseFloat(rateField?.value) || rate;
+        const commission = calculateCommission(basePrem, usedRate);
+        if (commField) commField.value = commission.toFixed(2);
+        if (rateNote) rateNote.textContent = `— auto (${rate}%)`;
+    } else {
+        if (rateNote) rateNote.textContent = '— no rule found';
+    }
+}
+
+function uicManualCalcFromRate() {
+    const rateField = document.getElementById('uicManualRate');
+    const commField = document.getElementById('uicManualCommission');
+    if (!rateField || !commField) return;
+    // Mark as manually overridden so auto-calc won't overwrite it
+    rateField.dataset.manualOverride = rateField.value ? '1' : '';
+    const rate    = parseFloat(rateField.value) || 0;
+    const basePrem = parseFloat(document.getElementById('uicManualBasePrem')?.value) || 0;
+    if (rate > 0 && basePrem > 0) {
+        commField.value = calculateCommission(basePrem, rate).toFixed(2);
+    }
+}
+
+function uicSaveManualEntry() {
+    const agent       = document.getElementById('uicManualAgent')?.value        || '';
+    const clientName  = document.getElementById('uicManualClientName')?.value.trim() || '';
+    const carrier     = document.getElementById('uicManualCarrier')?.value      || '';
+    const lob         = document.getElementById('uicManualLOB')?.value          || '';
+    const paymentType = document.getElementById('uicManualPaymentType')?.value  || '';
+    const commission  = parseFloat(document.getElementById('uicManualCommission')?.value) || 0;
+    const rate        = parseFloat(document.getElementById('uicManualRate')?.value)       || 0;
+    const basePrem    = parseFloat(document.getElementById('uicManualBasePrem')?.value)   || 0;
+
+    // Validate required fields
+    if (!agent)       { alert('Please select an Agent.');             return; }
+    if (!clientName)  { alert('Please enter a Client Name.');         return; }
+    if (!carrier)     { alert('Please select a Carrier.');            return; }
+    if (!lob)         { alert('Please select a Line of Business.');   return; }
+    if (!paymentType) { alert('Please select a Payment Type.');       return; }
+    if (commission <= 0) { alert('Commission must be greater than 0. Check the Rate and Base Premium.'); return; }
+
+    const month       = getMonthYear();
+    const carrierType = paymentType === 'Monthly Paid' ? 'monthlyPaidCommissionCarriers' : 'grossPaidCarriers';
+
+    let commData = JSON.parse(localStorage.getItem('commissionData')) || {};
+    if (!commData[agent])                         commData[agent] = { monthlyPaidCommissionCarriers: {}, grossPaidCarriers: {} };
+    if (!commData[agent][carrierType])            commData[agent][carrierType] = {};
+    if (!commData[agent][carrierType][carrier])   commData[agent][carrierType][carrier] = {};
+
+    const existing = commData[agent][carrierType][carrier][month];
+    if (existing) {
+        existing.amount  = parseFloat((existing.amount  + commission).toFixed(2));
+        existing.premium = parseFloat((existing.premium + basePrem).toFixed(2));
+        if (lob && existing.lob !== lob && !existing.lob.includes(lob)) existing.lob += ', ' + lob;
+    } else {
+        commData[agent][carrierType][carrier][month] = { amount: commission, lob, rate, premium: basePrem };
+    }
+
+    localStorage.setItem('commissionData', JSON.stringify(commData));
+    commissionData = commData;
+
+    closeUICEntryPicker();
+    loadUniversalInsCommissions();
+    alert(`✅ Commission entry saved for ${clientName} — ${carrier} — $${commission.toFixed(2)}`);
 }
 
 // ── Excel upload path ─────────────────────────────────────────

@@ -1446,30 +1446,34 @@
                 <p id="uicRowCount" style="margin-top:10px;font-size:13px;color:var(--gray-500);"></p>
             </div>
 
-            <!-- UIC Entry Picker Modal -->
-            <div id="uicEntryPickerModal" class="modal">
-                <div class="modal-content" style="max-width:980px;max-height:92vh;display:flex;flex-direction:column;">
+            <!-- UIC Entry Picker Modal — full screen -->
+            <div id="uicEntryPickerModal" class="modal" style="padding:0;align-items:stretch;">
+                <div class="modal-content" style="width:100%;height:100%;max-width:100%;max-height:100%;border-radius:0;display:flex;flex-direction:column;overflow:hidden;">
 
-                    <!-- Header -->
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-shrink:0;">
-                        <h3 style="margin:0;"><i data-lucide="plus-circle"></i> Add Commission Entries</h3>
+                    <!-- ── Top bar ── -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid var(--gray-200);flex-shrink:0;background:#fff;">
+                        <h3 style="margin:0;font-size:17px;"><i data-lucide="plus-circle"></i> Add Commission Entries</h3>
                         <button class="btn-secondary btn-sm" onclick="closeUICEntryPicker()"><i data-lucide="x"></i> Close</button>
                     </div>
 
-                    <!-- Source toggle tabs -->
-                    <div style="display:flex;gap:0;border:1px solid var(--gray-200);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:14px;flex-shrink:0;width:fit-content;">
+                    <!-- ── Source tabs ── -->
+                    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);flex-shrink:0;background:#fafafa;">
                         <button id="uicSrcBinderBtn" onclick="uicSetSource('binder')"
-                            style="padding:7px 18px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:var(--primary);color:#fff;">
+                            style="padding:11px 24px;font-size:13px;font-weight:600;border:none;border-bottom:3px solid var(--primary);cursor:pointer;background:transparent;color:var(--primary);">
                             📋 From Binder Book
                         </button>
                         <button id="uicSrcExcelBtn" onclick="uicSetSource('excel')"
-                            style="padding:7px 18px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:var(--gray-100);color:var(--gray-600);">
+                            style="padding:11px 24px;font-size:13px;font-weight:600;border:none;border-bottom:3px solid transparent;cursor:pointer;background:transparent;color:var(--gray-500);">
                             📤 Upload Excel
+                        </button>
+                        <button id="uicSrcManualBtn" onclick="uicSetSource('manual')"
+                            style="padding:11px 24px;font-size:13px;font-weight:600;border:none;border-bottom:3px solid transparent;cursor:pointer;background:transparent;color:var(--gray-500);">
+                            ✏️ Manual Entry
                         </button>
                     </div>
 
-                    <!-- ── BINDER BOOK filters (shown when source = binder) ── -->
-                    <div id="uicBinderFilters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;flex-shrink:0;">
+                    <!-- ── BINDER filters ── -->
+                    <div id="uicBinderFilters" style="display:flex;gap:8px;flex-wrap:wrap;padding:12px 24px;border-bottom:1px solid var(--gray-100);flex-shrink:0;">
                         <input id="uicPickerSearch" type="text" placeholder="Search customer, carrier, policy #…"
                             oninput="filterUICEntryList()"
                             style="flex:1;min-width:180px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
@@ -1485,29 +1489,29 @@
                             <option value="2025">2025</option>
                             <option value="2026">2026</option>
                         </select>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                            <input type="checkbox" id="uicPickerSelectAll" onchange="toggleUICSelectAll(this.checked)" style="width:15px;height:15px;accent-color:var(--primary);">
+                            Select all visible
+                        </label>
                     </div>
 
-                    <!-- ── EXCEL UPLOAD controls (shown when source = excel) ── -->
-                    <div id="uicExcelControls" style="display:none;flex-shrink:0;margin-bottom:12px;">
-                        <!-- Drop zone / file button -->
+                    <!-- ── EXCEL controls ── -->
+                    <div id="uicExcelControls" style="display:none;padding:12px 24px;border-bottom:1px solid var(--gray-100);flex-shrink:0;">
                         <div id="uicExcelDropZone"
                             onclick="document.getElementById('uicExcelFileInput').click()"
                             ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
                             ondragleave="this.style.borderColor='var(--gray-200)'"
                             ondrop="uicHandleExcelDrop(event)"
-                            style="border:2px dashed var(--gray-200);border-radius:var(--radius-sm);padding:22px;text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:10px;">
-                            <i data-lucide="file-spreadsheet" style="width:32px;height:32px;color:var(--gray-400);margin-bottom:8px;"></i>
+                            style="border:2px dashed var(--gray-200);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:10px;">
+                            <i data-lucide="file-spreadsheet" style="width:28px;height:28px;color:var(--gray-400);margin-bottom:6px;"></i>
                             <p style="margin:0;font-size:13px;color:var(--gray-500);">Click or drag &amp; drop an Excel file (.xlsx)</p>
-                            <p id="uicExcelFileName" style="margin:6px 0 0;font-size:12px;font-weight:600;color:var(--primary);display:none;"></p>
+                            <p id="uicExcelFileName" style="margin:5px 0 0;font-size:12px;font-weight:600;color:var(--primary);display:none;"></p>
                         </div>
                         <input type="file" id="uicExcelFileInput" accept=".xlsx,.xls" style="display:none" onchange="uicHandleExcelFile(event)">
-
-                        <!-- Sheet + Agent selectors — appear after file is loaded -->
                         <div id="uicExcelSheetRow" style="display:none;gap:10px;flex-wrap:wrap;align-items:center;">
                             <label style="font-size:13px;font-weight:600;">Sheet:</label>
                             <select id="uicExcelSheetSelect" onchange="uicLoadExcelSheet()"
-                                style="padding:7px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;min-width:150px;">
-                            </select>
+                                style="padding:7px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;min-width:150px;"></select>
                             <label style="font-size:13px;font-weight:600;margin-left:8px;">Assign to Agent:</label>
                             <select id="uicExcelAgentAssign" onchange="uicLoadExcelSheet()"
                                 style="padding:7px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;min-width:160px;">
@@ -1517,16 +1521,135 @@
                         </div>
                     </div>
 
-                    <!-- Select-all bar (always visible) -->
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-shrink:0;">
-                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-                            <input type="checkbox" id="uicPickerSelectAll" onchange="toggleUICSelectAll(this.checked)" style="width:15px;height:15px;accent-color:var(--primary);">
-                            Select all visible
-                        </label>
-                    </div>
+                    <!-- ── MANUAL ENTRY form ── -->
+                    <div id="uicManualPanel" style="display:none;flex:1;overflow-y:auto;padding:24px;">
+                        <p style="margin:0 0 18px;font-size:13px;color:var(--gray-500);">Fill in the fields below — Commission auto-calculates when Carrier, LOB, Payment Type and Base Premium are set.</p>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
 
-                    <!-- Entry table — columns match April 26 Excel tab -->
-                    <div style="overflow-x:auto;overflow-y:auto;flex:1;border:1px solid var(--gray-200);border-radius:var(--radius-sm);">
+                            <!-- Agent -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Agent <span style="color:var(--danger);">*</span></label>
+                                <select id="uicManualAgent" style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
+                                    <option value="">— Select Agent —</option>
+                                </select>
+                            </div>
+
+                            <!-- Client Name -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Client Name <span style="color:var(--danger);">*</span></label>
+                                <input id="uicManualClientName" type="text" placeholder="Full name"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;box-sizing:border-box;">
+                            </div>
+
+                            <!-- Status -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Status</label>
+                                <select id="uicManualStatus" style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
+                                    <option value="Active">Active</option>
+                                    <option value="Renewed">Renewed</option>
+                                    <option value="-">-</option>
+                                </select>
+                            </div>
+
+                            <!-- Transaction -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Transaction</label>
+                                <select id="uicManualTransaction" style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
+                                    <option value="New">New</option>
+                                    <option value="Renewal">Renewal</option>
+                                    <option value="Rewrite">Rewrite</option>
+                                    <option value="End">End</option>
+                                    <option value="Canc">Canc</option>
+                                </select>
+                            </div>
+
+                            <!-- LOB -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Line of Business <span style="color:var(--danger);">*</span></label>
+                                <select id="uicManualLOB" onchange="uicAutoCalcManualCommission()"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
+                                    <option value="">— Select LOB —</option>
+                                </select>
+                            </div>
+
+                            <!-- Carrier -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Carrier <span style="color:var(--danger);">*</span></label>
+                                <select id="uicManualCarrier" onchange="uicAutoCalcManualCommission()"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
+                                    <option value="">— Select Carrier —</option>
+                                </select>
+                            </div>
+
+                            <!-- Down Payment -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Down Payment ($)</label>
+                                <input id="uicManualDownPmt" type="number" step="0.01" min="0" placeholder="0.00"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;box-sizing:border-box;">
+                            </div>
+
+                            <!-- Payment Type -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Payment Type <span style="color:var(--danger);">*</span></label>
+                                <select id="uicManualPaymentType" onchange="uicAutoCalcManualCommission()"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
+                                    <option value="">— Select —</option>
+                                    <option value="Monthly Paid">Monthly Paid</option>
+                                    <option value="Gross Paid">Gross Paid</option>
+                                </select>
+                            </div>
+
+                            <!-- Base Premium -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Base Premium ($) <span style="color:var(--danger);">*</span></label>
+                                <input id="uicManualBasePrem" type="number" step="0.01" min="0" placeholder="0.00"
+                                    oninput="uicAutoCalcManualCommission()"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;box-sizing:border-box;">
+                            </div>
+
+                            <!-- Written Premium -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Written Premium ($)</label>
+                                <input id="uicManualWrittenPrem" type="number" step="0.01" min="0" placeholder="0.00"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;box-sizing:border-box;">
+                            </div>
+
+                            <!-- Term -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Term</label>
+                                <input id="uicManualTerm" type="text" placeholder="e.g. 12"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;box-sizing:border-box;">
+                            </div>
+
+                            <!-- Policy # -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Policy #</label>
+                                <input id="uicManualPolicyNum" type="text" placeholder="Policy number"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;box-sizing:border-box;">
+                            </div>
+
+                            <!-- Rate % -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Rate (%)
+                                    <span id="uicManualRateNote" style="font-size:11px;color:#0066cc;font-weight:normal;"></span>
+                                </label>
+                                <input id="uicManualRate" type="number" step="0.01" min="0" placeholder="0.00"
+                                    oninput="uicManualCalcFromRate()"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;box-sizing:border-box;">
+                            </div>
+
+                            <!-- Commission -->
+                            <div class="form-group">
+                                <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:4px;">Commission ($)</label>
+                                <input id="uicManualCommission" type="number" step="0.01" min="0" placeholder="Auto-calculated"
+                                    style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;background:#f0fdf4;font-weight:700;color:#166534;box-sizing:border-box;">
+                            </div>
+
+                        </div><!-- end grid -->
+                    </div><!-- end manual panel -->
+
+                    <!-- ── TABLE (binder + excel sources) ── -->
+                    <div id="uicPickerTableWrap" style="overflow-x:auto;overflow-y:auto;flex:1;">
                         <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap;">
                             <thead style="position:sticky;top:0;background:#fff;z-index:1;">
                                 <tr style="border-bottom:2px solid var(--gray-200);background:var(--gray-50);">
@@ -1552,14 +1675,22 @@
                         </table>
                     </div>
 
-                    <!-- Footer -->
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-shrink:0;">
+                    <!-- ── Footer ── -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 24px;border-top:1px solid var(--gray-200);flex-shrink:0;background:#fff;">
                         <span id="uicPickerSelCount" style="font-size:13px;color:var(--gray-500);">0 entries selected</span>
                         <div style="display:flex;gap:8px;">
                             <button class="btn-secondary" onclick="closeUICEntryPicker()">Cancel</button>
-                            <button class="btn-primary" onclick="addSelectedUICEntries()"><i data-lucide="check"></i> Add Selected to Commissions</button>
+                            <!-- Shown for binder + excel -->
+                            <button id="uicAddSelectedBtn" class="btn-primary" onclick="addSelectedUICEntries()">
+                                <i data-lucide="check"></i> Add Selected to Commissions
+                            </button>
+                            <!-- Shown for manual -->
+                            <button id="uicSaveManualBtn" class="btn-success" onclick="uicSaveManualEntry()" style="display:none;">
+                                <i data-lucide="save"></i> Save Entry
+                            </button>
                         </div>
                     </div>
+
                 </div>
             </div>
 
@@ -2421,7 +2552,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260521m"></script>
-    <script src="app.js?v=20260521m"></script>
+    <script src="motion.js?v=20260521n"></script>
+    <script src="app.js?v=20260521n"></script>
 </body>
 </html>
