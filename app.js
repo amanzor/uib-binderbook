@@ -65,7 +65,7 @@ function startAutoSync() {
         const freshData = JSON.parse(localStorage.getItem('binderData'));
         const freshCarriers = JSON.parse(localStorage.getItem('carrierMasterData'));
         if (freshData) allData = freshData;
-        if (freshCarriers) carrierMasterData = freshCarriers;
+        if (freshCarriers) { carrierMasterData = freshCarriers; refreshAllCarrierDropdowns(); }
 
         // Refresh whichever view is currently active
         if (currentRole === 'admin') {
@@ -1391,6 +1391,7 @@ function selectLocationAndOpenSales(location) {
     document.getElementById('salesLocationDisplay').textContent = location;
     setTodayDate();
     generateBinderNumber();
+    refreshAllCarrierDropdowns(); // ensure newly added carriers are present
     const m = document.getElementById('dailySalesModal');
     m.classList.add('active');
     if (window.UIBMotion) UIBMotion.animateModalOpen(m);
@@ -1646,6 +1647,7 @@ function openEditModal(id) {
     editingId = id;
     const entry = allData.find(d => d.id === id);
     if (!entry) return;
+    refreshAllCarrierDropdowns(); // ensure options are current before setting value
     document.getElementById('editCustomerName').value = entry.customerName || '';
     document.getElementById('editSource').value = entry.source || '';
     document.getElementById('editPolicyType').value = entry.policyType || '';
