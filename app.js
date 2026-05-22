@@ -26,10 +26,15 @@ async function driveSet(key, value) {
     }
 }
 
+// Keys that should never be overwritten by a Drive pull —
+// credentials are pushed to Drive as backup but managed locally only.
+const DRIVE_PULL_SKIP = new Set(['agentCredentials']);
+
 async function syncFromDrive() {
     const banner = document.getElementById('syncBanner');
     if (banner) banner.style.display = 'flex';
     for (const key of SYNC_KEYS) {
+        if (DRIVE_PULL_SKIP.has(key)) continue; // preserve local credentials
         const data = await driveGet(key);
         if (data !== null) {
             _origSetItem(key, JSON.stringify(data)); // bypass override to avoid write-back loop
