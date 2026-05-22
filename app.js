@@ -1923,20 +1923,24 @@ function closePasswordManagementModal() {
 }
 
 function loadPasswordManagementTable() {
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials'));
+    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
     const tbody = document.getElementById('passwordTable');
 
-    tbody.innerHTML = AGENTS.map(agent => `
+    tbody.innerHTML = AGENTS.map(agent => {
+        // Support both old flat-string format and new {email, password} format
+        const cred = credentials[agent];
+        const pw   = typeof cred === 'object' ? (cred?.password || '') : (cred || '');
+        return `
         <tr>
             <td>${agent}</td>
             <td>
-                <input type="password" value="${credentials[agent]}" id="pwd_${agent}" class="password-input">
+                <input type="password" value="${pw}" id="pwd_${agent}" class="password-input">
             </td>
             <td>
                 <button class="btn-success btn-sm" onclick="updateAgentPassword('${agent}')">Update</button>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 function updateAgentPassword(agent) {
@@ -1946,8 +1950,11 @@ function updateAgentPassword(agent) {
         return;
     }
 
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials'));
-    credentials[agent] = newPassword;
+    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
+    // Preserve the existing email — only overwrite the password field
+    const existing = credentials[agent];
+    const email    = typeof existing === 'object' ? (existing.email || '') : '';
+    credentials[agent] = { email, password: newPassword };
     localStorage.setItem('agentCredentials', JSON.stringify(credentials));
     alert(`Password updated for ${agent}`);
     loadPasswordManagementTable();
