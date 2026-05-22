@@ -1201,8 +1201,11 @@
                                 <input type="text" id="binderNumber" readonly style="background-color: #f0f0f0; cursor: not-allowed;">
                             </div>
                             <div class="form-group">
-                                <label>Entry Date *</label>
-                                <input type="date" id="entryDate" required>
+                                <label>Entry Date &amp; Time <span style="font-size:11px;color:var(--gray-400);font-weight:400;">(auto-timestamped)</span></label>
+                                <input type="text" id="entryDateDisplay" readonly
+                                    style="background:#f0f0f0;cursor:not-allowed;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;width:100%;box-sizing:border-box;color:var(--gray-700);"
+                                    placeholder="Opening form…">
+                                <input type="hidden" id="entryDate">
                             </div>
                             <div class="form-group">
                                 <label>Effective Date *</label>
@@ -2459,7 +2462,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260522l"></script>
-    <script src="app.js?v=20260522l"></script>
+    <script src="motion.js?v=20260522m"></script>
+    <script src="app.js?v=20260522m"></script>
 </body>
 </html>

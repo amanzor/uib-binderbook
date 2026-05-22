@@ -770,9 +770,17 @@ function showAgentSection(agent) {
 }
 
 function setTodayDate() {
-    const today = getEasternDateString();
-    const entryDate = document.getElementById('entryDate');
-    if (entryDate) entryDate.value = today;
+    // Capture the exact moment the form is opened in Eastern Time
+    const dateStr    = getEasternDateString();      // YYYY-MM-DD — for filtering/grouping
+    const displayStr = getEasternDateTimeDisplay();  // "05/22/2026  2:30 PM ET" — shown to agent
+
+    // Hidden field keeps YYYY-MM-DD so all month/year filtering still works
+    const hidden = document.getElementById('entryDate');
+    if (hidden) hidden.value = dateStr;
+
+    // Visible read-only field shows full date + time so agent sees exact open timestamp
+    const display = document.getElementById('entryDateDisplay');
+    if (display) display.value = displayStr;
 }
 
 function generateBinderNumber() {
@@ -877,6 +885,7 @@ function saveEntry() {
         policyNumber: document.getElementById('policyNumber').value,
         binderNumber: document.getElementById('binderNumber').value,
         entryDate: document.getElementById('entryDate').value,
+        entryDateDisplay: document.getElementById('entryDateDisplay')?.value || '',
         effDate: document.getElementById('effDate').value,
         term: document.getElementById('term').value,
         location: _selectedSalesLocation || '',
