@@ -2032,16 +2032,16 @@ function editCarrier(carrierName) {
             const lobs = Array.isArray(rule.lineOfBusiness) ? rule.lineOfBusiness : (rule.lineOfBusiness ? [rule.lineOfBusiness] : []);
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td style="padding:6px 4px;">${createLobMultiSelectHTML(lobs)}</td>
-                <td style="padding:6px 4px;">
-                    <select style="width: 100%; padding: 5px; font-size:13px;">
+                <td style="padding:6px 8px; vertical-align:middle;">${createLobMultiSelectHTML(lobs)}</td>
+                <td style="padding:6px 8px; vertical-align:middle;">
+                    <select style="width:100%; padding:5px 8px; font-size:13px; box-sizing:border-box;">
                         <option value="Monthly Paid" ${rule.paymentType === 'Monthly Paid' ? 'selected' : ''}>Monthly Paid</option>
                         <option value="Gross Paid" ${rule.paymentType === 'Gross Paid' ? 'selected' : ''}>Gross Paid</option>
                     </select>
                 </td>
-                <td style="padding:6px 4px; text-align:center;"><input type="number" step="0.1" value="${rule.newRate ?? rule.commissionRate ?? ''}" placeholder="0.0" style="width: 100%; padding: 5px; font-size:13px; text-align:center;" /></td>
-                <td style="padding:6px 4px; text-align:center;"><input type="number" step="0.1" value="${rule.renewRate ?? ''}" placeholder="0.0" style="width: 100%; padding: 5px; font-size:13px; text-align:center;" /></td>
-                <td style="padding:6px 4px; text-align:center;"><button type="button" class="btn-danger" onclick="removeCommissionRuleRow(this)" style="padding: 4px 8px; font-size: 12px;">❌</button></td>
+                <td style="padding:6px 8px; vertical-align:middle; text-align:center;"><input type="number" step="0.1" value="${rule.newRate ?? rule.commissionRate ?? ''}" placeholder="0.0" style="width:100%; padding:5px; font-size:13px; text-align:center; box-sizing:border-box;" /></td>
+                <td style="padding:6px 8px; vertical-align:middle; text-align:center;"><input type="number" step="0.1" value="${rule.renewRate ?? ''}" placeholder="0.0" style="width:100%; padding:5px; font-size:13px; text-align:center; box-sizing:border-box;" /></td>
+                <td style="padding:6px 8px; vertical-align:middle; text-align:center;"><button type="button" class="btn-danger" onclick="removeCommissionRuleRow(this)" style="padding:4px 8px; font-size:12px;">❌</button></td>
             `;
             rulesTable.appendChild(row);
         });
@@ -2072,17 +2072,17 @@ function addCommissionRuleRow() {
 
     const newRow = document.createElement('tr');
     newRow.innerHTML = `
-        <td style="padding:6px 4px;">${createLobMultiSelectHTML([])}</td>
-        <td style="padding:6px 4px;">
-            <select style="width: 100%; padding: 5px; font-size:13px;">
+        <td style="padding:6px 8px; vertical-align:middle;">${createLobMultiSelectHTML([])}</td>
+        <td style="padding:6px 8px; vertical-align:middle;">
+            <select style="width:100%; padding:5px 8px; font-size:13px; box-sizing:border-box;">
                 <option value="">Select Type</option>
                 <option value="Monthly Paid">Monthly Paid</option>
                 <option value="Gross Paid">Gross Paid</option>
             </select>
         </td>
-        <td style="padding:6px 4px; text-align:center;"><input type="number" step="0.1" placeholder="0.0" style="width: 100%; padding: 5px; font-size:13px; text-align:center;" /></td>
-        <td style="padding:6px 4px; text-align:center;"><input type="number" step="0.1" placeholder="0.0" style="width: 100%; padding: 5px; font-size:13px; text-align:center;" /></td>
-        <td style="padding:6px 4px; text-align:center;"><button type="button" class="btn-danger" onclick="removeCommissionRuleRow(this)" style="padding: 4px 8px; font-size: 12px;">❌</button></td>
+        <td style="padding:6px 8px; vertical-align:middle; text-align:center;"><input type="number" step="0.1" placeholder="0.0" style="width:100%; padding:5px; font-size:13px; text-align:center; box-sizing:border-box;" /></td>
+        <td style="padding:6px 8px; vertical-align:middle; text-align:center;"><input type="number" step="0.1" placeholder="0.0" style="width:100%; padding:5px; font-size:13px; text-align:center; box-sizing:border-box;" /></td>
+        <td style="padding:6px 8px; vertical-align:middle; text-align:center;"><button type="button" class="btn-danger" onclick="removeCommissionRuleRow(this)" style="padding:4px 8px; font-size:12px;">❌</button></td>
     `;
 
     rulesTable.appendChild(newRow);

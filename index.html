@@ -178,14 +178,15 @@
         .btn-purple:active { transform:translateY(0); box-shadow:none; }
 
         /* ── LOB Multi-Select ───────────────────────────────────── */
-        .lob-multiselect { position:relative; width:100%; }
+        .lob-multiselect { position:relative; width:100%; display:flex; align-items:center; }
         .lob-multiselect-btn {
-            width:100%; padding:6px 10px; text-align:left;
-            background:white; border:1.5px solid var(--gray-200);
+            width:100%; padding:5px 8px; text-align:left;
+            background:white; border:1px solid var(--gray-200);
             border-radius:var(--radius-sm); cursor:pointer;
-            font-size:13px; font-family:inherit; font-weight:500;
+            font-size:13px; font-family:inherit; font-weight:400;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
             color:var(--gray-700); transition:border-color .15s;
+            box-sizing:border-box; line-height:1.5;
         }
         .lob-multiselect-btn:hover { border-color:var(--blue-light); }
         .lob-dropdown {
@@ -2269,11 +2270,11 @@
                         </colgroup>
                         <thead>
                             <tr style="background-color: #0066CC; color: white;">
-                                <th style="padding: 10px 8px; text-align: left;">Line of Business</th>
-                                <th style="padding: 10px 8px; text-align: left;">Payment Type</th>
-                                <th style="padding: 10px 8px; text-align: center;">New (%)</th>
-                                <th style="padding: 10px 8px; text-align: center;">Renew (%)</th>
-                                <th style="padding: 10px 8px; text-align: center;">Del</th>
+                                <th style="padding: 8px 8px; text-align: left;">Line of Business</th>
+                                <th style="padding: 8px 8px; text-align: left;">Payment Type</th>
+                                <th style="padding: 8px 8px; text-align: center;">New (%)</th>
+                                <th style="padding: 8px 8px; text-align: center;">Renew (%)</th>
+                                <th style="padding: 8px 8px; text-align: center;">Del</th>
                             </tr>
                         </thead>
                         <tbody id="commissionRulesTable">
@@ -2456,7 +2457,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260522c"></script>
-    <script src="app.js?v=20260522c"></script>
+    <script src="motion.js?v=20260522d"></script>
+    <script src="app.js?v=20260522d"></script>
 </body>
 </html>
