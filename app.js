@@ -171,30 +171,51 @@ function createLobMultiSelectHTML(selectedLobs = []) {
     </div>`;
 }
 
+// Helper: find a LOB dropdown by its container id, whether in DOM or teleported to body
+function _findLobDropdown(id) {
+    return document.querySelector(`.lob-dropdown[data-lob-id="${id}"]`)
+        || document.getElementById(id)?.querySelector('.lob-dropdown');
+}
+
+// Helper: return a teleported dropdown back to its source container
+function _returnLobDropdown(d) {
+    const srcId = d.dataset.lobId;
+    if (srcId && d.parentNode === document.body) {
+        const src = document.getElementById(srcId);
+        if (src) src.appendChild(d);
+    }
+    d.classList.remove('open');
+}
+
 function toggleLobDropdown(id) {
     const container = document.getElementById(id);
     const btn = container.querySelector('.lob-multiselect-btn');
-    const dropdown = container.querySelector('.lob-dropdown');
+    const dropdown = _findLobDropdown(id);
     const isOpen = dropdown.classList.contains('open');
 
-    // Close all open dropdowns first
-    document.querySelectorAll('.lob-dropdown.open').forEach(d => d.classList.remove('open'));
+    // Close all open dropdowns and return them to their source containers
+    document.querySelectorAll('.lob-dropdown.open').forEach(d => _returnLobDropdown(d));
 
     if (!isOpen) {
-        // Position the fixed dropdown under the button
+        // Tag and teleport to <body> so position:fixed is relative to the viewport,
+        // not any transformed ancestor (e.g. animated modal-content)
+        dropdown.dataset.lobId = id;
+        if (dropdown.parentNode !== document.body) {
+            document.body.appendChild(dropdown);
+        }
+
         const rect = btn.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom;
         const dropH = 240;
 
+        dropdown.style.position = 'fixed';
         dropdown.style.left  = rect.left + 'px';
         dropdown.style.width = Math.max(rect.width, 220) + 'px';
 
         if (spaceBelow >= dropH || spaceBelow >= 120) {
-            // Open downward
             dropdown.style.top    = (rect.bottom + 2) + 'px';
             dropdown.style.bottom = 'auto';
         } else {
-            // Open upward
             dropdown.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
             dropdown.style.top    = 'auto';
         }
@@ -204,9 +225,10 @@ function toggleLobDropdown(id) {
 }
 
 function toggleLobSelectAll(id) {
-    const container = document.getElementById(id);
+    const dropdown = _findLobDropdown(id);
+    if (!dropdown) return;
     const selectAllCb = document.getElementById(id + '_all');
-    container.querySelectorAll('.lob-dropdown input[type=checkbox]:not(#' + id + '_all)').forEach(cb => {
+    dropdown.querySelectorAll('input[type=checkbox]:not(#' + id + '_all)').forEach(cb => {
         cb.checked = selectAllCb.checked;
     });
     updateLobBtn(id);
@@ -214,28 +236,33 @@ function toggleLobSelectAll(id) {
 
 function updateLobBtn(id) {
     const container = document.getElementById(id);
-    const allCbs = Array.from(container.querySelectorAll('.lob-dropdown input[type=checkbox]:not(#' + id + '_all)'));
+    const dropdown = _findLobDropdown(id);
+    if (!container || !dropdown) return;
+    const allCbs = Array.from(dropdown.querySelectorAll('input[type=checkbox]:not(#' + id + '_all)'));
     const checked = allCbs.filter(cb => cb.checked).map(cb => cb.value);
-    // Sync the Select All checkbox state
     const selectAllCb = document.getElementById(id + '_all');
     if (selectAllCb) selectAllCb.checked = checked.length === ALL_LOBS.length;
     const btn = container.querySelector('.lob-multiselect-btn');
-    btn.textContent = checked.length === 0           ? 'Select LOB(s) ▾' :
-                      checked.length === ALL_LOBS.length ? 'All LOBs ▾' :
-                      checked.length === 1            ? checked[0] + ' ▾' :
-                      checked.length + ' selected ▾';
+    if (btn) btn.textContent = checked.length === 0               ? 'Select LOB(s) ▾' :
+                               checked.length === ALL_LOBS.length ? 'All LOBs ▾' :
+                               checked.length === 1               ? checked[0] + ' ▾' :
+                               checked.length + ' selected ▾';
 }
 
 function getLobSelections(rowEl) {
-    return Array.from(rowEl.querySelectorAll('.lob-multiselect input[type=checkbox]:checked'))
+    const multiselect = rowEl.querySelector('.lob-multiselect');
+    if (!multiselect) return [];
+    const dropdown = _findLobDropdown(multiselect.id);
+    if (!dropdown) return [];
+    return Array.from(dropdown.querySelectorAll('input[type=checkbox]:checked'))
         .filter(cb => !cb.id.endsWith('_all'))
         .map(cb => cb.value);
 }
 
 // Close LOB dropdowns when clicking outside
 document.addEventListener('click', (e) => {
-    if (!e.target.closest('.lob-multiselect')) {
-        document.querySelectorAll('.lob-dropdown.open').forEach(d => d.classList.remove('open'));
+    if (!e.target.closest('.lob-multiselect') && !e.target.closest('.lob-dropdown')) {
+        document.querySelectorAll('.lob-dropdown.open').forEach(d => _returnLobDropdown(d));
     }
 });
 
