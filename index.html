@@ -2075,6 +2075,20 @@
                         <label>Filter by Month:</label>
                         <input type="month" id="monthFilter">
                     </div>
+                    <div class="filter-group">
+                        <label>Arrange by:</label>
+                        <select id="adminSortBy" onchange="filterAdminData()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;">
+                            <option value="entryDate">Date Entered</option>
+                            <option value="effDate">Effective Date</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Order:</label>
+                        <select id="adminSortDir" onchange="filterAdminData()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;">
+                            <option value="desc">Newest First</option>
+                            <option value="asc">Oldest First</option>
+                        </select>
+                    </div>
                     <button class="btn-primary btn-sm" onclick="filterAdminData()">Filter</button>
                     <button class="btn-secondary btn-sm" onclick="resetAdminFilter()">Reset</button>
                 </div>
@@ -2098,7 +2112,8 @@
                             <thead>
                                 <tr>
                                     <th>Agent</th>
-                                    <th>Date</th>
+                                    <th id="adminDateColHeader">Date Entered</th>
+                                    <th id="adminDateColHeader2" style="display:none;">Eff. Date</th>
                                     <th>Customer</th>
                                     <th>Policy Type</th>
                                     <th>Line of Business</th>
@@ -2111,7 +2126,7 @@
                                 </tr>
                             </thead>
                             <tbody id="adminTable">
-                                <tr><td colspan="11" class="no-data">No data available</td></tr>
+                                <tr><td colspan="12" class="no-data">No data available</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -2820,7 +2835,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260524c"></script>
-    <script src="app.js?v=20260524c"></script>
+    <script src="motion.js?v=20260524d"></script>
+    <script src="app.js?v=20260524d"></script>
 </body>
 </html>

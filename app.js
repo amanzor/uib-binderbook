@@ -1643,16 +1643,28 @@ function renderCharts() {
 }
 
 function renderAdminTable(entries) {
-    const tbody = document.getElementById('adminTable');
+    const tbody   = document.getElementById('adminTable');
+    const sortBy  = document.getElementById('adminSortBy')?.value || 'entryDate';
+    const showEff = sortBy === 'effDate';
+
     if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="no-data">No data available</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="${showEff ? 13 : 12}" class="no-data">No data available</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = entries.map(entry => `
+    tbody.innerHTML = entries.map(entry => {
+        const primaryDate = showEff
+            ? formatDate(entry.effDate || entry.entryDate)
+            : formatDate(entry.entryDate);
+        const secondaryDate = showEff
+            ? `<td style="color:var(--gray-400);font-size:12px;">${formatDate(entry.entryDate)}</td>`
+            : '';
+
+        return `
         <tr>
             <td><strong>${entry.agent}</strong></td>
-            <td>${formatDate(entry.entryDate)}</td>
+            <td>${primaryDate}</td>
+            ${secondaryDate}
             <td>${entry.customerName}</td>
             <td>${entry.policyType}</td>
             <td>${entry.lineOfBusiness}</td>
@@ -1665,8 +1677,8 @@ function renderAdminTable(entries) {
                 <button class="btn-primary btn-sm" onclick="openEditModal(${entry.id})" style="margin-right:4px;"><i data-lucide="pencil"></i> Edit</button>
                 <button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})"><i data-lucide="trash-2"></i> Delete</button>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
     refreshIcons();
     if (window.UIBMotion) UIBMotion.animateTableRows(document.getElementById('adminTable'));
 }
@@ -1679,23 +1691,55 @@ function filterAdminData() {
 }
 
 function resetAdminFilter() {
-    document.getElementById('agentFilter').value = '';
-    document.getElementById('monthFilter').value = '';
+    document.getElementById('agentFilter').value  = '';
+    document.getElementById('monthFilter').value  = '';
+    const sb = document.getElementById('adminSortBy');
+    const sd = document.getElementById('adminSortDir');
+    if (sb) sb.value = 'entryDate';
+    if (sd) sd.value = 'desc';
+    const hdr  = document.getElementById('adminDateColHeader');
+    const hdr2 = document.getElementById('adminDateColHeader2');
+    if (hdr)  hdr.textContent       = 'Date Entered';
+    if (hdr2) hdr2.style.display    = 'none';
     loadAdminDashboard();
 }
 
 function getFilteredData() {
-    const agent = document.getElementById('agentFilter')?.value;
-    const month = document.getElementById('monthFilter')?.value;
+    const agent   = document.getElementById('agentFilter')?.value  || '';
+    const month   = document.getElementById('monthFilter')?.value  || '';
+    const sortBy  = document.getElementById('adminSortBy')?.value  || 'entryDate';
+    const sortDir = document.getElementById('adminSortDir')?.value || 'desc';
 
     let filtered = allData;
 
-    if (agent) {
-        filtered = filtered.filter(d => d.agent === agent);
-    }
+    if (agent) filtered = filtered.filter(d => d.agent === agent);
 
     if (month) {
-        filtered = filtered.filter(d => d.entryDate.startsWith(month));
+        // Filter against whichever date field is selected for sorting
+        filtered = filtered.filter(d => {
+            const dateField = sortBy === 'effDate' ? (d.effDate || d.entryDate) : d.entryDate;
+            return dateField && dateField.startsWith(month);
+        });
+    }
+
+    // Sort by selected date field
+    filtered = [...filtered].sort((a, b) => {
+        const da = new Date((sortBy === 'effDate' ? (a.effDate || a.entryDate) : a.entryDate) || '1970-01-01');
+        const db = new Date((sortBy === 'effDate' ? (b.effDate || b.entryDate) : b.entryDate) || '1970-01-01');
+        return sortDir === 'asc' ? da - db : db - da;
+    });
+
+    // Update column header label to reflect active sort field
+    const hdr  = document.getElementById('adminDateColHeader');
+    const hdr2 = document.getElementById('adminDateColHeader2');
+    if (hdr) {
+        if (sortBy === 'effDate') {
+            hdr.textContent  = 'Eff. Date';
+            if (hdr2) hdr2.style.display = 'table-cell';
+        } else {
+            hdr.textContent  = 'Date Entered';
+            if (hdr2) hdr2.style.display = 'none';
+        }
     }
 
     return filtered;
