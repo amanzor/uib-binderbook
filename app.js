@@ -3285,7 +3285,7 @@ function _renderUICPickerTable() {
     if (!tbody) return;
 
     if (!_uicPickerEntries.length) {
-        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--gray-400);">No entries match your search.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:32px;color:var(--gray-400);">No entries match your search.</td></tr>';
         document.getElementById('uicPickerSelCount').textContent = '0 entries selected';
         return;
     }
@@ -3329,7 +3329,10 @@ function _renderUICPickerTable() {
         const fmt = n => n > 0 ? '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
         const bg  = idx % 2 === 0 ? '' : 'background:#f9fafb;';
 
-        return `<tr style="${bg}border-bottom:1px solid var(--gray-100);">
+        const editedBadge = (e._editCommission != null || e._editRate != null)
+            ? `<span style="font-size:9px;background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 4px;display:block;margin-top:2px;">edited</span>` : '';
+
+        return `<tr data-row-idx="${idx}" style="${bg}border-bottom:1px solid var(--gray-100);">
             <td style="padding:7px 10px;text-align:center;">
                 <input type="checkbox" class="uic-pick-cb" data-idx="${idx}"
                     onchange="_uicUpdateSelCount()"
@@ -3346,8 +3349,13 @@ function _renderUICPickerTable() {
             <td style="padding:7px 10px;text-align:right;">${fmt(writtenPrem)}</td>
             <td style="padding:7px 10px;text-align:center;">${e.term || '—'}</td>
             <td style="padding:7px 10px;color:var(--gray-500);">${e.policyNumber || '-'}</td>
-            <td style="padding:7px 10px;text-align:center;">${rateCell}</td>
-            <td style="padding:7px 10px;text-align:right;">${commCell}</td>
+            <td style="padding:7px 10px;text-align:center;">${rateCell}${editedBadge}</td>
+            <td style="padding:7px 10px;text-align:right;">${commCell}${editedBadge}</td>
+            <td style="padding:7px 10px;text-align:center;">
+                <button onclick="uicOpenRowEdit(${idx})"
+                    style="padding:3px 8px;background:linear-gradient(to right,#1539a8,#2563eb);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;"
+                    title="Edit this entry">✏️ Edit</button>
+            </td>
         </tr>`;
     }).join('');
 
@@ -3358,6 +3366,89 @@ function _uicUpdateSelCount() {
     const count = document.querySelectorAll('.uic-pick-cb:checked').length;
     document.getElementById('uicPickerSelCount').textContent =
         count === 0 ? '0 entries selected' : `${count} entr${count === 1 ? 'y' : 'ies'} selected`;
+}
+
+function uicOpenRowEdit(idx) {
+    const e = _uicPickerEntries[idx];
+    if (!e) return;
+
+    // Preserve checkbox checked state
+    const wasChecked = document.querySelector(`.uic-pick-cb[data-idx="${idx}"]`)?.checked || false;
+
+    const targetRow = document.querySelector(`#uicPickerTableBody tr[data-row-idx="${idx}"]`);
+    if (!targetRow) return;
+
+    const s = 'font-size:11px;padding:3px 5px;border:1px solid #d1d5db;border-radius:3px;box-sizing:border-box;';
+    const txnOpts  = ['New','Renewal','Rewrite','End','Canc']
+        .map(v => `<option value="${v}" ${e.policyType===v?'selected':''}>${v}</option>`).join('');
+    const pmtOpts  = ['Monthly Paid','Gross Paid','EFT','Direct Billing','ACH to Agency','CC-Company']
+        .map(v => `<option value="${v}" ${e.paymentType===v?'selected':''}>${v}</option>`).join('');
+    const termOpts = ['6','12']
+        .map(v => `<option value="${v}" ${String(e.term)===v?'selected':''}>${v}</option>`).join('');
+
+    targetRow.style.background = '#fffbeb';
+    targetRow.innerHTML = `
+        <td style="padding:5px 8px;text-align:center;">
+            <input type="checkbox" class="uic-pick-cb" data-idx="${idx}" onchange="_uicUpdateSelCount()"
+                ${wasChecked ? 'checked' : ''} style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer;">
+        </td>
+        <td style="padding:5px 6px;font-weight:500;font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;">${e.customerName || '-'}</td>
+        <td style="padding:3px 4px;">
+            <select id="uicEdit_status_${idx}" style="${s}width:76px;">
+                <option value="Active"   ${(e.status||'Active')==='Active'?'selected':''}>Active</option>
+                <option value="Renewed"  ${e.status==='Renewed'?'selected':''}>Renewed</option>
+                <option value="-"        ${e.status==='-'?'selected':''}>-</option>
+            </select>
+        </td>
+        <td style="padding:3px 4px;"><select id="uicEdit_txn_${idx}" style="${s}width:82px;">${txnOpts}</select></td>
+        <td style="padding:3px 4px;"><input id="uicEdit_lob_${idx}" type="text" value="${(e.lineOfBusiness||'').replace(/"/g,'&quot;')}" style="${s}width:108px;"></td>
+        <td style="padding:3px 4px;"><input id="uicEdit_carrier_${idx}" type="text" value="${(e.company||'').replace(/"/g,'&quot;')}" style="${s}width:108px;"></td>
+        <td style="padding:3px 4px;text-align:right;"><input id="uicEdit_down_${idx}" type="number" step="0.01" value="${parseFloat(e.down)||0}" style="${s}width:68px;text-align:right;"></td>
+        <td style="padding:3px 4px;"><select id="uicEdit_pmt_${idx}" style="${s}width:102px;">${pmtOpts}</select></td>
+        <td style="padding:3px 4px;text-align:right;"><input id="uicEdit_base_${idx}" type="number" step="0.01" value="${parseFloat(e.basePremium)||0}" style="${s}width:74px;text-align:right;"></td>
+        <td style="padding:3px 4px;text-align:right;"><input id="uicEdit_written_${idx}" type="number" step="0.01" value="${parseFloat(e.totalPremium||e.basePremium)||0}" style="${s}width:74px;text-align:right;"></td>
+        <td style="padding:3px 4px;text-align:center;"><select id="uicEdit_term_${idx}" style="${s}width:48px;">${termOpts}</select></td>
+        <td style="padding:3px 4px;"><input id="uicEdit_policy_${idx}" type="text" value="${(e.policyNumber||'').replace(/"/g,'&quot;')}" style="${s}width:96px;"></td>
+        <td style="padding:3px 4px;text-align:center;">
+            <input id="uicEdit_rate_${idx}" type="number" step="0.01" value="${e._editRate != null ? e._editRate : ''}" placeholder="%" style="${s}width:52px;text-align:center;">
+        </td>
+        <td style="padding:3px 4px;text-align:right;">
+            <input id="uicEdit_comm_${idx}" type="number" step="0.01" value="${e._editCommission != null ? e._editCommission : ''}" placeholder="$" style="${s}width:72px;background:#f0fdf4;font-weight:600;text-align:right;">
+        </td>
+        <td style="padding:3px 6px;text-align:center;">
+            <div style="display:flex;gap:3px;justify-content:center;">
+                <button onclick="uicSaveRowEdit(${idx})"
+                    style="padding:3px 8px;background:linear-gradient(to right,#047857,#10b981);color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:11px;font-weight:700;"
+                    title="Save changes">✓</button>
+                <button onclick="_renderUICPickerTable()"
+                    style="padding:3px 8px;background:linear-gradient(to right,#475569,#94a3b8);color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:11px;"
+                    title="Cancel">✗</button>
+            </div>
+        </td>`;
+}
+
+function uicSaveRowEdit(idx) {
+    const e = _uicPickerEntries[idx];
+    if (!e) return;
+    const g = id => document.getElementById(id);
+
+    e.status         = g(`uicEdit_status_${idx}`)?.value        || e.status;
+    e.policyType     = g(`uicEdit_txn_${idx}`)?.value           || e.policyType;
+    e.lineOfBusiness = (g(`uicEdit_lob_${idx}`)?.value || '').trim()     || e.lineOfBusiness;
+    e.company        = (g(`uicEdit_carrier_${idx}`)?.value || '').trim() || e.company;
+    e.down           = parseFloat(g(`uicEdit_down_${idx}`)?.value)  || 0;
+    e.paymentType    = g(`uicEdit_pmt_${idx}`)?.value           || e.paymentType;
+    e.basePremium    = parseFloat(g(`uicEdit_base_${idx}`)?.value)   || e.basePremium;
+    e.totalPremium   = parseFloat(g(`uicEdit_written_${idx}`)?.value)|| e.totalPremium;
+    e.term           = g(`uicEdit_term_${idx}`)?.value          || e.term;
+    e.policyNumber   = (g(`uicEdit_policy_${idx}`)?.value || '').trim();
+
+    const rv = parseFloat(g(`uicEdit_rate_${idx}`)?.value);
+    const cv = parseFloat(g(`uicEdit_comm_${idx}`)?.value);
+    if (!isNaN(rv) && rv > 0) e._editRate = rv; else delete e._editRate;
+    if (!isNaN(cv) && cv > 0) e._editCommission = cv; else delete e._editCommission;
+
+    _renderUICPickerTable();
 }
 
 function toggleUICSelectAll(checked) {
@@ -3395,9 +3486,12 @@ function addSelectedUICEntries() {
 
         if (!agent || !carrier) { skipped++; return; }
 
-        // Commission & rate: use Excel values if present, otherwise calculate from carrier rules
+        // Commission & rate: manual edit > Excel values > carrier rules
         let commission, rate;
-        if (e._fromExcel && e._sourceCommission != null) {
+        if (e._editCommission != null && e._editCommission > 0) {
+            commission = e._editCommission;
+            rate       = e._editRate || 0;
+        } else if (e._fromExcel && e._sourceCommission != null) {
             commission = parseFloat(e._sourceCommission);
             rate       = e._sourceRate || 0;
         } else {
