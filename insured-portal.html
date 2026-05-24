@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UIB Client Portal — Universal Insurance Brokers</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy:       #0d1f3c;
+            --blue:       #1d4ed8;
+            --blue-mid:   #2563eb;
+            --blue-light: #3b82f6;
+            --blue-pale:  #eff6ff;
+            --green:      #059669;
+            --green-pale: #ecfdf5;
+            --red:        #dc2626;
+            --purple:     #7c3aed;
+            --amber:      #d97706;
+            --gray-50:    #f8fafc;
+            --gray-100:   #f1f5f9;
+            --gray-200:   #e2e8f0;
+            --gray-300:   #cbd5e1;
+            --gray-400:   #94a3b8;
+            --gray-500:   #64748b;
+            --gray-700:   #334155;
+            --gray-900:   #0f172a;
+            --white:      #ffffff;
+            --radius-sm:  6px;
+            --radius-md:  10px;
+            --radius-lg:  16px;
+            --shadow-sm:  0 1px 3px rgba(0,0,0,.08);
+            --shadow-md:  0 4px 12px rgba(0,0,0,.10);
+            --shadow-lg:  0 12px 32px rgba(0,0,0,.12);
+            --shadow-xl:  0 24px 60px rgba(0,0,0,.18);
+        }
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height:100%; font-family:'Inter','Segoe UI',system-ui,sans-serif; background:var(--gray-50); -webkit-font-smoothing:antialiased; }
+
+        /* ── LOGIN SCREEN ─────────────────────────────────── */
+        #loginScreen {
+            min-height:100vh; display:flex; align-items:center; justify-content:center;
+            background: linear-gradient(135deg, #0d1f3c 0%, #163057 45%, #1d4ed8 100%);
+            padding:20px;
+        }
+        #loginScreen::before {
+            content:''; position:fixed; inset:0; pointer-events:none;
+            background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(255,255,255,.06) 0%, transparent 70%);
+        }
+        .login-card {
+            background:#fff; border-radius:var(--radius-lg); padding:44px 40px 40px;
+            max-width:440px; width:100%; box-shadow:var(--shadow-xl);
+            position:relative; z-index:1;
+        }
+        .login-brand { text-align:center; margin-bottom:32px; }
+        .login-brand-badge {
+            display:inline-flex; align-items:center; gap:10px;
+            background:var(--navy); color:#fff; padding:11px 22px;
+            border-radius:var(--radius-md); font-weight:800; font-size:15px; letter-spacing:-.2px;
+            margin-bottom:14px;
+        }
+        .login-brand-badge svg { width:18px; height:18px; }
+        .login-brand h2 { color:var(--navy); font-size:1.35rem; font-weight:700; margin-bottom:4px; }
+        .login-brand p  { color:var(--gray-400); font-size:.85rem; }
+
+        .login-divider { height:1px; background:var(--gray-100); margin:20px 0; }
+
+        .login-field { margin-bottom:16px; }
+        .login-field label { display:block; font-size:12px; font-weight:700; color:var(--gray-700); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+        .login-field input {
+            width:100%; padding:11px 13px; border:1.5px solid var(--gray-200);
+            border-radius:var(--radius-sm); font-family:inherit; font-size:14px;
+            color:var(--gray-900); transition:border-color .15s, box-shadow .15s;
+        }
+        .login-field input:focus { outline:none; border-color:var(--blue-light); box-shadow:0 0 0 3px rgba(59,130,246,.15); }
+        .login-field .hint { font-size:11px; color:var(--gray-400); margin-top:4px; }
+
+        .login-btn {
+            width:100%; padding:13px; border:none; border-radius:var(--radius-sm);
+            background:linear-gradient(to right, #0f2a78 0%, #1d4ed8 55%, #3b82f6 100%);
+            color:#fff; font-family:inherit; font-size:15px; font-weight:700;
+            cursor:pointer; letter-spacing:.2px; margin-top:6px;
+            transition:filter .15s, transform .15s;
+            box-shadow:0 2px 10px rgba(29,78,216,.35);
+        }
+        .login-btn:hover  { filter:brightness(1.08); transform:translateY(-1px); }
+        .login-btn:active { transform:translateY(0); }
+
+        .login-error {
+            background:#fef2f2; border:1px solid #fecaca; color:#b91c1c;
+            border-radius:var(--radius-sm); padding:10px 13px;
+            font-size:13px; text-align:center; margin-top:12px; display:none;
+        }
+        .login-footer { margin-top:24px; text-align:center; font-size:12px; color:var(--gray-400); line-height:1.7; }
+        .login-footer a { color:var(--blue); text-decoration:none; font-weight:600; }
+        .login-footer a:hover { text-decoration:underline; }
+
+        /* ── PORTAL APP ───────────────────────────────────── */
+        #portalApp { display:none; min-height:100vh; flex-direction:column; }
+        #portalApp.visible { display:flex; }
+
+        /* Header */
+        .portal-header {
+            background:linear-gradient(135deg, #0d1f3c 0%, #163057 50%, #1d4ed8 100%);
+            padding:0 28px; height:64px; display:flex; align-items:center; gap:16px;
+            position:sticky; top:0; z-index:100; box-shadow:0 2px 12px rgba(0,0,0,.25);
+        }
+        .portal-logo { color:#fff; font-weight:800; font-size:.95rem; display:flex; align-items:center; gap:9px; white-space:nowrap; }
+        .portal-logo .badge { background:rgba(255,255,255,.18); padding:3px 9px; border-radius:20px; font-size:10px; font-weight:700; letter-spacing:.5px; }
+        .portal-greeting { flex:1; text-align:right; color:rgba(255,255,255,.85); font-size:13px; font-weight:500; }
+        .portal-greeting strong { color:#fff; }
+        .portal-logout {
+            padding:7px 14px; border:1px solid rgba(255,255,255,.3); border-radius:var(--radius-sm);
+            background:rgba(255,255,255,.1); color:#fff; font-family:inherit;
+            font-size:12px; font-weight:600; cursor:pointer; transition:background .15s;
+        }
+        .portal-logout:hover { background:rgba(255,255,255,.2); }
+
+        /* Body */
+        .portal-body { flex:1; max-width:1100px; width:100%; margin:0 auto; padding:32px 24px; }
+
+        /* Hero banner */
+        .portal-hero {
+            background:linear-gradient(135deg, var(--navy) 0%, #1d4ed8 100%);
+            border-radius:var(--radius-lg); padding:28px 32px;
+            color:#fff; margin-bottom:28px; display:flex; align-items:center; gap:24px;
+            box-shadow:var(--shadow-md);
+        }
+        .hero-avatar {
+            width:66px; height:66px; border-radius:50%; flex-shrink:0;
+            background:rgba(255,255,255,.18); color:#fff; font-size:24px; font-weight:800;
+            display:flex; align-items:center; justify-content:center;
+            border:2px solid rgba(255,255,255,.3);
+        }
+        .hero-info h1 { font-size:1.5rem; font-weight:800; margin-bottom:4px; }
+        .hero-info p  { font-size:.875rem; opacity:.75; }
+        .hero-stats { margin-left:auto; display:flex; gap:24px; }
+        .hero-stat { text-align:center; }
+        .hero-stat .val { font-size:1.6rem; font-weight:800; line-height:1; }
+        .hero-stat .lbl { font-size:11px; opacity:.7; font-weight:500; margin-top:3px; }
+
+        /* Stat cards */
+        .stat-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:14px; margin-bottom:28px; }
+        .stat-card {
+            background:#fff; border-radius:var(--radius-md); padding:18px 20px;
+            border:1px solid var(--gray-200); box-shadow:var(--shadow-sm);
+            border-left:4px solid var(--blue);
+        }
+        .stat-card .sc-label { font-size:11px; font-weight:700; color:var(--gray-400); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+        .stat-card .sc-value { font-size:1.5rem; font-weight:800; color:var(--gray-900); }
+        .stat-card .sc-sub   { font-size:11px; color:var(--gray-400); margin-top:3px; }
+
+        /* Tabs */
+        .portal-tabs { display:flex; gap:0; border-bottom:2px solid var(--gray-200); margin-bottom:24px; }
+        .portal-tab {
+            padding:11px 22px; font-size:13px; font-weight:600; color:var(--gray-500);
+            cursor:pointer; border:none; background:none; border-bottom:2px solid transparent;
+            margin-bottom:-2px; transition:color .15s, border-color .15s; display:flex; align-items:center; gap:7px;
+        }
+        .portal-tab:hover { color:var(--blue); }
+        .portal-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
+        .tab-badge {
+            background:var(--blue); color:#fff; border-radius:10px;
+            font-size:10px; font-weight:700; padding:1px 6px; min-width:18px; text-align:center;
+        }
+
+        /* Section card */
+        .section-card {
+            background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius-lg);
+            box-shadow:var(--shadow-sm); margin-bottom:20px; overflow:hidden;
+        }
+        .section-card-header {
+            padding:18px 22px; border-bottom:1px solid var(--gray-100);
+            display:flex; align-items:center; justify-content:space-between;
+        }
+        .section-card-header h3 {
+            font-size:.95rem; font-weight:700; color:var(--navy);
+            display:flex; align-items:center; gap:8px;
+        }
+
+        /* Policy table */
+        .policy-table { width:100%; border-collapse:collapse; font-size:13px; }
+        .policy-table th {
+            padding:10px 14px; text-align:left; font-size:11px; font-weight:700;
+            color:var(--gray-500); text-transform:uppercase; letter-spacing:.4px;
+            background:var(--gray-50); border-bottom:1px solid var(--gray-200);
+            white-space:nowrap;
+        }
+        .policy-table td { padding:12px 14px; border-bottom:1px solid var(--gray-100); vertical-align:middle; }
+        .policy-table tr:last-child td { border-bottom:none; }
+        .policy-table tr:hover td { background:var(--blue-pale); }
+
+        .status-pill {
+            display:inline-flex; align-items:center; gap:5px;
+            padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap;
+        }
+        .status-active   { background:#dcfce7; color:#166534; }
+        .status-renewed  { background:#dbeafe; color:#1d4ed8; }
+        .status-expired  { background:#fee2e2; color:#b91c1c; }
+        .status-cancelled{ background:#f3f4f6; color:#6b7280; }
+        .status-dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
+
+        .carrier-pill {
+            display:inline-block; padding:2px 8px; border-radius:4px;
+            background:var(--blue-pale); color:var(--blue-mid);
+            font-size:11px; font-weight:700;
+        }
+        .lob-pill {
+            display:inline-block; padding:2px 8px; border-radius:4px;
+            background:#f3f4f6; color:var(--gray-700); font-size:11px; font-weight:600;
+        }
+
+        /* Documents grid */
+        .doc-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:14px; padding:20px; }
+        .doc-card {
+            border:1px solid var(--gray-200); border-radius:var(--radius-md);
+            padding:16px 14px; cursor:pointer; transition:all .15s;
+            display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;
+            background:#fff;
+        }
+        .doc-card:hover { border-color:var(--blue-light); box-shadow:var(--shadow-md); transform:translateY(-2px); }
+        .doc-icon { font-size:32px; line-height:1; }
+        .doc-name { font-size:12px; font-weight:600; color:var(--gray-700); word-break:break-word; line-height:1.3; }
+        .doc-meta { font-size:11px; color:var(--gray-400); }
+        .doc-category { padding:2px 8px; border-radius:10px; background:var(--blue-pale); color:var(--blue-mid); font-size:10px; font-weight:700; }
+        .doc-empty { padding:48px 24px; text-align:center; color:var(--gray-400); }
+        .doc-empty p { margin-top:8px; font-size:.875rem; }
+
+        /* Contact Agent card */
+        .agent-card {
+            display:flex; gap:20px; align-items:flex-start; padding:22px;
+        }
+        .agent-avatar {
+            width:60px; height:60px; border-radius:50%; flex-shrink:0;
+            background:linear-gradient(135deg, var(--blue) 0%, var(--navy) 100%);
+            color:#fff; font-size:20px; font-weight:800;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .agent-info h4 { font-size:1rem; font-weight:700; color:var(--gray-900); margin-bottom:6px; }
+        .agent-info .role { font-size:12px; color:var(--gray-400); font-weight:600; text-transform:uppercase; letter-spacing:.4px; margin-bottom:12px; }
+        .agent-contacts { display:flex; flex-direction:column; gap:8px; }
+        .agent-contact-row { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--gray-700); }
+        .agent-contact-row .icon { color:var(--blue); font-size:16px; flex-shrink:0; }
+
+        /* Agency info */
+        .agency-block {
+            background:linear-gradient(135deg, #f0f4ff 0%, #e8f0ff 100%);
+            border:1px solid #c7d7f5; border-radius:var(--radius-md);
+            padding:18px 20px; margin:20px;
+        }
+        .agency-block h4 { font-size:.875rem; font-weight:700; color:var(--navy); margin-bottom:10px; }
+        .agency-detail { display:flex; gap:8px; font-size:13px; color:var(--gray-600); margin-bottom:5px; align-items:center; }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .portal-hero { flex-direction:column; text-align:center; }
+            .hero-stats { margin:0 auto; }
+            .portal-body { padding:20px 14px; }
+            .login-card { padding:32px 22px; }
+        }
+
+        /* Loading */
+        .loading-ring {
+            width:40px; height:40px; border-radius:50%;
+            border:3px solid var(--gray-200); border-top-color:var(--blue);
+            animation:spin .7s linear infinite; margin:40px auto;
+        }
+        @keyframes spin { to { transform:rotate(360deg); } }
+
+        /* Fade in */
+        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        .fade-up { animation:fadeUp .3s ease forwards; }
+    </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════════ -->
+<div id="loginScreen">
+    <div class="login-card">
+        <div class="login-brand">
+            <div class="login-brand-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                UIB Client Portal
+            </div>
+            <h2>Access Your Policy</h2>
+            <p>Universal Insurance Brokers — Secure policyholder access</p>
+        </div>
+
+        <div class="login-divider"></div>
+
+        <div class="login-field">
+            <label>Last Name</label>
+            <input type="text" id="loginLastName" placeholder="e.g. Martinez" autocomplete="family-name">
+        </div>
+        <div class="login-field">
+            <label>Policy or Binder Number</label>
+            <input type="text" id="loginPolicyNum" placeholder="e.g. 970306264 or JC-2024-0001" autocomplete="off"
+                onkeydown="if(event.key==='Enter') portalLogin()">
+            <div class="hint">Enter the policy number or binder number from your insurance documents.</div>
+        </div>
+
+        <button class="login-btn" onclick="portalLogin()">🔐 Sign In to My Portal</button>
+        <div class="login-error" id="loginError"></div>
+
+        <div class="login-footer">
+            <p>Can't find your policy number? <a href="mailto:info@universalinsbrokers.com">Contact us</a></p>
+            <p style="margin-top:6px;"><a href="index.html">← Return to Binder Book</a> &nbsp;|&nbsp; <a href="ams.html">AMS System</a></p>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PORTAL APP
+══════════════════════════════════════════════ -->
+<div id="portalApp">
+
+    <!-- Header -->
+    <header class="portal-header">
+        <div class="portal-logo">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            UIB Client Portal
+            <span class="badge">POLICYHOLDER</span>
+        </div>
+        <div class="portal-greeting">Welcome back, <strong id="headerName">—</strong></div>
+        <button class="portal-logout" onclick="portalLogout()">Sign Out</button>
+    </header>
+
+    <!-- Body -->
+    <div class="portal-body">
+
+        <!-- Hero -->
+        <div class="portal-hero fade-up">
+            <div class="hero-avatar" id="heroAvatar">?</div>
+            <div class="hero-info">
+                <h1 id="heroName">—</h1>
+                <p id="heroMeta">Loading your policy details…</p>
+            </div>
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <div class="val" id="statPolicies">0</div>
+                    <div class="lbl">Policies</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="val" id="statActivePolicies">0</div>
+                    <div class="lbl">Active</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="val" id="statCarriers">0</div>
+                    <div class="lbl">Carriers</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="stat-row fade-up" id="statCards"></div>
+
+        <!-- Tabs -->
+        <div class="portal-tabs fade-up">
+            <button class="portal-tab active" onclick="showPortalTab('policies')" id="ptab_policies">
+                📋 My Policies
+            </button>
+            <button class="portal-tab" onclick="showPortalTab('documents')" id="ptab_documents">
+                📄 My Documents <span class="tab-badge" id="docBadge" style="display:none;">0</span>
+            </button>
+            <button class="portal-tab" onclick="showPortalTab('agent')" id="ptab_agent">
+                👤 My Agent
+            </button>
+        </div>
+
+        <!-- TAB: Policies -->
+        <div id="tab_policies" class="fade-up">
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h3>📋 Policy History</h3>
+                    <span id="policyCount" style="font-size:12px;color:var(--gray-400);"></span>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="policy-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Policy #</th>
+                                <th>Carrier</th>
+                                <th>Line of Business</th>
+                                <th>Type</th>
+                                <th>Eff. Date</th>
+                                <th>Expiration</th>
+                                <th>Term</th>
+                                <th style="text-align:right;">Premium</th>
+                                <th>Payment</th>
+                            </tr>
+                        </thead>
+                        <tbody id="policyTableBody">
+                            <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--gray-400);">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Documents -->
+        <div id="tab_documents" style="display:none;" class="fade-up">
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h3>📄 Policy Documents</h3>
+                    <select id="docCategoryFilter" onchange="renderPortalDocs()"
+                        style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:12px;background:#fff;color:var(--gray-700);">
+                        <option value="">All Categories</option>
+                        <option>Policy Documents</option>
+                        <option>Identification</option>
+                        <option>Proof of Insurance</option>
+                        <option>Vehicle Documents</option>
+                        <option>Claims</option>
+                        <option>Correspondence</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div id="docGridWrap">
+                    <div class="doc-empty">
+                        <div style="font-size:48px;">📂</div>
+                        <p>Loading your documents…</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Agent -->
+        <div id="tab_agent" style="display:none;" class="fade-up">
+            <div class="section-card" style="margin-bottom:16px;">
+                <div class="section-card-header">
+                    <h3>👤 Your Assigned Agent</h3>
+                </div>
+                <div class="agent-card" id="agentCard">
+                    <div class="loading-ring"></div>
+                </div>
+            </div>
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h3>🏢 Agency Information</h3>
+                </div>
+                <div class="agency-block" style="margin:20px;">
+                    <h4>Universal Insurance Brokers (UIB)</h4>
+                    <div class="agency-detail">📍 Doral, Florida</div>
+                    <div class="agency-detail">📞 For policy questions, contact your assigned agent above</div>
+                    <div class="agency-detail">⏰ Monday – Friday: 9:00 AM – 6:00 PM ET</div>
+                    <div class="agency-detail" style="margin-top:8px;font-size:12px;color:var(--gray-400);">
+                        This is a read-only portal. To make changes to your policy, please contact your agent directly.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /portal-body -->
+</div><!-- /portalApp -->
+
+<script>
+// ═══════════════════════════════════════════════════
+// DATA ACCESS
+// ═══════════════════════════════════════════════════
+function getBinderData()  { try { return JSON.parse(localStorage.getItem('binderData'))    || []; } catch(e) { return []; } }
+function getClientData()  { try { return JSON.parse(localStorage.getItem('amsClientData')) || {}; } catch(e) { return {}; } }
+
+function clientKey(name) {
+    return (name || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+// ── IndexedDB (same DB as AMS) ──
+let _idb = null;
+function openIDB() {
+    return new Promise(resolve => {
+        const req = indexedDB.open('UIB_AMS_Files', 2);
+        req.onupgradeneeded = e => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('files')) {
+                const store = db.createObjectStore('files', { keyPath:'id', autoIncrement:true });
+                store.createIndex('clientKey',  'clientKey',  { unique:false });
+                store.createIndex('uploadedAt', 'uploadedAt', { unique:false });
+                store.createIndex('category',   'category',   { unique:false });
+            }
+        };
+        req.onsuccess   = e => { _idb = e.target.result; resolve(_idb); };
+        req.onerror     = ()  => resolve(null);
+    });
+}
+
+function getFilesForClient(key) {
+    return new Promise(resolve => {
+        if (!_idb) { resolve([]); return; }
+        const idx = _idb.transaction('files','readonly').objectStore('files').index('clientKey');
+        const req = idx.getAll(key);
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror   = () => resolve([]);
+    });
+}
+
+// ═══════════════════════════════════════════════════
+// SESSION
+// ═══════════════════════════════════════════════════
+let _session = null; // { clientKey, displayName, policies }
+
+function saveSession(data) { sessionStorage.setItem('uibInsuredSession', JSON.stringify(data)); }
+function loadSession()     { try { return JSON.parse(sessionStorage.getItem('uibInsuredSession')); } catch(e) { return null; } }
+function clearSession()    { sessionStorage.removeItem('uibInsuredSession'); }
+
+// ═══════════════════════════════════════════════════
+// LOGIN
+// ═══════════════════════════════════════════════════
+function portalLogin() {
+    const lastName  = document.getElementById('loginLastName').value.trim();
+    const policyNum = document.getElementById('loginPolicyNum').value.trim().toUpperCase();
+    const errEl     = document.getElementById('loginError');
+
+    errEl.style.display = 'none';
+
+    if (!lastName || !policyNum) {
+        showLoginError('Please enter your last name and policy/binder number.');
+        return;
+    }
+
+    const binder = getBinderData();
+    const lastNameUC = lastName.toUpperCase();
+
+    // Find matching entries: policy or binder number match + last name match
+    const matched = binder.filter(e => {
+        const pNum = (e.policyNumber  || '').toString().toUpperCase();
+        const bNum = (e.binderNumber  || '').toString().toUpperCase();
+        if (pNum !== policyNum && bNum !== policyNum) return false;
+        // Last-name check: customerName must include the last name
+        const parts = (e.customerName || '').trim().toUpperCase().split(/\s+/);
+        return parts.some(p => p === lastNameUC);
+    });
+
+    if (!matched.length) {
+        showLoginError('No policy found matching that name and number. Please check your details and try again.');
+        return;
+    }
+
+    // Find all policies for this customer (by name)
+    const cKey = clientKey(matched[0].customerName);
+    const allPolicies = binder.filter(e => clientKey(e.customerName) === cKey);
+
+    _session = { clientKey: cKey, displayName: matched[0].customerName, policies: allPolicies };
+    saveSession(_session);
+    showPortal();
+}
+
+function showLoginError(msg) {
+    const el = document.getElementById('loginError');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════
+// PORTAL INIT
+// ═══════════════════════════════════════════════════
+async function showPortal() {
+    document.getElementById('loginScreen').style.display = 'none';
+    const app = document.getElementById('portalApp');
+    app.classList.add('visible');
+
+    const policies = _session.policies;
+    const name     = _session.displayName;
+
+    // Header / hero
+    document.getElementById('headerName').textContent = name;
+    document.getElementById('heroName').textContent   = name;
+    document.getElementById('heroAvatar').textContent = nameInitials(name);
+
+    // Agent(s) from policies
+    const agents    = [...new Set(policies.map(p => p.agent).filter(Boolean))];
+    const carriers  = [...new Set(policies.map(p => p.company).filter(Boolean))];
+    const activePols= policies.filter(p => policyStatus(p) === 'Active');
+
+    document.getElementById('heroMeta').textContent =
+        `${agents.length ? 'Agent: ' + agents.join(', ') : 'UIB Client'} · ${carriers.length} carrier${carriers.length !== 1 ? 's' : ''}`;
+
+    document.getElementById('statPolicies').textContent      = policies.length;
+    document.getElementById('statActivePolicies').textContent = activePols.length;
+    document.getElementById('statCarriers').textContent      = carriers.length;
+
+    // Stat cards
+    const totalPrem = policies.reduce((s, p) => s + (parseFloat(p.totalPremium) || 0), 0);
+    const lobs      = [...new Set(policies.map(p => p.lineOfBusiness).filter(Boolean))];
+    document.getElementById('statCards').innerHTML = `
+        <div class="stat-card" style="border-left-color:#059669;">
+            <div class="sc-label">Active Policies</div>
+            <div class="sc-value">${activePols.length}</div>
+            <div class="sc-sub">of ${policies.length} total</div>
+        </div>
+        <div class="stat-card" style="border-left-color:#1d4ed8;">
+            <div class="sc-label">Lines of Business</div>
+            <div class="sc-value">${lobs.length}</div>
+            <div class="sc-sub">${lobs.slice(0,2).join(', ')|| 'N/A'}</div>
+        </div>
+        <div class="stat-card" style="border-left-color:#d97706;">
+            <div class="sc-label">Total Premiums on File</div>
+            <div class="sc-value">$${totalPrem.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+            <div class="sc-sub">across all policies</div>
+        </div>
+        <div class="stat-card" style="border-left-color:#7c3aed;">
+            <div class="sc-label">Insurance Carriers</div>
+            <div class="sc-value">${carriers.length}</div>
+            <div class="sc-sub">${carriers.slice(0,2).join(', ') || 'N/A'}</div>
+        </div>`;
+
+    renderPolicies();
+    renderAgentCard();
+
+    // Load docs asynchronously
+    await openIDB();
+    const files = await getFilesForClient(_session.clientKey);
+    _allDocs = files;
+    const badge = document.getElementById('docBadge');
+    if (files.length) { badge.textContent = files.length; badge.style.display = ''; }
+    renderPortalDocs();
+}
+
+// ═══════════════════════════════════════════════════
+// POLICIES TAB
+// ═══════════════════════════════════════════════════
+function renderPolicies() {
+    const policies = _session.policies;
+    const tbody    = document.getElementById('policyTableBody');
+    document.getElementById('policyCount').textContent = `${policies.length} record${policies.length !== 1 ? 's' : ''}`;
+
+    if (!policies.length) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--gray-400);">No policies on file.</td></tr>';
+        return;
+    }
+
+    // Sort newest first
+    const sorted = [...policies].sort((a,b) => (b.entryDate||'').localeCompare(a.entryDate||''));
+
+    tbody.innerHTML = sorted.map(p => {
+        const status  = policyStatus(p);
+        const pillCls = { Active:'status-active', Renewed:'status-renewed', Expired:'status-expired', Cancelled:'status-cancelled' }[status] || 'status-active';
+        const effDate = p.effDate || p.entryDate || '';
+        const expDate = calcExpiry(effDate, p.term);
+        const prem    = parseFloat(p.totalPremium) || 0;
+        return `<tr>
+            <td><span class="status-pill ${pillCls}"><span class="status-dot"></span>${status}</span></td>
+            <td style="font-family:monospace;font-size:12px;font-weight:600;color:var(--gray-700);">${p.policyNumber || p.binderNumber || '—'}</td>
+            <td><span class="carrier-pill">${p.company || '—'}</span></td>
+            <td><span class="lob-pill">${p.lineOfBusiness || '—'}</span></td>
+            <td style="font-size:12px;color:var(--gray-600);">${p.policyType || '—'}</td>
+            <td style="font-size:12px;">${fmtDate(effDate)}</td>
+            <td style="font-size:12px;">${expDate ? fmtDate(expDate) : '—'}</td>
+            <td style="font-size:12px;text-align:center;">${p.term ? p.term + ' mo' : '—'}</td>
+            <td style="text-align:right;font-weight:700;color:var(--gray-900);">${prem > 0 ? '$'+prem.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</td>
+            <td style="font-size:12px;color:var(--gray-500);">${p.paymentType || p.paymentMethod2 || '—'}</td>
+        </tr>`;
+    }).join('');
+}
+
+function policyStatus(p) {
+    const pt = (p.policyType || '').toLowerCase();
+    if (pt.includes('canc') || pt.includes('end')) return 'Cancelled';
+    if (pt.includes('renew')) return 'Renewed';
+    // Check expiry
+    const effDate = p.effDate || p.entryDate;
+    if (effDate && p.term) {
+        const exp = calcExpiry(effDate, p.term);
+        if (exp && new Date(exp) < new Date()) return 'Expired';
+    }
+    return 'Active';
+}
+
+function calcExpiry(effDate, term) {
+    if (!effDate || !term) return null;
+    try {
+        const d = new Date(effDate + 'T12:00:00');
+        d.setMonth(d.getMonth() + parseInt(term));
+        return d.toISOString().split('T')[0];
+    } catch(e) { return null; }
+}
+
+function fmtDate(d) {
+    if (!d) return '—';
+    try {
+        const dt = new Date(d + 'T12:00:00');
+        return dt.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    } catch(e) { return d; }
+}
+
+// ═══════════════════════════════════════════════════
+// DOCUMENTS TAB
+// ═══════════════════════════════════════════════════
+let _allDocs = [];
+
+function renderPortalDocs() {
+    const cat   = document.getElementById('docCategoryFilter')?.value || '';
+    const files = cat ? _allDocs.filter(f => f.category === cat) : _allDocs;
+    const wrap  = document.getElementById('docGridWrap');
+
+    if (!files.length) {
+        wrap.innerHTML = `<div class="doc-empty">
+            <div style="font-size:48px;">${cat ? '🔍' : '📂'}</div>
+            <p>${cat ? 'No documents in this category.' : 'No documents have been uploaded for your account yet.'}</p>
+            <p style="font-size:12px;color:var(--gray-400);margin-top:6px;">Contact your agent to upload policy documents.</p>
+        </div>`;
+        return;
+    }
+
+    wrap.innerHTML = `<div class="doc-grid">${files.map(f => `
+        <div class="doc-card" onclick="portalPreviewDoc(${f.id})" title="${escHtml(f.name)}">
+            <div class="doc-icon">${fileIcon(f.name, f.type)}</div>
+            <div class="doc-name">${escHtml(f.name)}</div>
+            <div class="doc-meta">${fmtFileSize(f.size)}</div>
+            <div class="doc-category">${escHtml(f.category || 'Other')}</div>
+        </div>`).join('')}</div>`;
+}
+
+async function portalPreviewDoc(id) {
+    if (!_idb) return;
+    const tx  = _idb.transaction('files','readonly');
+    const req = tx.objectStore('files').get(id);
+    req.onsuccess = () => {
+        const rec = req.result;
+        if (!rec || !rec.dataUrl) { alert('File data not available.'); return; }
+        // Open in new tab
+        const w = window.open();
+        if (!w) { alert('Please allow pop-ups to preview documents.'); return; }
+        w.document.write(`<html><head><title>${escHtml(rec.name)}</title></head><body style="margin:0;background:#1e1e1e;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+            ${rec.type && rec.type.startsWith('image/')
+                ? `<img src="${rec.dataUrl}" style="max-width:100%;max-height:100vh;object-fit:contain;">`
+                : `<iframe src="${rec.dataUrl}" style="width:100vw;height:100vh;border:none;"></iframe>`}
+        </body></html>`);
+    };
+}
+
+function fileIcon(name, type) {
+    const ext = (name || '').split('.').pop().toLowerCase();
+    if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return '🖼️';
+    if (ext === 'pdf') return '📄';
+    if (['doc','docx'].includes(ext)) return '📝';
+    if (['xls','xlsx'].includes(ext)) return '📊';
+    if (['mp4','mov','avi','mkv'].includes(ext)) return '🎬';
+    if (['mp3','wav','aac'].includes(ext)) return '🎵';
+    if (['zip','rar','7z'].includes(ext)) return '📦';
+    return '📎';
+}
+
+function fmtFileSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1024/1024).toFixed(1) + ' MB';
+}
+
+// ═══════════════════════════════════════════════════
+// AGENT TAB
+// ═══════════════════════════════════════════════════
+function renderAgentCard() {
+    const policies = _session.policies;
+    const agents   = [...new Set(policies.map(p => p.agent).filter(Boolean))];
+    const agentName = agents[0] || 'Your UIB Agent';
+    const contact  = getClientData()[_session.clientKey] || {};
+
+    const card = document.getElementById('agentCard');
+    card.innerHTML = `
+        <div class="agent-avatar">${nameInitials(agentName)}</div>
+        <div class="agent-info">
+            <h4>${escHtml(agentName)}</h4>
+            <div class="role">Licensed Insurance Agent · UIB</div>
+            <div class="agent-contacts">
+                ${contact.csrName ? `<div class="agent-contact-row"><span class="icon">👩‍💼</span> CSR: ${escHtml(contact.csrName)}</div>` : ''}
+                ${contact.assignedAgent && contact.assignedAgent !== agentName
+                    ? `<div class="agent-contact-row"><span class="icon">🔀</span>Also assigned: ${escHtml(contact.assignedAgent)}</div>` : ''}
+                <div class="agent-contact-row"><span class="icon">🏢</span>Universal Insurance Brokers</div>
+                <div class="agent-contact-row" style="margin-top:6px;font-size:12px;color:var(--gray-400);">
+                    To reach your agent, visit a UIB office or call the main line.
+                </div>
+            </div>
+        </div>`;
+
+    // Show all policies by this agent
+    const agentPolicies = policies.filter(p => agents.includes(p.agent));
+    if (agentPolicies.length) {
+        const carriers = [...new Set(agentPolicies.map(p=>p.company).filter(Boolean))];
+        card.insertAdjacentHTML('afterend', `
+            <div style="padding:0 22px 20px;">
+                <div style="font-size:12px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">
+                    Policies handled by ${escHtml(agentName)}
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:7px;">
+                    ${carriers.map(c=>`<span class="carrier-pill">${escHtml(c)}</span>`).join('')}
+                </div>
+            </div>`);
+    }
+}
+
+// ═══════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════
+function showPortalTab(tab) {
+    ['policies','documents','agent'].forEach(t => {
+        document.getElementById('tab_'+t).style.display = t === tab ? '' : 'none';
+        const btn = document.getElementById('ptab_'+t);
+        if (btn) btn.classList.toggle('active', t === tab);
+    });
+}
+
+// ═══════════════════════════════════════════════════
+// LOGOUT
+// ═══════════════════════════════════════════════════
+function portalLogout() {
+    clearSession();
+    _session = null;
+    document.getElementById('portalApp').classList.remove('visible');
+    document.getElementById('loginScreen').style.display = '';
+    document.getElementById('loginLastName').value  = '';
+    document.getElementById('loginPolicyNum').value = '';
+    document.getElementById('loginError').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════
+function nameInitials(name) {
+    const parts = (name || '').trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+    return (name || '?')[0].toUpperCase();
+}
+
+function escHtml(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════
+(async function boot() {
+    const saved = loadSession();
+    if (saved && saved.clientKey && saved.policies) {
+        _session = saved;
+        document.getElementById('loginScreen').style.display = 'none';
+        await showPortal();
+    }
+})();
+</script>
+</body>
+</html>
