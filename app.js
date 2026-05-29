@@ -1458,6 +1458,108 @@ function closeDailySalesModal() {
     document.getElementById('dailySalesModal').classList.remove('active');
     _selectedSalesLocation = '';
     document.getElementById('salesLocationDisplay').textContent = '—';
+    clientLookupClear();
+}
+
+// ── Client Lookup Search ──────────────────────────────────────────────────────
+function clientLookupSearch(query) {
+    const clearBtn = document.getElementById('clientLookupClear');
+    const resultsDiv = document.getElementById('clientLookupResults');
+    if (!resultsDiv) return;
+
+    if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
+
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) {
+        resultsDiv.innerHTML = '';
+        return;
+    }
+
+    // Search allData for matching customer names
+    const matches = {};
+    (allData || []).forEach(e => {
+        const name = (e.customerName || '').trim();
+        if (!name) return;
+        if (name.toLowerCase().includes(q)) {
+            if (!matches[name]) matches[name] = [];
+            matches[name].push(e);
+        }
+    });
+
+    const names = Object.keys(matches);
+
+    if (names.length === 0) {
+        resultsDiv.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;font-size:13px;color:#166534;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <span><strong>No existing client found</strong> — this appears to be a new client. Go ahead!</span>
+            </div>`;
+        return;
+    }
+
+    const rows = names.slice(0, 8).map(name => {
+        const entries = matches[name];
+        const latest  = entries.sort((a,b) => (b.entryDate||'').localeCompare(a.entryDate||''))[0];
+        const count   = entries.length;
+        const carrier = latest.company || '—';
+        const lob     = latest.lineOfBusiness || '—';
+        const date    = latest.entryDate ? latest.entryDate.slice(0,10) : '—';
+        const agent   = latest.agent || '—';
+        const safeName = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        return `
+            <div onclick="clientLookupSelect('${safeName}')"
+                style="display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-radius:7px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;margin-bottom:5px;transition:background .12s;"
+                onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='#fff'">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;">${lob} · ${carrier} · Last: ${date} · Agent: ${agent}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:10px;">
+                    <span style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">${count} ${count===1?'policy':'policies'}</span>
+                    <span style="background:linear-gradient(to right,#1d4ed8,#2563eb);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;">Select</span>
+                </div>
+            </div>`;
+    }).join('');
+
+    const more = names.length > 8 ? `<div style="font-size:11px;color:#94a3b8;text-align:center;padding:4px;">…and ${names.length - 8} more results</div>` : '';
+
+    resultsDiv.innerHTML = `
+        <div style="font-size:11px;font-weight:600;color:#0369a1;margin-bottom:5px;padding:0 2px;">
+            ⚠️ ${names.length} existing client${names.length>1?'s':''} found — select to auto-fill, or continue typing a new name
+        </div>
+        ${rows}${more}`;
+}
+
+function clientLookupSelect(name) {
+    const input = document.getElementById('customerName');
+    if (input) {
+        input.value = name;
+        input.dispatchEvent(new Event('input'));
+        // Highlight the field briefly
+        input.style.transition = 'box-shadow .3s';
+        input.style.boxShadow = '0 0 0 3px rgba(29,78,216,.35)';
+        setTimeout(() => input.style.boxShadow = '', 1200);
+    }
+    // Show returning-client badge in results
+    const resultsDiv = document.getElementById('clientLookupResults');
+    if (resultsDiv) {
+        resultsDiv.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;font-size:13px;color:#1d4ed8;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span><strong>Returning client:</strong> "${name}" — Customer Name field has been filled in.</span>
+            </div>`;
+    }
+    const clearBtn = document.getElementById('clientLookupInput');
+    if (clearBtn) clearBtn.value = name;
+}
+
+function clientLookupClear() {
+    const inp = document.getElementById('clientLookupInput');
+    const res = document.getElementById('clientLookupResults');
+    const btn = document.getElementById('clientLookupClear');
+    if (inp) inp.value = '';
+    if (res) res.innerHTML = '';
+    if (btn) btn.style.display = 'none';
 }
 
 function showSuccess() {
