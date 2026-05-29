@@ -5095,6 +5095,55 @@ function apdExportCSV() {
     URL.revokeObjectURL(url);
 }
 
+// ── Binder Book May 26 Bulk Import ───────────────────────────────────────────
+async function importBinderMay26Data() {
+    const confirmed = confirm(
+        'Import Binder Book May 26 entries?\n\n' +
+        '• 40 policy entries (May 2026)\n' +
+        '• Agents: Uri Rendon, Lazaro Reigosa Cruz, Amanda Montano, Randy Diaz\n' +
+        '• Personal Auto, Commercial, and other lines\n' +
+        '• Existing entries with matching IDs will be skipped (safe to re-run)\n\n' +
+        'Click OK to proceed.'
+    );
+    if (!confirmed) return;
+
+    let importData;
+    try {
+        const resp = await fetch('binder_may26_import.json?v=20260524');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        importData = await resp.json();
+    } catch (err) {
+        alert('Failed to load binder_may26_import.json: ' + err.message);
+        return;
+    }
+
+    let existing = [];
+    try { existing = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) { existing = []; }
+
+    const existingIds = new Set(existing.map(e => e.id));
+    const newEntries  = importData.filter(e => !existingIds.has(e.id));
+
+    if (newEntries.length === 0) {
+        alert('All Binder Book May 26 entries already exist. Nothing was imported.');
+        return;
+    }
+
+    const merged = [...existing, ...newEntries];
+    localStorage.setItem('binderData', JSON.stringify(merged));
+    allData = merged;
+
+    alert(
+        `✅ Import complete!\n\n` +
+        `• ${newEntries.length} new entries added\n` +
+        `• ${importData.length - newEntries.length} duplicates skipped\n` +
+        `• Total records now: ${merged.length}`
+    );
+
+    if (typeof loadAdminData === 'function') loadAdminData();
+    if (typeof apdInit     === 'function') apdInit();
+    if (typeof prodApplyFilters === 'function') prodApplyFilters();
+}
+
 // ── Jorge Castro Bulk Import ─────────────────────────────────────────────────
 async function importJorgeCastroData() {
     const confirmed = confirm(
