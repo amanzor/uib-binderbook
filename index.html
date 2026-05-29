@@ -2090,6 +2090,28 @@
                     <button class="btn-danger btn-sm" onclick="logout()">Logout</button>
                 </div>
 
+                <div class="footer-buttons" style="margin-bottom:18px;">
+                    <button class="btn-primary" onclick="exportAllData()"><i data-lucide="download"></i> Export CSV</button>
+                    <button class="btn-success" onclick="exportToExcel()"><i data-lucide="file-spreadsheet"></i> Export Excel</button>
+                    <button class="btn-primary" onclick="showCommissionDashboard()"><i data-lucide="trending-up"></i> Commissions</button>
+                    <button class="btn-success" onclick="showCommissionStatements()"><i data-lucide="file-spreadsheet"></i> Commission Statements</button>
+                    <button class="btn-primary" onclick="showCarrierManagement()"><i data-lucide="building-2"></i> Carriers</button>
+                    <button class="btn-primary" onclick="showAgentManagement()"><i data-lucide="users"></i> Agents</button>
+                    <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
+                    <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
+                    <button class="btn-success" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
+                    <button class="btn-warning" onclick="importJorgeCastroData()" title="Import all Jorge Castro entries from the Doral commission spreadsheet">
+                        <i data-lucide="upload"></i> Import Jorge Castro
+                    </button>
+                    <button class="btn-success" onclick="importBinderMay26Data()" title="Import Binder Book May 26 entries (40 policies — Uri, Lazaro, Amanda, Randy)">
+                        <i data-lucide="upload"></i> Import Binder May 26
+                    </button>
+                    <button class="btn-purple" onclick="recalculateAllBinderCommissions()" title="Recalculate Agency & Agent Commission for every entry using carrier rules">
+                        <i data-lucide="refresh-cw"></i> Recalculate All Commissions
+                    </button>
+                    <button class="btn-danger" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
+                </div>
+
                 <div class="filter-section">
                     <div class="filter-group">
                         <label>Filter by Agent:</label>
@@ -2158,27 +2180,6 @@
                     </div>
                 </div>
 
-                <div class="footer-buttons">
-                    <button class="btn-primary" onclick="exportAllData()"><i data-lucide="download"></i> Export CSV</button>
-                    <button class="btn-success" onclick="exportToExcel()"><i data-lucide="file-spreadsheet"></i> Export Excel</button>
-                    <button class="btn-primary" onclick="showCommissionDashboard()"><i data-lucide="trending-up"></i> Commissions</button>
-                    <button class="btn-success" onclick="showCommissionStatements()"><i data-lucide="file-spreadsheet"></i> Commission Statements</button>
-                    <button class="btn-primary" onclick="showCarrierManagement()"><i data-lucide="building-2"></i> Carriers</button>
-                    <button class="btn-primary" onclick="showAgentManagement()"><i data-lucide="users"></i> Agents</button>
-                    <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-success" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
-                    <button class="btn-warning" onclick="importJorgeCastroData()" title="Import all Jorge Castro entries from the Doral commission spreadsheet">
-                        <i data-lucide="upload"></i> Import Jorge Castro
-                    </button>
-                    <button class="btn-success" onclick="importBinderMay26Data()" title="Import Binder Book May 26 entries (40 policies — Uri, Lazaro, Amanda, Randy)">
-                        <i data-lucide="upload"></i> Import Binder May 26
-                    </button>
-                    <button class="btn-purple" onclick="recalculateAllBinderCommissions()" title="Recalculate Agency & Agent Commission for every entry using carrier rules">
-                        <i data-lucide="refresh-cw"></i> Recalculate All Commissions
-                    </button>
-                    <button class="btn-danger" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
-                </div>
             </div>
         </div>
     </div>
@@ -2867,7 +2868,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260524m"></script>
-    <script src="app.js?v=20260524m"></script>
+    <script src="motion.js?v=20260524n"></script>
+    <script src="app.js?v=20260524n"></script>
 </body>
 </html>
