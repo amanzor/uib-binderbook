@@ -731,75 +731,64 @@
         <div class="main-content">
             <!-- Login Section -->
             <div id="loginSection" class="section active">
-                <div class="login-container">
-                    <h2><i data-lucide="book-open"></i> UIB Binder Book</h2>
-                    <p class="login-subtitle">Sign in to continue</p>
+                <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1f3c 0%,#1e3a5f 50%,#1d4ed8 100%);padding:20px;">
+                    <div style="background:#fff;border-radius:20px;box-shadow:0 25px 60px rgba(0,0,0,0.3);padding:44px 40px 36px;width:100%;max-width:420px;">
 
-                    <!-- Agent Login Button -->
-                    <div style="margin-bottom:24px;">
-                        <button class="btn-primary" style="width:100%;max-width:320px;padding:13px 20px;font-size:15px;border-radius:var(--radius-md);" onclick="openAgentEmailLogin()">
-                            <i data-lucide="log-in"></i> Agent Login
-                        </button>
-                    </div>
+                        <!-- Logo / Brand -->
+                        <div style="text-align:center;margin-bottom:32px;">
+                            <div style="width:64px;height:64px;background:linear-gradient(135deg,#1d4ed8,#059669);border-radius:16px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 8px 20px rgba(29,78,216,.3);">
+                                <i data-lucide="book-open" style="width:32px;height:32px;color:#fff;"></i>
+                            </div>
+                            <h2 style="margin:0 0 6px;font-size:1.6rem;font-weight:800;color:#0d1f3c;letter-spacing:-0.5px;">UIB Binder Book</h2>
+                            <p style="margin:0;font-size:14px;color:#6b7280;">Sign in to your account</p>
+                        </div>
 
-                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:0; max-width:720px; margin-left:auto; margin-right:auto; align-items:stretch;">
-                        <button class="btn-success login-action-btn" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
-                        <button class="btn-purple login-action-btn" onclick="openDailyVerificationModal()"><i data-lucide="file-check"></i> Daily Verification Log</button>
-                        <button class="btn-primary login-action-btn" onclick="showAdminLogin()" style="grid-row:span 2;"><i data-lucide="lock"></i> Admin Login</button>
-                        <button class="btn-success login-action-btn" onclick="showProspectsSection()"><i data-lucide="users"></i> View Prospects</button>
-                        <button class="btn-purple login-action-btn" onclick="showVerificationLogsSection()"><i data-lucide="list"></i> View Verification Logs</button>
-                    </div>
+                        <!-- Error message -->
+                        <div id="agentLoginError" style="display:none;background:#fef2f2;color:#991b1b;padding:10px 14px;border-radius:10px;margin-bottom:16px;font-size:14px;font-weight:600;border:1px solid #fca5a5;"></div>
 
-                    <!-- Universal Ins Commissions Button -->
-                    <div style="margin-top:12px;max-width:720px;margin-left:auto;margin-right:auto;">
-                        <button class="btn-warning login-action-btn" style="width:100%;font-weight:700;letter-spacing:0.3px;" onclick="showUniversalInsCommissions()">
-                            <i data-lucide="dollar-sign"></i> Universal Commission's Consolidation
-                        </button>
-                    </div>
+                        <!-- Login Form -->
+                        <form onsubmit="submitAgentEmailLogin(event)">
+                            <div style="margin-bottom:16px;">
+                                <label style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:6px;">Username or Email</label>
+                                <input type="text" id="agentLoginEmail" placeholder="Enter your username" required
+                                    style="width:100%;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;transition:border-color .2s;box-sizing:border-box;"
+                                    onfocus="this.style.borderColor='#1d4ed8'" onblur="this.style.borderColor='#d1d5db'">
+                            </div>
+                            <div style="margin-bottom:20px;">
+                                <label style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:6px;">Password</label>
+                                <input type="password" id="agentLoginPassword" placeholder="••••••••" required
+                                    style="width:100%;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;transition:border-color .2s;box-sizing:border-box;"
+                                    onfocus="this.style.borderColor='#1d4ed8'" onblur="this.style.borderColor='#d1d5db'">
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;">
+                                <input type="checkbox" id="rememberAgentEmail" style="width:16px;height:16px;accent-color:#1d4ed8;cursor:pointer;">
+                                <label for="rememberAgentEmail" style="font-size:13px;color:#6b7280;cursor:pointer;margin:0;user-select:none;">Remember my username</label>
+                            </div>
+                            <button type="submit" style="width:100%;padding:14px;font-size:15px;font-weight:700;background:linear-gradient(135deg,#1d4ed8,#1e40af);color:#fff;border:none;border-radius:12px;cursor:pointer;transition:all .2s;box-shadow:0 4px 14px rgba(29,78,216,.4);"
+                                onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(29,78,216,.5)'"
+                                onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(29,78,216,.4)'">
+                                <i data-lucide="log-in" style="width:16px;height:16px;vertical-align:-2px;margin-right:6px;"></i> Sign In
+                            </button>
+                        </form>
 
-                    <!-- AMS Button -->
-                    <div style="margin-top:8px;max-width:720px;margin-left:auto;margin-right:auto;">
-                        <button class="btn-warning login-action-btn" style="width:100%;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;font-weight:700;letter-spacing:0.3px;" onclick="window.open('ams.html','_blank')">
-                            <i data-lucide="building-2"></i> AMS — Agency Management System
-                        </button>
-                    </div>
+                        <!-- Divider -->
+                        <div style="display:flex;align-items:center;gap:12px;margin:24px 0 20px;">
+                            <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+                            <span style="font-size:12px;color:#9ca3af;font-weight:500;">OR</span>
+                            <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+                        </div>
 
-                    <!-- Production Dashboard Button -->
-                    <div style="margin-top:8px;max-width:720px;margin-left:auto;margin-right:auto;">
-                        <button class="btn-warning login-action-btn" style="width:100%;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;font-weight:700;letter-spacing:0.3px;" onclick="showProductionDashboard()">
-                            <i data-lucide="bar-chart-2"></i> Production Dashboard
+                        <!-- Admin Login -->
+                        <button onclick="showAdminLogin()" style="width:100%;padding:11px;font-size:13px;font-weight:600;background:transparent;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:10px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px;"
+                            onmouseover="this.style.borderColor='#9ca3af';this.style.color='#374151'"
+                            onmouseout="this.style.borderColor='#e5e7eb';this.style.color='#6b7280'">
+                            <i data-lucide="lock" style="width:14px;height:14px;"></i> Admin Access
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Agent Email Login Modal -->
-            <div id="agentEmailLoginModal" class="modal">
-                <div class="modal-content" style="max-width:400px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                        <h3 style="margin:0;"><i data-lucide="log-in"></i> Agent Login</h3>
-                        <button class="btn-danger btn-sm" onclick="closeAgentEmailLogin()">✕ Close</button>
-                    </div>
-                    <div id="agentLoginError" style="display:none;background:#fef2f2;color:#991b1b;padding:10px 14px;border-radius:var(--radius-sm);margin-bottom:14px;font-size:14px;font-weight:600;"></div>
-                    <form onsubmit="submitAgentEmailLogin(event)">
-                        <div class="form-group" style="margin-bottom:14px;">
-                            <label>Username</label>
-                            <input type="text" id="agentLoginEmail" placeholder="Enter your username" required style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
-                        </div>
-                        <div class="form-group" style="margin-bottom:14px;">
-                            <label>Password</label>
-                            <input type="password" id="agentLoginPassword" placeholder="••••••••" required style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
-                        </div>
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
-                            <input type="checkbox" id="rememberAgentEmail" style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;">
-                            <label for="rememberAgentEmail" style="font-size:13px;color:var(--gray-500);cursor:pointer;margin:0;">Remember my username</label>
-                        </div>
-                        <button type="submit" class="btn-primary" style="width:100%;padding:12px;">
-                            <i data-lucide="log-in"></i> Sign In
-                        </button>
-                    </form>
-                </div>
-            </div>
+            <!-- agentEmailLoginModal removed — login form now lives on loginSection -->
 
             <!-- New Prospect Modal -->
             <div id="newProspectModal" class="modal">
@@ -1176,6 +1165,9 @@
                     <button class="btn-success btn-sm" onclick="openDailySalesModal()"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
                     <button class="btn-success btn-sm" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
                     <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
+                    <button class="btn-purple btn-sm" onclick="openDailyVerificationModal()"><i data-lucide="file-check"></i> Verification Log</button>
+                    <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
+                    <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
                     <button class="btn-danger btn-sm" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
                 </div>
 
@@ -2928,7 +2920,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260609"></script>
-    <script src="app.js?v=20260609"></script>
+    <script src="motion.js?v=20260612"></script>
+    <script src="app.js?v=20260612"></script>
 </body>
 </html>

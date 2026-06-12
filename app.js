@@ -347,28 +347,24 @@ function initializeCredentials() {
 
 // ── Agent Email Login ──────────────────────────────────────────
 function openAgentEmailLogin() {
+    // Login form is now inline on loginSection — just ensure it's visible and focused
+    showSection('loginSection');
     const saved = localStorage.getItem('rememberedAgentEmail') || '';
-    document.getElementById('agentLoginEmail').value = saved;
-    document.getElementById('agentLoginPassword').value = '';
-    document.getElementById('agentLoginError').style.display = 'none';
+    const emailField = document.getElementById('agentLoginEmail');
+    const passField  = document.getElementById('agentLoginPassword');
+    const errEl      = document.getElementById('agentLoginError');
     const rememberBox = document.getElementById('rememberAgentEmail');
+    if (emailField) emailField.value = saved;
+    if (passField)  passField.value  = '';
+    if (errEl)      errEl.style.display = 'none';
     if (rememberBox) rememberBox.checked = !!saved;
-    const m = document.getElementById('agentEmailLoginModal');
-    m.classList.add('active');
-    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
-    refreshIcons();
     setTimeout(() => {
-        const userField = document.getElementById('agentLoginEmail');
-        if (saved) {
-            document.getElementById('agentLoginPassword').focus();
-        } else {
-            userField.focus();
-        }
+        if (saved) { passField?.focus(); } else { emailField?.focus(); }
     }, 80);
 }
 
 function closeAgentEmailLogin() {
-    document.getElementById('agentEmailLoginModal').classList.remove('active');
+    // No-op — login form is now inline, not a modal
 }
 
 function submitAgentEmailLogin(e) {
@@ -703,24 +699,19 @@ function initializeAgentButtons() {
 }
 
 function showAgentLoginModal(agent) {
+    // Navigate to login section and pre-fill the agent's username
     const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
     const cred = credentials[agent] || {};
-
-    // Pre-fill username: use saved email if configured, else agent full name
     const username = cred.email || agent.toLowerCase();
-    document.getElementById('agentLoginEmail').value = username;
-    document.getElementById('agentLoginPassword').value = '';
-    document.getElementById('agentLoginError').style.display = 'none';
-
-    // Update modal title to show which agent is signing in
-    const titleEl = document.querySelector('#agentEmailLoginModal h3');
-    if (titleEl) titleEl.innerHTML = `<i data-lucide="log-in"></i> Sign in as ${agent.split(' ')[0]}`;
-
-    const m = document.getElementById('agentEmailLoginModal');
-    m.classList.add('active');
-    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    showSection('loginSection');
+    const emailField = document.getElementById('agentLoginEmail');
+    const passField  = document.getElementById('agentLoginPassword');
+    const errEl      = document.getElementById('agentLoginError');
+    if (emailField) emailField.value = username;
+    if (passField)  passField.value  = '';
+    if (errEl)      errEl.style.display = 'none';
     refreshIcons();
-    setTimeout(() => document.getElementById('agentLoginPassword').focus(), 120);
+    setTimeout(() => passField?.focus(), 120);
 }
 
 function closeAgentLoginModal() {
