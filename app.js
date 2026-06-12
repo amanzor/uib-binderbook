@@ -6228,3 +6228,322 @@ function saveProspectNewReferral() {
     document.getElementById('prospectReferredBy').value = val;
     cancelProspectNewReferral();
 }
+
+// ============================================================
+// CLAUDE AI CHAT — Routed through Google Apps Script
+// ============================================================
+
+const CLAUDE_MODEL = 'claude-opus-4-8';
+let _claudeMessages = [];           // chat history [{role, content}]
+let _claudePendingPdf = null;       // {name, base64} queued for next send
+let _claudeBusy = false;
+
+function claudeShowBubble() {
+    const btn = document.getElementById('claudeBubbleBtn');
+    if (btn) btn.style.display = 'flex';
+}
+
+function claudeHideBubble() {
+    const btn = document.getElementById('claudeBubbleBtn');
+    if (btn) btn.style.display = 'none';
+}
+
+function claudeOpenPanel() {
+    const panel = document.getElementById('claudeChatPanel');
+    if (!panel) return;
+    panel.style.display = 'flex';
+    if (_claudeMessages.length === 0) {
+        claudeAddMessage('assistant', `👋 Hi ${currentUser || 'there'}! I'm your UIB AI assistant. I can:
+
+• Answer questions about your binder data ("how many policies did Amanda write this month?")
+• Help draft emails and explanations
+• **Extract a sales entry from a PDF** — click 📎 to upload a policy doc and I'll pre-fill the form
+
+How can I help?`);
+    }
+    setTimeout(() => document.getElementById('claudeChatInput')?.focus(), 100);
+}
+
+function claudeClosePanel() {
+    const panel = document.getElementById('claudeChatPanel');
+    if (panel) panel.style.display = 'none';
+}
+
+function claudeNewConversation() {
+    _claudeMessages = [];
+    _claudePendingPdf = null;
+    document.getElementById('claudeChatMessages').innerHTML = '';
+    document.getElementById('claudeFilePreview').style.display = 'none';
+    claudeOpenPanel();
+}
+
+function claudeAddMessage(role, text, isHtml) {
+    const box = document.getElementById('claudeChatMessages');
+    if (!box) return;
+    const isUser = role === 'user';
+    const div = document.createElement('div');
+    div.style.cssText = `align-self:${isUser ? 'flex-end' : 'flex-start'};max-width:88%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.45;${isUser ? 'background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;' : 'background:#fff;color:#1f2937;border:1px solid #e5e7eb;'};word-wrap:break-word;white-space:pre-wrap;`;
+    if (isHtml) div.innerHTML = text;
+    else div.textContent = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+}
+
+function claudeBuildBinderContext() {
+    try {
+        const data = allData || [];
+        const totals = {};
+        const recent = data.slice(-20).reverse().map(e =>
+            `${e.entryDate} | ${e.agent} | ${e.customerName} | ${e.company} | $${e.totalPremium}`
+        );
+        data.forEach(e => {
+            const a = e.agent || 'unknown';
+            if (!totals[a]) totals[a] = { count: 0, premium: 0 };
+            totals[a].count++;
+            totals[a].premium += parseFloat(e.totalPremium || 0);
+        });
+        const byAgent = Object.entries(totals)
+            .map(([a, t]) => `${a}: ${t.count} entries, $${t.premium.toFixed(0)} premium`)
+            .join('\n');
+        return `Current user: ${currentUser || amsCurrentUser || 'Unknown'} (role: ${currentRole || amsCurrentRole || 'agent'})
+Total entries in BinderBook: ${data.length}
+
+By agent (lifetime):
+${byAgent}
+
+20 most recent entries:
+${recent.join('\n')}`;
+    } catch (e) {
+        return `Current user: ${currentUser || 'Unknown'}. (Data context unavailable: ${e.message})`;
+    }
+}
+
+function claudeHandlePdfUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+        alert('Please upload a PDF file.');
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const base64 = e.target.result.split(',')[1]; // strip data:application/pdf;base64,
+        _claudePendingPdf = { name: file.name, base64 };
+        const preview = document.getElementById('claudeFilePreview');
+        preview.style.display = 'block';
+        preview.innerHTML = `📎 <strong>${file.name}</strong> attached — type "extract sales entry" or any question, then Send.`;
+        document.getElementById('claudeChatInput').focus();
+    };
+    reader.readAsDataURL(file);
+    event.target.value = ''; // allow re-upload of same file
+}
+
+async function claudeSendMessage() {
+    if (_claudeBusy) return;
+    const input = document.getElementById('claudeChatInput');
+    let userText = (input?.value || '').trim();
+    const hasPdf = _claudePendingPdf !== null;
+
+    if (!userText && !hasPdf) return;
+    if (!userText && hasPdf) userText = 'Extract the sales entry data from this PDF and create a new entry for me.';
+
+    // Render user message
+    let displayText = userText;
+    if (hasPdf) displayText = `📎 ${_claudePendingPdf.name}\n${userText}`;
+    claudeAddMessage('user', displayText);
+    input.value = '';
+    document.getElementById('claudeFilePreview').style.display = 'none';
+
+    // Build content blocks
+    const content = [];
+    if (hasPdf) {
+        content.push({
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: _claudePendingPdf.base64 }
+        });
+    }
+    content.push({ type: 'text', text: userText });
+
+    const pdfWasAttached = hasPdf;
+    const pdfFileName = hasPdf ? _claudePendingPdf.name : null;
+    _claudeMessages.push({ role: 'user', content });
+    _claudePendingPdf = null;
+
+    // Loading bubble
+    _claudeBusy = true;
+    const sendBtn = document.getElementById('claudeSendBtn');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '…'; }
+    const loadingDiv = claudeAddMessage('assistant', '✨ Thinking…');
+
+    try {
+        const systemPrompt = claudeBuildSystemPrompt(pdfWasAttached);
+        const reply = await claudeCallAPI(systemPrompt, _claudeMessages);
+
+        loadingDiv.remove();
+        const replyText = reply.text || '(no response)';
+        _claudeMessages.push({ role: 'assistant', content: replyText });
+
+        // Check if reply contains a sales entry extraction JSON
+        const extracted = pdfWasAttached ? claudeTryParseEntry(replyText) : null;
+        if (extracted) {
+            const msg = claudeAddMessage('assistant', '');
+            msg.innerHTML = claudeRenderMarkdown(replyText) +
+                `<div style="margin-top:14px;padding:12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;">
+                    <div style="font-weight:700;color:#15803d;margin-bottom:8px;">✓ Sales entry extracted</div>
+                    <div style="font-size:12px;color:#166534;margin-bottom:10px;">PDF: ${pdfFileName}</div>
+                    <button onclick='claudePrefillEntry(${JSON.stringify(extracted).replace(/'/g, "&#39;")})'
+                        style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
+                        📋 Open Daily Sales Entry with these values
+                    </button>
+                </div>`;
+        } else {
+            claudeAddMessage('assistant', claudeRenderMarkdown(replyText), true);
+        }
+    } catch (err) {
+        loadingDiv.remove();
+        claudeAddMessage('assistant', `❌ Error: ${err.message}\n\nMake sure the Google Apps Script has been updated with the Claude proxy.`);
+    } finally {
+        _claudeBusy = false;
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
+    }
+}
+
+function claudeBuildSystemPrompt(pdfMode) {
+    const context = claudeBuildBinderContext();
+    const base = `You are the AI assistant for UIB BinderBook — an insurance binder tracking system for Universal Insurance Brokers. You help insurance agents with their daily work.
+
+CONTEXT — BinderBook current state:
+${context}
+
+GUIDELINES:
+- Be concise and practical. Insurance agents are busy.
+- When asked about data, reference the actual numbers from the context above.
+- If you don't have enough data to answer, say so.
+- For data-driven answers, show numbers in a clear format.`;
+
+    if (pdfMode) {
+        return base + `
+
+PDF EXTRACTION MODE:
+The user has uploaded a PDF (likely an insurance binder, declaration page, or policy document).
+Extract the following fields and respond with a JSON object wrapped in \`\`\`json fences. The JSON should be the LAST thing in your response.
+
+Required JSON shape (omit fields you can't find):
+\`\`\`json
+{
+  "customerName": "string",
+  "contactName": "string",
+  "policyType": "New|Rewrite|Renewal|Renew A-B",
+  "lineOfBusiness": "string (e.g. Personal Auto, Home Owners H3, Commercial Auto)",
+  "company": "string (insurance carrier name)",
+  "mga": "string",
+  "down": number,
+  "agencyFee": number,
+  "basePremium": number,
+  "totalPremium": number,
+  "paymentMethod": "string",
+  "policyNumber": "string",
+  "effDate": "YYYY-MM-DD",
+  "term": "6|12"
+}
+\`\`\`
+
+Before the JSON, give a brief 1-2 sentence summary of what you found. The current agent (${currentUser || amsCurrentUser}) will be auto-assigned to the entry.`;
+    }
+    return base;
+}
+
+async function claudeCallAPI(systemPrompt, messages) {
+    const payload = {
+        action: 'claude',
+        body: {
+            model: CLAUDE_MODEL,
+            max_tokens: 4096,
+            system: systemPrompt,
+            messages: messages.map(m => ({
+                role: m.role,
+                content: typeof m.content === 'string' ? m.content : m.content
+            }))
+        }
+    };
+
+    const res = await fetch(DRIVE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    if (!data.content || !data.content.length) throw new Error('Empty response from Claude');
+
+    const textBlock = data.content.find(b => b.type === 'text');
+    return { text: textBlock ? textBlock.text : '', raw: data };
+}
+
+function claudeTryParseEntry(text) {
+    const match = text.match(/```json\s*([\s\S]*?)```/);
+    if (!match) return null;
+    try {
+        const obj = JSON.parse(match[1]);
+        if (obj.customerName || obj.policyNumber || obj.totalPremium) return obj;
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+function claudePrefillEntry(extracted) {
+    claudeClosePanel();
+    openDailySalesModal();
+    setTimeout(() => {
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el && val !== undefined && val !== null && val !== '') el.value = val;
+        };
+        setVal('customerName', extracted.customerName);
+        setVal('contactName', extracted.contactName);
+        setVal('policyType', extracted.policyType);
+        setVal('lineOfBusiness', extracted.lineOfBusiness);
+        setVal('company', extracted.company);
+        setVal('mga', extracted.mga);
+        setVal('down', extracted.down);
+        setVal('agencyFee', extracted.agencyFee);
+        setVal('basePremium', extracted.basePremium);
+        setVal('totalPremium', extracted.totalPremium);
+        setVal('paymentMethod', extracted.paymentMethod);
+        setVal('policyNumber', extracted.policyNumber);
+        setVal('effDate', extracted.effDate);
+        setVal('term', extracted.term);
+        if (typeof autoCalculateCommission === 'function') autoCalculateCommission();
+    }, 250);
+}
+
+function claudeRenderMarkdown(text) {
+    // Minimal markdown: bold, italic, code, line breaks, lists
+    let html = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/```json[\s\S]*?```/g, '') // strip extraction JSON from display
+        .replace(/```([\s\S]*?)```/g, '<pre style="background:#f3f4f6;padding:8px;border-radius:6px;font-size:12px;overflow-x:auto;">$1</pre>')
+        .replace(/`([^`]+)`/g, '<code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-size:12px;">$1</code>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|\n)- (.+)/g, '$1• $2')
+        .replace(/\n/g, '<br>');
+    return html.trim();
+}
+
+// Show bubble whenever an agent or admin section is active
+function claudeUpdateBubbleVisibility() {
+    const shouldShow = !!(currentUser || amsCurrentUser) &&
+        !document.getElementById('loginSection')?.classList?.contains('active');
+    if (shouldShow) claudeShowBubble();
+    else claudeHideBubble();
+}
+
+// Hook into showSection if available
+(function wrapShowSection() {
+    if (typeof window.showSection !== 'function') return;
+    const orig = window.showSection;
+    window.showSection = function(id) {
+        orig.call(this, id);
+        setTimeout(claudeUpdateBubbleVisibility, 50);
+    };
+})();

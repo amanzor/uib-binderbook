@@ -1196,6 +1196,7 @@
                     <button class="btn-purple btn-sm" onclick="openDailyVerificationModal()"><i data-lucide="file-check"></i> Verification Log</button>
                     <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
                     <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
+                    <button class="btn-sm" onclick="claudeOpenPanel()" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;"><i data-lucide="sparkles"></i> AI Assistant</button>
                     <button class="btn-danger btn-sm" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
                 </div>
 
@@ -3002,10 +3003,49 @@
         </div>
     </div>
 
+    <!-- ─── Claude AI Chat — Floating Bubble & Panel ─── -->
+    <button id="claudeBubbleBtn" onclick="claudeOpenPanel()" title="Ask Claude AI"
+        style="display:none;position:fixed;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;box-shadow:0 8px 24px rgba(124,58,237,.45);cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;font-size:24px;transition:transform .2s;"
+        onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform=''">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/></svg>
+    </button>
+
+    <div id="claudeChatPanel" style="display:none;position:fixed;top:0;right:0;width:480px;max-width:100vw;height:100vh;background:#fff;box-shadow:-8px 0 28px rgba(0,0,0,.18);z-index:9999;display:flex;flex-direction:column;">
+        <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/></svg>
+                <div>
+                    <div style="font-weight:700;font-size:15px;">Claude AI</div>
+                    <div style="font-size:11px;opacity:.85;">UIB Assistant</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;">
+                <button onclick="claudeNewConversation()" title="New chat" style="background:rgba(255,255,255,.18);border:none;color:#fff;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New</button>
+                <button onclick="claudeClosePanel()" title="Close" style="background:rgba(255,255,255,.18);border:none;color:#fff;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:700;">✕</button>
+            </div>
+        </div>
+        <div id="claudeChatMessages" style="flex:1;overflow-y:auto;padding:18px;background:#f9fafb;display:flex;flex-direction:column;gap:14px;"></div>
+        <div id="claudeFilePreview" style="display:none;padding:8px 14px;background:#ede9fe;border-top:1px solid #ddd6fe;font-size:12px;color:#5b21b6;"></div>
+        <div style="padding:12px 14px;background:#fff;border-top:1px solid #e5e7eb;">
+            <div style="display:flex;gap:8px;align-items:flex-end;">
+                <button onclick="document.getElementById('claudePdfInput').click()" title="Upload PDF to extract sales entry"
+                    style="flex-shrink:0;background:#ede9fe;color:#7c3aed;border:none;width:38px;height:38px;border-radius:8px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">📎</button>
+                <input type="file" id="claudePdfInput" accept="application/pdf" style="display:none;" onchange="claudeHandlePdfUpload(event)">
+                <textarea id="claudeChatInput" placeholder="Ask anything, or attach a PDF policy doc…" rows="2"
+                    style="flex:1;border:1.5px solid #e5e7eb;border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;resize:none;outline:none;"
+                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();claudeSendMessage();}"></textarea>
+                <button onclick="claudeSendMessage()" id="claudeSendBtn"
+                    style="flex-shrink:0;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;padding:0 16px;height:38px;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;">Send</button>
+            </div>
+            <div style="font-size:10px;color:#9ca3af;text-align:center;margin-top:6px;">Powered by Claude Opus 4.8 · Routed via Google Apps Script</div>
+        </div>
+    </div>
+    <!-- ─── /Claude Chat ─── -->
+
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260612k"></script>
-    <script src="app.js?v=20260612k"></script>
+    <script src="motion.js?v=20260612l"></script>
+    <script src="app.js?v=20260612l"></script>
 </body>
 </html>
