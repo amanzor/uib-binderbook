@@ -79,7 +79,8 @@
         if (!el) return;
         animate(el,
             { opacity: [0, 1], transform: ['translateY(12px)', 'translateY(0)'] },
-            { duration: 0.35, easing: EASE_OUT });
+            { duration: 0.35, easing: EASE_OUT })
+            .finished.then(() => { el.style.transform = 'none'; });
     }
 
     // ─────────────────────────────────────────────────────────────
