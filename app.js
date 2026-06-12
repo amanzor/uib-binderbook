@@ -369,37 +369,23 @@ function closeAgentEmailLogin() {
 
 function submitAgentEmailLogin(e) {
     e.preventDefault();
-    const input    = document.getElementById('agentLoginEmail').value.trim().toLowerCase();
-    const password = document.getElementById('agentLoginPassword').value.trim();
+    const email    = document.getElementById('agentLoginEmail').value.trim().toLowerCase();
+    const password = document.getElementById('agentLoginPassword').value;
     const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
     const errEl = document.getElementById('agentLoginError');
 
-    // Helper: get the stored password regardless of format (old flat string or new object)
-    function getStoredPassword(cred) {
-        if (typeof cred === 'string') return cred;           // old format
-        if (typeof cred === 'object') return cred.password || ''; // new format
-        return '';
-    }
-    function getStoredEmail(cred) {
-        if (typeof cred === 'object') return (cred.email || '').toLowerCase();
-        return '';
-    }
-
-    // Match by: exact agent name (from picker), OR email, OR full name, OR first name
-    const match = Object.entries(credentials).find(([name, cred]) => {
-        const storedPass  = getStoredPassword(cred);
-        const storedEmail = getStoredEmail(cred);
-        const firstName   = name.split(' ')[0].toLowerCase();
-
-        const byName      = name === input || name.toLowerCase() === input;
-        const byEmail     = storedEmail && storedEmail === input;
-        const byFirstName = firstName === input;
-
-        return (byName || byEmail || byFirstName) && storedPass === password;
+    // Match by email + password only — same logic as AMS login
+    let matched = null;
+    Object.entries(credentials).forEach(([name, data]) => {
+        const storedEmail = (typeof data === 'object' ? data.email : '') || '';
+        const storedPass  = (typeof data === 'object' ? data.password : data) || '';
+        if (storedEmail.toLowerCase() === email && storedPass === password) matched = name;
     });
 
+    const match = matched ? [matched, credentials[matched]] : null;
+
     if (!match) {
-        errEl.textContent = 'Incorrect password. Please try again.';
+        errEl.textContent = 'Incorrect email or password. Please try again.';
         errEl.style.display = 'block';
         return;
     }
