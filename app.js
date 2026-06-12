@@ -577,8 +577,6 @@ function refreshIcons() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
-    // Show agents immediately — don't wait for Drive sync
-    initializeCredentials();
     initializeCommissionData();
     initializeCarrierData();
     binderInitDB(); // IndexedDB for AMS file system (shared with ams.html)
@@ -593,27 +591,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById(id)?.addEventListener('input',  autoCalculateCommission);
         document.getElementById(id)?.addEventListener('change', autoCalculateCommission);
     });
-    // Agency Fee is editable — changing it re-runs the agent share only
     document.getElementById('agencyFee')?.addEventListener('input',  calculateAgentCommission);
     document.getElementById('agencyFee')?.addEventListener('change', calculateAgentCommission);
 
-    // Render Lucide icons in static HTML
     refreshIcons();
 
-    // Animate header + login screen on first paint
     if (window.UIBMotion) {
         UIBMotion.animateHeader();
-        UIBMotion.animateAgentCards();
         UIBMotion.addRippleToButtons();
     }
 
-    // Sync from Drive in background — won't block the UI
-    syncFromDrive().then(() => {
-        refreshIcons();
-    });
+    // Pull credentials from Drive FIRST before showing login — ensures agents
+    // can log in from any device even on first visit (no local credentials yet).
+    (async () => {
+        const loginBtn = document.getElementById('loginSignInBtn');
+        if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'Loading…'; }
 
-    // Start polling Drive every 30 seconds for live updates
-    startAutoSync();
+        try {
+            const driveData = await driveGet('agentCredentials');
+            if (driveData && typeof driveData === 'object' && Object.keys(driveData).length > 0) {
+                _origSetItem('agentCredentials', JSON.stringify(driveData));
+            }
+        } catch(e) { /* use whatever is already local */ }
+
+        initializeCredentials(); // now safe — Drive data is in localStorage first
+        initializeAgentButtons();
+
+        if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'Sign In'; }
+        if (window.UIBMotion) UIBMotion.animateAgentCards();
+
+        // Continue syncing the rest of the data in background
+        syncFromDrive().then(() => refreshIcons());
+        startAutoSync();
+    })();
 });
 
 function calculateAgentCommission() {
