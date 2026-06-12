@@ -616,26 +616,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         UIBMotion.addRippleToButtons();
     }
 
-    // Pull credentials from Drive FIRST before showing login — ensures agents
-    // can log in from any device even on first visit (no local credentials yet).
+    // Pull credentials from Drive before login — 4 s timeout so a slow/dead
+    // Drive never leaves the button permanently disabled.
+    initializeCredentials();
+    initializeAgentButtons();
+    if (window.UIBMotion) UIBMotion.animateAgentCards();
+
     (async () => {
         const loginBtn = document.getElementById('loginSignInBtn');
-        if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'Loading…'; }
+        const btnOrigHTML = loginBtn ? loginBtn.innerHTML : '';
+        if (loginBtn) { loginBtn.disabled = true; loginBtn.innerHTML = 'Loading…'; }
 
         try {
-            const driveData = await driveGet('agentCredentials');
+            const timeout  = new Promise(res => setTimeout(() => res(null), 4000));
+            const driveData = await Promise.race([driveGet('agentCredentials'), timeout]);
             if (driveData && typeof driveData === 'object' && Object.keys(driveData).length > 0) {
                 _origSetItem('agentCredentials', JSON.stringify(driveData));
+                initializeCredentials(); // re-run so any new agents are added
+                initializeAgentButtons();
             }
-        } catch(e) { /* use whatever is already local */ }
+        } catch(e) { /* Drive unavailable — use whatever is already local */ }
 
-        initializeCredentials(); // now safe — Drive data is in localStorage first
-        initializeAgentButtons();
+        if (loginBtn) { loginBtn.disabled = false; loginBtn.innerHTML = btnOrigHTML; refreshIcons(); }
 
-        if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'Sign In'; }
-        if (window.UIBMotion) UIBMotion.animateAgentCards();
-
-        // Continue syncing the rest of the data in background
+        // Continue syncing all other data in background
         syncFromDrive().then(() => refreshIcons());
         startAutoSync();
     })();
