@@ -1227,8 +1227,15 @@
                             <h3 style="margin:0;"><i data-lucide="clipboard-list"></i> Daily Sales Entry</h3>
                             <button type="button" class="btn-danger btn-sm" onclick="closeDailySalesModal()">✕ Close</button>
                         </div>
-                        <div id="salesLocationBanner" style="background:linear-gradient(135deg,var(--navy) 0%,var(--blue) 100%); color:white; padding:10px 16px; border-radius:var(--radius-md); margin-bottom:18px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px; box-shadow:var(--shadow-sm);">
-                            📍 <span id="salesLocationDisplay">—</span>
+                        <div style="margin-bottom:18px;">
+                            <label style="font-size:13px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">📍 Office Location *</label>
+                            <select id="salesLocationSelect" required onchange="_selectedSalesLocation = this.value"
+                                style="width:100%;padding:11px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;font-weight:600;background:#fff;color:#374151;">
+                                <option value="">— Select Location —</option>
+                                <option value="Lehigh Acres Office">📍 Lehigh Acres Office</option>
+                                <option value="Hialeah Office">📍 Hialeah Office</option>
+                                <option value="Franchise">🏪 Franchise</option>
+                            </select>
                         </div>
 
                         <!-- ── Client Lookup ── -->

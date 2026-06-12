@@ -869,7 +869,7 @@ function saveEntry() {
         entryDateDisplay: document.getElementById('entryDateDisplay')?.value || '',
         effDate: document.getElementById('effDate').value,
         term: document.getElementById('term').value,
-        location: _selectedSalesLocation || '',
+        location: document.getElementById('salesLocationSelect')?.value || _selectedSalesLocation || '',
         timestamp: getEasternTimestamp()
     };
     entry.agentCommissionShare = parseFloat(((entry.agencyFee + entry.agencyCommission) * 0.5).toFixed(2));
@@ -1445,27 +1445,29 @@ let _selectedSalesLocation = '';
 let _carrierFormAutoSelect = null;
 
 function openDailySalesModal() {
-    // Show location picker first
-    document.getElementById('salesLocationModal').classList.add('active');
-}
-
-function selectLocationAndOpenSales(location) {
-    _selectedSalesLocation = location;
-    document.getElementById('salesLocationModal').classList.remove('active');
-    document.getElementById('salesLocationDisplay').textContent = location;
+    _selectedSalesLocation = '';
+    const locSel = document.getElementById('salesLocationSelect');
+    if (locSel) locSel.value = '';
     setTodayDate();
     generateBinderNumber();
-    refreshAllCarrierDropdowns(); // ensure newly added carriers are present
-    populateSourceDropdown('source', ''); // load default + custom sources
+    refreshAllCarrierDropdowns();
+    populateSourceDropdown('source', '');
     const m = document.getElementById('dailySalesModal');
     m.classList.add('active');
     if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    setTimeout(() => locSel?.focus(), 120);
+}
+
+function selectLocationAndOpenSales(location) {
+    // Legacy — no longer used but kept for safety
+    _selectedSalesLocation = location;
 }
 
 function closeDailySalesModal() {
     document.getElementById('dailySalesModal').classList.remove('active');
     _selectedSalesLocation = '';
-    document.getElementById('salesLocationDisplay').textContent = '—';
+    const locSel = document.getElementById('salesLocationSelect');
+    if (locSel) locSel.value = '';
     clientLookupClear();
     // Clear any pending files that weren't saved
     _pendingEntryFiles = [];
