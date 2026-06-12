@@ -198,6 +198,14 @@ function amsDoLogin() {
         if (errEl) { errEl.textContent = 'Invalid email or password.'; errEl.style.display = 'block'; }
         return;
     }
+
+    const remember = document.getElementById('amsRememberEmail')?.checked;
+    if (remember) {
+        localStorage.setItem('amsRememberedEmail', email);
+    } else {
+        localStorage.removeItem('amsRememberedEmail');
+    }
+
     amsCurrentUser = matched;
     amsCurrentRole = 'agent';
     amsLaunchApp();
@@ -745,6 +753,17 @@ function amsFlashBanner(msg) {
 // ── Init ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
+
+    // Pre-fill remembered email
+    const remembered = localStorage.getItem('amsRememberedEmail');
+    if (remembered) {
+        const emailEl = document.getElementById('amsLoginEmail');
+        const checkEl = document.getElementById('amsRememberEmail');
+        if (emailEl) { emailEl.value = remembered; }
+        if (checkEl) { checkEl.checked = true; }
+        document.getElementById('amsLoginPassword')?.focus();
+    }
+
     // Close modal on backdrop click
     document.getElementById('amsPolicyModal')?.addEventListener('click', e => {
         if (e.target === document.getElementById('amsPolicyModal')) amsClosePolicyModal();
