@@ -754,9 +754,15 @@
                             </div>
                             <div style="margin-bottom:20px;">
                                 <label style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:6px;">Password</label>
-                                <input type="password" id="agentLoginPassword" placeholder="••••••••" required
-                                    style="width:100%;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;transition:border-color .2s;box-sizing:border-box;"
-                                    onfocus="this.style.borderColor='#1d4ed8'" onblur="this.style.borderColor='#d1d5db'">
+                                <div style="position:relative;">
+                                    <input type="password" id="agentLoginPassword" placeholder="••••••••" required
+                                        style="width:100%;padding:12px 40px 12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;transition:border-color .2s;box-sizing:border-box;"
+                                        onfocus="this.style.borderColor='#1d4ed8'" onblur="this.style.borderColor='#d1d5db'">
+                                    <button type="button" onclick="togglePasswordVisibility('agentLoginPassword',this)"
+                                        style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:0;color:#9ca3af;display:flex;align-items:center;">
+                                        <i data-lucide="eye" style="width:18px;height:18px;"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;">
                                 <input type="checkbox" id="rememberAgentEmail" style="width:16px;height:16px;accent-color:#1d4ed8;cursor:pointer;">
@@ -2999,7 +3005,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260612h"></script>
-    <script src="app.js?v=20260612h"></script>
+    <script src="motion.js?v=20260612i"></script>
+    <script src="app.js?v=20260612i"></script>
 </body>
 </html>

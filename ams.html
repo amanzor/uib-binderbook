@@ -385,8 +385,15 @@
                 </div>
                 <div class="login-field">
                     <label>Password</label>
-                    <input type="password" id="amsLoginPassword" placeholder="••••••••" autocomplete="current-password"
-                        onkeydown="if(event.key==='Enter') amsDoLogin()">
+                    <div style="position:relative;">
+                        <input type="password" id="amsLoginPassword" placeholder="••••••••" autocomplete="current-password"
+                            onkeydown="if(event.key==='Enter') amsDoLogin()"
+                            style="padding-right:40px;">
+                        <button type="button" onclick="togglePasswordVisibility('amsLoginPassword',this)"
+                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:0;color:#9ca3af;display:flex;align-items:center;">
+                            <i data-lucide="eye" style="width:18px;height:18px;"></i>
+                        </button>
+                    </div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px;">
                     <input type="checkbox" id="amsRememberEmail" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer;">
@@ -926,6 +933,6 @@
     <div class="ams-sync-banner" id="amsSyncBanner">Saving…</div>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="ams.js?v=20260612g"></script>
+    <script src="ams.js?v=20260612i"></script>
 </body>
 </html>

@@ -181,6 +181,15 @@ function amsBuildClientIndex() {
 }
 
 // ── Login ────────────────────────────────────────────────────
+function togglePasswordVisibility(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    if (!inp) return;
+    const showing = inp.type === 'text';
+    inp.type = showing ? 'password' : 'text';
+    const icon = btn.querySelector('i[data-lucide]');
+    if (icon) { icon.setAttribute('data-lucide', showing ? 'eye' : 'eye-off'); lucide.createIcons(); }
+}
+
 function amsDoLogin() {
     const email    = (document.getElementById('amsLoginEmail')?.value || '').trim().toLowerCase();
     const password = (document.getElementById('amsLoginPassword')?.value || '');

@@ -372,6 +372,15 @@ function closeAgentEmailLogin() {
     // No-op — login form is now inline, not a modal
 }
 
+function togglePasswordVisibility(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    if (!inp) return;
+    const showing = inp.type === 'text';
+    inp.type = showing ? 'password' : 'text';
+    const icon = btn.querySelector('i[data-lucide]');
+    if (icon) { icon.setAttribute('data-lucide', showing ? 'eye' : 'eye-off'); lucide.createIcons(); }
+}
+
 function submitAgentEmailLogin(e) {
     e.preventDefault();
     const email    = document.getElementById('agentLoginEmail').value.trim().toLowerCase();
