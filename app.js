@@ -1232,11 +1232,22 @@ function openNewProspectModal() {
     // Set today's date + time (ET)
     document.getElementById('prospectDateAdded').value = getEasternDateTimeDisplay();
 
-    // Populate agent dropdown from agentMasterData
-    const agentSelect = document.getElementById('prospectAgent');
-    const agents = Object.keys(JSON.parse(localStorage.getItem('agentMasterData')) || {}).sort();
-    agentSelect.innerHTML = '<option value="">Select Agent</option>' +
-        agents.map(a => `<option value="${a}">${a}</option>`).join('');
+    // Build agent multi-select checkboxes
+    const stored  = JSON.parse(localStorage.getItem('agentMasterData')) || {};
+    const creds   = JSON.parse(localStorage.getItem('agentCredentials')) || {};
+    const agentSet = new Set([...Object.keys(stored), ...Object.keys(creds), ...AGENTS]);
+    const agents  = [...agentSet].sort();
+    const box = document.getElementById('prospectAgentCheckboxes');
+    if (box) {
+        box.innerHTML = agents.map(a => `
+            <label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;font-size:14px;color:#374151;border-bottom:1px solid #f3f4f6;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
+                <input type="checkbox" class="prospect-agent-cb" value="${a}" onchange="prospectAgentUpdateDisplay()" style="width:15px;height:15px;accent-color:#1d4ed8;cursor:pointer;">
+                ${a}
+            </label>`).join('');
+    }
+    // Reset state
+    document.getElementById('prospectAgentSelectAll').checked = false;
+    prospectAgentUpdateDisplay();
 
     document.getElementById('prospectSuccessMsg').style.display = 'none';
 }
@@ -1244,6 +1255,10 @@ function openNewProspectModal() {
 function closeNewProspectModal() {
     document.getElementById('newProspectModal').classList.remove('active');
     document.getElementById('prospectForm').reset();
+    document.getElementById('prospectAgentDropdown').style.display = 'none';
+    document.querySelectorAll('.prospect-agent-cb').forEach(cb => cb.checked = false);
+    document.getElementById('prospectAgentSelectAll').checked = false;
+    prospectAgentUpdateDisplay();
     document.getElementById('prospectSuccessMsg').style.display = 'none';
 }
 
@@ -1258,7 +1273,7 @@ function saveProspect(e) {
         lob:         document.getElementById('prospectLOB').value,
         source:      document.getElementById('prospectSource').value,
         referredBy:  document.getElementById('prospectReferredBy').value.trim(),
-        agent:       document.getElementById('prospectAgent').value,
+        agent:       prospectAgentGetSelected().join(', '),
         followUpDate:document.getElementById('prospectFollowUpDate').value,
         dateAdded:   getEasternDateTimeDisplay(),
         notes:       document.getElementById('prospectNotes').value.trim(),
@@ -1271,6 +1286,9 @@ function saveProspect(e) {
 
     document.getElementById('prospectForm').reset();
     document.getElementById('prospectDateAdded').value = getEasternDateTimeDisplay();
+    document.querySelectorAll('.prospect-agent-cb').forEach(cb => cb.checked = false);
+    document.getElementById('prospectAgentSelectAll').checked = false;
+    prospectAgentUpdateDisplay();
     const msg = document.getElementById('prospectSuccessMsg');
     msg.style.display = 'block';
     setTimeout(() => { msg.style.display = 'none'; }, 3000);
@@ -5778,3 +5796,51 @@ async function binderUpdateFileBadge(entryId, clientKey) {
     btn.title = count > 0 ? `${count} file${count !== 1 ? 's' : ''} — Click to manage` : 'Upload files';
     refreshIcons();
 }
+
+// ============================================================
+// PROSPECT AGENT MULTI-SELECT
+// ============================================================
+
+function toggleProspectAgentDropdown() {
+    const dd = document.getElementById('prospectAgentDropdown');
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+    if (dd.style.display === 'block') refreshIcons();
+}
+
+function prospectAgentToggleAll(cb) {
+    document.querySelectorAll('.prospect-agent-cb').forEach(c => c.checked = cb.checked);
+    prospectAgentUpdateDisplay();
+}
+
+function prospectAgentUpdateDisplay() {
+    const selected = prospectAgentGetSelected();
+    const display  = document.getElementById('prospectAgentDisplay');
+    const allCbs   = document.querySelectorAll('.prospect-agent-cb');
+    const allEl    = document.getElementById('prospectAgentSelectAll');
+    if (!display) return;
+    if (selected.length === 0) {
+        display.textContent = 'Select Agent(s)';
+        display.style.color = '#9ca3af';
+    } else if (selected.length === allCbs.length) {
+        display.textContent = 'All Agents';
+        display.style.color = '#374151';
+        if (allEl) allEl.checked = true;
+    } else {
+        display.textContent = selected.join(', ');
+        display.style.color = '#374151';
+        if (allEl) allEl.checked = false;
+    }
+}
+
+function prospectAgentGetSelected() {
+    return [...document.querySelectorAll('.prospect-agent-cb:checked')].map(cb => cb.value);
+}
+
+// Close prospect agent dropdown when clicking outside
+document.addEventListener('click', e => {
+    const wrapper = document.getElementById('prospectAgentWrapper');
+    const dd      = document.getElementById('prospectAgentDropdown');
+    if (wrapper && dd && !wrapper.contains(e.target)) {
+        dd.style.display = 'none';
+    }
+});

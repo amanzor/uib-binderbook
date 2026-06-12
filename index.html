@@ -868,15 +868,23 @@
                             </div>
                             <div class="form-group">
                                 <label>Assigned Agent</label>
-                                <select id="prospectAgent">
-                                    <option value="">Select Agent</option>
-                                    <option value="Alberto Manzor">Alberto Manzor</option>
-                                    <option value="Randy Diaz">Randy Diaz</option>
-                                    <option value="Amanda Montano">Amanda Montano</option>
-                                    <option value="Uriel Rendon">Uriel Rendon</option>
-                                    <option value="Jorge Castro">Jorge Castro</option>
-                                    <option value="Lazaro Reigoza">Lazaro Reigoza</option>
-                                </select>
+                                <div id="prospectAgentWrapper" style="position:relative;">
+                                    <div id="prospectAgentTrigger" onclick="toggleProspectAgentDropdown()"
+                                        style="padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:#fff;user-select:none;font-size:14px;color:#374151;">
+                                        <span id="prospectAgentDisplay" style="color:#9ca3af;">Select Agent(s)</span>
+                                        <i data-lucide="chevron-down" style="width:16px;height:16px;color:#6b7280;flex-shrink:0;"></i>
+                                    </div>
+                                    <div id="prospectAgentDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;overflow:hidden;">
+                                        <!-- Select All row -->
+                                        <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:#f0f9ff;border-bottom:1px solid #e5e7eb;font-size:13px;font-weight:700;color:#1d4ed8;">
+                                            <input type="checkbox" id="prospectAgentSelectAll" onchange="prospectAgentToggleAll(this)" style="width:15px;height:15px;accent-color:#1d4ed8;cursor:pointer;">
+                                            Select All
+                                        </label>
+                                        <div id="prospectAgentCheckboxes"></div>
+                                    </div>
+                                </div>
+                                <!-- hidden field for form compat -->
+                                <input type="hidden" id="prospectAgent">
                             </div>
                             <div class="form-group">
                                 <label>Follow-Up Date</label>
