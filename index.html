@@ -731,7 +731,7 @@
         <div class="main-content">
             <!-- Login Section -->
             <div id="loginSection" class="section active">
-                <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1f3c 0%,#1e3a5f 50%,#1d4ed8 100%);padding:20px;">
+                <div style="position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1f3c 0%,#1e3a5f 50%,#1d4ed8 100%);padding:20px;z-index:1000;overflow-y:auto;box-sizing:border-box;">
                     <div style="background:#fff;border-radius:20px;box-shadow:0 25px 60px rgba(0,0,0,0.3);padding:44px 40px 36px;width:100%;max-width:420px;">
 
                         <!-- Logo / Brand -->
@@ -3005,7 +3005,7 @@
 
     <!-- ─── Claude AI Chat — Floating Bubble & Panel ─── -->
     <button id="claudeBubbleBtn" onclick="claudeOpenPanel()" title="Ask Claude AI"
-        style="display:none;position:fixed;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;box-shadow:0 8px 24px rgba(124,58,237,.45);cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;font-size:24px;transition:transform .2s;"
+        style="display:none;position:fixed;bottom:24px;right:24px;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;box-shadow:0 8px 24px rgba(124,58,237,.45);cursor:pointer;z-index:9998;align-items:center;justify-content:center;font-size:24px;transition:transform .2s;"
         onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform=''">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/></svg>
     </button>
@@ -3045,7 +3045,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260612l"></script>
-    <script src="app.js?v=20260612l"></script>
+    <script src="motion.js?v=20260615a"></script>
+    <script src="app.js?v=20260615a"></script>
 </body>
 </html>
