@@ -878,23 +878,6 @@
                     <input type="text" id="mp_binderNum" placeholder="Binder number">
                 </div>
                 <div class="info-field">
-                    <label>Total Premium ($)</label>
-                    <input type="number" id="mp_premium" step="0.01" min="0" placeholder="0.00">
-                </div>
-                <div class="info-field">
-                    <label>Payment Type</label>
-                    <select id="mp_payType">
-                        <option value="">— Select —</option>
-                        <option>EFT</option>
-                        <option>Recurring Card Payment</option>
-                        <option>Direct Billing</option>
-                        <option>Monthly Paid</option>
-                        <option>Gross Paid</option>
-                        <option>Cash</option>
-                        <option>Check</option>
-                    </select>
-                </div>
-                <div class="info-field">
                     <label>Effective Date</label>
                     <input type="date" id="mp_effDate">
                 </div>
@@ -903,6 +886,110 @@
                     <input type="date" id="mp_expDate">
                 </div>
             </div>
+
+            <!-- ── Financial Information Section ── -->
+            <div style="margin:16px 0 0 0;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #bbf7d0;">
+                    <span style="font-size:15px;font-weight:700;color:#166534;">💰 Financial Information</span>
+                    <span style="font-size:12px;color:#15803d;font-style:italic;">— premiums, fees, payment, and commissions</span>
+                </div>
+                <!-- Row 1: Premiums & Fees -->
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;">
+                    <div class="info-field" style="margin:0;">
+                        <label>Down Payment ($)</label>
+                        <input type="number" id="mp_down" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>Agency Fee ($)</label>
+                        <input type="number" id="mp_agencyFee" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>Base Premium ($)</label>
+                        <input type="number" id="mp_basePremium" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>Total Premium ($)</label>
+                        <input type="number" id="mp_premium" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                </div>
+                <!-- Row 2: Payment Methods -->
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px;">
+                    <div class="info-field" style="margin:0;">
+                        <label>Payment Method</label>
+                        <select id="mp_payMethod">
+                            <option value="">— Select —</option>
+                            <option>CC-Agency</option>
+                            <option>CC-Client</option>
+                            <option>CC-Company</option>
+                            <option>Cash</option>
+                            <option>Check</option>
+                            <option>ACH to Agency</option>
+                            <option>Direct Billing</option>
+                            <option>EFT</option>
+                            <option>Escrow</option>
+                            <option>Money Order</option>
+                            <option>Premium Finance</option>
+                        </select>
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>Second Payment Method</label>
+                        <select id="mp_payMethod2">
+                            <option value="">— Select (Optional) —</option>
+                            <option>CC-Agency</option>
+                            <option>CC-Client</option>
+                            <option>CC-Company</option>
+                            <option>Cash</option>
+                            <option>Check</option>
+                            <option>ACH to Agency</option>
+                            <option>Direct Billing</option>
+                            <option>EFT</option>
+                            <option>Escrow</option>
+                            <option>Money Order</option>
+                            <option>Premium Finance</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Row 3: Commissions and Type -->
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+                    <div class="info-field" style="margin:0;">
+                        <label>Agency Commission ($)</label>
+                        <input type="number" id="mp_agencyCommission" step="0.01" min="0" placeholder="0.00"
+                            style="background:#fff;color:#166534;font-weight:700;border-color:#bbf7d0;">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>Agent Commission ($)</label>
+                        <input type="number" id="mp_agentCommission" step="0.01" min="0" placeholder="0.00"
+                            style="background:#fff;color:#166534;font-weight:700;border-color:#bbf7d0;">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>Commission Type</label>
+                        <select id="mp_payType">
+                            <option value="">— Select —</option>
+                            <option>Monthly Paid</option>
+                            <option>Gross Paid</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Drivers Section ── -->
+            <div style="margin:14px 0 0 0;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <span style="font-size:15px;font-weight:700;color:#1e40af;">🚘 Driver(s) Information</span>
+                    <button type="button" onclick="amsAddDriverRow()" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Driver</button>
+                </div>
+                <div id="amsDriversContainer"></div>
+            </div>
+
+            <!-- ── Vehicles Section ── -->
+            <div style="margin:14px 0 0 0;background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <span style="font-size:15px;font-weight:700;color:#9a3412;">🚗 Vehicle(s) Information</span>
+                    <button type="button" onclick="amsAddVehicleRow()" style="background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Vehicle</button>
+                </div>
+                <div id="amsVehiclesContainer"></div>
+            </div>
+
             <div class="modal-actions">
                 <button class="btn-secondary" onclick="amsClosePolicyModal()">Cancel</button>
                 <button class="btn-success"   onclick="amsSavePolicyModal()"><i data-lucide="save"></i> Save Policy</button>
@@ -933,6 +1020,6 @@
     <div class="ams-sync-banner" id="amsSyncBanner">Saving…</div>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="ams.js?v=20260612i"></script>
+    <script src="ams.js?v=20260615a"></script>
 </body>
 </html>

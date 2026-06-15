@@ -619,7 +619,10 @@ function amsSaveNote() {
 function amsOpenAddPolicyModal() {
     document.getElementById('amsPolicyModalTitle').innerHTML = '<i data-lucide="file-plus"></i> Add Policy';
     document.getElementById('amsPolicyEditId').value = '';
-    const fields = ['mp_agent','mp_policyType','mp_lob','mp_carrier','mp_mga','mp_policyNum','mp_binderNum','mp_premium','mp_payType','mp_effDate','mp_expDate'];
+    const fields = ['mp_agent','mp_policyType','mp_lob','mp_carrier','mp_mga','mp_policyNum','mp_binderNum',
+                    'mp_down','mp_agencyFee','mp_basePremium','mp_premium',
+                    'mp_payMethod','mp_payMethod2','mp_agencyCommission','mp_agentCommission','mp_payType',
+                    'mp_effDate','mp_expDate'];
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
     // Pre-select current user if agent, then lock the field
@@ -628,6 +631,9 @@ function amsOpenAddPolicyModal() {
         if (agSel) agSel.value = amsCurrentUser;
     }
     amsLockAgentField(document.getElementById('mp_agent'));
+
+    // Reset drivers/vehicles with one empty row each, prefill from client contact
+    amsResetDriversVehicles();
 
     document.getElementById('amsPolicyModal').classList.add('open');
     lucide.createIcons();
@@ -642,22 +648,32 @@ function amsEditPolicy(policyId) {
     document.getElementById('amsPolicyEditId').value = policyId;
 
     const map = {
-        mp_agent:       'agent',
-        mp_policyType:  'policyType',
-        mp_lob:         'lineOfBusiness',
-        mp_carrier:     'company',
-        mp_mga:         'mga',
-        mp_policyNum:   'policyNumber',
-        mp_binderNum:   'binderNumber',
-        mp_premium:     'totalPremium',
-        mp_payType:     'paymentType',
-        mp_effDate:     'effectiveDate',
-        mp_expDate:     'expirationDate'
+        mp_agent:            'agent',
+        mp_policyType:       'policyType',
+        mp_lob:              'lineOfBusiness',
+        mp_carrier:          'company',
+        mp_mga:              'mga',
+        mp_policyNum:        'policyNumber',
+        mp_binderNum:        'binderNumber',
+        mp_down:             'down',
+        mp_agencyFee:        'agencyFee',
+        mp_basePremium:      'basePremium',
+        mp_premium:          'totalPremium',
+        mp_payMethod:        'paymentMethod',
+        mp_payMethod2:       'paymentMethod2',
+        mp_agencyCommission: 'agencyCommission',
+        mp_agentCommission:  'agentCommissionShare',
+        mp_payType:          'paymentType',
+        mp_effDate:          'effectiveDate',
+        mp_expDate:          'expirationDate'
     };
     Object.entries(map).forEach(([elId, field]) => {
         const el = document.getElementById(elId);
         if (el) el.value = entry[field] || '';
     });
+
+    // Load drivers and vehicles from the entry
+    amsResetDriversVehicles(entry.drivers, entry.vehicles);
 
     amsLockAgentField(document.getElementById('mp_agent'));
     document.getElementById('amsPolicyModal').classList.add('open');
@@ -682,47 +698,45 @@ function amsSavePolicyModal() {
     const editId = parseInt(document.getElementById('amsPolicyEditId')?.value) || null;
     let binder   = amsGetBinderData();
 
-    const premVal = parseFloat(document.getElementById('mp_premium')?.value) || 0;
+    const v = id => document.getElementById(id)?.value || '';
+    const n = id => parseFloat(document.getElementById(id)?.value) || 0;
+
+    const policyData = {
+        agent,
+        policyType,
+        lineOfBusiness:       lob,
+        company:              carrier,
+        mga:                  v('mp_mga'),
+        policyNumber:         v('mp_policyNum'),
+        binderNumber:         v('mp_binderNum'),
+        down:                 n('mp_down'),
+        agencyFee:            n('mp_agencyFee'),
+        basePremium:          n('mp_basePremium'),
+        totalPremium:         n('mp_premium'),
+        paymentMethod:        v('mp_payMethod'),
+        paymentMethod2:       v('mp_payMethod2'),
+        agencyCommission:     n('mp_agencyCommission'),
+        agentCommissionShare: n('mp_agentCommission'),
+        paymentType:          v('mp_payType'),
+        effectiveDate:        v('mp_effDate'),
+        expirationDate:       v('mp_expDate'),
+        drivers:              amsCollectDriverRows(),
+        vehicles:             amsCollectVehicleRows()
+    };
 
     if (editId) {
-        // Update existing entry
         const idx = binder.findIndex(p => p.id === editId);
         if (idx !== -1) {
-            binder[idx] = {
-                ...binder[idx],
-                agent,
-                policyType,
-                lineOfBusiness: lob,
-                company:        carrier,
-                mga:            document.getElementById('mp_mga')?.value        || '',
-                policyNumber:   document.getElementById('mp_policyNum')?.value  || '',
-                binderNumber:   document.getElementById('mp_binderNum')?.value  || '',
-                totalPremium:   premVal,
-                paymentType:    document.getElementById('mp_payType')?.value    || '',
-                effectiveDate:  document.getElementById('mp_effDate')?.value    || '',
-                expirationDate: document.getElementById('mp_expDate')?.value    || ''
-            };
+            binder[idx] = { ...binder[idx], ...policyData };
         }
     } else {
-        // New entry — add to binder
         const newId = Date.now();
-        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // YYYY-MM-DD ET
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
         binder.push({
-            id:             newId,
-            agent,
-            entryDate:      today,
-            customerName:   amsClientIndex[amsActiveKey]?.displayName || amsActiveKey,
-            policyType,
-            lineOfBusiness: lob,
-            company:        carrier,
-            mga:            document.getElementById('mp_mga')?.value        || '',
-            policyNumber:   document.getElementById('mp_policyNum')?.value  || '',
-            binderNumber:   document.getElementById('mp_binderNum')?.value  || '',
-            totalPremium:   premVal,
-            paymentType:    document.getElementById('mp_payType')?.value    || '',
-            effectiveDate:  document.getElementById('mp_effDate')?.value    || '',
-            expirationDate: document.getElementById('mp_expDate')?.value    || '',
-            agencyCommission: 0, agentCommission: 0
+            id:           newId,
+            entryDate:    today,
+            customerName: amsClientIndex[amsActiveKey]?.displayName || amsActiveKey,
+            ...policyData
         });
     }
 
@@ -1125,5 +1139,144 @@ async function amsUpdateDocBadge() {
         badge.style.display = 'inline';
     } else {
         badge.style.display = 'none';
+    }
+}
+
+// ============================================================
+// AMS — Drivers & Vehicles mini-sections (mirror of BinderBook)
+// ============================================================
+
+let _amsDriverRowCounter = 0;
+let _amsVehicleRowCounter = 0;
+
+function amsAddDriverRow(prefill) {
+    const container = document.getElementById('amsDriversContainer');
+    if (!container) return;
+    _amsDriverRowCounter++;
+    const div = document.createElement('div');
+    div.className = 'ams-driver-row';
+    div.style.cssText = 'background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:8px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end;';
+    div.innerHTML = `
+        <div>
+            <label style="font-size:11px;font-weight:700;color:#1e40af;display:block;margin-bottom:3px;text-transform:uppercase;">First Name</label>
+            <input type="text" class="amsdrv-firstName" placeholder="John" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>
+        <div>
+            <label style="font-size:11px;font-weight:700;color:#1e40af;display:block;margin-bottom:3px;text-transform:uppercase;">Last Name</label>
+            <input type="text" class="amsdrv-lastName" placeholder="Doe" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>
+        <div>
+            <label style="font-size:11px;font-weight:700;color:#1e40af;display:block;margin-bottom:3px;text-transform:uppercase;">Date of Birth</label>
+            <input type="date" class="amsdrv-dob" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>
+        <div>
+            <label style="font-size:11px;font-weight:700;color:#1e40af;display:block;margin-bottom:3px;text-transform:uppercase;">DL #</label>
+            <input type="text" class="amsdrv-dl" placeholder="License #" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>
+        <button type="button" onclick="this.closest('.ams-driver-row').remove()" title="Remove driver"
+            style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:7px 10px;cursor:pointer;font-weight:700;font-size:14px;height:32px;">✕</button>
+    `;
+    container.appendChild(div);
+    if (prefill) {
+        if (prefill.firstName) div.querySelector('.amsdrv-firstName').value = prefill.firstName;
+        if (prefill.lastName)  div.querySelector('.amsdrv-lastName').value  = prefill.lastName;
+        if (prefill.dob)       div.querySelector('.amsdrv-dob').value       = prefill.dob;
+        if (prefill.dl)        div.querySelector('.amsdrv-dl').value        = prefill.dl;
+    }
+}
+
+function amsAddVehicleRow(prefill) {
+    const container = document.getElementById('amsVehiclesContainer');
+    if (!container) return;
+    _amsVehicleRowCounter++;
+    const div = document.createElement('div');
+    div.className = 'ams-vehicle-row';
+    div.style.cssText = 'background:#fff;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;margin-bottom:8px;display:grid;grid-template-columns:80px 1fr 1fr 1.6fr auto;gap:8px;align-items:end;';
+    div.innerHTML = `
+        <div>
+            <label style="font-size:11px;font-weight:700;color:#9a3412;display:block;margin-bottom:3px;text-transform:uppercase;">Year</label>
+            <input type="number" class="amsveh-year" min="1900" max="2099" placeholder="2024" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>
+        <div>
+            <label style="font-size:11px;font-weight:700;color:#9a3412;display:block;margin-bottom:3px;text-transform:uppercase;">Make</label>
+            <input type="text" class="amsveh-make" placeholder="Toyota" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>
+        <div>
+            <label style="font-size:11px;font-weight:700;color:#9a3412;display:block;margin-bottom:3px;text-transform:uppercase;">Model</label>
+            <input type="text" class="amsveh-model" placeholder="Camry" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>
+        <div>
+            <label style="font-size:11px;font-weight:700;color:#9a3412;display:block;margin-bottom:3px;text-transform:uppercase;">VIN</label>
+            <input type="text" class="amsveh-vin" placeholder="17-character VIN" maxlength="17" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:monospace;text-transform:uppercase;box-sizing:border-box;">
+        </div>
+        <button type="button" onclick="this.closest('.ams-vehicle-row').remove()" title="Remove vehicle"
+            style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:7px 10px;cursor:pointer;font-weight:700;font-size:14px;height:32px;">✕</button>
+    `;
+    container.appendChild(div);
+    if (prefill) {
+        if (prefill.year)  div.querySelector('.amsveh-year').value  = prefill.year;
+        if (prefill.make)  div.querySelector('.amsveh-make').value  = prefill.make;
+        if (prefill.model) div.querySelector('.amsveh-model').value = prefill.model;
+        if (prefill.vin)   div.querySelector('.amsveh-vin').value   = prefill.vin;
+    }
+}
+
+function amsCollectDriverRows() {
+    const rows = document.querySelectorAll('#amsDriversContainer .ams-driver-row');
+    const drivers = [];
+    rows.forEach(r => {
+        const driver = {
+            firstName: r.querySelector('.amsdrv-firstName')?.value.trim() || '',
+            lastName:  r.querySelector('.amsdrv-lastName')?.value.trim()  || '',
+            dob:       r.querySelector('.amsdrv-dob')?.value              || '',
+            dl:        r.querySelector('.amsdrv-dl')?.value.trim()        || ''
+        };
+        if (driver.firstName || driver.lastName || driver.dob || driver.dl) drivers.push(driver);
+    });
+    return drivers;
+}
+
+function amsCollectVehicleRows() {
+    const rows = document.querySelectorAll('#amsVehiclesContainer .ams-vehicle-row');
+    const vehicles = [];
+    rows.forEach(r => {
+        const vehicle = {
+            year:  r.querySelector('.amsveh-year')?.value.trim()           || '',
+            make:  r.querySelector('.amsveh-make')?.value.trim()           || '',
+            model: r.querySelector('.amsveh-model')?.value.trim()          || '',
+            vin:   r.querySelector('.amsveh-vin')?.value.trim().toUpperCase() || ''
+        };
+        if (vehicle.year || vehicle.make || vehicle.model || vehicle.vin) vehicles.push(vehicle);
+    });
+    return vehicles;
+}
+
+function amsResetDriversVehicles(prefilledDrivers, prefilledVehicles) {
+    const dc = document.getElementById('amsDriversContainer');
+    const vc = document.getElementById('amsVehiclesContainer');
+    if (dc) dc.innerHTML = '';
+    if (vc) vc.innerHTML = '';
+    _amsDriverRowCounter = 0;
+    _amsVehicleRowCounter = 0;
+
+    // If editing a policy with existing drivers/vehicles, preload those rows
+    if (Array.isArray(prefilledDrivers) && prefilledDrivers.length > 0) {
+        prefilledDrivers.forEach(d => amsAddDriverRow(d));
+    } else {
+        // Try prefilling first driver from client contact info
+        const contact = (typeof amsActiveKey !== 'undefined' && amsClientIndex[amsActiveKey])
+            ? amsClientIndex[amsActiveKey].contact || {} : {};
+        amsAddDriverRow({
+            firstName: contact.firstName || '',
+            lastName:  contact.lastName  || '',
+            dob:       contact.dob       || '',
+            dl:        contact.dlNum     || ''
+        });
+    }
+
+    if (Array.isArray(prefilledVehicles) && prefilledVehicles.length > 0) {
+        prefilledVehicles.forEach(v => amsAddVehicleRow(v));
+    } else {
+        amsAddVehicleRow();
     }
 }
