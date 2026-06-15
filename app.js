@@ -898,6 +898,9 @@ function saveEntry() {
     allData.push(entry);
     localStorage.setItem('binderData', JSON.stringify(allData));
 
+    // Auto-sync this entry's contact info to AMS (drivers, vehicles, agent, etc.)
+    syncEntryToAMS(entry);
+
     // Calculate and store commission based on base premium
     const premium     = entry.basePremium;
     const carrier     = entry.company;
@@ -2300,6 +2303,8 @@ function updateEntry() {
     entry.status = document.getElementById('editStatus').value;
     entry.agentCommissionShare = parseFloat(((entry.agencyFee + entry.agencyCommission) * 0.5).toFixed(2));
     localStorage.setItem('binderData', JSON.stringify(allData));
+    // Re-sync to AMS so any contact/source/agent changes propagate
+    if (typeof syncEntryToAMS === 'function') syncEntryToAMS(entry);
     closeModal();
     if (currentRole === 'agent') loadAgentData(); else loadAdminDashboard();
 }
@@ -7374,3 +7379,124 @@ function resetDriversVehicles() {
     addDriverRow();
     addVehicleRow();
 }
+
+// ============================================================
+// BINDERBOOK → AMS SYNC
+// Whenever a Daily Sales Entry is saved, mirror the customer's
+// contact info (drivers, vehicles, agent, location, source) into
+// the AMS client record so AMS instantly sees them.
+// ============================================================
+
+function amsClientKeyFromName(name) {
+    return (name || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+function splitCustomerName(fullName) {
+    const parts = (fullName || '').trim().split(/\s+/);
+    if (parts.length === 0) return { firstName: '', lastName: '' };
+    if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+    return {
+        firstName: parts[0],
+        lastName:  parts.slice(1).join(' ')
+    };
+}
+
+function syncEntryToAMS(entry) {
+    if (!entry || !entry.customerName) return;
+    try {
+        const key = amsClientKeyFromName(entry.customerName);
+        if (!key) return;
+
+        const contacts = JSON.parse(localStorage.getItem('amsClientData')) || {};
+        const existing = contacts[key] || {};
+        const now = new Date().toISOString();
+
+        // Best-effort name split (only if AMS doesn't already have them)
+        const split = splitCustomerName(entry.customerName);
+
+        // Pull info from the first driver if provided (often the primary)
+        const primaryDriver = (entry.drivers && entry.drivers.length > 0) ? entry.drivers[0] : null;
+
+        const updated = {
+            // Preserve any field already set in AMS — only fill blanks
+            firstName:      existing.firstName      || (primaryDriver?.firstName) || split.firstName,
+            lastName:       existing.lastName       || (primaryDriver?.lastName)  || split.lastName,
+            dob:            existing.dob            || (primaryDriver?.dob)       || '',
+            dlNum:          existing.dlNum          || (primaryDriver?.dl)        || '',
+            phone1:         existing.phone1         || '',
+            phone2:         existing.phone2         || '',
+            email:          existing.email          || '',
+            address:        existing.address        || '',
+            city:           existing.city           || '',
+            state:          existing.state          || '',
+            zip:            existing.zip            || '',
+            gender:         existing.gender         || '',
+            marital:        existing.marital        || '',
+            ssn4:           existing.ssn4           || '',
+            dlState:        existing.dlState        || '',
+            dlExp:          existing.dlExp          || '',
+            language:       existing.language       || '',
+            prefContact:    existing.prefContact    || '',
+            csrName:        existing.csrName        || '',
+            clientStatus:   existing.clientStatus   || 'Active',
+
+            // These get updated from the latest entry
+            assignedAgent:   entry.agent       || existing.assignedAgent   || '',
+            dealerLocation:  entry.location    || existing.dealerLocation  || '',
+            referral:        entry.referredBy  || existing.referral        || '',
+            referralSource:  entry.source      || existing.referralSource  || '',
+            clientSince:     existing.clientSince || (entry.entryDate || '').slice(0, 10) || '',
+
+            // Drivers and vehicles arrays — merge/dedupe by name + vin
+            drivers:  mergeDrivers(existing.drivers  || [], entry.drivers  || []),
+            vehicles: mergeVehicles(existing.vehicles || [], entry.vehicles || []),
+
+            // Preserve notes/uploads/etc if present
+            notes:    existing.notes    || [],
+
+            updatedAt: now,
+            createdAt: existing.createdAt || now,
+            createdBy: existing.createdBy || (entry.agent || '')
+        };
+
+        contacts[key] = updated;
+        localStorage.setItem('amsClientData', JSON.stringify(contacts));
+
+        // Sync to Drive in the background
+        if (typeof driveSet === 'function') {
+            driveSet('amsClientData', contacts);
+        }
+    } catch (e) {
+        console.warn('AMS sync failed for entry', entry?.customerName, e);
+    }
+}
+
+function mergeDrivers(existing, incoming) {
+    const dedup = new Map();
+    [...existing, ...incoming].forEach(d => {
+        if (!d || (!d.firstName && !d.lastName && !d.dl)) return;
+        const k = `${(d.firstName || '').toLowerCase().trim()}|${(d.lastName || '').toLowerCase().trim()}|${(d.dl || '').trim()}`;
+        if (!k.replace(/\|/g, '')) return; // all-empty
+        dedup.set(k, d);
+    });
+    return Array.from(dedup.values());
+}
+
+function mergeVehicles(existing, incoming) {
+    const dedup = new Map();
+    [...existing, ...incoming].forEach(v => {
+        if (!v || (!v.year && !v.make && !v.model && !v.vin)) return;
+        const k = (v.vin || '').toUpperCase().trim() ||
+                  `${v.year}|${(v.make || '').toLowerCase().trim()}|${(v.model || '').toLowerCase().trim()}`;
+        if (!k) return;
+        dedup.set(k, v);
+    });
+    return Array.from(dedup.values());
+}
+
+// Make amsClientData a synced key (Drive pull + push)
+(function ensureAmsClientDataSynced() {
+    if (typeof SYNC_KEYS !== 'undefined' && !SYNC_KEYS.includes('amsClientData')) {
+        SYNC_KEYS.push('amsClientData');
+    }
+})();
