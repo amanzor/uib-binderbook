@@ -1303,28 +1303,6 @@
                                 <input type="text" id="referredBy" placeholder="Name of referrer" required>
                             </div>
 
-                            <!-- ── Drivers Section ── -->
-                            <div class="form-group" style="grid-column:1 / -1;">
-                                <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;padding:14px 16px;">
-                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                                        <span style="font-size:13px;font-weight:700;color:#1e40af;">🚘 Driver(s) Information</span>
-                                        <button type="button" onclick="addDriverRow()" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Driver</button>
-                                    </div>
-                                    <div id="driversContainer"></div>
-                                </div>
-                            </div>
-
-                            <!-- ── Vehicles Section ── -->
-                            <div class="form-group" style="grid-column:1 / -1;">
-                                <div style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;padding:14px 16px;">
-                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                                        <span style="font-size:13px;font-weight:700;color:#9a3412;">🚗 Vehicle(s) Information</span>
-                                        <button type="button" onclick="addVehicleRow()" style="background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Vehicle</button>
-                                    </div>
-                                    <div id="vehiclesContainer"></div>
-                                </div>
-                            </div>
-
                             <div class="form-group">
                                 <label>Policy Type *</label>
                                 <select id="policyType" required>
@@ -1498,6 +1476,29 @@
                                 </select>
                             </div>
                         </div>
+
+                        <!-- ── Drivers Section ── -->
+                        <div style="margin:14px 0 0 0;">
+                            <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;padding:14px 16px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                                    <span style="font-size:14px;font-weight:700;color:#1e40af;">🚘 Driver(s) Information</span>
+                                    <button type="button" onclick="addDriverRow()" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Driver</button>
+                                </div>
+                                <div id="driversContainer"></div>
+                            </div>
+                        </div>
+
+                        <!-- ── Vehicles Section ── -->
+                        <div style="margin:14px 0 0 0;">
+                            <div style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;padding:14px 16px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                                    <span style="font-size:14px;font-weight:700;color:#9a3412;">🚗 Vehicle(s) Information</span>
+                                    <button type="button" onclick="addVehicleRow()" style="background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Vehicle</button>
+                                </div>
+                                <div id="vehiclesContainer"></div>
+                            </div>
+                        </div>
+
                         <!-- File Attachment Section -->
                         <div style="margin:4px 0 16px 0;padding:12px 14px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                             <span style="font-size:13px;color:#374151;font-weight:600;">📁 Attach Documents</span>
@@ -3086,7 +3087,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260615k"></script>
-    <script src="app.js?v=20260615k"></script>
+    <script src="motion.js?v=20260615l"></script>
+    <script src="app.js?v=20260615l"></script>
 </body>
 </html>
