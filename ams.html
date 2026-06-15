@@ -972,22 +972,30 @@
                 </div>
             </div>
 
-            <!-- ── Drivers Section ── -->
+            <!-- ── Drivers Section (optional) ── -->
             <div style="margin:14px 0 0 0;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;padding:14px 18px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <span style="font-size:15px;font-weight:700;color:#1e40af;">🚘 Driver(s) Information</span>
-                    <button type="button" onclick="amsAddDriverRow()" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Driver</button>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #bfdbfe;gap:10px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-size:15px;font-weight:700;color:#1e40af;">🚘 Driver(s) Information</span>
+                        <span style="font-size:11px;background:#dbeafe;color:#1e3a8a;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">Optional</span>
+                    </div>
+                    <button type="button" onclick="amsAddDriverRow()" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Driver</button>
                 </div>
                 <div id="amsDriversContainer"></div>
+                <div id="amsDriversEmptyState" style="text-align:center;padding:12px 8px;font-size:13px;color:#475569;font-style:italic;">No drivers added. Click <strong style="color:#1d4ed8;">+ Add Driver</strong> if you need to capture driver details.</div>
             </div>
 
-            <!-- ── Vehicles Section ── -->
+            <!-- ── Vehicles Section (optional) ── -->
             <div style="margin:14px 0 0 0;background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;padding:14px 18px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <span style="font-size:15px;font-weight:700;color:#9a3412;">🚗 Vehicle(s) Information</span>
-                    <button type="button" onclick="amsAddVehicleRow()" style="background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Vehicle</button>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #fed7aa;gap:10px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-size:15px;font-weight:700;color:#9a3412;">🚗 Vehicle(s) Information</span>
+                        <span style="font-size:11px;background:#ffedd5;color:#7c2d12;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">Optional</span>
+                    </div>
+                    <button type="button" onclick="amsAddVehicleRow()" style="background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Vehicle</button>
                 </div>
                 <div id="amsVehiclesContainer"></div>
+                <div id="amsVehiclesEmptyState" style="text-align:center;padding:12px 8px;font-size:13px;color:#475569;font-style:italic;">No vehicles added. Click <strong style="color:#c2410c;">+ Add Vehicle</strong> if you need to capture vehicle details.</div>
             </div>
 
             <div class="modal-actions">
@@ -1020,6 +1028,6 @@
     <div class="ams-sync-banner" id="amsSyncBanner">Saving…</div>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="ams.js?v=20260615a"></script>
+    <script src="ams.js?v=20260615b"></script>
 </body>
 </html>

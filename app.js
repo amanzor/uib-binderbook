@@ -7282,7 +7282,7 @@ function addDriverRow(prefill) {
             <label style="font-size:11px;font-weight:700;color:#1e40af;display:block;margin-bottom:3px;text-transform:uppercase;">DL #</label>
             <input type="text" class="drv-dl" placeholder="License #" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
         </div>
-        <button type="button" onclick="this.closest('.driver-row').remove()" title="Remove driver"
+        <button type="button" onclick="this.closest('.driver-row').remove(); updateDriversEmptyState();" title="Remove driver"
             style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:7px 10px;cursor:pointer;font-weight:700;font-size:14px;height:32px;">✕</button>
     `;
     container.appendChild(div);
@@ -7292,6 +7292,7 @@ function addDriverRow(prefill) {
         if (prefill.dob)       div.querySelector('.drv-dob').value       = prefill.dob;
         if (prefill.dl)        div.querySelector('.drv-dl').value        = prefill.dl;
     }
+    updateDriversEmptyState();
     div.querySelector('.drv-firstName')?.focus();
 }
 
@@ -7321,7 +7322,7 @@ function addVehicleRow(prefill) {
             <label style="font-size:11px;font-weight:700;color:#9a3412;display:block;margin-bottom:3px;text-transform:uppercase;">VIN</label>
             <input type="text" class="veh-vin" placeholder="17-character VIN" maxlength="17" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:monospace;text-transform:uppercase;box-sizing:border-box;">
         </div>
-        <button type="button" onclick="this.closest('.vehicle-row').remove()" title="Remove vehicle"
+        <button type="button" onclick="this.closest('.vehicle-row').remove(); updateVehiclesEmptyState();" title="Remove vehicle"
             style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:7px 10px;cursor:pointer;font-weight:700;font-size:14px;height:32px;">✕</button>
     `;
     container.appendChild(div);
@@ -7331,6 +7332,7 @@ function addVehicleRow(prefill) {
         if (prefill.model) div.querySelector('.veh-model').value = prefill.model;
         if (prefill.vin)   div.querySelector('.veh-vin').value   = prefill.vin;
     }
+    updateVehiclesEmptyState();
     div.querySelector('.veh-year')?.focus();
 }
 
@@ -7375,9 +7377,23 @@ function resetDriversVehicles() {
     if (vc) vc.innerHTML = '';
     _driverRowCounter = 0;
     _vehicleRowCounter = 0;
-    // Start with one empty row of each so users see the structure
-    addDriverRow();
-    addVehicleRow();
+    // Both sections start empty — they're optional, agent adds rows only if needed
+    updateDriversEmptyState();
+    updateVehiclesEmptyState();
+}
+
+function updateDriversEmptyState() {
+    const dc = document.getElementById('driversContainer');
+    const ds = document.getElementById('driversEmptyState');
+    if (!dc || !ds) return;
+    ds.style.display = dc.children.length === 0 ? 'block' : 'none';
+}
+
+function updateVehiclesEmptyState() {
+    const vc = document.getElementById('vehiclesContainer');
+    const vs = document.getElementById('vehiclesEmptyState');
+    if (!vc || !vs) return;
+    vs.style.display = vc.children.length === 0 ? 'block' : 'none';
 }
 
 // ============================================================

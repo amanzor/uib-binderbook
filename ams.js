@@ -1173,7 +1173,7 @@ function amsAddDriverRow(prefill) {
             <label style="font-size:11px;font-weight:700;color:#1e40af;display:block;margin-bottom:3px;text-transform:uppercase;">DL #</label>
             <input type="text" class="amsdrv-dl" placeholder="License #" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
         </div>
-        <button type="button" onclick="this.closest('.ams-driver-row').remove()" title="Remove driver"
+        <button type="button" onclick="this.closest('.ams-driver-row').remove(); amsUpdateDriversEmptyState();" title="Remove driver"
             style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:7px 10px;cursor:pointer;font-weight:700;font-size:14px;height:32px;">✕</button>
     `;
     container.appendChild(div);
@@ -1183,6 +1183,7 @@ function amsAddDriverRow(prefill) {
         if (prefill.dob)       div.querySelector('.amsdrv-dob').value       = prefill.dob;
         if (prefill.dl)        div.querySelector('.amsdrv-dl').value        = prefill.dl;
     }
+    amsUpdateDriversEmptyState();
 }
 
 function amsAddVehicleRow(prefill) {
@@ -1209,7 +1210,7 @@ function amsAddVehicleRow(prefill) {
             <label style="font-size:11px;font-weight:700;color:#9a3412;display:block;margin-bottom:3px;text-transform:uppercase;">VIN</label>
             <input type="text" class="amsveh-vin" placeholder="17-character VIN" maxlength="17" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:monospace;text-transform:uppercase;box-sizing:border-box;">
         </div>
-        <button type="button" onclick="this.closest('.ams-vehicle-row').remove()" title="Remove vehicle"
+        <button type="button" onclick="this.closest('.ams-vehicle-row').remove(); amsUpdateVehiclesEmptyState();" title="Remove vehicle"
             style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:7px 10px;cursor:pointer;font-weight:700;font-size:14px;height:32px;">✕</button>
     `;
     container.appendChild(div);
@@ -1219,6 +1220,7 @@ function amsAddVehicleRow(prefill) {
         if (prefill.model) div.querySelector('.amsveh-model').value = prefill.model;
         if (prefill.vin)   div.querySelector('.amsveh-vin').value   = prefill.vin;
     }
+    amsUpdateVehiclesEmptyState();
 }
 
 function amsCollectDriverRows() {
@@ -1259,24 +1261,29 @@ function amsResetDriversVehicles(prefilledDrivers, prefilledVehicles) {
     _amsDriverRowCounter = 0;
     _amsVehicleRowCounter = 0;
 
-    // If editing a policy with existing drivers/vehicles, preload those rows
+    // Only preload rows when editing an existing policy that already has them.
+    // For a new policy, both sections stay empty — they're optional.
     if (Array.isArray(prefilledDrivers) && prefilledDrivers.length > 0) {
         prefilledDrivers.forEach(d => amsAddDriverRow(d));
-    } else {
-        // Try prefilling first driver from client contact info
-        const contact = (typeof amsActiveKey !== 'undefined' && amsClientIndex[amsActiveKey])
-            ? amsClientIndex[amsActiveKey].contact || {} : {};
-        amsAddDriverRow({
-            firstName: contact.firstName || '',
-            lastName:  contact.lastName  || '',
-            dob:       contact.dob       || '',
-            dl:        contact.dlNum     || ''
-        });
     }
-
     if (Array.isArray(prefilledVehicles) && prefilledVehicles.length > 0) {
         prefilledVehicles.forEach(v => amsAddVehicleRow(v));
-    } else {
-        amsAddVehicleRow();
     }
+
+    amsUpdateDriversEmptyState();
+    amsUpdateVehiclesEmptyState();
+}
+
+function amsUpdateDriversEmptyState() {
+    const dc = document.getElementById('amsDriversContainer');
+    const ds = document.getElementById('amsDriversEmptyState');
+    if (!dc || !ds) return;
+    ds.style.display = dc.children.length === 0 ? 'block' : 'none';
+}
+
+function amsUpdateVehiclesEmptyState() {
+    const vc = document.getElementById('amsVehiclesContainer');
+    const vs = document.getElementById('amsVehiclesEmptyState');
+    if (!vc || !vs) return;
+    vs.style.display = vc.children.length === 0 ? 'block' : 'none';
 }
