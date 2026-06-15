@@ -2283,6 +2283,33 @@
                     <button class="btn-secondary btn-sm" onclick="resetAdminFilter()">Reset</button>
                 </div>
 
+                <!-- ── Claude AI Commission Processor (Admin only) ── -->
+                <div style="margin:18px 0 0 0;background:linear-gradient(135deg,#faf5ff,#ede9fe);border:1.5px solid #ddd6fe;border-radius:14px;padding:18px 20px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/></svg>
+                            <span style="font-size:15px;font-weight:700;color:#6d28d9;">Claude AI — Commission Processor</span>
+                        </div>
+                        <button onclick="claudeAdminNewConversation()" style="background:#fff;border:1px solid #c4b5fd;color:#7c3aed;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
+                    </div>
+                    <div style="font-size:12px;color:#6d28d9;background:#fff;border:1px dashed #c4b5fd;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
+                        📤 <strong>Upload commission statements</strong> from any insurance carrier (Progressive, Infinity, United, etc.). Claude will identify each transaction, match it to your BinderBook entries by customer name or policy number, and generate per-agent commission statements. You can upload multiple PDFs.
+                    </div>
+                    <div id="claudeAdminMessages" style="background:#fff;border:1px solid #e9d5ff;border-radius:10px;min-height:160px;max-height:560px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
+                    <div id="claudeAdminFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#ede9fe;border:1px solid #ddd6fe;border-radius:8px;font-size:12px;color:#5b21b6;"></div>
+                    <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;">
+                        <button onclick="document.getElementById('claudeAdminPdfInput').click()" title="Upload commission statement PDF(s)"
+                            style="flex-shrink:0;background:#fff;border:1.5px solid #c4b5fd;color:#7c3aed;width:42px;height:42px;border-radius:10px;cursor:pointer;font-size:18px;">📎</button>
+                        <input type="file" id="claudeAdminPdfInput" accept="application/pdf" multiple style="display:none;" onchange="claudeAdminHandlePdfUpload(event)">
+                        <textarea id="claudeAdminInput" placeholder="Upload a commission statement PDF, or ask about your commissions…" rows="2"
+                            style="flex:1;border:1.5px solid #c4b5fd;border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;resize:none;outline:none;background:#fff;"
+                            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();claudeAdminSendMessage();}"></textarea>
+                        <button onclick="claudeAdminSendMessage()" id="claudeAdminSendBtn"
+                            style="flex-shrink:0;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;padding:0 18px;height:42px;border-radius:10px;cursor:pointer;font-weight:700;font-size:14px;">Process</button>
+                    </div>
+                </div>
+                <!-- /Claude AI Commission Processor -->
+
                 <div class="stats-grid" id="statsGrid"></div>
 
                 <div class="chart-container">
@@ -3032,7 +3059,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260615c"></script>
-    <script src="app.js?v=20260615c"></script>
+    <script src="motion.js?v=20260615d"></script>
+    <script src="app.js?v=20260615d"></script>
 </body>
 </html>

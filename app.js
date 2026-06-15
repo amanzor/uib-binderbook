@@ -6662,4 +6662,370 @@ async function claudeInlineSendMessage() {
 // Auto-greet on agent section load
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(claudeInlineGreet, 800);
+    setTimeout(claudeAdminGreet, 800);
 });
+
+// ============================================================
+// CLAUDE AI — Admin Commission Processor
+// ============================================================
+
+let _claudeAdminMessages = [];
+let _claudeAdminPendingPdfs = []; // array of {name, base64}
+let _claudeAdminBusy = false;
+
+function claudeAdminAddMessage(role, text, isHtml) {
+    const box = document.getElementById('claudeAdminMessages');
+    if (!box) return null;
+    const isUser = role === 'user';
+    const div = document.createElement('div');
+    div.style.cssText = `align-self:${isUser ? 'flex-end' : 'flex-start'};max-width:92%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;${isUser ? 'background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;' : 'background:#f9fafb;color:#1f2937;border:1px solid #e5e7eb;'};word-wrap:break-word;white-space:pre-wrap;`;
+    if (isHtml) div.innerHTML = text;
+    else div.textContent = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+}
+
+function claudeAdminGreet() {
+    const box = document.getElementById('claudeAdminMessages');
+    if (!box || box.children.length > 0) return;
+    claudeAdminAddMessage('assistant',
+        `👋 Welcome, Admin! Upload one or more carrier commission statements (PDFs) using the 📎 button. I'll:
+
+• Read each transaction from the statement
+• Match it to a BinderBook entry by customer name or policy number
+• Identify which agent gets credit for each
+• Generate a downloadable commission breakdown per agent
+
+You can also just ask questions about your commission data.`);
+}
+
+function claudeAdminNewConversation() {
+    _claudeAdminMessages = [];
+    _claudeAdminPendingPdfs = [];
+    const box = document.getElementById('claudeAdminMessages');
+    if (box) box.innerHTML = '';
+    const preview = document.getElementById('claudeAdminFilePreview');
+    if (preview) preview.style.display = 'none';
+    claudeAdminGreet();
+}
+
+function claudeAdminHandlePdfUpload(event) {
+    const files = Array.from(event.target.files || []);
+    const pdfs = files.filter(f => f.type === 'application/pdf');
+    if (pdfs.length === 0) {
+        alert('Please upload PDF files only.');
+        return;
+    }
+
+    let loaded = 0;
+    pdfs.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64 = e.target.result.split(',')[1];
+            _claudeAdminPendingPdfs.push({ name: file.name, base64 });
+            loaded++;
+            if (loaded === pdfs.length) claudeAdminRefreshPreview();
+        };
+        reader.readAsDataURL(file);
+    });
+    event.target.value = '';
+}
+
+function claudeAdminRefreshPreview() {
+    const preview = document.getElementById('claudeAdminFilePreview');
+    if (!preview) return;
+    if (_claudeAdminPendingPdfs.length === 0) {
+        preview.style.display = 'none';
+        return;
+    }
+    preview.style.display = 'block';
+    const names = _claudeAdminPendingPdfs.map((p, i) =>
+        `📎 ${p.name} <button onclick="claudeAdminRemovePdf(${i})" style="background:none;border:none;color:#5b21b6;cursor:pointer;font-weight:700;margin-left:4px;">✕</button>`
+    ).join(' &nbsp;·&nbsp; ');
+    preview.innerHTML = `<strong>${_claudeAdminPendingPdfs.length} PDF${_claudeAdminPendingPdfs.length > 1 ? 's' : ''} attached:</strong> ${names}`;
+}
+
+function claudeAdminRemovePdf(idx) {
+    _claudeAdminPendingPdfs.splice(idx, 1);
+    claudeAdminRefreshPreview();
+}
+
+function claudeAdminBuildBinderContext() {
+    try {
+        const data = (allData || []).filter(e => e.customerName);
+        // Send a compact reference list — Claude needs name + policy + agent for matching
+        const entries = data.slice(-500).map(e =>
+            `id=${e.id}|${(e.customerName || '').trim()}|policy=${e.policyNumber || ''}|carrier=${e.company || ''}|agent=${e.agent || ''}|premium=${e.totalPremium || 0}|date=${e.entryDate || ''}`
+        );
+        const agentList = [...new Set(data.map(e => e.agent).filter(Boolean))];
+        return `BinderBook reference data (${data.length} total entries, showing most recent 500):
+
+Agents in system: ${agentList.join(', ')}
+
+Entries (pipe-delimited: id|customer|policy|carrier|agent|premium|date):
+${entries.join('\n')}`;
+    } catch (e) {
+        return `(Data context unavailable: ${e.message})`;
+    }
+}
+
+function claudeAdminBuildSystemPrompt(pdfMode) {
+    const context = claudeAdminBuildBinderContext();
+    const base = `You are the AI commission processor for UIB BinderBook (Universal Insurance Brokers). You help the admin reconcile carrier commission statements against BinderBook sales entries.
+
+${context}
+
+GUIDELINES:
+- Be precise. This is financial reconciliation work.
+- Match transactions by policy number FIRST (highest confidence), then by customer name.
+- If a customer name has multiple matches, prefer the entry with the matching carrier.
+- Mark match confidence honestly: "high" (policy# exact match), "medium" (customer name + carrier match), "low" (customer name only), "none" (no match found).
+- Be ready to explain your reasoning.`;
+
+    if (pdfMode) {
+        return base + `
+
+COMMISSION STATEMENT PROCESSING MODE:
+The admin has uploaded one or more carrier commission statements. Your job:
+
+1. Identify the carrier and statement period for each PDF
+2. Extract EVERY transaction line item (don't skip any)
+3. Match each transaction to a BinderBook entry using the data above
+4. Identify the responsible agent from the matched entry
+5. Output a structured JSON summary at the end of your response
+
+After a brief 2-3 sentence summary of what you found, output JSON in this exact shape (wrapped in \`\`\`json fences as the LAST thing in your response):
+
+\`\`\`json
+{
+  "carrier": "string (carrier name from statement)",
+  "statementMonth": "Month YYYY (e.g. May 2026)",
+  "statementDate": "YYYY-MM-DD",
+  "totalGrossCommission": number,
+  "transactions": [
+    {
+      "customerName": "string",
+      "policyNumber": "string",
+      "premium": number,
+      "commissionAmount": number,
+      "matchedEntryId": number_or_null,
+      "matchedAgent": "string_or_null",
+      "matchConfidence": "high|medium|low|none",
+      "notes": "string (optional explanation)"
+    }
+  ],
+  "agentTotals": {
+    "Agent Name": {
+      "transactionCount": number,
+      "totalCommission": number
+    }
+  }
+}
+\`\`\`
+
+If multiple PDFs are uploaded, output one JSON block per carrier statement, separated by your prose commentary.`;
+    }
+    return base;
+}
+
+async function claudeAdminSendMessage() {
+    if (_claudeAdminBusy) return;
+    const input = document.getElementById('claudeAdminInput');
+    let userText = (input?.value || '').trim();
+    const hasPdfs = _claudeAdminPendingPdfs.length > 0;
+
+    if (!userText && !hasPdfs) return;
+    if (!userText && hasPdfs) {
+        userText = `Process ${_claudeAdminPendingPdfs.length === 1 ? 'this commission statement' : 'these ' + _claudeAdminPendingPdfs.length + ' commission statements'}. Identify every transaction, match to BinderBook entries, and break down per agent.`;
+    }
+
+    let displayText = userText;
+    if (hasPdfs) displayText = `📎 ${_claudeAdminPendingPdfs.map(p => p.name).join(', ')}\n${userText}`;
+    claudeAdminAddMessage('user', displayText);
+    input.value = '';
+
+    const content = [];
+    _claudeAdminPendingPdfs.forEach(pdf => {
+        content.push({
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: pdf.base64 }
+        });
+    });
+    content.push({ type: 'text', text: userText });
+
+    const pdfsAttached = hasPdfs;
+    const pdfNames = _claudeAdminPendingPdfs.map(p => p.name);
+    _claudeAdminMessages.push({ role: 'user', content });
+    _claudeAdminPendingPdfs = [];
+    claudeAdminRefreshPreview();
+
+    _claudeAdminBusy = true;
+    const sendBtn = document.getElementById('claudeAdminSendBtn');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '…'; }
+    const loadingDiv = claudeAdminAddMessage('assistant', '✨ Reading statement(s) and reconciling against BinderBook…');
+
+    try {
+        const systemPrompt = claudeAdminBuildSystemPrompt(pdfsAttached);
+        const reply = await claudeCallAPI(systemPrompt, _claudeAdminMessages);
+
+        loadingDiv.remove();
+        const replyText = reply.text || '(no response)';
+        _claudeAdminMessages.push({ role: 'assistant', content: replyText });
+
+        const statements = pdfsAttached ? claudeAdminParseAllStatements(replyText) : [];
+
+        if (statements.length > 0) {
+            const msg = claudeAdminAddMessage('assistant', '');
+            msg.innerHTML = claudeRenderMarkdown(replyText) + claudeAdminRenderStatements(statements, pdfNames);
+        } else {
+            claudeAdminAddMessage('assistant', claudeRenderMarkdown(replyText), true);
+        }
+    } catch (err) {
+        loadingDiv.remove();
+        claudeAdminAddMessage('assistant', `❌ Error: ${err.message}\n\nMake sure the Google Apps Script has been updated with the Claude proxy.`);
+    } finally {
+        _claudeAdminBusy = false;
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Process'; }
+    }
+}
+
+function claudeAdminParseAllStatements(text) {
+    const results = [];
+    const re = /```json\s*([\s\S]*?)```/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        try {
+            const obj = JSON.parse(m[1]);
+            if (obj && Array.isArray(obj.transactions)) results.push(obj);
+        } catch (e) { /* skip malformed block */ }
+    }
+    return results;
+}
+
+function claudeAdminRenderStatements(statements, pdfNames) {
+    let html = `<div style="margin-top:14px;display:flex;flex-direction:column;gap:14px;">`;
+    statements.forEach((stmt, idx) => {
+        const totalAgentCommission = Object.values(stmt.agentTotals || {})
+            .reduce((s, a) => s + (a.totalCommission || 0), 0);
+        const matched = (stmt.transactions || []).filter(t => t.matchedAgent).length;
+        const unmatched = (stmt.transactions || []).length - matched;
+
+        html += `<div style="background:#fff;border:1.5px solid #ddd6fe;border-radius:10px;padding:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                <div>
+                    <div style="font-weight:700;color:#6d28d9;font-size:15px;">${stmt.carrier || 'Unknown carrier'} — ${stmt.statementMonth || stmt.statementDate || ''}</div>
+                    <div style="font-size:12px;color:#6b7280;">${(stmt.transactions || []).length} transactions · ${matched} matched · ${unmatched} unmatched · Gross: $${(stmt.totalGrossCommission || 0).toFixed(2)}</div>
+                </div>
+                <button onclick='claudeAdminApplyStatement(${JSON.stringify(stmt).replace(/'/g, "&#39;")})'
+                    style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
+                    💾 Save as Commission Statement
+                </button>
+            </div>`;
+
+        // Agent breakdown
+        const agentTotals = stmt.agentTotals || {};
+        const agentRows = Object.entries(agentTotals)
+            .sort((a, b) => (b[1].totalCommission || 0) - (a[1].totalCommission || 0));
+        if (agentRows.length > 0) {
+            html += `<div style="background:#f9fafb;border-radius:8px;padding:10px;margin-bottom:10px;">
+                <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px;">Per-agent breakdown</div>
+                <table style="width:100%;font-size:13px;border-collapse:collapse;">
+                    ${agentRows.map(([agent, t]) => `<tr>
+                        <td style="padding:4px 8px;color:#1f2937;font-weight:600;">${agent}</td>
+                        <td style="padding:4px 8px;color:#6b7280;text-align:right;">${t.transactionCount || 0} txns</td>
+                        <td style="padding:4px 8px;color:#15803d;font-weight:700;text-align:right;">$${(t.totalCommission || 0).toFixed(2)}</td>
+                    </tr>`).join('')}
+                </table>
+            </div>`;
+        }
+
+        // Transaction table (collapsed)
+        html += `<details style="cursor:pointer;">
+            <summary style="font-size:12px;font-weight:700;color:#7c3aed;padding:4px 0;">▶ View all ${(stmt.transactions || []).length} transactions</summary>
+            <div style="margin-top:8px;overflow-x:auto;border:1px solid #e5e7eb;border-radius:8px;">
+                <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:600px;">
+                    <thead style="background:#f9fafb;">
+                        <tr>
+                            <th style="padding:6px 8px;text-align:left;color:#6b7280;font-weight:700;text-transform:uppercase;font-size:10px;">Customer</th>
+                            <th style="padding:6px 8px;text-align:left;color:#6b7280;font-weight:700;text-transform:uppercase;font-size:10px;">Policy #</th>
+                            <th style="padding:6px 8px;text-align:right;color:#6b7280;font-weight:700;text-transform:uppercase;font-size:10px;">Premium</th>
+                            <th style="padding:6px 8px;text-align:right;color:#6b7280;font-weight:700;text-transform:uppercase;font-size:10px;">Commission</th>
+                            <th style="padding:6px 8px;text-align:left;color:#6b7280;font-weight:700;text-transform:uppercase;font-size:10px;">Agent</th>
+                            <th style="padding:6px 8px;text-align:center;color:#6b7280;font-weight:700;text-transform:uppercase;font-size:10px;">Match</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(stmt.transactions || []).map(t => {
+                            const colors = { high: '#16a34a', medium: '#ca8a04', low: '#ea580c', none: '#dc2626' };
+                            const badge = `<span style="background:${colors[t.matchConfidence] || '#6b7280'};color:#fff;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;">${t.matchConfidence || '?'}</span>`;
+                            return `<tr style="border-top:1px solid #f3f4f6;">
+                                <td style="padding:6px 8px;color:#1f2937;">${t.customerName || '—'}</td>
+                                <td style="padding:6px 8px;color:#374151;font-family:monospace;">${t.policyNumber || '—'}</td>
+                                <td style="padding:6px 8px;text-align:right;color:#374151;">$${(t.premium || 0).toFixed(2)}</td>
+                                <td style="padding:6px 8px;text-align:right;color:#15803d;font-weight:600;">$${(t.commissionAmount || 0).toFixed(2)}</td>
+                                <td style="padding:6px 8px;color:${t.matchedAgent ? '#1d4ed8' : '#9ca3af'};font-weight:${t.matchedAgent ? '600' : '400'};">${t.matchedAgent || '— unmatched —'}</td>
+                                <td style="padding:6px 8px;text-align:center;">${badge}</td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </details>`;
+        html += `</div>`;
+    });
+    html += `</div>`;
+    return html;
+}
+
+function claudeAdminApplyStatement(stmt) {
+    if (!stmt || !Array.isArray(stmt.transactions)) {
+        alert('Invalid statement data.');
+        return;
+    }
+
+    const monthLabel = stmt.statementMonth || stmt.statementDate || `Statement ${new Date().toISOString().slice(0, 10)}`;
+    const carrier = stmt.carrier || 'Unknown';
+    const key = `${monthLabel} — ${carrier} (AI)`;
+
+    // Convert AI transactions to commissionStatements format
+    const entries = stmt.transactions.map((t, i) => ({
+        idx: i + 1,
+        carrier: carrier,
+        customerName: t.customerName || '',
+        policyNumber: t.policyNumber || '',
+        premium: parseFloat(t.premium) || 0,
+        commission: parseFloat(t.commissionAmount) || 0,
+        agentMatch: t.matchedAgent || null,
+        matchConfidence: t.matchConfidence || 'none',
+        matchedEntryId: t.matchedEntryId || null,
+        notes: t.notes || ''
+    }));
+
+    const carrierTotals = {};
+    carrierTotals[carrier] = stmt.totalGrossCommission ||
+        entries.reduce((s, e) => s + e.commission, 0);
+
+    if (typeof commissionStatements === 'undefined' || commissionStatements === null) {
+        window.commissionStatements = JSON.parse(localStorage.getItem('commissionStatements')) || {};
+    }
+
+    commissionStatements[key] = {
+        month: monthLabel,
+        sheetName: `AI: ${carrier}`,
+        uploadedAt: new Date().toISOString(),
+        source: 'claude-ai',
+        carrier: carrier,
+        entries,
+        carrierTotals,
+        grossTotal: carrierTotals[carrier],
+        entryCount: entries.length,
+        agentTotals: stmt.agentTotals || {}
+    };
+
+    localStorage.setItem('commissionStatements', JSON.stringify(commissionStatements));
+    if (typeof driveSet === 'function') driveSet('commissionStatements', commissionStatements);
+
+    alert(`✓ Saved commission statement: ${key}\n\nView it under "Commission Statements" in the admin dashboard.`);
+    if (typeof loadCommissionStatementsList === 'function') loadCommissionStatementsList();
+}
