@@ -1561,26 +1561,28 @@
                 </div>
 
                 <!-- ── Claude AI Assistant (inline section) ── -->
-                <div style="margin:18px 0 0 0;background:linear-gradient(135deg,#faf5ff,#ede9fe);border:1.5px solid #ddd6fe;border-radius:14px;padding:18px 20px;">
+                <div style="margin:18px 0 0 0;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                         <div style="display:flex;align-items:center;gap:10px;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/></svg>
-                            <span style="font-size:14px;font-weight:700;color:#6d28d9;">Claude AI Assistant</span>
-                            <span style="font-size:12px;color:#7c3aed;font-style:italic;">— ask anything, or upload a PDF policy</span>
+                            <svg width="20" height="20" viewBox="0 0 32 32" fill="#D97757" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+                                <path d="M16 2 C 16.8 6, 18.5 9, 22 11 C 18.5 13, 16.8 16, 16 20 C 15.2 16, 13.5 13, 10 11 C 13.5 9, 15.2 6, 16 2 Z M28 16 C 24.5 16.5, 22 18, 20.5 21 C 22 18, 22.5 16, 22.5 16 C 22.5 16, 22 14, 20.5 11 C 22 14, 24.5 15.5, 28 16 Z M16 30 C 15.2 26, 13.5 23, 10 21 C 13.5 19, 15.2 16, 16 12 C 16.8 16, 18.5 19, 22 21 C 18.5 23, 16.8 26, 16 30 Z M4 16 C 7.5 15.5, 10 14, 11.5 11 C 10 14, 9.5 16, 9.5 16 C 9.5 16, 10 18, 11.5 21 C 10 18, 7.5 16.5, 4 16 Z"/>
+                            </svg>
+                            <span style="font-size:14px;font-weight:700;color:#9a3412;">Claude AI Assistant</span>
+                            <span style="font-size:12px;color:#c2410c;font-style:italic;">— ask anything, or upload a PDF policy</span>
                         </div>
-                        <button onclick="claudeInlineNewConversation()" style="background:#fff;border:1px solid #c4b5fd;color:#7c3aed;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
+                        <button onclick="claudeInlineNewConversation()" style="background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
                     </div>
-                    <div id="claudeInlineMessages" style="background:#fff;border:1px solid #e9d5ff;border-radius:10px;min-height:120px;max-height:480px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
-                    <div id="claudeInlineFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#ede9fe;border:1px solid #ddd6fe;border-radius:8px;font-size:12px;color:#5b21b6;"></div>
+                    <div id="claudeInlineMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:120px;max-height:480px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
+                    <div id="claudeInlineFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#fde4cc;border:1px solid #f5c19a;border-radius:8px;font-size:12px;color:#9a3412;"></div>
                     <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;">
                         <button onclick="document.getElementById('claudeInlinePdfInput').click()" title="Upload PDF policy doc"
-                            style="flex-shrink:0;background:#fff;border:1.5px solid #c4b5fd;color:#7c3aed;width:42px;height:42px;border-radius:10px;cursor:pointer;font-size:18px;">📎</button>
+                            style="flex-shrink:0;background:#fff;border:1.5px solid #f5c19a;color:#c2410c;width:42px;height:42px;border-radius:10px;cursor:pointer;font-size:18px;">📎</button>
                         <input type="file" id="claudeInlinePdfInput" accept="application/pdf" style="display:none;" onchange="claudeInlineHandlePdfUpload(event)">
                         <textarea id="claudeInlineInput" placeholder="Ask anything, or attach a PDF policy doc…" rows="2"
-                            style="flex:1;border:1.5px solid #c4b5fd;border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;resize:none;outline:none;background:#fff;"
+                            style="flex:1;border:1.5px solid #f5c19a;border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;resize:none;outline:none;background:#fff;"
                             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();claudeInlineSendMessage();}"></textarea>
                         <button onclick="claudeInlineSendMessage()" id="claudeInlineSendBtn"
-                            style="flex-shrink:0;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;padding:0 18px;height:42px;border-radius:10px;cursor:pointer;font-weight:700;font-size:14px;">Send</button>
+                            style="flex-shrink:0;background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;border:none;padding:0 18px;height:42px;border-radius:10px;cursor:pointer;font-weight:700;font-size:14px;">Send</button>
                     </div>
                 </div>
                 <!-- /Claude AI Assistant -->
@@ -2284,28 +2286,30 @@
                 </div>
 
                 <!-- ── Claude AI Commission Processor (Admin only) ── -->
-                <div style="margin:18px 0 0 0;background:linear-gradient(135deg,#faf5ff,#ede9fe);border:1.5px solid #ddd6fe;border-radius:14px;padding:18px 20px;">
+                <div style="margin:18px 0 0 0;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                         <div style="display:flex;align-items:center;gap:10px;">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/></svg>
-                            <span style="font-size:15px;font-weight:700;color:#6d28d9;">Claude AI — Commission Processor</span>
+                            <svg width="22" height="22" viewBox="0 0 32 32" fill="#D97757" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+                                <path d="M16 2 C 16.8 6, 18.5 9, 22 11 C 18.5 13, 16.8 16, 16 20 C 15.2 16, 13.5 13, 10 11 C 13.5 9, 15.2 6, 16 2 Z M28 16 C 24.5 16.5, 22 18, 20.5 21 C 22 18, 22.5 16, 22.5 16 C 22.5 16, 22 14, 20.5 11 C 22 14, 24.5 15.5, 28 16 Z M16 30 C 15.2 26, 13.5 23, 10 21 C 13.5 19, 15.2 16, 16 12 C 16.8 16, 18.5 19, 22 21 C 18.5 23, 16.8 26, 16 30 Z M4 16 C 7.5 15.5, 10 14, 11.5 11 C 10 14, 9.5 16, 9.5 16 C 9.5 16, 10 18, 11.5 21 C 10 18, 7.5 16.5, 4 16 Z"/>
+                            </svg>
+                            <span style="font-size:15px;font-weight:700;color:#9a3412;">Claude AI — Commission Processor</span>
                         </div>
-                        <button onclick="claudeAdminNewConversation()" style="background:#fff;border:1px solid #c4b5fd;color:#7c3aed;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
+                        <button onclick="claudeAdminNewConversation()" style="background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
                     </div>
-                    <div style="font-size:12px;color:#6d28d9;background:#fff;border:1px dashed #c4b5fd;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
+                    <div style="font-size:12px;color:#9a3412;background:#fff;border:1px dashed #f5c19a;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
                         📤 <strong>Upload commission statements</strong> from any insurance carrier (Progressive, Infinity, United, etc.). Claude will identify each transaction, match it to your BinderBook entries by customer name or policy number, and generate per-agent commission statements. You can upload multiple PDFs.
                     </div>
-                    <div id="claudeAdminMessages" style="background:#fff;border:1px solid #e9d5ff;border-radius:10px;min-height:160px;max-height:560px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
-                    <div id="claudeAdminFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#ede9fe;border:1px solid #ddd6fe;border-radius:8px;font-size:12px;color:#5b21b6;"></div>
+                    <div id="claudeAdminMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:160px;max-height:560px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
+                    <div id="claudeAdminFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#fde4cc;border:1px solid #f5c19a;border-radius:8px;font-size:12px;color:#9a3412;"></div>
                     <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;">
                         <button onclick="document.getElementById('claudeAdminPdfInput').click()" title="Upload commission statement PDF(s)"
-                            style="flex-shrink:0;background:#fff;border:1.5px solid #c4b5fd;color:#7c3aed;width:42px;height:42px;border-radius:10px;cursor:pointer;font-size:18px;">📎</button>
+                            style="flex-shrink:0;background:#fff;border:1.5px solid #f5c19a;color:#c2410c;width:42px;height:42px;border-radius:10px;cursor:pointer;font-size:18px;">📎</button>
                         <input type="file" id="claudeAdminPdfInput" accept="application/pdf" multiple style="display:none;" onchange="claudeAdminHandlePdfUpload(event)">
                         <textarea id="claudeAdminInput" placeholder="Upload a commission statement PDF, or ask about your commissions…" rows="2"
-                            style="flex:1;border:1.5px solid #c4b5fd;border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;resize:none;outline:none;background:#fff;"
+                            style="flex:1;border:1.5px solid #f5c19a;border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;resize:none;outline:none;background:#fff;"
                             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();claudeAdminSendMessage();}"></textarea>
                         <button onclick="claudeAdminSendMessage()" id="claudeAdminSendBtn"
-                            style="flex-shrink:0;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;padding:0 18px;height:42px;border-radius:10px;cursor:pointer;font-weight:700;font-size:14px;">Process</button>
+                            style="flex-shrink:0;background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;border:none;padding:0 18px;height:42px;border-radius:10px;cursor:pointer;font-weight:700;font-size:14px;">Process</button>
                     </div>
                 </div>
                 <!-- /Claude AI Commission Processor -->
@@ -3059,7 +3063,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
-    <script src="motion.js?v=20260615f"></script>
-    <script src="app.js?v=20260615f"></script>
+    <script src="motion.js?v=20260615g"></script>
+    <script src="app.js?v=20260615g"></script>
 </body>
 </html>

@@ -6282,7 +6282,7 @@ function claudeAddMessage(role, text, isHtml) {
     if (!box) return;
     const isUser = role === 'user';
     const div = document.createElement('div');
-    div.style.cssText = `align-self:${isUser ? 'flex-end' : 'flex-start'};max-width:88%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.45;${isUser ? 'background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;' : 'background:#fff;color:#1f2937;border:1px solid #e5e7eb;'};word-wrap:break-word;white-space:pre-wrap;`;
+    div.style.cssText = `align-self:${isUser ? 'flex-end' : 'flex-start'};max-width:88%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.45;${isUser ? 'background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;' : 'background:#fff;color:#1f2937;border:1px solid #e5e7eb;'};word-wrap:break-word;white-space:pre-wrap;`;
     if (isHtml) div.innerHTML = text;
     else div.textContent = text;
     box.appendChild(div);
@@ -6629,7 +6629,7 @@ function claudeInlineAddMessage(role, text, isHtml) {
     if (!box) return null;
     const isUser = role === 'user';
     const div = document.createElement('div');
-    div.style.cssText = `align-self:${isUser ? 'flex-end' : 'flex-start'};max-width:88%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;${isUser ? 'background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;' : 'background:#f9fafb;color:#1f2937;border:1px solid #e5e7eb;'};word-wrap:break-word;white-space:pre-wrap;`;
+    div.style.cssText = `align-self:${isUser ? 'flex-end' : 'flex-start'};max-width:88%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;${isUser ? 'background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;' : 'background:#f9fafb;color:#1f2937;border:1px solid #e5e7eb;'};word-wrap:break-word;white-space:pre-wrap;`;
     if (isHtml) div.innerHTML = text;
     else div.textContent = text;
     box.appendChild(div);
@@ -6758,7 +6758,7 @@ function claudeAdminAddMessage(role, text, isHtml) {
     if (!box) return null;
     const isUser = role === 'user';
     const div = document.createElement('div');
-    div.style.cssText = `align-self:${isUser ? 'flex-end' : 'flex-start'};max-width:92%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;${isUser ? 'background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;' : 'background:#f9fafb;color:#1f2937;border:1px solid #e5e7eb;'};word-wrap:break-word;white-space:pre-wrap;`;
+    div.style.cssText = `align-self:${isUser ? 'flex-end' : 'flex-start'};max-width:92%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;${isUser ? 'background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;' : 'background:#f9fafb;color:#1f2937;border:1px solid #e5e7eb;'};word-wrap:break-word;white-space:pre-wrap;`;
     if (isHtml) div.innerHTML = text;
     else div.textContent = text;
     box.appendChild(div);
