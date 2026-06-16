@@ -124,6 +124,28 @@
             position: fixed; top: var(--header-h); bottom: 0; left: 0;
             overflow: hidden; z-index: 100;
         }
+
+        /* ── SIDEBAR NAV BUTTONS ──────────────────────────────────── */
+        .sidebar-nav {
+            display: flex; flex-direction: column; gap: 4px;
+            padding: 12px 10px; border-bottom: 1px solid var(--gray-200);
+            background: var(--gray-50);
+        }
+        .sidebar-nav-btn {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border-radius: var(--radius-sm);
+            border: none; background: transparent; width: 100%;
+            font-family: inherit; font-size: 13px; font-weight: 600;
+            color: var(--gray-700); cursor: pointer; text-align: left;
+            transition: background .12s, color .12s;
+        }
+        .sidebar-nav-btn:hover { background: var(--blue-pale); color: var(--blue); }
+        .sidebar-nav-btn.active {
+            background: var(--blue); color: white;
+            box-shadow: 0 2px 8px rgba(29,78,216,.25);
+        }
+        .sidebar-nav-btn svg { flex-shrink: 0; }
+
         .sidebar-toolbar {
             padding: 14px 12px 10px; border-bottom: 1px solid var(--gray-100);
             display: flex; flex-direction: column; gap: 8px;
@@ -471,7 +493,24 @@
 
             <!-- ── LEFT SIDEBAR ── -->
             <aside class="ams-sidebar">
-                <div class="sidebar-toolbar">
+
+                <!-- Nav button bar -->
+                <nav class="sidebar-nav">
+                    <button class="sidebar-nav-btn" id="sidebarNavDashboard" onclick="amsSidebarNav('dashboard')">
+                        <i data-lucide="layout-dashboard" style="width:15px;height:15px;"></i> Dashboard
+                    </button>
+                    <button class="sidebar-nav-btn active" id="sidebarNavSearch" onclick="amsSidebarNav('search')">
+                        <i data-lucide="search" style="width:15px;height:15px;"></i> Search
+                    </button>
+                    <button class="sidebar-nav-btn" id="sidebarNavReports" onclick="amsSidebarNav('reports')">
+                        <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i> Reports
+                    </button>
+                    <button class="sidebar-nav-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
+                        <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
+                    </button>
+                </nav>
+
+                <div class="sidebar-toolbar" id="sidebarSearchToolbar">
                     <div class="sidebar-search">
                         <span class="s-icon"><i data-lucide="search" style="width:13px;height:13px;"></i></span>
                         <input type="text" id="amsSidebarSearch" placeholder="Search clients…"
@@ -486,7 +525,8 @@
                         </select>
                     </div>
                     <div class="sidebar-stat" id="amsClientCount">0 clients</div>
-                </div>
+                </div><!-- /sidebar-toolbar -->
+
                 <div class="client-list" id="amsClientList">
                     <div class="no-results">Loading clients…</div>
                 </div>
@@ -1029,5 +1069,24 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="ams.js?v=20260615d"></script>
+    <script>
+        function amsSidebarNav(section) {
+            const sections = ['dashboard','search','reports','accounting'];
+            sections.forEach(s => {
+                const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
+                if (btn) btn.classList.toggle('active', s === section);
+            });
+            // Show/hide search toolbar and client list
+            const toolbar = document.getElementById('sidebarSearchToolbar');
+            const clientList = document.getElementById('amsClientList');
+            if (section === 'search') {
+                toolbar.style.display = '';
+                clientList.style.display = '';
+            } else {
+                toolbar.style.display = 'none';
+                clientList.style.display = 'none';
+            }
+        }
+    </script>
 </body>
 </html>
