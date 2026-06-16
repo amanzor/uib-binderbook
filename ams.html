@@ -920,11 +920,12 @@
                                             <th style="text-align:right;">Premium</th>
                                             <th>Pmt Type</th>
                                             <th>MGA</th>
+                                            <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="amsPoliciesBody">
-                                        <tr><td colspan="11" style="text-align:center;padding:32px;color:var(--gray-400);">No policies found.</td></tr>
+                                        <tr><td colspan="12" style="text-align:center;padding:32px;color:var(--gray-400);">No policies found.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1067,6 +1068,16 @@
                 <div class="info-field">
                     <label>Expiration Date</label>
                     <input type="date" id="mp_expDate">
+                </div>
+                <div class="info-field">
+                    <label>Policy Status</label>
+                    <select id="mp_policyStatus">
+                        <option value="">— Auto-Detect —</option>
+                        <option value="Active">Active</option>
+                        <option value="Pending Cancellation">Pending Cancellation</option>
+                        <option value="Expired">Expired</option>
+                        <option value="Canceled">Canceled</option>
+                    </select>
                 </div>
             </div>
 

@@ -505,7 +505,7 @@ function amsRenderPolicies(key) {
     if (!tbody) return;
     const policies = (amsClientIndex[key]?.policies || []);
     if (!policies.length) {
-        tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--gray-400);">No policies on record. Click "Add Policy" to create one.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--gray-400);">No policies on record. Click "Add Policy" to create one.</td></tr>`;
         return;
     }
 
@@ -515,6 +515,11 @@ function amsRenderPolicies(key) {
             : '—';
         const prem   = p.totalPremium != null ? `$${parseFloat(p.totalPremium).toFixed(2)}` : '—';
         const canEdit = amsCurrentRole === 'admin' || p.agent === amsCurrentUser;
+        
+        // Determine policy status
+        const status = amsGetPolicyStatus(p);
+        const statusColor = amsGetStatusColor(status);
+        const statusBg = amsGetStatusBackground(status);
 
         return `<tr>
             <td style="white-space:nowrap;">${dateStr}</td>
@@ -528,10 +533,20 @@ function amsRenderPolicies(key) {
             <td>${amsEscHtml(p.paymentType || p.commissionType || '—')}</td>
             <td>${amsEscHtml(p.mga || '—')}</td>
             <td style="white-space:nowrap;">
+                <span class="policy-status" style="background:${statusBg};color:${statusColor};padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;display:inline-block;">
+                    ${amsEscHtml(p.policyStatus || status)}
+                </span>
+            </td>
+            <td style="white-space:nowrap;">
                 ${canEdit
-                    ? `<button class="btn-secondary btn-sm" onclick="amsEditPolicy(${p.id})">
-                           <i data-lucide="pencil"></i> Edit
-                       </button>`
+                    ? `<div class="policy-actions" style="display:flex;gap:4px;">
+                           <button class="btn-secondary btn-sm" onclick="amsEditPolicy(${p.id})" title="Edit policy">
+                               <i data-lucide="pencil"></i>
+                           </button>
+                           <button class="btn-secondary btn-sm" onclick="amsOpenPolicyActionMenu(event, ${p.id})" title="More actions">
+                               <i data-lucide="more-vertical"></i>
+                           </button>
+                       </div>`
                     : '<span style="font-size:11px;color:var(--gray-300);">—</span>'}
             </td>
         </tr>`;
@@ -623,7 +638,7 @@ function amsOpenAddPolicyModal() {
     const fields = ['mp_agent','mp_policyType','mp_lob','mp_carrier','mp_mga','mp_policyNum','mp_binderNum',
                     'mp_down','mp_agencyFee','mp_basePremium','mp_premium',
                     'mp_payMethod','mp_payMethod2','mp_agencyCommission','mp_agentCommission','mp_payType',
-                    'mp_effDate','mp_expDate'];
+                    'mp_effDate','mp_expDate','mp_policyStatus'];
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
     // Pre-select current user if agent, then lock the field
@@ -666,7 +681,8 @@ function amsEditPolicy(policyId) {
         mp_agentCommission:  'agentCommissionShare',
         mp_payType:          'paymentType',
         mp_effDate:          'effectiveDate',
-        mp_expDate:          'expirationDate'
+        mp_expDate:          'expirationDate',
+        mp_policyStatus:     'policyStatus'
     };
     Object.entries(map).forEach(([elId, field]) => {
         const el = document.getElementById(elId);
@@ -721,6 +737,7 @@ function amsSavePolicyModal() {
         paymentType:          v('mp_payType'),
         effectiveDate:        v('mp_effDate'),
         expirationDate:       v('mp_expDate'),
+        policyStatus:         v('mp_policyStatus'),
         drivers:              amsCollectDriverRows(),
         vehicles:             amsCollectVehicleRows()
     };
@@ -1273,6 +1290,194 @@ function amsResetDriversVehicles(prefilledDrivers, prefilledVehicles) {
 
     amsUpdateDriversEmptyState();
     amsUpdateVehiclesEmptyState();
+}
+
+// ── Policy Status Management ─────────────────────────────────
+// Determine policy status based on dates and explicit status field
+function amsGetPolicyStatus(policy) {
+    // If explicit status is set, use it
+    if (policy.policyStatus && ['Active', 'Pending Cancellation', 'Expired', 'Canceled'].includes(policy.policyStatus)) {
+        return policy.policyStatus;
+    }
+
+    // Otherwise, infer from expiration date
+    const expDate = policy.expirationDate;
+    const today = new Date();
+    
+    if (!expDate) return 'Active'; // If no expiration date, assume active
+    
+    const exp = new Date(expDate + 'T23:59:59');
+    
+    if (today > exp) {
+        return 'Expired';
+    }
+    return 'Active';
+}
+
+// Get text color for status badge
+function amsGetStatusColor(status) {
+    const colors = {
+        'Active': '#047857',              // green
+        'Pending Cancellation': '#ea580c', // orange
+        'Expired': '#7c3aed',             // purple
+        'Canceled': '#dc2626'             // red
+    };
+    return colors[status] || '#64748b';
+}
+
+// Get background color for status badge
+function amsGetStatusBackground(status) {
+    const backgrounds = {
+        'Active': '#ecfdf5',              // light green
+        'Pending Cancellation': '#fef3c7', // light orange
+        'Expired': '#f5f3ff',             // light purple
+        'Canceled': '#fef2f2'             // light red
+    };
+    return backgrounds[status] || '#f1f5f9';
+}
+
+// Open policy action menu
+function amsOpenPolicyActionMenu(event, policyId) {
+    event.stopPropagation();
+    
+    // Close any open menu
+    const existing = document.getElementById('amsPolicyActionMenu');
+    if (existing) existing.remove();
+    
+    const binder = amsGetBinderData();
+    const policy = binder.find(p => p.id === policyId);
+    if (!policy) return;
+    
+    const currentStatus = amsGetPolicyStatus(policy);
+    
+    // Create menu dropdown
+    const menu = document.createElement('div');
+    menu.id = 'amsPolicyActionMenu';
+    menu.style.cssText = `
+        position: fixed;
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-lg);
+        z-index: 1000;
+        min-width: 200px;
+    `;
+    
+    // Get button position
+    const btn = event.target.closest('button');
+    const rect = btn.getBoundingClientRect();
+    menu.style.left = (rect.left + window.scrollX - 150) + 'px';
+    menu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+    
+    // Build menu items
+    const statusOptions = ['Active', 'Pending Cancellation', 'Expired', 'Canceled'];
+    
+    let menuHTML = `<div style="padding:8px 0;">`;
+    
+    menuHTML += `<div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Change Status</div>`;
+    
+    statusOptions.forEach(status => {
+        const isActive = currentStatus === status;
+        const statusColor = amsGetStatusColor(status);
+        const statusBg = amsGetStatusBackground(status);
+        
+        menuHTML += `
+            <button onclick="amsChangePolicyStatus(${policyId}, '${status}')" style="
+                width: 100%;
+                padding: 8px 12px;
+                border: none;
+                background: ${isActive ? 'var(--blue-pale)' : 'transparent'};
+                color: var(--navy);
+                text-align: left;
+                cursor: pointer;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                transition: background .15s;
+            " onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='${isActive ? 'var(--blue-pale)' : 'transparent'}'">
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${statusColor};"></span>
+                <span>${status}</span>
+                ${isActive ? '<span style="margin-left:auto;font-weight:700;">✓</span>' : ''}
+            </button>
+        `;
+    });
+    
+    menuHTML += `<div style="border-top:1px solid var(--gray-200);margin:4px 0;"></div>`;
+    menuHTML += `<button onclick="amsEditPolicy(${policyId});document.getElementById('amsPolicyActionMenu').remove();" style="
+        width: 100%;
+        padding: 8px 12px;
+        border: none;
+        background: transparent;
+        color: var(--navy);
+        text-align: left;
+        cursor: pointer;
+        font-size: 13px;
+        transition: background .15s;
+    " onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='transparent'">
+        <i data-lucide="pencil" style="width:14px;height:14px;display:inline;margin-right:6px;"></i> Edit Policy
+    </button>`;
+    
+    menuHTML += `<button onclick="amsDeletePolicy(${policyId});document.getElementById('amsPolicyActionMenu').remove();" style="
+        width: 100%;
+        padding: 8px 12px;
+        border: none;
+        background: transparent;
+        color: var(--red);
+        text-align: left;
+        cursor: pointer;
+        font-size: 13px;
+        transition: background .15s;
+    " onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">
+        <i data-lucide="trash-2" style="width:14px;height:14px;display:inline;margin-right:6px;"></i> Delete Policy
+    </button>`;
+    
+    menuHTML += `</div>`;
+    menu.innerHTML = menuHTML;
+    document.body.appendChild(menu);
+    lucide.createIcons();
+    
+    // Close on click outside
+    setTimeout(() => {
+        document.addEventListener('click', function closeMenu(e) {
+            if (!menu.contains(e.target) && !e.target.closest('button[onclick*="amsOpenPolicyActionMenu"]')) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        });
+    }, 50);
+}
+
+// Change policy status
+function amsChangePolicyStatus(policyId, newStatus) {
+    const binder = amsGetBinderData();
+    const idx = binder.findIndex(p => p.id === policyId);
+    
+    if (idx !== -1) {
+        binder[idx].policyStatus = newStatus;
+        localStorage.setItem('binderData', JSON.stringify(binder));
+        
+        // Close menu and refresh
+        const menu = document.getElementById('amsPolicyActionMenu');
+        if (menu) menu.remove();
+        
+        amsBuildClientIndex();
+        amsRenderPolicies(amsActiveKey);
+        amsFlashBanner(`Status changed to "${newStatus}" ✓`);
+    }
+}
+
+// Delete policy
+function amsDeletePolicy(policyId) {
+    if (!confirm('Are you sure you want to delete this policy? This action cannot be undone.')) return;
+    
+    const binder = amsGetBinderData();
+    const filtered = binder.filter(p => p.id !== policyId);
+    localStorage.setItem('binderData', JSON.stringify(filtered));
+    
+    amsBuildClientIndex();
+    amsRenderPolicies(amsActiveKey);
+    amsFlashBanner('Policy deleted ✓');
 }
 
 function amsUpdateDriversEmptyState() {
