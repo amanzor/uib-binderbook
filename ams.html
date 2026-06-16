@@ -367,6 +367,29 @@
         .preview-unsupported h3 { font-size: 1.1rem; margin-bottom: 8px; color: white; }
         .preview-unsupported p  { font-size: 13px; margin-bottom: 20px; }
 
+        /* ── DASHBOARD ────────────────────────────────────────────── */
+        .dash-panel { padding: 28px 32px; }
+        .dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+        .dash-kpi {
+            background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-lg);
+            padding: 20px 22px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 6px;
+        }
+        .dash-kpi .kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--gray-400); }
+        .dash-kpi .kpi-value { font-size: 2rem; font-weight: 800; color: var(--navy); line-height: 1; }
+        .dash-kpi .kpi-sub   { font-size: 12px; color: var(--gray-500); }
+        .dash-kpi.kpi-blue   { border-top: 4px solid var(--blue); }
+        .dash-kpi.kpi-green  { border-top: 4px solid var(--green); }
+        .dash-kpi.kpi-purple { border-top: 4px solid var(--purple); }
+        .dash-kpi.kpi-orange { border-top: 4px solid var(--orange); }
+        .dash-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .dash-chart-card {
+            background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-lg);
+            padding: 20px 22px; box-shadow: var(--shadow-sm);
+        }
+        .dash-chart-card h3 { font-size: .9rem; font-weight: 700; color: var(--navy); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid var(--blue-light); padding-bottom: 10px; }
+        .dash-chart-card canvas { max-height: 260px; }
+        @media (max-width: 900px) { .dash-charts { grid-template-columns: 1fr; } }
+
         /* ── RESPONSIVE ───────────────────────────────────────────── */
         @media (max-width: 768px) {
             .ams-sidebar { width: 100%; position: relative; top: auto; bottom: auto; left: auto; height: auto; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--gray-200); }
@@ -542,6 +565,50 @@
                     </div>
                     <h3>Select a Client</h3>
                     <p>Choose a client from the list on the left to view and manage their profile.</p>
+                </div>
+
+                <!-- Dashboard panel -->
+                <div id="amsDashboardPanel" style="display:none;" class="dash-panel">
+                    <div class="dash-kpis">
+                        <div class="dash-kpi kpi-blue">
+                            <span class="kpi-label">Active Policies</span>
+                            <span class="kpi-value" id="dashKpiPolicies">—</span>
+                            <span class="kpi-sub">currently in force</span>
+                        </div>
+                        <div class="dash-kpi kpi-green">
+                            <span class="kpi-label">Active Premium</span>
+                            <span class="kpi-value" id="dashKpiPremium">—</span>
+                            <span class="kpi-sub">total in-force premium</span>
+                        </div>
+                        <div class="dash-kpi kpi-purple">
+                            <span class="kpi-label">Total Clients</span>
+                            <span class="kpi-value" id="dashKpiClients">—</span>
+                            <span class="kpi-sub">in the system</span>
+                        </div>
+                        <div class="dash-kpi kpi-orange">
+                            <span class="kpi-label">Carriers</span>
+                            <span class="kpi-value" id="dashKpiCarriers">—</span>
+                            <span class="kpi-sub">active carriers</span>
+                        </div>
+                    </div>
+                    <div class="dash-charts">
+                        <div class="dash-chart-card">
+                            <h3><i data-lucide="bar-chart-2"></i> Active Policy Count by Month</h3>
+                            <canvas id="chartActivePolicies"></canvas>
+                        </div>
+                        <div class="dash-chart-card">
+                            <h3><i data-lucide="dollar-sign"></i> Total Premium Written by Month</h3>
+                            <canvas id="chartActivePremium"></canvas>
+                        </div>
+                        <div class="dash-chart-card" style="grid-column: 1 / -1;">
+                            <h3><i data-lucide="users"></i> Monthly Policy Sales per Agent (Last 6 Months)</h3>
+                            <canvas id="chartByAgent" style="max-height:300px;"></canvas>
+                        </div>
+                        <div class="dash-chart-card" style="grid-column: 1 / -1;">
+                            <h3><i data-lucide="building-2"></i> Policy Count by Carrier</h3>
+                            <canvas id="chartByCarrier" style="max-height:340px;"></canvas>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Client detail -->
@@ -1068,23 +1135,206 @@
     <div class="ams-sync-banner" id="amsSyncBanner">Saving…</div>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="ams.js?v=20260615d"></script>
     <script>
+        // Track Chart.js instances so we can destroy before re-rendering
+        const _dashCharts = {};
+
+        function _destroyChart(id) {
+            if (_dashCharts[id]) { _dashCharts[id].destroy(); delete _dashCharts[id]; }
+        }
+
         function amsSidebarNav(section) {
             const sections = ['dashboard','search','reports','accounting'];
             sections.forEach(s => {
                 const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
                 if (btn) btn.classList.toggle('active', s === section);
             });
-            // Show/hide search toolbar and client list
-            const toolbar = document.getElementById('sidebarSearchToolbar');
+
+            const toolbar    = document.getElementById('sidebarSearchToolbar');
             const clientList = document.getElementById('amsClientList');
+            const dashPanel  = document.getElementById('amsDashboardPanel');
+            const welcome    = document.getElementById('amsWelcome');
+            const detail     = document.getElementById('amsClientDetail');
+
+            // Hide everything first
+            toolbar.style.display    = 'none';
+            clientList.style.display = 'none';
+            dashPanel.style.display  = 'none';
+
             if (section === 'search') {
-                toolbar.style.display = '';
+                toolbar.style.display    = '';
                 clientList.style.display = '';
+                // Restore welcome or detail
+                if (amsActiveKey) {
+                    welcome.style.display = 'none';
+                    detail.style.display  = 'block';
+                } else {
+                    welcome.style.display = '';
+                    detail.style.display  = 'none';
+                }
+            } else if (section === 'dashboard') {
+                welcome.style.display   = 'none';
+                detail.style.display    = 'none';
+                dashPanel.style.display = 'block';
+                amsRenderDashboard();
+                lucide.createIcons();
             } else {
-                toolbar.style.display = 'none';
-                clientList.style.display = 'none';
+                welcome.style.display = 'none';
+                detail.style.display  = 'none';
+            }
+        }
+
+        // ── Palette for agents/carriers ───────────────────────────
+        const DASH_COLORS = [
+            '#1d4ed8','#059669','#7c3aed','#ea580c','#0891b2',
+            '#be185d','#65a30d','#b45309','#6366f1','#0f766e',
+            '#c2410c','#4338ca','#047857','#9333ea','#b91c1c'
+        ];
+
+        function _last12Months() {
+            const months = [];
+            const now = new Date();
+            for (let i = 11; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push({
+                    key:   `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,
+                    label: d.toLocaleDateString('en-US', { month:'short', year:'numeric' })
+                });
+            }
+            return months;
+        }
+
+        function _last6Months() {
+            return _last12Months().slice(6);
+        }
+
+        function amsRenderDashboard() {
+            const binder = JSON.parse(localStorage.getItem('binderData') || '[]');
+            const today  = new Date();
+
+            // ── Active = not a cancellation & (no expDate OR expDate >= today) ──
+            const active = binder.filter(p => {
+                if ((p.policyType || '').toLowerCase() === 'cancellation') return false;
+                if (p.expirationDate) return new Date(p.expirationDate + 'T12:00:00') >= today;
+                return true;
+            });
+
+            // ── KPIs ──────────────────────────────────────────────
+            const totalPremium  = active.reduce((s, p) => s + (parseFloat(p.totalPremium) || 0), 0);
+            const uniqueClients = new Set(binder.map(p => (p.customerName||'').trim().toUpperCase())).size;
+            const uniqueCarriers = new Set(binder.map(p => p.company).filter(Boolean)).size;
+
+            document.getElementById('dashKpiPolicies').textContent  = active.length.toLocaleString();
+            document.getElementById('dashKpiPremium').textContent   = '$' + totalPremium.toLocaleString('en-US', { maximumFractionDigits: 0 });
+            document.getElementById('dashKpiClients').textContent   = uniqueClients.toLocaleString();
+            document.getElementById('dashKpiCarriers').textContent  = uniqueCarriers.toLocaleString();
+
+            // ── Chart 1: Active policy count by month (entryDate) ─
+            {
+                const months = _last12Months();
+                const counts = months.map(m =>
+                    active.filter(p => (p.entryDate || '').startsWith(m.key)).length
+                );
+                _destroyChart('activePolicies');
+                _dashCharts['activePolicies'] = new Chart(
+                    document.getElementById('chartActivePolicies'), {
+                    type: 'bar',
+                    data: {
+                        labels: months.map(m => m.label),
+                        datasets: [{ label: 'Active Policies', data: counts,
+                            backgroundColor: 'rgba(29,78,216,0.75)', borderColor: '#1d4ed8',
+                            borderWidth: 1, borderRadius: 4 }]
+                    },
+                    options: { responsive: true, plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+                });
+            }
+
+            // ── Chart 2: Total premium by month ───────────────────
+            {
+                const months = _last12Months();
+                const premiums = months.map(m =>
+                    binder
+                        .filter(p => (p.entryDate || '').startsWith(m.key))
+                        .reduce((s, p) => s + (parseFloat(p.totalPremium) || 0), 0)
+                );
+                _destroyChart('activePremium');
+                _dashCharts['activePremium'] = new Chart(
+                    document.getElementById('chartActivePremium'), {
+                    type: 'bar',
+                    data: {
+                        labels: months.map(m => m.label),
+                        datasets: [{ label: 'Premium ($)', data: premiums,
+                            backgroundColor: 'rgba(5,150,105,0.75)', borderColor: '#059669',
+                            borderWidth: 1, borderRadius: 4 }]
+                    },
+                    options: {
+                        responsive: true, plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true, ticks: {
+                            callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v)
+                        }}}
+                    }
+                });
+            }
+
+            // ── Chart 3: Policy sales per agent per month ─────────
+            {
+                const months = _last6Months();
+                const agents = [...new Set(binder.map(p => p.agent).filter(Boolean))].sort();
+                const datasets = agents.map((agent, i) => ({
+                    label: agent,
+                    data: months.map(m =>
+                        binder.filter(p => p.agent === agent && (p.entryDate || '').startsWith(m.key)).length
+                    ),
+                    backgroundColor: DASH_COLORS[i % DASH_COLORS.length] + 'CC',
+                    borderColor:     DASH_COLORS[i % DASH_COLORS.length],
+                    borderWidth: 1, borderRadius: 3
+                }));
+                _destroyChart('byAgent');
+                _dashCharts['byAgent'] = new Chart(
+                    document.getElementById('chartByAgent'), {
+                    type: 'bar',
+                    data: { labels: months.map(m => m.label), datasets },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+                        scales: { x: { stacked: false }, y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                    }
+                });
+            }
+
+            // ── Chart 4: Policy count by carrier ──────────────────
+            {
+                const carrierMap = {};
+                binder.forEach(p => {
+                    const c = (p.company || '').trim();
+                    if (c) carrierMap[c] = (carrierMap[c] || 0) + 1;
+                });
+                const sorted = Object.entries(carrierMap).sort((a, b) => b[1] - a[1]);
+                const labels = sorted.map(([k]) => k);
+                const values = sorted.map(([, v]) => v);
+                const colors = labels.map((_, i) => DASH_COLORS[i % DASH_COLORS.length] + 'CC');
+
+                _destroyChart('byCarrier');
+                _dashCharts['byCarrier'] = new Chart(
+                    document.getElementById('chartByCarrier'), {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{ label: 'Policies', data: values,
+                            backgroundColor: colors, borderColor: colors.map(c => c.slice(0,7)),
+                            borderWidth: 1, borderRadius: 4 }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } },
+                                  y: { ticks: { font: { size: 11 } } } }
+                    }
+                });
             }
         }
     </script>
