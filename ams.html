@@ -390,6 +390,61 @@
         .dash-chart-card canvas { max-height: 260px; }
         @media (max-width: 900px) { .dash-charts { grid-template-columns: 1fr; } }
 
+        /* ── REPORTS PANEL ────────────────────────────────────────── */
+        .reports-panel { display: flex; flex-direction: column; height: calc(100vh - var(--header-h)); overflow: hidden; }
+        .report-tabs-bar {
+            display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 20px;
+            background: white; border-bottom: 2px solid var(--gray-200);
+            flex-shrink: 0;
+        }
+        .report-tab {
+            padding: 7px 14px; border-radius: var(--radius-sm); border: 1.5px solid var(--gray-200);
+            background: white; font-family: inherit; font-size: 12px; font-weight: 600;
+            color: var(--gray-600); cursor: pointer; transition: all .12s; white-space: nowrap;
+        }
+        .report-tab:hover  { border-color: var(--blue-light); color: var(--blue); background: var(--blue-pale); }
+        .report-tab.active { background: var(--blue); color: white; border-color: var(--blue); box-shadow: 0 2px 6px rgba(29,78,216,.3); }
+        .report-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+        .rpt-filters {
+            display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;
+            background: var(--gray-50); border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 18px;
+        }
+        .rpt-filter-group { display: flex; flex-direction: column; gap: 4px; }
+        .rpt-filter-group label { font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .4px; }
+        .rpt-filter-group input, .rpt-filter-group select {
+            padding: 7px 10px; border: 1.5px solid var(--gray-200); border-radius: var(--radius-sm);
+            font-family: inherit; font-size: 13px; color: var(--gray-900); background: white;
+        }
+        .rpt-filter-group input:focus, .rpt-filter-group select:focus { outline: none; border-color: var(--blue-light); }
+        .rpt-filter-actions { display: flex; gap: 6px; align-items: flex-end; margin-left: auto; }
+
+        .rpt-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+        .rpt-kpi { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 14px 16px; box-shadow: var(--shadow-sm); }
+        .rpt-kpi .rk-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--gray-400); margin-bottom: 4px; }
+        .rpt-kpi .rk-val   { font-size: 1.5rem; font-weight: 800; color: var(--navy); line-height: 1; }
+        .rpt-kpi .rk-sub   { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+
+        .rpt-section { margin-bottom: 24px; }
+        .rpt-section-title { font-size: .9rem; font-weight: 700; color: var(--navy); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--blue-light); display: flex; align-items: center; justify-content: space-between; }
+        .rpt-tbl-wrap { overflow-x: auto; border: 1px solid var(--gray-200); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+        .rpt-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .rpt-tbl thead { background: linear-gradient(135deg, var(--navy), var(--blue)); }
+        .rpt-tbl thead th { padding: 10px 13px; text-align: left; color: white; font-weight: 600; font-size: 11px; letter-spacing: .3px; white-space: nowrap; }
+        .rpt-tbl tbody tr { border-bottom: 1px solid var(--gray-100); transition: background .1s; }
+        .rpt-tbl tbody tr:last-child { border-bottom: none; }
+        .rpt-tbl tbody tr:hover { background: var(--blue-pale); }
+        .rpt-tbl td { padding: 9px 13px; color: var(--gray-700); vertical-align: middle; }
+        .rpt-tbl tfoot td { padding: 10px 13px; font-weight: 800; color: var(--navy); background: var(--gray-50); border-top: 2px solid var(--gray-200); font-size: 12px; }
+        .rpt-chart-wrap { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 18px 20px; box-shadow: var(--shadow-sm); margin-bottom: 20px; }
+        .rpt-chart-wrap canvas { max-height: 280px; }
+        .rpt-no-data { text-align: center; padding: 40px 20px; color: var(--gray-400); font-size: 13px; }
+        .rpt-expiry-urgent { background: #fef2f2 !important; color: #991b1b !important; font-weight: 700; }
+        .rpt-expiry-warn   { background: #fffbeb !important; }
+        .rpt-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .rpt-grid2 { grid-template-columns: 1fr; } }
+
         /* ── RESPONSIVE ───────────────────────────────────────────── */
         @media (max-width: 768px) {
             .ams-sidebar { width: 100%; position: relative; top: auto; bottom: auto; left: auto; height: auto; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--gray-200); }
@@ -607,6 +662,27 @@
                         <div class="dash-chart-card" style="grid-column: 1 / -1;">
                             <h3><i data-lucide="building-2"></i> Policy Count by Carrier</h3>
                             <canvas id="chartByCarrier" style="max-height:340px;"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports panel -->
+                <div id="amsReportsPanel" style="display:none;" class="reports-panel">
+                    <div class="report-tabs-bar" id="reportTabsBar">
+                        <button class="report-tab" onclick="amsShowReport('expiring')">📋 Expiring Policies</button>
+                        <button class="report-tab" onclick="amsShowReport('production')">👤 Agent Production</button>
+                        <button class="report-tab" onclick="amsShowReport('lob')">📊 By Line of Business</button>
+                        <button class="report-tab" onclick="amsShowReport('carrier')">🏢 Carrier Summary</button>
+                        <button class="report-tab" onclick="amsShowReport('newvsrenewal')">🔄 New vs Renewals</button>
+                        <button class="report-tab" onclick="amsShowReport('commission')">💰 Commission Report</button>
+                        <button class="report-tab" onclick="amsShowReport('monthly')">📅 Monthly Trend</button>
+                        <button class="report-tab" onclick="amsShowReport('paymethod')">💳 Payment Methods</button>
+                    </div>
+                    <div class="report-body" id="amsReportBody">
+                        <div class="rpt-no-data" style="margin-top:60px;">
+                            <div style="font-size:48px;margin-bottom:16px;">📊</div>
+                            <h3 style="color:var(--gray-500);margin-bottom:8px;">Select a Report</h3>
+                            <p>Choose a report type from the tabs above.</p>
                         </div>
                     </div>
                 </div>
@@ -1152,37 +1228,35 @@
                 if (btn) btn.classList.toggle('active', s === section);
             });
 
-            const toolbar    = document.getElementById('sidebarSearchToolbar');
-            const clientList = document.getElementById('amsClientList');
-            const dashPanel  = document.getElementById('amsDashboardPanel');
-            const welcome    = document.getElementById('amsWelcome');
-            const detail     = document.getElementById('amsClientDetail');
+            const toolbar      = document.getElementById('sidebarSearchToolbar');
+            const clientList   = document.getElementById('amsClientList');
+            const dashPanel    = document.getElementById('amsDashboardPanel');
+            const reportsPanel = document.getElementById('amsReportsPanel');
+            const welcome      = document.getElementById('amsWelcome');
+            const detail       = document.getElementById('amsClientDetail');
 
-            // Hide everything first
-            toolbar.style.display    = 'none';
-            clientList.style.display = 'none';
-            dashPanel.style.display  = 'none';
+            toolbar.style.display      = 'none';
+            clientList.style.display   = 'none';
+            dashPanel.style.display    = 'none';
+            reportsPanel.style.display = 'none';
+            welcome.style.display      = 'none';
+            detail.style.display       = 'none';
 
             if (section === 'search') {
                 toolbar.style.display    = '';
                 clientList.style.display = '';
-                // Restore welcome or detail
-                if (amsActiveKey) {
-                    welcome.style.display = 'none';
-                    detail.style.display  = 'block';
-                } else {
-                    welcome.style.display = '';
-                    detail.style.display  = 'none';
-                }
+                if (amsActiveKey) { detail.style.display  = 'block'; }
+                else              { welcome.style.display = ''; }
             } else if (section === 'dashboard') {
-                welcome.style.display   = 'none';
-                detail.style.display    = 'none';
                 dashPanel.style.display = 'block';
                 amsRenderDashboard();
                 lucide.createIcons();
-            } else {
-                welcome.style.display = 'none';
-                detail.style.display  = 'none';
+            } else if (section === 'reports') {
+                reportsPanel.style.display = 'flex';
+            } else if (section === 'accounting') {
+                welcome.style.display = '';
+                document.querySelector('#amsWelcome h3').textContent = 'Accounting';
+                document.querySelector('#amsWelcome p').textContent  = 'Accounting module coming soon.';
             }
         }
 
@@ -1337,6 +1411,844 @@
                 });
             }
         }
+
+        // ══════════════════════════════════════════════════════
+        // REPORTS ENGINE
+        // ══════════════════════════════════════════════════════
+
+        let _activeReport = null;
+        const _rptCharts  = {};
+
+        function _rptDestroyChart(id) {
+            if (_rptCharts[id]) { _rptCharts[id].destroy(); delete _rptCharts[id]; }
+        }
+
+        function _rptFmt$(n) {
+            return '$' + (parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+        }
+        function _rptFmtK(n) {
+            n = parseFloat(n)||0;
+            return n >= 1000 ? '$'+(n/1000).toFixed(1)+'k' : _rptFmt$(n);
+        }
+        function _rptEsc(s) {
+            return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function _rptDefaultFrom() {
+            const d = new Date(); d.setFullYear(d.getFullYear()-1); d.setDate(1);
+            return d.toISOString().slice(0,10);
+        }
+        function _rptDefaultTo() { return new Date().toISOString().slice(0,10); }
+
+        function _rptExportCSV(headers, rows, filename) {
+            const escape = v => `"${String(v||'').replace(/"/g,'""')}"`;
+            const lines  = [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))];
+            const blob   = new Blob([lines.join('\n')], {type:'text/csv'});
+            const url    = URL.createObjectURL(blob);
+            const a      = document.createElement('a');
+            a.href = url; a.download = filename; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function _rptExportBtn(csvFn, label='Export CSV') {
+            return `<button class="btn-secondary btn-sm" onclick="${csvFn}()" style="font-size:11px;">⬇ ${label}</button>`;
+        }
+        function _rptPrintBtn() {
+            return `<button class="btn-secondary btn-sm" onclick="window.print()" style="font-size:11px;">🖨 Print</button>`;
+        }
+
+        function amsShowReport(type) {
+            _activeReport = type;
+            document.querySelectorAll('.report-tab').forEach(b => b.classList.remove('active'));
+            const tabMap = {expiring:0,production:1,lob:2,carrier:3,newvsrenewal:4,commission:5,monthly:6,paymethod:7};
+            const tabs   = document.querySelectorAll('.report-tab');
+            if (tabs[tabMap[type]]) tabs[tabMap[type]].classList.add('active');
+            Object.keys(_rptCharts).forEach(id => _rptDestroyChart(id));
+            const fn = {
+                expiring:     amsReportExpiring,
+                production:   amsReportProduction,
+                lob:          amsReportLOB,
+                carrier:      amsReportCarrier,
+                newvsrenewal: amsReportNewVsRenewal,
+                commission:   amsReportCommission,
+                monthly:      amsReportMonthly,
+                paymethod:    amsReportPayMethod
+            }[type];
+            if (fn) fn();
+        }
+
+        // ── Shared: get binder + filter by entryDate range ────
+        function _rptBinder() { return JSON.parse(localStorage.getItem('binderData')||'[]'); }
+        function _rptFilter(entries, from, to) {
+            return entries.filter(p => {
+                if (!p.entryDate) return true;
+                return p.entryDate >= from && p.entryDate <= to;
+            });
+        }
+        function _rptFilterRow() {
+            const from = _rptDefaultFrom(), to = _rptDefaultTo();
+            return `<div class="rpt-filter-group"><label>From</label>
+                      <input type="date" id="rptFrom" value="${from}" onchange="_rptRefresh()"></div>
+                    <div class="rpt-filter-group"><label>To</label>
+                      <input type="date" id="rptTo" value="${to}" onchange="_rptRefresh()"></div>`;
+        }
+        function _rptRefresh() { if (_activeReport) amsShowReport(_activeReport); }
+        function _rptGetRange() {
+            return {
+                from: document.getElementById('rptFrom')?.value || _rptDefaultFrom(),
+                to:   document.getElementById('rptTo')?.value   || _rptDefaultTo()
+            };
+        }
+
+        // ══════════════════════════════════════════════════════
+        // 1. EXPIRING POLICIES
+        // ══════════════════════════════════════════════════════
+        function amsReportExpiring() {
+            const body = document.getElementById('amsReportBody');
+            const days = parseInt(document.getElementById('rptExpDays')?.value || '30');
+            const today  = new Date();
+            const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + days);
+            const todayStr   = today.toISOString().slice(0,10);
+            const cutoffStr  = cutoff.toISOString().slice(0,10);
+
+            const binder   = _rptBinder();
+            const contacts = JSON.parse(localStorage.getItem('amsClientData')||'{}');
+
+            const expiring = binder.filter(p => {
+                if (!p.expirationDate || (p.policyType||'').toLowerCase()==='cancellation') return false;
+                return p.expirationDate >= todayStr && p.expirationDate <= cutoffStr;
+            }).sort((a,b) => a.expirationDate.localeCompare(b.expirationDate));
+
+            const pastDue = binder.filter(p => {
+                if (!p.expirationDate || (p.policyType||'').toLowerCase()==='cancellation') return false;
+                return p.expirationDate < todayStr;
+            }).length;
+
+            const totalPrem = expiring.reduce((s,p) => s+(parseFloat(p.totalPremium)||0), 0);
+
+            body.innerHTML = `
+            <div class="rpt-filters">
+                <div class="rpt-filter-group">
+                    <label>Expiring Within</label>
+                    <select id="rptExpDays" onchange="amsShowReport('expiring')">
+                        <option value="30" ${days===30?'selected':''}>30 Days</option>
+                        <option value="60" ${days===60?'selected':''}>60 Days</option>
+                        <option value="90" ${days===90?'selected':''}>90 Days</option>
+                        <option value="180" ${days===180?'selected':''}>180 Days</option>
+                    </select>
+                </div>
+                <div class="rpt-filter-actions">
+                    ${_rptExportBtn('_csvExpiring')} ${_rptPrintBtn()}
+                </div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--orange);">
+                    <div class="rk-label">Expiring in ${days} Days</div>
+                    <div class="rk-val">${expiring.length}</div>
+                    <div class="rk-sub">policies at risk</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--red);">
+                    <div class="rk-label">Premium at Risk</div>
+                    <div class="rk-val">${_rptFmtK(totalPrem)}</div>
+                    <div class="rk-sub">total expiring premium</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--red);">
+                    <div class="rk-label">Already Expired</div>
+                    <div class="rk-val">${pastDue}</div>
+                    <div class="rk-sub">past expiration date</div>
+                </div>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">
+                    Policies Expiring Within ${days} Days
+                </div>
+                <div class="rpt-tbl-wrap">
+                    <table class="rpt-tbl">
+                        <thead><tr>
+                            <th>#</th><th>Client</th><th>Phone</th><th>Agent</th>
+                            <th>Carrier</th><th>LOB</th><th>Policy #</th>
+                            <th>Effective</th><th>Expiration</th><th>Premium</th>
+                        </tr></thead>
+                        <tbody>
+                        ${expiring.length ? expiring.map((p,i) => {
+                            const key  = (p.customerName||'').trim().toUpperCase().replace(/\s+/g,' ');
+                            const phone = contacts[key]?.phone1 || '—';
+                            const daysLeft = Math.ceil((new Date(p.expirationDate+'T12:00:00') - today) / 86400000);
+                            const rowClass = daysLeft <= 7 ? 'rpt-expiry-urgent' : daysLeft <= 14 ? 'rpt-expiry-warn' : '';
+                            return `<tr class="${rowClass}">
+                                <td>${i+1}</td>
+                                <td><strong>${_rptEsc(p.customerName||'—')}</strong></td>
+                                <td>${_rptEsc(phone)}</td>
+                                <td>${_rptEsc(p.agent||'—')}</td>
+                                <td>${_rptEsc(p.company||'—')}</td>
+                                <td>${_rptEsc(p.lineOfBusiness||'—')}</td>
+                                <td style="font-family:monospace;font-size:11px;">${_rptEsc(p.policyNumber||'—')}</td>
+                                <td>${p.effectiveDate||'—'}</td>
+                                <td><strong>${p.expirationDate}</strong> <span style="font-size:10px;color:${daysLeft<=7?'#dc2626':'#ea580c'};">(${daysLeft}d)</span></td>
+                                <td>${_rptFmt$(p.totalPremium)}</td>
+                            </tr>`;
+                        }).join('') : '<tr><td colspan="10" class="rpt-no-data">No policies expiring in this window.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        }
+        window._csvExpiring = function() {
+            const days = parseInt(document.getElementById('rptExpDays')?.value||'30');
+            const today = new Date(); const todayStr = today.toISOString().slice(0,10);
+            const cutoff = new Date(today); cutoff.setDate(cutoff.getDate()+days);
+            const cutoffStr = cutoff.toISOString().slice(0,10);
+            const contacts = JSON.parse(localStorage.getItem('amsClientData')||'{}');
+            const rows = _rptBinder().filter(p => p.expirationDate && p.expirationDate >= todayStr && p.expirationDate <= cutoffStr)
+                .sort((a,b)=>a.expirationDate.localeCompare(b.expirationDate))
+                .map(p => {
+                    const key = (p.customerName||'').trim().toUpperCase().replace(/\s+/g,' ');
+                    return [p.customerName, contacts[key]?.phone1||'', p.agent, p.company, p.lineOfBusiness, p.policyNumber, p.effectiveDate, p.expirationDate, p.totalPremium||0];
+                });
+            _rptExportCSV(['Client','Phone','Agent','Carrier','LOB','Policy #','Effective','Expiration','Premium'], rows, `expiring_${days}days.csv`);
+        };
+
+        // ══════════════════════════════════════════════════════
+        // 2. AGENT PRODUCTION
+        // ══════════════════════════════════════════════════════
+        function amsReportProduction() {
+            const body = document.getElementById('amsReportBody');
+            const {from, to} = _rptGetRange();
+            const filtered = _rptFilter(_rptBinder(), from, to);
+
+            const agentMap = {};
+            filtered.forEach(p => {
+                const a = p.agent||'Unassigned';
+                if (!agentMap[a]) agentMap[a] = {policies:0,newBiz:0,renewals:0,premium:0,agencyComm:0,agentComm:0};
+                agentMap[a].policies++;
+                if ((p.policyType||'').toLowerCase()==='new business') agentMap[a].newBiz++;
+                if ((p.policyType||'').toLowerCase()==='renewal')      agentMap[a].renewals++;
+                agentMap[a].premium     += parseFloat(p.totalPremium)||0;
+                agentMap[a].agencyComm  += parseFloat(p.agencyCommission)||0;
+                agentMap[a].agentComm   += parseFloat(p.agentCommissionShare)||0;
+            });
+
+            const agents  = Object.entries(agentMap).sort((a,b)=>b[1].premium - a[1].premium);
+            const totPol   = agents.reduce((s,[,v])=>s+v.policies,0);
+            const totPrem  = agents.reduce((s,[,v])=>s+v.premium,0);
+            const totAComm = agents.reduce((s,[,v])=>s+v.agencyComm,0);
+
+            body.innerHTML = `
+            <div class="rpt-filters">
+                ${_rptFilterRow()}
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvProduction')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Total Policies</div><div class="rk-val">${totPol}</div><div class="rk-sub">in period</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Total Premium</div><div class="rk-val">${_rptFmtK(totPrem)}</div><div class="rk-sub">written in period</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--purple);">
+                    <div class="rk-label">Active Agents</div><div class="rk-val">${agents.length}</div><div class="rk-sub">with production</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--orange);">
+                    <div class="rk-label">Agency Commission</div><div class="rk-val">${_rptFmtK(totAComm)}</div><div class="rk-sub">earned</div>
+                </div>
+            </div>
+            <div class="rpt-grid2">
+                <div class="rpt-chart-wrap">
+                    <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Premium by Agent</div>
+                    <canvas id="rptChartProdPrem"></canvas>
+                </div>
+                <div class="rpt-chart-wrap">
+                    <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Policies by Agent</div>
+                    <canvas id="rptChartProdPol"></canvas>
+                </div>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Agent Production Detail</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>Agent</th><th>Policies</th><th>New Biz</th><th>Renewals</th><th>Total Premium</th><th>Avg Premium</th><th>Agency Comm</th><th>Agent Comm</th></tr></thead>
+                    <tbody>
+                    ${agents.map(([agent,v]) => `<tr>
+                        <td><strong>${_rptEsc(agent)}</strong></td>
+                        <td>${v.policies}</td>
+                        <td>${v.newBiz}</td>
+                        <td>${v.renewals}</td>
+                        <td style="font-weight:700;color:var(--navy);">${_rptFmt$(v.premium)}</td>
+                        <td>${_rptFmt$(v.policies ? v.premium/v.policies : 0)}</td>
+                        <td style="color:var(--green);font-weight:600;">${_rptFmt$(v.agencyComm)}</td>
+                        <td style="color:var(--green);font-weight:600;">${_rptFmt$(v.agentComm)}</td>
+                    </tr>`).join('')}
+                    </tbody>
+                    <tfoot><tr><td>TOTAL</td><td>${totPol}</td><td>${agents.reduce((s,[,v])=>s+v.newBiz,0)}</td><td>${agents.reduce((s,[,v])=>s+v.renewals,0)}</td>
+                        <td>${_rptFmt$(totPrem)}</td><td>${_rptFmt$(totPol?totPrem/totPol:0)}</td>
+                        <td>${_rptFmt$(totAComm)}</td><td>${_rptFmt$(agents.reduce((s,[,v])=>s+v.agentComm,0))}</td></tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(() => {
+                const labels = agents.map(([a])=>a);
+                _rptDestroyChart('prodPrem');
+                _rptCharts['prodPrem'] = new Chart(document.getElementById('rptChartProdPrem'),{
+                    type:'bar', data:{labels, datasets:[{label:'Premium',data:agents.map(([,v])=>v.premium),
+                        backgroundColor:DASH_COLORS.map(c=>c+'BB'), borderColor:DASH_COLORS, borderWidth:1, borderRadius:4}]},
+                    options:{responsive:true, plugins:{legend:{display:false}},
+                        scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}}
+                });
+                _rptDestroyChart('prodPol');
+                _rptCharts['prodPol'] = new Chart(document.getElementById('rptChartProdPol'),{
+                    type:'bar', data:{labels, datasets:[{label:'Policies',data:agents.map(([,v])=>v.policies),
+                        backgroundColor:'rgba(29,78,216,0.75)', borderColor:'#1d4ed8', borderWidth:1, borderRadius:4}]},
+                    options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}
+                });
+            }, 50);
+        }
+        window._csvProduction = function() {
+            const {from,to} = _rptGetRange();
+            const agentMap = {};
+            _rptFilter(_rptBinder(),from,to).forEach(p=>{
+                const a=p.agent||'Unassigned';
+                if(!agentMap[a]) agentMap[a]={policies:0,newBiz:0,renewals:0,premium:0,agencyComm:0,agentComm:0};
+                agentMap[a].policies++; agentMap[a].premium+=parseFloat(p.totalPremium)||0;
+                agentMap[a].agencyComm+=parseFloat(p.agencyCommission)||0; agentMap[a].agentComm+=parseFloat(p.agentCommissionShare)||0;
+                if((p.policyType||'').toLowerCase()==='new business') agentMap[a].newBiz++;
+                if((p.policyType||'').toLowerCase()==='renewal') agentMap[a].renewals++;
+            });
+            const rows = Object.entries(agentMap).sort((a,b)=>b[1].premium-a[1].premium)
+                .map(([a,v])=>[a,v.policies,v.newBiz,v.renewals,v.premium.toFixed(2),v.agencyComm.toFixed(2),v.agentComm.toFixed(2)]);
+            _rptExportCSV(['Agent','Policies','New Biz','Renewals','Total Premium','Agency Comm','Agent Comm'],rows,'agent_production.csv');
+        };
+
+        // ══════════════════════════════════════════════════════
+        // 3. LINE OF BUSINESS
+        // ══════════════════════════════════════════════════════
+        function amsReportLOB() {
+            const body = document.getElementById('amsReportBody');
+            const {from,to} = _rptGetRange();
+            const filtered = _rptFilter(_rptBinder(),from,to);
+            const lobMap = {};
+            filtered.forEach(p=>{
+                const l = p.lineOfBusiness||'Unknown';
+                if(!lobMap[l]) lobMap[l]={count:0,premium:0};
+                lobMap[l].count++; lobMap[l].premium+=parseFloat(p.totalPremium)||0;
+            });
+            const lobs = Object.entries(lobMap).sort((a,b)=>b[1].premium-a[1].premium);
+            const totCount = lobs.reduce((s,[,v])=>s+v.count,0);
+            const totPrem  = lobs.reduce((s,[,v])=>s+v.premium,0);
+
+            body.innerHTML = `
+            <div class="rpt-filters">
+                ${_rptFilterRow()}
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvLOB')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Lines of Business</div><div class="rk-val">${lobs.length}</div><div class="rk-sub">active LOBs</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Total Premium</div><div class="rk-val">${_rptFmtK(totPrem)}</div><div class="rk-sub">across all LOBs</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);">
+                    <div class="rk-label">Top LOB</div><div class="rk-val" style="font-size:1rem;">${_rptEsc(lobs[0]?.[0]||'—')}</div><div class="rk-sub">${lobs[0]?lobs[0][1].count:0} policies</div>
+                </div>
+            </div>
+            <div class="rpt-chart-wrap">
+                <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Premium by Line of Business</div>
+                <canvas id="rptChartLOB" style="max-height:320px;"></canvas>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">LOB Breakdown</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>#</th><th>Line of Business</th><th>Policies</th><th>% of Count</th><th>Total Premium</th><th>% of Premium</th><th>Avg Premium</th></tr></thead>
+                    <tbody>
+                    ${lobs.map(([lob,v],i)=>`<tr>
+                        <td>${i+1}</td>
+                        <td><strong>${_rptEsc(lob)}</strong></td>
+                        <td>${v.count}</td>
+                        <td>${totCount?(v.count/totCount*100).toFixed(1)+'%':'—'}</td>
+                        <td style="font-weight:700;color:var(--navy);">${_rptFmt$(v.premium)}</td>
+                        <td><div style="display:flex;align-items:center;gap:6px;">
+                            <div style="background:#e2e8f0;border-radius:4px;height:8px;width:80px;overflow:hidden;">
+                                <div style="background:var(--blue);height:100%;width:${totPrem?(v.premium/totPrem*100).toFixed(1):0}%;"></div>
+                            </div>
+                            ${totPrem?(v.premium/totPrem*100).toFixed(1)+'%':'—'}
+                        </div></td>
+                        <td>${_rptFmt$(v.count?v.premium/v.count:0)}</td>
+                    </tr>`).join('')}
+                    </tbody>
+                    <tfoot><tr><td></td><td>TOTAL</td><td>${totCount}</td><td>100%</td><td>${_rptFmt$(totPrem)}</td><td>100%</td><td>${_rptFmt$(totCount?totPrem/totCount:0)}</td></tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(()=>{
+                _rptDestroyChart('lob');
+                _rptCharts['lob'] = new Chart(document.getElementById('rptChartLOB'),{
+                    type:'bar',
+                    data:{labels:lobs.map(([l])=>l), datasets:[{label:'Premium',data:lobs.map(([,v])=>v.premium),
+                        backgroundColor:DASH_COLORS.map(c=>c+'BB'), borderColor:DASH_COLORS, borderWidth:1, borderRadius:4}]},
+                    options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}},
+                        scales:{x:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}},y:{ticks:{font:{size:11}}}}}
+                });
+            },50);
+        }
+        window._csvLOB = function() {
+            const {from,to}=_rptGetRange(); const lobMap={};
+            _rptFilter(_rptBinder(),from,to).forEach(p=>{const l=p.lineOfBusiness||'Unknown';if(!lobMap[l])lobMap[l]={count:0,premium:0};lobMap[l].count++;lobMap[l].premium+=parseFloat(p.totalPremium)||0;});
+            _rptExportCSV(['LOB','Policies','Total Premium','Avg Premium'],Object.entries(lobMap).sort((a,b)=>b[1].premium-a[1].premium).map(([l,v])=>[l,v.count,v.premium.toFixed(2),(v.count?v.premium/v.count:0).toFixed(2)]),'lob_report.csv');
+        };
+
+        // ══════════════════════════════════════════════════════
+        // 4. CARRIER SUMMARY
+        // ══════════════════════════════════════════════════════
+        function amsReportCarrier() {
+            const body = document.getElementById('amsReportBody');
+            const {from,to} = _rptGetRange();
+            const filtered = _rptFilter(_rptBinder(),from,to);
+            const cMap = {};
+            filtered.forEach(p=>{
+                const c=p.company||'Unknown';
+                if(!cMap[c]) cMap[c]={count:0,premium:0,lobs:new Set(),agents:new Set()};
+                cMap[c].count++; cMap[c].premium+=parseFloat(p.totalPremium)||0;
+                if(p.lineOfBusiness) cMap[c].lobs.add(p.lineOfBusiness);
+                if(p.agent) cMap[c].agents.add(p.agent);
+            });
+            const carriers = Object.entries(cMap).sort((a,b)=>b[1].premium-a[1].premium);
+            const totPrem  = carriers.reduce((s,[,v])=>s+v.premium,0);
+            const totCount = carriers.reduce((s,[,v])=>s+v.count,0);
+
+            body.innerHTML = `
+            <div class="rpt-filters">
+                ${_rptFilterRow()}
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvCarrier')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Carriers</div><div class="rk-val">${carriers.length}</div><div class="rk-sub">active in period</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Total Premium</div><div class="rk-val">${_rptFmtK(totPrem)}</div><div class="rk-sub">written</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);">
+                    <div class="rk-label">Top Carrier</div><div class="rk-val" style="font-size:1rem;">${_rptEsc(carriers[0]?.[0]||'—')}</div><div class="rk-sub">${_rptFmtK(carriers[0]?.[1].premium||0)}</div>
+                </div>
+            </div>
+            <div class="rpt-chart-wrap">
+                <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Policies by Carrier</div>
+                <canvas id="rptChartCarrier" style="max-height:340px;"></canvas>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Carrier Detail</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>#</th><th>Carrier</th><th>Policies</th><th>Market Share</th><th>Total Premium</th><th>% Premium</th><th>Avg Premium</th><th>LOBs</th><th>Agents</th></tr></thead>
+                    <tbody>
+                    ${carriers.map(([c,v],i)=>`<tr>
+                        <td>${i+1}</td><td><strong>${_rptEsc(c)}</strong></td>
+                        <td>${v.count}</td>
+                        <td>${totCount?(v.count/totCount*100).toFixed(1)+'%':'—'}</td>
+                        <td style="font-weight:700;color:var(--navy);">${_rptFmt$(v.premium)}</td>
+                        <td><div style="display:flex;align-items:center;gap:6px;">
+                            <div style="background:#e2e8f0;border-radius:4px;height:8px;width:70px;overflow:hidden;">
+                                <div style="background:var(--blue);height:100%;width:${totPrem?(v.premium/totPrem*100).toFixed(1):0}%;"></div>
+                            </div>${totPrem?(v.premium/totPrem*100).toFixed(1)+'%':'—'}
+                        </div></td>
+                        <td>${_rptFmt$(v.count?v.premium/v.count:0)}</td>
+                        <td style="font-size:11px;">${v.lobs.size}</td>
+                        <td style="font-size:11px;">${v.agents.size}</td>
+                    </tr>`).join('')}
+                    </tbody>
+                    <tfoot><tr><td></td><td>TOTAL</td><td>${totCount}</td><td>100%</td><td>${_rptFmt$(totPrem)}</td><td>100%</td><td>${_rptFmt$(totCount?totPrem/totCount:0)}</td><td></td><td></td></tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(()=>{
+                _rptDestroyChart('carrier');
+                _rptCharts['carrier'] = new Chart(document.getElementById('rptChartCarrier'),{
+                    type:'bar',
+                    data:{labels:carriers.map(([c])=>c), datasets:[{label:'Policies',data:carriers.map(([,v])=>v.count),
+                        backgroundColor:DASH_COLORS.map(c=>c+'BB'), borderColor:DASH_COLORS, borderWidth:1, borderRadius:4}]},
+                    options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}},
+                        scales:{x:{beginAtZero:true,ticks:{stepSize:1}}, y:{ticks:{font:{size:11}}}}}
+                });
+            },50);
+        }
+        window._csvCarrier = function() {
+            const {from,to}=_rptGetRange(); const cMap={};
+            _rptFilter(_rptBinder(),from,to).forEach(p=>{const c=p.company||'Unknown';if(!cMap[c])cMap[c]={count:0,premium:0};cMap[c].count++;cMap[c].premium+=parseFloat(p.totalPremium)||0;});
+            _rptExportCSV(['Carrier','Policies','Total Premium','Avg Premium'],Object.entries(cMap).sort((a,b)=>b[1].premium-a[1].premium).map(([c,v])=>[c,v.count,v.premium.toFixed(2),(v.count?v.premium/v.count:0).toFixed(2)]),'carrier_report.csv');
+        };
+
+        // ══════════════════════════════════════════════════════
+        // 5. NEW BUSINESS vs RENEWALS
+        // ══════════════════════════════════════════════════════
+        function amsReportNewVsRenewal() {
+            const body = document.getElementById('amsReportBody');
+            const {from,to} = _rptGetRange();
+            const filtered = _rptFilter(_rptBinder(),from,to);
+            const months = _last12Months();
+            const types  = ['New Business','Renewal','Endorsement','Rewrite','Cancellation'];
+            const grid   = {};
+            months.forEach(m => { grid[m.key]={total:0,premium:0}; types.forEach(t => grid[m.key][t]={count:0,premium:0}); });
+            filtered.forEach(p => {
+                const mk = (p.entryDate||'').slice(0,7);
+                if(!grid[mk]) return;
+                const t = types.find(x=>x.toLowerCase()===(p.policyType||'').toLowerCase()) || 'Other';
+                grid[mk].total++;
+                grid[mk].premium += parseFloat(p.totalPremium)||0;
+                if(grid[mk][t]) { grid[mk][t].count++; grid[mk][t].premium+=parseFloat(p.totalPremium)||0; }
+            });
+            const totNew = months.reduce((s,m)=>s+(grid[m.key]['New Business']?.count||0),0);
+            const totRen = months.reduce((s,m)=>s+(grid[m.key]['Renewal']?.count||0),0);
+            const totAll = months.reduce((s,m)=>s+grid[m.key].total,0);
+            const totPrem= months.reduce((s,m)=>s+grid[m.key].premium,0);
+
+            body.innerHTML = `
+            <div class="rpt-filters">
+                ${_rptFilterRow()}
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvNewVsRenewal')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">New Business</div><div class="rk-val">${totNew}</div><div class="rk-sub">${totAll?(totNew/totAll*100).toFixed(0):'0'}% of total</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Renewals</div><div class="rk-val">${totRen}</div><div class="rk-sub">${totAll?(totRen/totAll*100).toFixed(0):'0'}% of total</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);">
+                    <div class="rk-label">Total Policies</div><div class="rk-val">${totAll}</div><div class="rk-sub">in period</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--purple);">
+                    <div class="rk-label">Total Premium</div><div class="rk-val">${_rptFmtK(totPrem)}</div><div class="rk-sub">written</div>
+                </div>
+            </div>
+            <div class="rpt-chart-wrap">
+                <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">New Business vs Renewals by Month</div>
+                <canvas id="rptChartNvR"></canvas>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Monthly Breakdown by Policy Type</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>Month</th><th>New Biz</th><th>Renewal</th><th>Endorsement</th><th>Rewrite</th><th>Cancellation</th><th>Total</th><th>Total Premium</th></tr></thead>
+                    <tbody>
+                    ${months.map(m=>{const g=grid[m.key];return`<tr>
+                        <td><strong>${m.label}</strong></td>
+                        <td style="color:var(--blue);font-weight:600;">${g['New Business'].count}</td>
+                        <td style="color:var(--green);font-weight:600;">${g['Renewal'].count}</td>
+                        <td>${g['Endorsement'].count}</td>
+                        <td>${g['Rewrite'].count}</td>
+                        <td style="color:var(--red);">${g['Cancellation'].count}</td>
+                        <td><strong>${g.total}</strong></td>
+                        <td>${_rptFmt$(g.premium)}</td>
+                    </tr>`;}).join('')}
+                    </tbody>
+                    <tfoot><tr><td>TOTAL</td><td>${totNew}</td><td>${totRen}</td>
+                        <td>${months.reduce((s,m)=>s+(grid[m.key]['Endorsement']?.count||0),0)}</td>
+                        <td>${months.reduce((s,m)=>s+(grid[m.key]['Rewrite']?.count||0),0)}</td>
+                        <td>${months.reduce((s,m)=>s+(grid[m.key]['Cancellation']?.count||0),0)}</td>
+                        <td>${totAll}</td><td>${_rptFmt$(totPrem)}</td></tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(()=>{
+                _rptDestroyChart('nvr');
+                _rptCharts['nvr'] = new Chart(document.getElementById('rptChartNvR'),{
+                    type:'bar',
+                    data:{labels:months.map(m=>m.label), datasets:[
+                        {label:'New Business',data:months.map(m=>grid[m.key]['New Business'].count),backgroundColor:'rgba(29,78,216,0.8)',borderRadius:3},
+                        {label:'Renewal',data:months.map(m=>grid[m.key]['Renewal'].count),backgroundColor:'rgba(5,150,105,0.8)',borderRadius:3},
+                        {label:'Endorsement',data:months.map(m=>grid[m.key]['Endorsement'].count),backgroundColor:'rgba(124,58,237,0.7)',borderRadius:3},
+                        {label:'Cancellation',data:months.map(m=>grid[m.key]['Cancellation'].count),backgroundColor:'rgba(220,38,38,0.7)',borderRadius:3},
+                    ]},
+                    options:{responsive:true, plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+                        scales:{x:{stacked:false},y:{beginAtZero:true,ticks:{stepSize:1}}}}
+                });
+            },50);
+        }
+        window._csvNewVsRenewal = function() {
+            const {from,to}=_rptGetRange(); const months=_last12Months(); const types=['New Business','Renewal','Endorsement','Rewrite','Cancellation'];
+            const grid={}; months.forEach(m=>{grid[m.key]={total:0,premium:0};types.forEach(t=>grid[m.key][t]={count:0,premium:0});});
+            _rptFilter(_rptBinder(),from,to).forEach(p=>{const mk=(p.entryDate||'').slice(0,7);if(!grid[mk])return;const t=types.find(x=>x.toLowerCase()===(p.policyType||'').toLowerCase())||'New Business';grid[mk].total++;grid[mk].premium+=parseFloat(p.totalPremium)||0;if(grid[mk][t]){grid[mk][t].count++;grid[mk][t].premium+=parseFloat(p.totalPremium)||0;}});
+            _rptExportCSV(['Month','New Biz','Renewal','Endorsement','Rewrite','Cancellation','Total','Premium'],months.map(m=>{const g=grid[m.key];return[m.label,g['New Business'].count,g['Renewal'].count,g['Endorsement'].count,g['Rewrite'].count,g['Cancellation'].count,g.total,g.premium.toFixed(2)];}), 'new_vs_renewal.csv');
+        };
+
+        // ══════════════════════════════════════════════════════
+        // 6. COMMISSION REPORT
+        // ══════════════════════════════════════════════════════
+        function amsReportCommission() {
+            const body = document.getElementById('amsReportBody');
+            const {from,to} = _rptGetRange();
+            const agentFilter = document.getElementById('rptCommAgent')?.value || '';
+            const filtered = _rptFilter(_rptBinder(),from,to);
+            const aMap = {};
+            filtered.forEach(p=>{
+                const a=p.agent||'Unassigned';
+                if(agentFilter && a!==agentFilter) return;
+                if(!aMap[a]) aMap[a]={policies:0,premium:0,agencyComm:0,agentComm:0,agencyFee:0};
+                aMap[a].policies++; aMap[a].premium+=parseFloat(p.totalPremium)||0;
+                aMap[a].agencyComm+=parseFloat(p.agencyCommission)||0;
+                aMap[a].agentComm+=parseFloat(p.agentCommissionShare)||0;
+                aMap[a].agencyFee+=parseFloat(p.agencyFee)||0;
+            });
+            const agents = Object.entries(aMap).sort((a,b)=>b[1].agencyComm-a[1].agencyComm);
+            const totAComm = agents.reduce((s,[,v])=>s+v.agencyComm,0);
+            const totAgComm= agents.reduce((s,[,v])=>s+v.agentComm,0);
+            const totFee   = agents.reduce((s,[,v])=>s+v.agencyFee,0);
+            const totPrem  = agents.reduce((s,[,v])=>s+v.premium,0);
+            const allAgents= [...new Set(_rptBinder().map(p=>p.agent).filter(Boolean))].sort();
+
+            body.innerHTML = `
+            <div class="rpt-filters">
+                ${_rptFilterRow()}
+                <div class="rpt-filter-group"><label>Agent</label>
+                    <select id="rptCommAgent" onchange="_rptRefresh()">
+                        <option value="">All Agents</option>
+                        ${allAgents.map(a=>`<option value="${_rptEsc(a)}" ${a===agentFilter?'selected':''}>${_rptEsc(a)}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvCommission')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Agency Commission</div><div class="rk-val">${_rptFmtK(totAComm)}</div><div class="rk-sub">total earned</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Agent Commissions</div><div class="rk-val">${_rptFmtK(totAgComm)}</div><div class="rk-sub">paid out</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--purple);">
+                    <div class="rk-label">Net to Agency</div><div class="rk-val">${_rptFmtK(totAComm-totAgComm)}</div><div class="rk-sub">after agent splits</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--orange);">
+                    <div class="rk-label">Agency Fees</div><div class="rk-val">${_rptFmtK(totFee)}</div><div class="rk-sub">collected</div>
+                </div>
+            </div>
+            <div class="rpt-chart-wrap">
+                <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Agency vs Agent Commission by Agent</div>
+                <canvas id="rptChartComm"></canvas>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Commission Detail by Agent</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>Agent</th><th>Policies</th><th>Total Premium</th><th>Agency Comm</th><th>Agent Comm</th><th>Net to Agency</th><th>Agency Fees</th><th>Comm %</th></tr></thead>
+                    <tbody>
+                    ${agents.map(([a,v])=>`<tr>
+                        <td><strong>${_rptEsc(a)}</strong></td>
+                        <td>${v.policies}</td>
+                        <td>${_rptFmt$(v.premium)}</td>
+                        <td style="color:var(--green);font-weight:700;">${_rptFmt$(v.agencyComm)}</td>
+                        <td style="color:var(--blue);font-weight:600;">${_rptFmt$(v.agentComm)}</td>
+                        <td style="color:var(--navy);font-weight:700;">${_rptFmt$(v.agencyComm-v.agentComm)}</td>
+                        <td>${_rptFmt$(v.agencyFee)}</td>
+                        <td>${v.premium?(v.agencyComm/v.premium*100).toFixed(1)+'%':'—'}</td>
+                    </tr>`).join('')}
+                    </tbody>
+                    <tfoot><tr><td>TOTAL</td><td>${agents.reduce((s,[,v])=>s+v.policies,0)}</td><td>${_rptFmt$(totPrem)}</td>
+                        <td>${_rptFmt$(totAComm)}</td><td>${_rptFmt$(totAgComm)}</td>
+                        <td>${_rptFmt$(totAComm-totAgComm)}</td><td>${_rptFmt$(totFee)}</td>
+                        <td>${totPrem?(totAComm/totPrem*100).toFixed(1)+'%':'—'}</td></tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(()=>{
+                const labels = agents.map(([a])=>a);
+                _rptDestroyChart('comm');
+                _rptCharts['comm'] = new Chart(document.getElementById('rptChartComm'),{
+                    type:'bar',
+                    data:{labels, datasets:[
+                        {label:'Agency Comm',data:agents.map(([,v])=>v.agencyComm),backgroundColor:'rgba(5,150,105,0.8)',borderRadius:3},
+                        {label:'Agent Comm', data:agents.map(([,v])=>v.agentComm), backgroundColor:'rgba(29,78,216,0.7)',borderRadius:3},
+                    ]},
+                    options:{responsive:true, plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+                        scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}}
+                });
+            },50);
+        }
+        window._csvCommission = function() {
+            const {from,to}=_rptGetRange(); const aMap={};
+            _rptFilter(_rptBinder(),from,to).forEach(p=>{const a=p.agent||'Unassigned';if(!aMap[a])aMap[a]={policies:0,premium:0,agencyComm:0,agentComm:0,agencyFee:0};aMap[a].policies++;aMap[a].premium+=parseFloat(p.totalPremium)||0;aMap[a].agencyComm+=parseFloat(p.agencyCommission)||0;aMap[a].agentComm+=parseFloat(p.agentCommissionShare)||0;aMap[a].agencyFee+=parseFloat(p.agencyFee)||0;});
+            _rptExportCSV(['Agent','Policies','Total Premium','Agency Comm','Agent Comm','Net to Agency','Agency Fees'],Object.entries(aMap).sort((a,b)=>b[1].agencyComm-a[1].agencyComm).map(([a,v])=>[a,v.policies,v.premium.toFixed(2),v.agencyComm.toFixed(2),v.agentComm.toFixed(2),(v.agencyComm-v.agentComm).toFixed(2),v.agencyFee.toFixed(2)]),'commission_report.csv');
+        };
+
+        // ══════════════════════════════════════════════════════
+        // 7. MONTHLY PRODUCTION TREND
+        // ══════════════════════════════════════════════════════
+        function amsReportMonthly() {
+            const body = document.getElementById('amsReportBody');
+            const {from,to} = _rptGetRange();
+            const filtered = _rptFilter(_rptBinder(),from,to);
+            const months = _last12Months();
+            const grid = {};
+            months.forEach(m => grid[m.key]={count:0,premium:0,newBiz:0,renewals:0,cancellations:0});
+            filtered.forEach(p=>{
+                const mk=(p.entryDate||'').slice(0,7);
+                if(!grid[mk]) return;
+                grid[mk].count++; grid[mk].premium+=parseFloat(p.totalPremium)||0;
+                if((p.policyType||'').toLowerCase()==='new business') grid[mk].newBiz++;
+                if((p.policyType||'').toLowerCase()==='renewal')      grid[mk].renewals++;
+                if((p.policyType||'').toLowerCase()==='cancellation') grid[mk].cancellations++;
+            });
+            let running=0;
+            const ytdYear = new Date().getFullYear().toString();
+            const ytdPol  = filtered.filter(p=>(p.entryDate||'').startsWith(ytdYear)).length;
+            const ytdPrem = filtered.filter(p=>(p.entryDate||'').startsWith(ytdYear)).reduce((s,p)=>s+parseFloat(p.totalPremium||0),0);
+            const totPol  = filtered.length;
+            const totPrem = filtered.reduce((s,p)=>s+parseFloat(p.totalPremium||0),0);
+            const bestMonth = months.reduce((best,m)=>grid[m.key].premium>(grid[best?.key]?.premium||0)?m:best, months[0]);
+
+            body.innerHTML = `
+            <div class="rpt-filters">
+                ${_rptFilterRow()}
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvMonthly')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">YTD Policies</div><div class="rk-val">${ytdPol}</div><div class="rk-sub">${new Date().getFullYear()} year to date</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">YTD Premium</div><div class="rk-val">${_rptFmtK(ytdPrem)}</div><div class="rk-sub">${new Date().getFullYear()} year to date</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);">
+                    <div class="rk-label">Best Month</div><div class="rk-val" style="font-size:1rem;">${bestMonth?.label||'—'}</div><div class="rk-sub">${_rptFmtK(grid[bestMonth?.key]?.premium||0)}</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--purple);">
+                    <div class="rk-label">Avg Monthly</div><div class="rk-val">${_rptFmtK(totPrem/12)}</div><div class="rk-sub">premium per month</div>
+                </div>
+            </div>
+            <div class="rpt-chart-wrap">
+                <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Monthly Premium Trend</div>
+                <canvas id="rptChartMonthly"></canvas>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Month-by-Month Production</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>Month</th><th>Policies</th><th>New Biz</th><th>Renewals</th><th>Cancellations</th><th>Premium</th><th>Running Total</th></tr></thead>
+                    <tbody>
+                    ${months.map(m=>{
+                        const g=grid[m.key]; running+=g.premium;
+                        return`<tr>
+                            <td><strong>${m.label}</strong></td>
+                            <td>${g.count}</td>
+                            <td style="color:var(--blue);">${g.newBiz}</td>
+                            <td style="color:var(--green);">${g.renewals}</td>
+                            <td style="color:var(--red);">${g.cancellations}</td>
+                            <td style="font-weight:700;color:var(--navy);">${_rptFmt$(g.premium)}</td>
+                            <td style="color:var(--gray-500);">${_rptFmt$(running)}</td>
+                        </tr>`;
+                    }).join('')}
+                    </tbody>
+                    <tfoot><tr><td>TOTAL</td><td>${totPol}</td>
+                        <td>${months.reduce((s,m)=>s+grid[m.key].newBiz,0)}</td>
+                        <td>${months.reduce((s,m)=>s+grid[m.key].renewals,0)}</td>
+                        <td>${months.reduce((s,m)=>s+grid[m.key].cancellations,0)}</td>
+                        <td>${_rptFmt$(totPrem)}</td><td></td></tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(()=>{
+                _rptDestroyChart('monthly');
+                _rptCharts['monthly'] = new Chart(document.getElementById('rptChartMonthly'),{
+                    type:'bar',
+                    data:{labels:months.map(m=>m.label), datasets:[
+                        {label:'Premium Written',data:months.map(m=>grid[m.key].premium),
+                            backgroundColor:'rgba(29,78,216,0.75)',borderColor:'#1d4ed8',borderWidth:1,borderRadius:4,yAxisID:'y'},
+                        {label:'Policies',data:months.map(m=>grid[m.key].count),
+                            type:'line',borderColor:'#059669',backgroundColor:'rgba(5,150,105,0.1)',
+                            borderWidth:2,pointRadius:4,tension:.3,fill:true,yAxisID:'y2'},
+                    ]},
+                    options:{responsive:true,
+                        plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+                        scales:{
+                            y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'},position:'left'},
+                            y2:{beginAtZero:true,ticks:{stepSize:1},position:'right',grid:{drawOnChartArea:false}}
+                        }}
+                });
+            },50);
+        }
+        window._csvMonthly = function() {
+            const {from,to}=_rptGetRange(); const months=_last12Months(); const grid={};
+            months.forEach(m=>grid[m.key]={count:0,premium:0,newBiz:0,renewals:0,cancellations:0});
+            _rptFilter(_rptBinder(),from,to).forEach(p=>{const mk=(p.entryDate||'').slice(0,7);if(!grid[mk])return;grid[mk].count++;grid[mk].premium+=parseFloat(p.totalPremium)||0;if((p.policyType||'').toLowerCase()==='new business')grid[mk].newBiz++;if((p.policyType||'').toLowerCase()==='renewal')grid[mk].renewals++;if((p.policyType||'').toLowerCase()==='cancellation')grid[mk].cancellations++;});
+            _rptExportCSV(['Month','Policies','New Biz','Renewals','Cancellations','Premium'],months.map(m=>{const g=grid[m.key];return[m.label,g.count,g.newBiz,g.renewals,g.cancellations,g.premium.toFixed(2)];}),'monthly_trend.csv');
+        };
+
+        // ══════════════════════════════════════════════════════
+        // 8. PAYMENT METHOD BREAKDOWN
+        // ══════════════════════════════════════════════════════
+        function amsReportPayMethod() {
+            const body = document.getElementById('amsReportBody');
+            const {from,to} = _rptGetRange();
+            const filtered = _rptFilter(_rptBinder(),from,to);
+            const pMap = {};
+            filtered.forEach(p=>{
+                [p.paymentMethod, p.paymentMethod2].forEach(m=>{
+                    if(!m) return;
+                    if(!pMap[m]) pMap[m]={count:0,premium:0,down:0};
+                    pMap[m].count++; pMap[m].premium+=parseFloat(p.totalPremium)||0;
+                    pMap[m].down+=parseFloat(p.down)||0;
+                });
+            });
+            const methods = Object.entries(pMap).sort((a,b)=>b[1].count-a[1].count);
+            const totCount = methods.reduce((s,[,v])=>s+v.count,0);
+            const totDown  = methods.reduce((s,[,v])=>s+v.down,0);
+
+            body.innerHTML = `
+            <div class="rpt-filters">
+                ${_rptFilterRow()}
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvPayMethod')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Payment Methods Used</div><div class="rk-val">${methods.length}</div><div class="rk-sub">distinct methods</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Total Down Collected</div><div class="rk-val">${_rptFmtK(totDown)}</div><div class="rk-sub">down payments</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);">
+                    <div class="rk-label">Top Method</div><div class="rk-val" style="font-size:1rem;">${_rptEsc(methods[0]?.[0]||'—')}</div><div class="rk-sub">${methods[0]?.[1].count||0} transactions</div>
+                </div>
+            </div>
+            <div class="rpt-chart-wrap">
+                <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Transactions by Payment Method</div>
+                <canvas id="rptChartPay" style="max-height:300px;"></canvas>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Payment Method Breakdown</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>#</th><th>Payment Method</th><th>Transactions</th><th>% of Total</th><th>Total Premium</th><th>Down Collected</th><th>Avg Down</th></tr></thead>
+                    <tbody>
+                    ${methods.map(([m,v],i)=>`<tr>
+                        <td>${i+1}</td>
+                        <td><strong>${_rptEsc(m)}</strong></td>
+                        <td>${v.count}</td>
+                        <td><div style="display:flex;align-items:center;gap:6px;">
+                            <div style="background:#e2e8f0;border-radius:4px;height:8px;width:80px;overflow:hidden;">
+                                <div style="background:var(--blue);height:100%;width:${totCount?(v.count/totCount*100).toFixed(0):0}%;"></div>
+                            </div>${totCount?(v.count/totCount*100).toFixed(1)+'%':'—'}
+                        </div></td>
+                        <td>${_rptFmt$(v.premium)}</td>
+                        <td style="font-weight:700;color:var(--green);">${_rptFmt$(v.down)}</td>
+                        <td>${_rptFmt$(v.count?v.down/v.count:0)}</td>
+                    </tr>`).join('')}
+                    </tbody>
+                    <tfoot><tr><td></td><td>TOTAL</td><td>${totCount}</td><td>100%</td>
+                        <td>${_rptFmt$(methods.reduce((s,[,v])=>s+v.premium,0))}</td>
+                        <td>${_rptFmt$(totDown)}</td>
+                        <td>${_rptFmt$(totCount?totDown/totCount:0)}</td></tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(()=>{
+                _rptDestroyChart('pay');
+                _rptCharts['pay'] = new Chart(document.getElementById('rptChartPay'),{
+                    type:'bar',
+                    data:{labels:methods.map(([m])=>m), datasets:[{label:'Transactions',data:methods.map(([,v])=>v.count),
+                        backgroundColor:DASH_COLORS.map(c=>c+'BB'), borderColor:DASH_COLORS, borderWidth:1, borderRadius:4}]},
+                    options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}},
+                        scales:{x:{beginAtZero:true,ticks:{stepSize:1}}, y:{ticks:{font:{size:11}}}}}
+                });
+            },50);
+        }
+        window._csvPayMethod = function() {
+            const {from,to}=_rptGetRange(); const pMap={};
+            _rptFilter(_rptBinder(),from,to).forEach(p=>{[p.paymentMethod,p.paymentMethod2].forEach(m=>{if(!m)return;if(!pMap[m])pMap[m]={count:0,premium:0,down:0};pMap[m].count++;pMap[m].premium+=parseFloat(p.totalPremium)||0;pMap[m].down+=parseFloat(p.down)||0;});});
+            _rptExportCSV(['Payment Method','Transactions','Total Premium','Down Collected'],Object.entries(pMap).sort((a,b)=>b[1].count-a[1].count).map(([m,v])=>[m,v.count,v.premium.toFixed(2),v.down.toFixed(2)]),'payment_methods.csv');
+        };
     </script>
 </body>
 </html>
