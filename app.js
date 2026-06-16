@@ -6669,6 +6669,14 @@ function claudePrefillEntry(extracted) {
             const el = document.getElementById(id);
             if (el && val !== undefined && val !== null && val !== '') el.value = val;
         };
+
+        // Auto-assign location based on agent
+        const autoLocation = (currentUser === 'Jorge Castro') ? 'Franchise' : 'Hialeah Office';
+        const locSel = document.getElementById('salesLocationSelect');
+        if (locSel && !locSel.value) {
+            locSel.value = autoLocation;
+            _selectedSalesLocation = autoLocation;
+        }
         const autoAdded = []; // track what we created so we can tell the user
 
         // Auto-add carrier to master list if missing, then prep the dropdown

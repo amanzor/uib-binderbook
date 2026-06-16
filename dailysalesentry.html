@@ -720,10 +720,11 @@
         const userDisplay = document.getElementById('userDisplay');
         if (userDisplay) userDisplay.textContent = `👤 ${currentUser}`;
 
-        // Initialize the form (same as openDailySalesModal does)
-        _selectedSalesLocation = '';
+        // Auto-assign location based on agent
+        const autoLocation = (currentUser === 'Jorge Castro') ? 'Franchise' : 'Hialeah Office';
+        _selectedSalesLocation = autoLocation;
         const locSel = document.getElementById('salesLocationSelect');
-        if (locSel) locSel.value = '';
+        if (locSel) locSel.value = autoLocation;
 
         refreshAllCarrierDropdowns();
         populateSourceDropdown('source', '');
