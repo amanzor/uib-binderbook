@@ -763,7 +763,7 @@ function amsSavePolicyModal() {
         totalPremium:         n('mp_premium'),
         paymentMethod:        v('mp_payMethod'),
         paymentMethod2:       v('mp_payMethod2'),
-        agencyCommission:     n('mp_agencyCommission'),
+        agencyCommission:     n('mp_agencyCommission') || Math.round(n('mp_premium') * 0.10 * 100) / 100,
         agentCommissionShare: n('mp_agentCommission'),
         paymentType:          v('mp_payType'),
         effectiveDate:        v('mp_effDate'),

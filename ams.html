@@ -1341,7 +1341,7 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="ams.js?v=20260617f"></script>
+    <script src="ams.js?v=20260617g"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
         const _dashCharts = {};
@@ -3642,7 +3642,7 @@
                     down: 0,
                     agencyFee: 0,
                     basePremium: premVal,
-                    agencyCommission: 0,
+                    agencyCommission: Math.round(premVal * 0.10 * 100) / 100,
                     agentCommissionShare: 0,
                     totalPremium: premVal,
                     paymentType: '',
