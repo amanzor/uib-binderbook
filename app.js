@@ -4449,39 +4449,82 @@ function loadAgentCommissionData() {
     const hasCarrierData = Object.keys(filteredMonthly).length > 0 || Object.keys(filteredGross).length > 0;
     const hasShareData   = Object.keys(filteredShares).length > 0;
 
+    // Build per-carrier/month policy count lookup from filtered entries
+    const _policyCount = {};
+    filtered.forEach(e => {
+        const m = _entryMonth(e);
+        const key = (e.company||'unknown') + '||' + m;
+        _policyCount[key] = (_policyCount[key] || 0) + 1;
+    });
+
+    const $m = (v) => v ? `$${parseFloat(v).toFixed(2)}` : '-';
+
     if (!hasCarrierData && !hasShareData) {
-        summaryTbody.innerHTML = '<tr><td colspan="4" class="no-data">No commission data for the selected period</td></tr>';
+        summaryTbody.innerHTML = '<tr><td colspan="10" class="no-data">No commission data for the selected period</td></tr>';
     } else {
         let html = '';
-        const renderCarrierRows = (carriers, header, color) => {
+        let gtPremium = 0, gtFee = 0, gtAgencyComm = 0, gtAgentShare = 0, gtPolicies = 0;
+
+        const renderCarrierRows = (carriers, header, color, commType) => {
             if (Object.keys(carriers).length === 0) return;
-            html += `<tr style="background-color:${color};font-weight:bold;"><td colspan="4">${header}</td></tr>`;
+            html += `<tr style="background-color:${color};font-weight:bold;"><td colspan="10">${header}</td></tr>`;
             Object.entries(carriers).forEach(([carrier, months]) => {
                 Object.entries(months).forEach(([month, entry], idx) => {
                     const amount  = typeof entry === 'object' ? entry.amount  : entry;
                     const lob     = typeof entry === 'object' ? entry.lob     : '-';
                     const rate    = typeof entry === 'object' ? entry.rate    : 0;
                     const premium = typeof entry === 'object' ? entry.premium : 0;
-                    const display = premium > 0 && rate > 0
-                        ? `$${premium.toFixed(2)} × ${rate}% = <strong>$${amount.toFixed(2)}</strong>`
-                        : `$${amount.toFixed(2)}`;
-                    html += `<tr><td>${idx === 0 ? carrier : ''}</td><td>${lob}</td><td>${month}</td><td style="font-family:monospace;font-size:.9em;">${display}</td></tr>`;
+                    const fee     = typeof entry === 'object' ? (entry.fee || 0) : 0;
+                    const agentSh = amount;
+                    const pCount  = _policyCount[carrier + '||' + month] || '-';
+                    if (typeof pCount === 'number') gtPolicies += pCount;
+                    gtPremium += premium; gtAgencyComm += amount; gtFee += fee; gtAgentShare += agentSh;
+                    html += `<tr>
+                        <td>${idx === 0 ? carrier : ''}</td>
+                        <td style="font-size:12px;">${lob}</td>
+                        <td style="white-space:nowrap;">${month}</td>
+                        <td style="text-align:center;">${pCount}</td>
+                        <td style="font-family:monospace;font-size:12px;">${$m(premium)}</td>
+                        <td style="font-size:12px;color:#059669;font-weight:600;">${rate > 0 ? rate + '%' : '-'}</td>
+                        <td style="font-family:monospace;font-size:12px;">${$m(fee)}</td>
+                        <td style="font-family:monospace;font-size:12px;font-weight:700;color:#166534;">${$m(amount)}</td>
+                        <td style="font-family:monospace;font-size:12px;font-weight:700;color:#1d4ed8;">${$m(agentSh)}</td>
+                        <td style="font-size:11px;color:${commType === 'Gross' ? '#7c3aed' : '#1d4ed8'};font-weight:700;">${commType === 'Gross' ? '🔥 Gross' : '📅 Monthly'}</td>
+                    </tr>`;
                 });
             });
         };
-        renderCarrierRows(filteredMonthly, '📅 Monthly Paid Commission Carriers', '#e3f2fd');
-        renderCarrierRows(filteredGross,   '💰 Gross Paid Carriers', '#f3e5f5');
+        renderCarrierRows(filteredMonthly, '📅 Monthly Paid Commission Carriers', '#e3f2fd', 'Monthly');
+        renderCarrierRows(filteredGross,   '💰 Gross Paid Carriers', '#f3e5f5', 'Gross');
         if (hasShareData) {
-            html += `<tr style="background-color:#e8f5e9;font-weight:bold;"><td colspan="4">🤝 Agent Commission (50% of Fee + Commission)</td></tr>`;
+            html += `<tr style="background-color:#e8f5e9;font-weight:bold;"><td colspan="10">🤝 Agent Commission (50% of Fee + Commission)</td></tr>`;
             Object.entries(filteredShares).forEach(([month, data]) => {
+                gtPolicies += data.count; gtFee += data.agencyFeeTotal; gtAgencyComm += data.agencyCommissionTotal; gtAgentShare += data.total;
                 html += `<tr>
                     <td>Agent Share</td>
-                    <td>${data.count} polic${data.count===1?'y':'ies'}</td>
-                    <td>${month}</td>
-                    <td style="font-family:monospace;font-size:.9em;">($${data.agencyFeeTotal.toFixed(2)} + $${data.agencyCommissionTotal.toFixed(2)}) × 50% = <strong>$${data.total.toFixed(2)}</strong></td>
+                    <td>—</td>
+                    <td style="white-space:nowrap;">${month}</td>
+                    <td style="text-align:center;">${data.count}</td>
+                    <td style="font-family:monospace;font-size:12px;">—</td>
+                    <td style="font-size:12px;">50%</td>
+                    <td style="font-family:monospace;font-size:12px;">${$m(data.agencyFeeTotal)}</td>
+                    <td style="font-family:monospace;font-size:12px;font-weight:700;color:#166534;">${$m(data.agencyCommissionTotal)}</td>
+                    <td style="font-family:monospace;font-size:12px;font-weight:700;color:#1d4ed8;">${$m(data.total)}</td>
+                    <td style="font-size:11px;color:#059669;font-weight:700;">🤝 Agent</td>
                 </tr>`;
             });
         }
+        // Grand totals row
+        html += `<tr style="background:#0d1f3c;color:#fff;font-weight:700;">
+            <td colspan="3" style="color:#fff;">GRAND TOTAL</td>
+            <td style="text-align:center;color:#fff;">${gtPolicies}</td>
+            <td style="font-family:monospace;color:#fff;">${$m(gtPremium)}</td>
+            <td style="color:#fff;">—</td>
+            <td style="font-family:monospace;color:#fff;">${$m(gtFee)}</td>
+            <td style="font-family:monospace;color:#4ade80;">${$m(gtAgencyComm)}</td>
+            <td style="font-family:monospace;color:#60a5fa;">${$m(gtAgentShare)}</td>
+            <td style="color:#fff;">—</td>
+        </tr>`;
         summaryTbody.innerHTML = html;
     }
 
