@@ -445,6 +445,29 @@
         .rpt-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px; }
         @media (max-width: 900px) { .rpt-grid2 { grid-template-columns: 1fr; } }
 
+        /* ── ACCOUNTING PANEL ─────────────────────────────────────── */
+        .acct-tabs-bar {
+            display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 20px;
+            background: white; border-bottom: 2px solid var(--gray-200); flex-shrink: 0;
+        }
+        .acct-tab {
+            padding: 7px 14px; border-radius: var(--radius-sm); border: 1.5px solid var(--gray-200);
+            background: white; font-family: inherit; font-size: 12px; font-weight: 600;
+            color: var(--gray-600); cursor: pointer; transition: all .12s; white-space: nowrap;
+        }
+        .acct-tab:hover  { border-color: var(--green); color: var(--green); background: var(--green-pale); }
+        .acct-tab.active { background: var(--green); color: white; border-color: var(--green); box-shadow: 0 2px 6px rgba(5,150,105,.3); }
+        .acct-credit { color: var(--green) !important; font-weight: 700; }
+        .acct-debit  { color: var(--red)   !important; font-weight: 700; }
+        .acct-neutral{ color: var(--navy)  !important; font-weight: 700; }
+        .acct-highlight { background: var(--green-pale) !important; }
+        .acct-finance-row { background: #fff7ed !important; }
+        .ledger-row-new  { border-left: 3px solid var(--blue); }
+        .ledger-row-ren  { border-left: 3px solid var(--green); }
+        .ledger-row-can  { border-left: 3px solid var(--red); opacity:.8; }
+        .pnl-positive { color: var(--green); font-weight: 800; }
+        .pnl-negative { color: var(--red);   font-weight: 800; }
+
         /* ── RESPONSIVE ───────────────────────────────────────────── */
         @media (max-width: 768px) {
             .ams-sidebar { width: 100%; position: relative; top: auto; bottom: auto; left: auto; height: auto; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--gray-200); }
@@ -683,6 +706,30 @@
                             <div style="font-size:48px;margin-bottom:16px;">📊</div>
                             <h3 style="color:var(--gray-500);margin-bottom:8px;">Select a Report</h3>
                             <p>Choose a report type from the tabs above.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Accounting panel -->
+                <div id="amsAccountingPanel" style="display:none;" class="reports-panel">
+                    <div class="acct-tabs-bar">
+                        <button class="acct-tab" onclick="amsShowAccounting('overview')">💼 Overview</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('ledger')">📋 Sales Ledger</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('cc')">💳 CC Transactions</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('commissions')">🏆 Commission Ledger</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('deposits')">🏦 Carrier Deposits</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('finance')">📄 Premium Finance</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('fees')">💵 Agency Fees</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('down')">💰 Down Payments</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('pnl')">📊 P&amp;L Summary</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('salessummary')">📈 Sales Summary</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('commtracker')">🎯 Commission Tracker</button>
+                    </div>
+                    <div class="report-body" id="amsAcctBody">
+                        <div class="rpt-no-data" style="margin-top:60px;">
+                            <div style="font-size:48px;margin-bottom:16px;">💼</div>
+                            <h3 style="color:var(--gray-500);margin-bottom:8px;">Select an Accounting Report</h3>
+                            <p>Choose a section from the tabs above.</p>
                         </div>
                     </div>
                 </div>
@@ -1239,17 +1286,19 @@
                 if (btn) btn.classList.toggle('active', s === section);
             });
 
-            const toolbar      = document.getElementById('sidebarSearchToolbar');
-            const clientList   = document.getElementById('amsClientList');
-            const dashPanel    = document.getElementById('amsDashboardPanel');
-            const reportsPanel = document.getElementById('amsReportsPanel');
-            const welcome      = document.getElementById('amsWelcome');
-            const detail       = document.getElementById('amsClientDetail');
+            const toolbar       = document.getElementById('sidebarSearchToolbar');
+            const clientList    = document.getElementById('amsClientList');
+            const dashPanel     = document.getElementById('amsDashboardPanel');
+            const reportsPanel  = document.getElementById('amsReportsPanel');
+            const acctPanel     = document.getElementById('amsAccountingPanel');
+            const welcome       = document.getElementById('amsWelcome');
+            const detail        = document.getElementById('amsClientDetail');
 
             toolbar.style.display      = 'none';
             clientList.style.display   = 'none';
             dashPanel.style.display    = 'none';
             reportsPanel.style.display = 'none';
+            acctPanel.style.display    = 'none';
             welcome.style.display      = 'none';
             detail.style.display       = 'none';
 
@@ -1265,9 +1314,8 @@
             } else if (section === 'reports') {
                 reportsPanel.style.display = 'flex';
             } else if (section === 'accounting') {
-                welcome.style.display = '';
-                document.querySelector('#amsWelcome h3').textContent = 'Accounting';
-                document.querySelector('#amsWelcome p').textContent  = 'Accounting module coming soon.';
+                acctPanel.style.display = 'flex';
+                if (!_activeAcct) amsShowAccounting('overview');
             }
         }
 
@@ -2259,6 +2307,1001 @@
             const {from,to}=_rptGetRange(); const pMap={};
             _rptFilter(_rptBinder(),from,to).forEach(p=>{[p.paymentMethod,p.paymentMethod2].forEach(m=>{if(!m)return;if(!pMap[m])pMap[m]={count:0,premium:0,down:0};pMap[m].count++;pMap[m].premium+=parseFloat(p.totalPremium)||0;pMap[m].down+=parseFloat(p.down)||0;});});
             _rptExportCSV(['Payment Method','Transactions','Total Premium','Down Collected'],Object.entries(pMap).sort((a,b)=>b[1].count-a[1].count).map(([m,v])=>[m,v.count,v.premium.toFixed(2),v.down.toFixed(2)]),'payment_methods.csv');
+        };
+
+        // ══════════════════════════════════════════════════════════
+        // ACCOUNTING MODULE
+        // ══════════════════════════════════════════════════════════
+        let _activeAcct = null;
+        const _acctCharts = {};
+
+        function _acctDestroy(id) { if (_acctCharts[id]) { _acctCharts[id].destroy(); delete _acctCharts[id]; } }
+
+        function _acctDefaultFrom() {
+            const d = new Date(); d.setFullYear(d.getFullYear()-1); d.setDate(1);
+            return d.toISOString().slice(0,10);
+        }
+        function _acctDefaultTo() { return new Date().toISOString().slice(0,10); }
+
+        function _acctGetRange() {
+            return {
+                from: document.getElementById('acctFrom')?.value || _acctDefaultFrom(),
+                to:   document.getElementById('acctTo')?.value   || _acctDefaultTo()
+            };
+        }
+
+        function _acctFilterRow(extra) {
+            return `<div class="rpt-filter-group"><label>From</label>
+                      <input type="date" id="acctFrom" value="${_acctDefaultFrom()}" onchange="_acctRefresh()"></div>
+                    <div class="rpt-filter-group"><label>To</label>
+                      <input type="date" id="acctTo" value="${_acctDefaultTo()}" onchange="_acctRefresh()"></div>
+                    ${extra||''}`;
+        }
+
+        function _acctRefresh() { if (_activeAcct) amsShowAccounting(_activeAcct); }
+
+        function _acctFilter(entries) {
+            const {from,to} = _acctGetRange();
+            return entries.filter(p => !p.entryDate || (p.entryDate >= from && p.entryDate <= to));
+        }
+
+        function _acctBinder() { return JSON.parse(localStorage.getItem('binderData')||'[]'); }
+
+        function _acctExport(headers, rows, filename) {
+            const esc = v => `"${String(v||'').replace(/"/g,'""')}"`;
+            const blob = new Blob([[headers,…rows].map(r=>r.map(esc).join(',')).join('\n')],{type:'text/csv'});
+            const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click();
+        }
+
+        function _af$(n)  { return '$'+(parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+        function _afk(n)  { n=parseFloat(n)||0; return n>=1000?'$'+(n/1000).toFixed(1)+'k':_af$(n); }
+        function _ae(s)   { return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+        function _acctButtons(csvFn) {
+            return `<div class="rpt-filter-actions">
+                <button class="btn-secondary btn-sm" onclick="${csvFn}()" style="font-size:11px;background:var(--green-pale);color:var(--green);border-color:var(--green);">⬇ Export CSV</button>
+                <button class="btn-secondary btn-sm" onclick="window.print()" style="font-size:11px;">🖨 Print</button>
+            </div>`;
+        }
+
+        function amsShowAccounting(section) {
+            _activeAcct = section;
+            document.querySelectorAll('.acct-tab').forEach(b => b.classList.remove('active'));
+            const order = ['overview','ledger','cc','commissions','deposits','finance','fees','down','pnl'];
+            const tabs  = document.querySelectorAll('.acct-tab');
+            const idx   = order.indexOf(section);
+            if (tabs[idx]) tabs[idx].classList.add('active');
+            Object.keys(_acctCharts).forEach(id => _acctDestroy(id));
+            ({overview:amsAcctOverview, ledger:amsAcctLedger, cc:amsAcctCC,
+              commissions:amsAcctCommissions, deposits:amsAcctDeposits,
+              finance:amsAcctFinance, fees:amsAcctFees,
+              down:amsAcctDown, pnl:amsAcctPnL})[section]?.();
+        }
+
+        // ── 1. FINANCIAL OVERVIEW ────────────────────────────────────
+        function amsAcctOverview() {
+            const body = document.getElementById('amsAcctBody');
+            const data = _acctFilter(_acctBinder());
+            const today = new Date(); const todayStr = today.toISOString().slice(0,10);
+
+            const totPrem  = data.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0);
+            const totFees  = data.reduce((s,p)=>s+(parseFloat(p.agencyFee)||0),0);
+            const totDown  = data.reduce((s,p)=>s+(parseFloat(p.down)||0),0);
+            const totACom  = data.reduce((s,p)=>s+(parseFloat(p.agencyCommission)||0),0);
+            const totAgCom = data.reduce((s,p)=>s+(parseFloat(p.agentCommissionShare)||0),0);
+            const netInc   = totFees + totACom - totAgCom;
+
+            const active = data.filter(p=>(p.policyType||'').toLowerCase()!=='cancellation'&&(!p.expirationDate||p.expirationDate>=todayStr));
+            const expiring30 = data.filter(p=>p.expirationDate&&p.expirationDate>=todayStr&&p.expirationDate<=new Date(today.getTime()+30*864e5).toISOString().slice(0,10)).length;
+
+            const months = _last12Months();
+            const mFees  = months.map(m=>data.filter(p=>(p.entryDate||'').startsWith(m.key)).reduce((s,p)=>s+(parseFloat(p.agencyFee)||0),0));
+            const mACom  = months.map(m=>data.filter(p=>(p.entryDate||'').startsWith(m.key)).reduce((s,p)=>s+(parseFloat(p.agencyCommission)||0),0));
+            const mAgCom = months.map(m=>data.filter(p=>(p.entryDate||'').startsWith(m.key)).reduce((s,p)=>s+(parseFloat(p.agentCommissionShare)||0),0));
+            const mNet   = months.map((_,i)=>(mFees[i]+mACom[i]-mAgCom[i]));
+
+            body.innerHTML = `
+            <div class="rpt-filters">${_acctFilterRow()} ${_acctButtons('_csvAcctOverview')}</div>
+            <div class="rpt-kpis" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));">
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);">
+                    <div class="rk-label">Total Premium Written</div><div class="rk-val">${_afk(totPrem)}</div><div class="rk-sub">${data.length} transactions</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Active In-Force Policies</div><div class="rk-val">${active.length}</div><div class="rk-sub">expiring soon: ${expiring30}</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--orange);">
+                    <div class="rk-label">Agency Fees Collected</div><div class="rk-val">${_afk(totFees)}</div><div class="rk-sub">direct agency revenue</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Agency Commissions</div><div class="rk-val">${_afk(totACom)}</div><div class="rk-sub">earned from carriers</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--purple);">
+                    <div class="rk-label">Agent Commissions Paid</div><div class="rk-val">${_afk(totAgCom)}</div><div class="rk-sub">paid to agents</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid #059669;background:var(--green-pale);">
+                    <div class="rk-label">Net Agency Income</div><div class="rk-val acct-credit">${_afk(netInc)}</div><div class="rk-sub">fees + comm − agent splits</div>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;">
+                <div class="rpt-chart-wrap">
+                    <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Monthly Revenue Breakdown</div>
+                    <canvas id="acctChartRev"></canvas>
+                </div>
+                <div class="rpt-chart-wrap">
+                    <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Net Agency Income by Month</div>
+                    <canvas id="acctChartNet"></canvas>
+                </div>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Monthly Financial Summary</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>Month</th><th>Policies</th><th>Total Premium</th><th>Agency Fees</th><th>Agency Comm</th><th>Agent Splits</th><th>Net Income</th><th>Down Collected</th></tr></thead>
+                    <tbody>${months.map((m,i)=>{
+                        const mp = data.filter(p=>(p.entryDate||'').startsWith(m.key));
+                        const prem=mp.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0);
+                        const down=mp.reduce((s,p)=>s+(parseFloat(p.down)||0),0);
+                        const net=mFees[i]+mACom[i]-mAgCom[i];
+                        return`<tr>
+                            <td><strong>${m.label}</strong></td><td>${mp.length}</td>
+                            <td class="acct-neutral">${_af$(prem)}</td>
+                            <td class="acct-credit">${_af$(mFees[i])}</td>
+                            <td class="acct-credit">${_af$(mACom[i])}</td>
+                            <td class="acct-debit">${_af$(mAgCom[i])}</td>
+                            <td class="${net>=0?'pnl-positive':'pnl-negative'}">${_af$(net)}</td>
+                            <td>${_af$(down)}</td>
+                        </tr>`;
+                    }).join('')}</tbody>
+                    <tfoot><tr><td>TOTAL</td><td>${data.length}</td><td>${_af$(totPrem)}</td>
+                        <td>${_af$(totFees)}</td><td>${_af$(totACom)}</td><td>${_af$(totAgCom)}</td>
+                        <td class="${netInc>=0?'pnl-positive':'pnl-negative'}">${_af$(netInc)}</td>
+                        <td>${_af$(totDown)}</td></tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(()=>{
+                _acctDestroy('rev');
+                _acctCharts['rev'] = new Chart(document.getElementById('acctChartRev'),{
+                    type:'bar',
+                    data:{labels:months.map(m=>m.label),datasets:[
+                        {label:'Agency Fees',  data:mFees,  backgroundColor:'rgba(234,88,12,.8)',  borderRadius:3},
+                        {label:'Agency Comm',  data:mACom,  backgroundColor:'rgba(5,150,105,.8)',  borderRadius:3},
+                        {label:'Agent Splits', data:mAgCom, backgroundColor:'rgba(220,38,38,.6)',  borderRadius:3},
+                    ]},
+                    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},
+                        scales:{x:{stacked:false},y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}}
+                });
+                _acctDestroy('net');
+                _acctCharts['net'] = new Chart(document.getElementById('acctChartNet'),{
+                    type:'bar',
+                    data:{labels:months.map(m=>m.label),datasets:[{label:'Net Income',data:mNet,
+                        backgroundColor:mNet.map(v=>v>=0?'rgba(5,150,105,.75)':'rgba(220,38,38,.75)'),
+                        borderColor:mNet.map(v=>v>=0?'#059669':'#dc2626'),borderWidth:1,borderRadius:3}]},
+                    options:{responsive:true,plugins:{legend:{display:false}},
+                        scales:{y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}}
+                });
+            },50);
+        }
+        window._csvAcctOverview = function(){
+            const data=_acctFilter(_acctBinder()); const months=_last12Months();
+            _rptExportCSV(['Month','Policies','Total Premium','Agency Fees','Agency Comm','Agent Splits','Net Income','Down Collected'],
+                months.map(m=>{const mp=data.filter(p=>(p.entryDate||'').startsWith(m.key));
+                    const fees=mp.reduce((s,p)=>s+(parseFloat(p.agencyFee)||0),0);
+                    const acom=mp.reduce((s,p)=>s+(parseFloat(p.agencyCommission)||0),0);
+                    const agco=mp.reduce((s,p)=>s+(parseFloat(p.agentCommissionShare)||0),0);
+                    const prem=mp.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0);
+                    const down=mp.reduce((s,p)=>s+(parseFloat(p.down)||0),0);
+                    return[m.label,mp.length,prem.toFixed(2),fees.toFixed(2),acom.toFixed(2),agco.toFixed(2),(fees+acom-agco).toFixed(2),down.toFixed(2)];
+                }),'acct_overview.csv');
+        };
+
+        // ── 2. SALES LEDGER ──────────────────────────────────────────
+        function amsAcctLedger() {
+            const body = document.getElementById('amsAcctBody');
+            const agentF   = document.getElementById('acctLedgerAgent')?.value   || '';
+            const carrierF = document.getElementById('acctLedgerCarrier')?.value || '';
+            const typeF    = document.getElementById('acctLedgerType')?.value    || '';
+            let data = _acctFilter(_acctBinder());
+            if (agentF)   data = data.filter(p=>p.agent===agentF);
+            if (carrierF) data = data.filter(p=>p.company===carrierF);
+            if (typeF)    data = data.filter(p=>(p.policyType||'').toLowerCase()===typeF);
+            data.sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+
+            const all = _acctBinder();
+            const agents   = [...new Set(all.map(p=>p.agent).filter(Boolean))].sort();
+            const carriers = [...new Set(all.map(p=>p.company).filter(Boolean))].sort();
+            const totPrem  = data.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0);
+            const totFees  = data.reduce((s,p)=>s+(parseFloat(p.agencyFee)||0),0);
+            const totDown  = data.reduce((s,p)=>s+(parseFloat(p.down)||0),0);
+            const totACom  = data.reduce((s,p)=>s+(parseFloat(p.agencyCommission)||0),0);
+            const totBase  = data.reduce((s,p)=>s+(parseFloat(p.basePremium)||0),0);
+
+            body.innerHTML = `
+            <div class="rpt-filters">
+                ${_acctFilterRow(`
+                <div class="rpt-filter-group"><label>Agent</label>
+                    <select id="acctLedgerAgent" onchange="_acctRefresh()">
+                        <option value="">All Agents</option>
+                        ${agents.map(a=>`<option value="${_ae(a)}" ${a===agentF?'selected':''}>${_ae(a)}</option>`).join('')}
+                    </select></div>
+                <div class="rpt-filter-group"><label>Carrier</label>
+                    <select id="acctLedgerCarrier" onchange="_acctRefresh()">
+                        <option value="">All Carriers</option>
+                        ${carriers.map(c=>`<option value="${_ae(c)}" ${c===carrierF?'selected':''}>${_ae(c)}</option>`).join('')}
+                    </select></div>
+                <div class="rpt-filter-group"><label>Type</label>
+                    <select id="acctLedgerType" onchange="_acctRefresh()">
+                        <option value="">All Types</option>
+                        ${['new business','renewal','endorsement','rewrite','cancellation'].map(t=>`<option value="${t}" ${t===typeF?'selected':''}>${t.replace(/\b\w/g,c=>c.toUpperCase())}</option>`).join('')}
+                    </select></div>`)}
+                ${_acctButtons('_csvLedger')}
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);"><div class="rk-label">Transactions</div><div class="rk-val">${data.length}</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);"><div class="rk-label">Total Premium</div><div class="rk-val">${_afk(totPrem)}</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--orange);"><div class="rk-label">Base Premium</div><div class="rk-val">${_afk(totBase)}</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);"><div class="rk-label">Agency Fees</div><div class="rk-val">${_afk(totFees)}</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--purple);"><div class="rk-label">Down Collected</div><div class="rk-val">${_afk(totDown)}</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid #059669;background:var(--green-pale);"><div class="rk-label">Agency Commission</div><div class="rk-val acct-credit">${_afk(totACom)}</div></div>
+            </div>
+            <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                <thead><tr><th>#</th><th>Date</th><th>Client</th><th>Agent</th><th>Carrier</th><th>LOB</th><th>Type</th><th>Policy #</th><th>Base Prem</th><th>Agency Fee</th><th>Total Prem</th><th>Down</th><th>Pmt Method</th><th>Agency Comm</th><th>Agent Split</th><th>MGA</th></tr></thead>
+                <tbody>${data.length?data.map((p,i)=>{
+                    const rc = (p.policyType||'').toLowerCase()==='cancellation'?'ledger-row-can':(p.policyType||'').toLowerCase()==='renewal'?'ledger-row-ren':'ledger-row-new';
+                    return`<tr class="${rc}">
+                        <td style="color:var(--gray-400);font-size:11px;">${i+1}</td>
+                        <td style="white-space:nowrap;">${p.entryDate||'—'}</td>
+                        <td><strong style="font-size:12px;">${_ae(p.customerName||'—')}</strong></td>
+                        <td>${_ae(p.agent||'—')}</td>
+                        <td>${_ae(p.company||'—')}</td>
+                        <td style="font-size:11px;">${_ae(p.lineOfBusiness||'—')}</td>
+                        <td><span style="font-size:10px;padding:2px 6px;border-radius:8px;font-weight:700;background:${(p.policyType||'').toLowerCase()==='cancellation'?'#fee2e2;color:#991b1b':(p.policyType||'').toLowerCase()==='new business'?'#dbeafe;color:#1d4ed8':'#d1fae5;color:#065f46'};">${_ae(p.policyType||'—')}</span></td>
+                        <td style="font-family:monospace;font-size:11px;">${_ae(p.policyNumber||'—')}</td>
+                        <td>${_af$(p.basePremium)}</td>
+                        <td class="acct-credit">${_af$(p.agencyFee)}</td>
+                        <td class="acct-neutral">${_af$(p.totalPremium)}</td>
+                        <td>${_af$(p.down)}</td>
+                        <td style="font-size:11px;">${_ae(p.paymentMethod||'—')}${p.paymentMethod2?`<br><span style="color:var(--gray-400);">${_ae(p.paymentMethod2)}</span>`:''}</td>
+                        <td class="acct-credit">${_af$(p.agencyCommission)}</td>
+                        <td class="acct-debit">${_af$(p.agentCommissionShare)}</td>
+                        <td style="font-size:11px;">${_ae(p.mga||'—')}</td>
+                    </tr>`;
+                }).join(''):`<tr><td colspan="16" class="rpt-no-data">No transactions found.</td></tr>`}
+                </tbody>
+                <tfoot><tr><td colspan="8">TOTAL (${data.length} records)</td><td>${_af$(totBase)}</td><td>${_af$(totFees)}</td><td>${_af$(totPrem)}</td><td>${_af$(totDown)}</td><td></td><td>${_af$(totACom)}</td><td>${_af$(data.reduce((s,p)=>s+(parseFloat(p.agentCommissionShare)||0),0))}</td><td></td></tr></tfoot>
+            </table></div>`;
+        }
+        window._csvLedger = function(){
+            const data=_acctFilter(_acctBinder()).sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+            _rptExportCSV(['Date','Client','Agent','Carrier','LOB','Type','Policy #','Base Premium','Agency Fee','Total Premium','Down','Pmt Method','Agency Comm','Agent Split','MGA'],
+                data.map(p=>[p.entryDate,p.customerName,p.agent,p.company,p.lineOfBusiness,p.policyType,p.policyNumber,p.basePremium||0,p.agencyFee||0,p.totalPremium||0,p.down||0,p.paymentMethod,p.agencyCommission||0,p.agentCommissionShare||0,p.mga]),'sales_ledger.csv');
+        };
+
+        // ── 3. CC TRANSACTIONS ───────────────────────────────────────
+        function amsAcctCC() {
+            const body = document.getElementById('amsAcctBody');
+            const ccTypeF = document.getElementById('acctCCType')?.value || '';
+            const all     = _acctFilter(_acctBinder());
+            const CC_TYPES = ['CC-Agency','CC-Client','CC-Company'];
+
+            let rows = [];
+            all.forEach(p=>{
+                [p.paymentMethod, p.paymentMethod2].forEach((m,slot)=>{
+                    if (!m || !m.startsWith('CC-')) return;
+                    if (ccTypeF && m !== ccTypeF) return;
+                    rows.push({...p, _ccType:m, _slot:slot, _amt: slot===0?parseFloat(p.down)||0:0});
+                });
+            });
+            rows.sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+
+            const byType = {};
+            CC_TYPES.forEach(t => byType[t]={count:0,amt:0});
+            rows.forEach(r=>{ if(byType[r._ccType]){ byType[r._ccType].count++; byType[r._ccType].amt+=r._amt; }});
+            const totAmt = rows.reduce((s,r)=>s+r._amt,0);
+            const contacts = JSON.parse(localStorage.getItem('amsClientData')||'{}');
+
+            body.innerHTML = `
+            <div class="rpt-filters">
+                ${_acctFilterRow(`<div class="rpt-filter-group"><label>CC Type</label>
+                    <select id="acctCCType" onchange="_acctRefresh()">
+                        <option value="">All CC Types</option>
+                        ${CC_TYPES.map(t=>`<option value="${t}" ${t===ccTypeF?'selected':''}>${t}</option>`).join('')}
+                    </select></div>`)}
+                ${_acctButtons('_csvCC')}
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);"><div class="rk-label">Total CC Transactions</div><div class="rk-val">${rows.length}</div><div class="rk-sub">in period</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);"><div class="rk-label">Total Collected</div><div class="rk-val">${_afk(totAmt)}</div><div class="rk-sub">down payments by CC</div></div>
+                ${CC_TYPES.map(t=>`<div class="rpt-kpi" style="border-top:4px solid var(--purple);">
+                    <div class="rk-label">${t}</div><div class="rk-val">${byType[t].count}</div>
+                    <div class="rk-sub">${_af$(byType[t].amt)}</div></div>`).join('')}
+            </div>
+            <div class="rpt-chart-wrap">
+                <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">CC Transactions by Type — Monthly</div>
+                <canvas id="acctChartCC"></canvas>
+            </div>
+            <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                <thead><tr><th>#</th><th>Date</th><th>Client</th><th>Phone</th><th>Agent</th><th>Carrier</th><th>LOB</th><th>CC Type</th><th>Down Amount</th><th>Total Premium</th><th>Policy #</th><th>Binder #</th></tr></thead>
+                <tbody>${rows.length?rows.map((p,i)=>{
+                    const key=(p.customerName||'').trim().toUpperCase().replace(/\s+/g,' ');
+                    const phone=contacts[key]?.phone1||'—';
+                    const color=p._ccType==='CC-Agency'?'var(--blue)':p._ccType==='CC-Client'?'var(--purple)':'var(--orange)';
+                    return`<tr>
+                        <td style="color:var(--gray-400);font-size:11px;">${i+1}</td>
+                        <td>${p.entryDate||'—'}</td>
+                        <td><strong>${_ae(p.customerName||'—')}</strong></td>
+                        <td style="font-size:12px;">${_ae(phone)}</td>
+                        <td>${_ae(p.agent||'—')}</td>
+                        <td>${_ae(p.company||'—')}</td>
+                        <td style="font-size:11px;">${_ae(p.lineOfBusiness||'—')}</td>
+                        <td><span style="background:${color}22;color:${color};font-weight:700;padding:2px 8px;border-radius:8px;font-size:11px;">${p._ccType}</span></td>
+                        <td class="acct-credit">${_af$(p._amt)}</td>
+                        <td class="acct-neutral">${_af$(p.totalPremium)}</td>
+                        <td style="font-family:monospace;font-size:11px;">${_ae(p.policyNumber||'—')}</td>
+                        <td style="font-family:monospace;font-size:11px;">${_ae(p.binderNumber||'—')}</td>
+                    </tr>`;
+                }).join(''):`<tr><td colspan="12" class="rpt-no-data">No CC transactions found.</td></tr>`}
+                </tbody>
+                <tfoot><tr><td colspan="8">TOTAL (${rows.length})</td><td>${_af$(totAmt)}</td><td>${_af$(rows.reduce((s,r)=>s+(parseFloat(r.totalPremium)||0),0))}</td><td colspan="2"></td></tr></tfoot>
+            </table></div>`;
+
+            setTimeout(()=>{
+                const months=_last12Months();
+                const datasets=CC_TYPES.map((t,i)=>({
+                    label:t,
+                    data:months.map(m=>rows.filter(r=>r._ccType===t&&(r.entryDate||'').startsWith(m.key)).length),
+                    backgroundColor:['rgba(29,78,216,.75)','rgba(124,58,237,.75)','rgba(234,88,12,.75)'][i],borderRadius:3
+                }));
+                _acctDestroy('cc');
+                _acctCharts['cc']=new Chart(document.getElementById('acctChartCC'),{
+                    type:'bar',data:{labels:months.map(m=>m.label),datasets},
+                    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+                        scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}
+                });
+            },50);
+        }
+        window._csvCC=function(){
+            const rows=[];
+            _acctFilter(_acctBinder()).forEach(p=>{[p.paymentMethod,p.paymentMethod2].forEach((m,slot)=>{if(m&&m.startsWith('CC-'))rows.push([p.entryDate,p.customerName,p.agent,p.company,p.lineOfBusiness,m,slot===0?p.down||0:0,p.totalPremium||0,p.policyNumber,p.binderNumber]);});});
+            _rptExportCSV(['Date','Client','Agent','Carrier','LOB','CC Type','Down Amount','Total Premium','Policy #','Binder #'],rows.sort((a,b)=>b[0].localeCompare(a[0])),'cc_transactions.csv');
+        };
+
+        // ── 4. COMMISSION LEDGER ─────────────────────────────────────
+        function amsAcctCommissions() {
+            const body    = document.getElementById('amsAcctBody');
+            const agentF  = document.getElementById('acctCommAgent')?.value  || '';
+            const typeF   = document.getElementById('acctCommType')?.value   || '';
+            const all     = _acctBinder();
+            let data      = _acctFilter(all);
+            if (agentF) data = data.filter(p=>p.agent===agentF);
+            if (typeF)  data = data.filter(p=>(p.paymentType||p.commissionType||'').toLowerCase()===typeF.toLowerCase());
+            data.sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+
+            const agents   = [...new Set(all.map(p=>p.agent).filter(Boolean))].sort();
+            const totACom  = data.reduce((s,p)=>s+(parseFloat(p.agencyCommission)||0),0);
+            const totAgCom = data.reduce((s,p)=>s+(parseFloat(p.agentCommissionShare)||0),0);
+            const netComm  = totACom - totAgCom;
+            const totPrem  = data.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0);
+            const avgRate  = totPrem ? (totACom/totPrem*100) : 0;
+
+            // Commission by agent summary
+            const agentMap={};
+            data.forEach(p=>{const a=p.agent||'Unassigned';if(!agentMap[a])agentMap[a]={count:0,agency:0,agent:0};agentMap[a].count++;agentMap[a].agency+=parseFloat(p.agencyCommission)||0;agentMap[a].agent+=parseFloat(p.agentCommissionShare)||0;});
+
+            body.innerHTML=`
+            <div class="rpt-filters">
+                ${_acctFilterRow(`
+                <div class="rpt-filter-group"><label>Agent</label>
+                    <select id="acctCommAgent" onchange="_acctRefresh()">
+                        <option value="">All Agents</option>
+                        ${agents.map(a=>`<option value="${_ae(a)}" ${a===agentF?'selected':''}>${_ae(a)}</option>`).join('')}
+                    </select></div>
+                <div class="rpt-filter-group"><label>Commission Type</label>
+                    <select id="acctCommType" onchange="_acctRefresh()">
+                        <option value="">All Types</option>
+                        <option value="Monthly Paid" ${typeF==='Monthly Paid'?'selected':''}>Monthly Paid</option>
+                        <option value="Gross Paid"   ${typeF==='Gross Paid'?'selected':''}>Gross Paid</option>
+                    </select></div>`)}
+                ${_acctButtons('_csvCommLedger')}
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Agency Commission Earned</div><div class="rk-val acct-credit">${_afk(totACom)}</div><div class="rk-sub">avg rate: ${avgRate.toFixed(1)}%</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Agent Commissions Owed</div><div class="rk-val">${_afk(totAgCom)}</div><div class="rk-sub">to be paid to agents</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid #059669;background:var(--green-pale);">
+                    <div class="rk-label">Net to Agency</div><div class="rk-val acct-credit">${_afk(netComm)}</div><div class="rk-sub">after splits</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);">
+                    <div class="rk-label">Transactions</div><div class="rk-val">${data.length}</div><div class="rk-sub">with commission data</div>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;">
+                <div class="rpt-chart-wrap">
+                    <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Commission by Agent</div>
+                    <canvas id="acctChartCommAgent"></canvas>
+                </div>
+                <div class="rpt-chart-wrap">
+                    <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Monthly Commission Trend</div>
+                    <canvas id="acctChartCommMonthly"></canvas>
+                </div>
+            </div>
+            <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                <thead><tr><th>#</th><th>Date</th><th>Client</th><th>Agent</th><th>Carrier</th><th>LOB</th><th>Policy Type</th><th>Total Prem</th><th>Agency Comm</th><th>Comm %</th><th>Agent Split</th><th>Net to Agency</th><th>Type</th><th>MGA</th></tr></thead>
+                <tbody>${data.length?data.map((p,i)=>{
+                    const ac=parseFloat(p.agencyCommission)||0, ag=parseFloat(p.agentCommissionShare)||0;
+                    const prem=parseFloat(p.totalPremium)||0;
+                    return`<tr>
+                        <td style="color:var(--gray-400);font-size:11px;">${i+1}</td>
+                        <td>${p.entryDate||'—'}</td>
+                        <td><strong>${_ae(p.customerName||'—')}</strong></td>
+                        <td>${_ae(p.agent||'—')}</td>
+                        <td>${_ae(p.company||'—')}</td>
+                        <td style="font-size:11px;">${_ae(p.lineOfBusiness||'—')}</td>
+                        <td style="font-size:11px;">${_ae(p.policyType||'—')}</td>
+                        <td>${_af$(prem)}</td>
+                        <td class="acct-credit">${_af$(ac)}</td>
+                        <td style="font-size:11px;">${prem?(ac/prem*100).toFixed(1)+'%':'—'}</td>
+                        <td class="acct-debit">${_af$(ag)}</td>
+                        <td class="pnl-positive">${_af$(ac-ag)}</td>
+                        <td style="font-size:11px;">${_ae(p.paymentType||p.commissionType||'—')}</td>
+                        <td style="font-size:11px;">${_ae(p.mga||'—')}</td>
+                    </tr>`;
+                }).join(''):`<tr><td colspan="14" class="rpt-no-data">No commission records found.</td></tr>`}
+                </tbody>
+                <tfoot><tr><td colspan="7">TOTAL</td><td>${_af$(totPrem)}</td><td>${_af$(totACom)}</td><td>${avgRate.toFixed(1)}%</td><td>${_af$(totAgCom)}</td><td>${_af$(netComm)}</td><td colspan="2"></td></tr></tfoot>
+            </table></div>`;
+
+            setTimeout(()=>{
+                const months=_last12Months();
+                const agKeys=Object.keys(agentMap);
+                _acctDestroy('commAgent');
+                _acctCharts['commAgent']=new Chart(document.getElementById('acctChartCommAgent'),{
+                    type:'bar',
+                    data:{labels:agKeys,datasets:[
+                        {label:'Agency Comm',data:agKeys.map(a=>agentMap[a].agency),backgroundColor:'rgba(5,150,105,.8)',borderRadius:3},
+                        {label:'Agent Split',data:agKeys.map(a=>agentMap[a].agent), backgroundColor:'rgba(29,78,216,.7)',borderRadius:3},
+                    ]},
+                    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},
+                        scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}}
+                });
+                _acctDestroy('commMonthly');
+                _acctCharts['commMonthly']=new Chart(document.getElementById('acctChartCommMonthly'),{
+                    type:'line',
+                    data:{labels:months.map(m=>m.label),datasets:[
+                        {label:'Agency Comm',data:months.map(m=>data.filter(p=>(p.entryDate||'').startsWith(m.key)).reduce((s,p)=>s+(parseFloat(p.agencyCommission)||0),0)),borderColor:'#059669',backgroundColor:'rgba(5,150,105,.1)',tension:.3,fill:true,borderWidth:2,pointRadius:3},
+                        {label:'Agent Split',data:months.map(m=>data.filter(p=>(p.entryDate||'').startsWith(m.key)).reduce((s,p)=>s+(parseFloat(p.agentCommissionShare)||0),0)),borderColor:'#1d4ed8',backgroundColor:'rgba(29,78,216,.08)',tension:.3,fill:true,borderWidth:2,pointRadius:3},
+                    ]},
+                    options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}}},
+                        scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}}
+                });
+            },50);
+        }
+        window._csvCommLedger=function(){
+            const data=_acctFilter(_acctBinder()).sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+            _rptExportCSV(['Date','Client','Agent','Carrier','LOB','Policy Type','Total Premium','Agency Comm','Agent Split','Net to Agency','Comm Type','MGA'],
+                data.map(p=>[p.entryDate,p.customerName,p.agent,p.company,p.lineOfBusiness,p.policyType,p.totalPremium||0,p.agencyCommission||0,p.agentCommissionShare||0,((parseFloat(p.agencyCommission)||0)-(parseFloat(p.agentCommissionShare)||0)).toFixed(2),p.paymentType||p.commissionType,p.mga]),'commission_ledger.csv');
+        };
+
+        // ── 5. CARRIER COMMISSION DEPOSITS ───────────────────────────
+        function amsAcctDeposits() {
+            const body      = document.getElementById('amsAcctBody');
+            const carrierF  = document.getElementById('acctDepCarrier')?.value || '';
+            const groupBy   = document.getElementById('acctDepGroup')?.value   || 'carrier';
+            const data      = _acctFilter(_acctBinder());
+            const allCarriers = [...new Set(_acctBinder().map(p=>p.company).filter(Boolean))].sort();
+
+            let filtered = carrierF ? data.filter(p=>p.company===carrierF) : data;
+
+            // Group by carrier
+            const cMap={};
+            filtered.forEach(p=>{
+                const c=p.company||'Unknown';
+                if(!cMap[c])cMap[c]={policies:0,premium:0,commission:0,months:{}};
+                cMap[c].policies++;
+                cMap[c].premium+=parseFloat(p.totalPremium)||0;
+                cMap[c].commission+=parseFloat(p.agencyCommission)||0;
+                const mk=(p.entryDate||'').slice(0,7);
+                if(!cMap[c].months[mk])cMap[c].months[mk]={count:0,commission:0};
+                cMap[c].months[mk].count++; cMap[c].months[mk].commission+=parseFloat(p.agencyCommission)||0;
+            });
+            const carriers=Object.entries(cMap).sort((a,b)=>b[1].commission-a[1].commission);
+            const totComm=carriers.reduce((s,[,v])=>s+v.commission,0);
+            const months=_last12Months();
+
+            body.innerHTML=`
+            <div class="rpt-filters">
+                ${_acctFilterRow(`
+                <div class="rpt-filter-group"><label>Carrier</label>
+                    <select id="acctDepCarrier" onchange="_acctRefresh()">
+                        <option value="">All Carriers</option>
+                        ${allCarriers.map(c=>`<option value="${_ae(c)}" ${c===carrierF?'selected':''}>${_ae(c)}</option>`).join('')}
+                    </select></div>`)}
+                ${_acctButtons('_csvDeposits')}
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Expected Deposits Total</div><div class="rk-val acct-credit">${_afk(totComm)}</div><div class="rk-sub">from all carriers</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Active Carriers</div><div class="rk-val">${carriers.length}</div><div class="rk-sub">with commissions</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);">
+                    <div class="rk-label">Top Carrier</div>
+                    <div class="rk-val" style="font-size:1rem;">${_ae(carriers[0]?.[0]||'—')}</div>
+                    <div class="rk-sub">${_af$(carriers[0]?.[1].commission||0)}</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--purple);">
+                    <div class="rk-label">Avg Commission Rate</div>
+                    <div class="rk-val">${filtered.length&&totComm?((totComm/filtered.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0))*100).toFixed(1)+'%':'—'}</div>
+                    <div class="rk-sub">agency commission / premium</div>
+                </div>
+            </div>
+            <div class="rpt-chart-wrap">
+                <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Expected Commission Deposits by Carrier</div>
+                <canvas id="acctChartDep" style="max-height:320px;"></canvas>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Carrier Deposit Schedule</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>#</th><th>Carrier</th><th>Policies</th><th>Total Premium</th><th>Expected Commission</th><th>Avg Comm Rate</th>${months.slice(-6).map(m=>`<th style="font-size:10px;">${m.label}</th>`).join('')}</tr></thead>
+                    <tbody>${carriers.map(([c,v],i)=>`<tr>
+                        <td>${i+1}</td><td><strong>${_ae(c)}</strong></td>
+                        <td>${v.policies}</td>
+                        <td>${_af$(v.premium)}</td>
+                        <td class="acct-credit">${_af$(v.commission)}</td>
+                        <td>${v.premium?(v.commission/v.premium*100).toFixed(1)+'%':'—'}</td>
+                        ${months.slice(-6).map(m=>{const md=v.months[m.key];return`<td style="font-size:11px;color:var(--green);">${md?_af$(md.commission):'—'}</td>`;}).join('')}
+                    </tr>`).join('')}
+                    </tbody>
+                    <tfoot><tr><td colspan="4">TOTAL</td><td>${_af$(totComm)}</td><td></td>${months.slice(-6).map(m=>`<td style="font-size:11px;">${_af$(carriers.reduce((s,[,v])=>s+(v.months[m.key]?.commission||0),0))}</td>`).join('')}</tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(()=>{
+                _acctDestroy('dep');
+                _acctCharts['dep']=new Chart(document.getElementById('acctChartDep'),{
+                    type:'bar',
+                    data:{labels:carriers.map(([c])=>c),datasets:[{label:'Expected Commission',data:carriers.map(([,v])=>v.commission),
+                        backgroundColor:DASH_COLORS.map(c=>c+'BB'),borderColor:DASH_COLORS,borderWidth:1,borderRadius:4}]},
+                    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
+                        scales:{x:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}},y:{ticks:{font:{size:11}}}}}
+                });
+            },50);
+        }
+        window._csvDeposits=function(){
+            const data=_acctFilter(_acctBinder()); const cMap={};
+            data.forEach(p=>{const c=p.company||'Unknown';if(!cMap[c])cMap[c]={policies:0,premium:0,commission:0};cMap[c].policies++;cMap[c].premium+=parseFloat(p.totalPremium)||0;cMap[c].commission+=parseFloat(p.agencyCommission)||0;});
+            _rptExportCSV(['Carrier','Policies','Total Premium','Expected Commission','Avg Comm Rate'],Object.entries(cMap).sort((a,b)=>b[1].commission-a[1].commission).map(([c,v])=>[c,v.policies,v.premium.toFixed(2),v.commission.toFixed(2),v.premium?(v.commission/v.premium*100).toFixed(1)+'%':'0%']),'carrier_deposits.csv');
+        };
+
+        // ── 6. PREMIUM FINANCE ───────────────────────────────────────
+        function amsAcctFinance() {
+            const body  = document.getElementById('amsAcctBody');
+            const mgaF  = document.getElementById('acctFinMGA')?.value || '';
+            const all   = _acctBinder();
+            const data  = _acctFilter(all).filter(p=>
+                (p.paymentMethod||'').toLowerCase()==='premium finance'||
+                (p.paymentMethod2||'').toLowerCase()==='premium finance'
+            );
+            const filtered = mgaF ? data.filter(p=>p.mga===mgaF) : data;
+            filtered.sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+
+            const mgas = [...new Set(data.map(p=>p.mga).filter(Boolean))].sort();
+            const mgaMap={};
+            filtered.forEach(p=>{const m=p.mga||'Unknown/Direct';if(!mgaMap[m])mgaMap[m]={count:0,premium:0,down:0};mgaMap[m].count++;mgaMap[m].premium+=parseFloat(p.totalPremium)||0;mgaMap[m].down+=parseFloat(p.down)||0;});
+
+            const totPrem=filtered.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0);
+            const totDown=filtered.reduce((s,p)=>s+(parseFloat(p.down)||0),0);
+            const financed=totPrem-totDown;
+            const contacts=JSON.parse(localStorage.getItem('amsClientData')||'{}');
+
+            body.innerHTML=`
+            <div class="rpt-filters">
+                ${_acctFilterRow(`<div class="rpt-filter-group"><label>Finance Co. (MGA)</label>
+                    <select id="acctFinMGA" onchange="_acctRefresh()">
+                        <option value="">All Finance Companies</option>
+                        ${mgas.map(m=>`<option value="${_ae(m)}" ${m===mgaF?'selected':''}>${_ae(m)}</option>`).join('')}
+                    </select></div>`)}
+                ${_acctButtons('_csvFinance')}
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--orange);">
+                    <div class="rk-label">Financed Policies</div><div class="rk-val">${filtered.length}</div><div class="rk-sub">in period</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);">
+                    <div class="rk-label">Total Premium Financed</div><div class="rk-val">${_afk(totPrem)}</div><div class="rk-sub">full policy value</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Down Payments Collected</div><div class="rk-val">${_afk(totDown)}</div><div class="rk-sub">collected at binding</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Amount Financed</div><div class="rk-val">${_afk(financed)}</div><div class="rk-sub">premium − down</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--purple);">
+                    <div class="rk-label">Finance Companies</div><div class="rk-val">${Object.keys(mgaMap).length}</div><div class="rk-sub">MGAs/finance cos used</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--red);">
+                    <div class="rk-label">Avg Financed Amount</div><div class="rk-val">${_afk(filtered.length?financed/filtered.length:0)}</div><div class="rk-sub">per policy</div>
+                </div>
+            </div>
+            ${Object.keys(mgaMap).length>1?`<div class="rpt-chart-wrap">
+                <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Premium Financed by Finance Company</div>
+                <canvas id="acctChartFin"></canvas>
+            </div>`:''}
+            <div class="rpt-section">
+                <div class="rpt-section-title">Finance Company Summary</div>
+                <div class="rpt-tbl-wrap" style="margin-bottom:18px;"><table class="rpt-tbl">
+                    <thead><tr><th>Finance Company / MGA</th><th>Policies</th><th>Total Premium</th><th>Down Collected</th><th>Amount Financed</th><th>Avg Down %</th></tr></thead>
+                    <tbody>${Object.entries(mgaMap).sort((a,b)=>b[1].premium-a[1].premium).map(([m,v])=>`<tr class="acct-finance-row">
+                        <td><strong>${_ae(m)}</strong></td><td>${v.count}</td>
+                        <td>${_af$(v.premium)}</td>
+                        <td class="acct-credit">${_af$(v.down)}</td>
+                        <td class="acct-neutral">${_af$(v.premium-v.down)}</td>
+                        <td>${v.premium?(v.down/v.premium*100).toFixed(1)+'%':'—'}</td>
+                    </tr>`).join('')}</tbody>
+                </table></div>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Premium Finance Policy Register</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>#</th><th>Date</th><th>Client</th><th>Phone</th><th>Agent</th><th>Carrier</th><th>LOB</th><th>Policy #</th><th>Binder #</th><th>Total Prem</th><th>Down</th><th>Financed</th><th>Finance Co.</th></tr></thead>
+                    <tbody>${filtered.length?filtered.map((p,i)=>{
+                        const key=(p.customerName||'').trim().toUpperCase().replace(/\s+/g,' ');
+                        const phone=contacts[key]?.phone1||'—';
+                        const fin=(parseFloat(p.totalPremium)||0)-(parseFloat(p.down)||0);
+                        return`<tr class="acct-finance-row">
+                            <td style="color:var(--gray-400);font-size:11px;">${i+1}</td>
+                            <td>${p.entryDate||'—'}</td>
+                            <td><strong>${_ae(p.customerName||'—')}</strong></td>
+                            <td style="font-size:12px;">${_ae(phone)}</td>
+                            <td>${_ae(p.agent||'—')}</td>
+                            <td>${_ae(p.company||'—')}</td>
+                            <td style="font-size:11px;">${_ae(p.lineOfBusiness||'—')}</td>
+                            <td style="font-family:monospace;font-size:11px;">${_ae(p.policyNumber||'—')}</td>
+                            <td style="font-family:monospace;font-size:11px;">${_ae(p.binderNumber||'—')}</td>
+                            <td class="acct-neutral">${_af$(p.totalPremium)}</td>
+                            <td class="acct-credit">${_af$(p.down)}</td>
+                            <td style="font-weight:700;color:var(--orange);">${_af$(fin)}</td>
+                            <td style="font-size:11px;">${_ae(p.mga||'—')}</td>
+                        </tr>`;
+                    }).join(''):`<tr><td colspan="13" class="rpt-no-data">No premium finance policies found.</td></tr>`}
+                    </tbody>
+                    <tfoot><tr><td colspan="9">TOTAL (${filtered.length})</td><td>${_af$(totPrem)}</td><td>${_af$(totDown)}</td><td style="color:var(--orange);font-weight:800;">${_af$(financed)}</td><td></td></tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(()=>{
+                const mKeys=Object.keys(mgaMap);
+                if(mKeys.length>1&&document.getElementById('acctChartFin')){
+                    _acctDestroy('fin');
+                    _acctCharts['fin']=new Chart(document.getElementById('acctChartFin'),{
+                        type:'bar',
+                        data:{labels:mKeys,datasets:[
+                            {label:'Total Premium',data:mKeys.map(m=>mgaMap[m].premium),backgroundColor:'rgba(234,88,12,.7)',borderRadius:3},
+                            {label:'Down Collected',data:mKeys.map(m=>mgaMap[m].down),backgroundColor:'rgba(5,150,105,.75)',borderRadius:3},
+                        ]},
+                        options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+                            scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}}
+                    });
+                }
+            },50);
+        }
+        window._csvFinance=function(){
+            const data=_acctFilter(_acctBinder()).filter(p=>(p.paymentMethod||'').toLowerCase()==='premium finance'||(p.paymentMethod2||'').toLowerCase()==='premium finance').sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+            _rptExportCSV(['Date','Client','Agent','Carrier','LOB','Policy #','Binder #','Total Premium','Down','Amount Financed','Finance Co.'],data.map(p=>[p.entryDate,p.customerName,p.agent,p.company,p.lineOfBusiness,p.policyNumber,p.binderNumber,p.totalPremium||0,p.down||0,((parseFloat(p.totalPremium)||0)-(parseFloat(p.down)||0)).toFixed(2),p.mga]),'premium_finance.csv');
+        };
+
+        // ── 7. AGENCY FEE REGISTER ───────────────────────────────────
+        function amsAcctFees() {
+            const body   = document.getElementById('amsAcctBody');
+            const agentF = document.getElementById('acctFeeAgent')?.value || '';
+            const all    = _acctBinder();
+            let data     = _acctFilter(all).filter(p=>(parseFloat(p.agencyFee)||0)>0);
+            if (agentF) data = data.filter(p=>p.agent===agentF);
+            data.sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+
+            const agents  = [...new Set(all.map(p=>p.agent).filter(Boolean))].sort();
+            const totFees = data.reduce((s,p)=>s+(parseFloat(p.agencyFee)||0),0);
+            const avgFee  = data.length ? totFees/data.length : 0;
+            const months  = _last12Months();
+
+            // Fees by agent
+            const agentFeeMap={};
+            data.forEach(p=>{const a=p.agent||'Unassigned';if(!agentFeeMap[a])agentFeeMap[a]={count:0,fees:0};agentFeeMap[a].count++;agentFeeMap[a].fees+=parseFloat(p.agencyFee)||0;});
+            const topAgent=Object.entries(agentFeeMap).sort((a,b)=>b[1].fees-a[1].fees)[0];
+
+            body.innerHTML=`
+            <div class="rpt-filters">
+                ${_acctFilterRow(`<div class="rpt-filter-group"><label>Agent</label>
+                    <select id="acctFeeAgent" onchange="_acctRefresh()">
+                        <option value="">All Agents</option>
+                        ${agents.map(a=>`<option value="${_ae(a)}" ${a===agentF?'selected':''}>${_ae(a)}</option>`).join('')}
+                    </select></div>`)}
+                ${_acctButtons('_csvFees')}
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--orange);">
+                    <div class="rk-label">Total Fees Collected</div><div class="rk-val acct-credit">${_afk(totFees)}</div><div class="rk-sub">in period</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Transactions with Fees</div><div class="rk-val">${data.length}</div><div class="rk-sub">of total policies</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Average Agency Fee</div><div class="rk-val">${_af$(avgFee)}</div><div class="rk-sub">per transaction</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--purple);">
+                    <div class="rk-label">Top Fee Agent</div>
+                    <div class="rk-val" style="font-size:1rem;">${_ae(topAgent?.[0]||'—')}</div>
+                    <div class="rk-sub">${_af$(topAgent?.[1].fees||0)}</div>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;">
+                <div class="rpt-chart-wrap">
+                    <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Monthly Fee Collection</div>
+                    <canvas id="acctChartFees"></canvas>
+                </div>
+                <div class="rpt-chart-wrap">
+                    <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Fees by Agent</div>
+                    <canvas id="acctChartFeesAgent"></canvas>
+                </div>
+            </div>
+            <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                <thead><tr><th>#</th><th>Date</th><th>Client</th><th>Agent</th><th>Carrier</th><th>LOB</th><th>Policy Type</th><th>Base Premium</th><th>Agency Fee</th><th>Total Premium</th><th>Policy #</th></tr></thead>
+                <tbody>${data.length?data.map((p,i)=>`<tr>
+                    <td style="color:var(--gray-400);font-size:11px;">${i+1}</td>
+                    <td>${p.entryDate||'—'}</td>
+                    <td><strong>${_ae(p.customerName||'—')}</strong></td>
+                    <td>${_ae(p.agent||'—')}</td>
+                    <td>${_ae(p.company||'—')}</td>
+                    <td style="font-size:11px;">${_ae(p.lineOfBusiness||'—')}</td>
+                    <td style="font-size:11px;">${_ae(p.policyType||'—')}</td>
+                    <td>${_af$(p.basePremium)}</td>
+                    <td class="acct-credit" style="font-size:14px;">${_af$(p.agencyFee)}</td>
+                    <td class="acct-neutral">${_af$(p.totalPremium)}</td>
+                    <td style="font-family:monospace;font-size:11px;">${_ae(p.policyNumber||'—')}</td>
+                </tr>`).join(''):`<tr><td colspan="11" class="rpt-no-data">No agency fee records found.</td></tr>`}
+                </tbody>
+                <tfoot><tr><td colspan="7">TOTAL (${data.length})</td><td>${_af$(data.reduce((s,p)=>s+(parseFloat(p.basePremium)||0),0))}</td><td>${_af$(totFees)}</td><td>${_af$(data.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0))}</td><td></td></tr></tfoot>
+            </table></div>`;
+
+            setTimeout(()=>{
+                _acctDestroy('fees');
+                _acctCharts['fees']=new Chart(document.getElementById('acctChartFees'),{
+                    type:'bar',
+                    data:{labels:months.map(m=>m.label),datasets:[{label:'Agency Fees',data:months.map(m=>data.filter(p=>(p.entryDate||'').startsWith(m.key)).reduce((s,p)=>s+(parseFloat(p.agencyFee)||0),0)),
+                        backgroundColor:'rgba(234,88,12,.75)',borderColor:'#ea580c',borderWidth:1,borderRadius:4}]},
+                    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}}
+                });
+                const agKeys=Object.keys(agentFeeMap);
+                _acctDestroy('feesAgent');
+                _acctCharts['feesAgent']=new Chart(document.getElementById('acctChartFeesAgent'),{
+                    type:'bar',
+                    data:{labels:agKeys,datasets:[{label:'Fees',data:agKeys.map(a=>agentFeeMap[a].fees),
+                        backgroundColor:DASH_COLORS.map(c=>c+'BB'),borderColor:DASH_COLORS,borderWidth:1,borderRadius:4}]},
+                    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}},y:{ticks:{font:{size:11}}}}}
+                });
+            },50);
+        }
+        window._csvFees=function(){
+            const data=_acctFilter(_acctBinder()).filter(p=>(parseFloat(p.agencyFee)||0)>0).sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+            _rptExportCSV(['Date','Client','Agent','Carrier','LOB','Policy Type','Base Premium','Agency Fee','Total Premium','Policy #'],data.map(p=>[p.entryDate,p.customerName,p.agent,p.company,p.lineOfBusiness,p.policyType,p.basePremium||0,p.agencyFee||0,p.totalPremium||0,p.policyNumber]),'agency_fees.csv');
+        };
+
+        // ── 8. DOWN PAYMENT REGISTER ─────────────────────────────────
+        function amsAcctDown() {
+            const body     = document.getElementById('amsAcctBody');
+            const methodF  = document.getElementById('acctDownMethod')?.value || '';
+            const all      = _acctBinder();
+            let data       = _acctFilter(all).filter(p=>(parseFloat(p.down)||0)>0);
+            const methods  = [...new Set(all.flatMap(p=>[p.paymentMethod,p.paymentMethod2].filter(Boolean)))].sort();
+            if (methodF) data = data.filter(p=>p.paymentMethod===methodF||p.paymentMethod2===methodF);
+            data.sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+
+            const totDown  = data.reduce((s,p)=>s+(parseFloat(p.down)||0),0);
+            const months   = _last12Months();
+
+            // Group by primary payment method
+            const methodMap={};
+            data.forEach(p=>{const m=p.paymentMethod||'Unknown';if(!methodMap[m])methodMap[m]={count:0,total:0};methodMap[m].count++;methodMap[m].total+=parseFloat(p.down)||0;});
+            const methArr=Object.entries(methodMap).sort((a,b)=>b[1].total-a[1].total);
+
+            body.innerHTML=`
+            <div class="rpt-filters">
+                ${_acctFilterRow(`<div class="rpt-filter-group"><label>Payment Method</label>
+                    <select id="acctDownMethod" onchange="_acctRefresh()">
+                        <option value="">All Methods</option>
+                        ${methods.map(m=>`<option value="${_ae(m)}" ${m===methodF?'selected':''}>${_ae(m)}</option>`).join('')}
+                    </select></div>`)}
+                ${_acctButtons('_csvDown')}
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Total Down Collected</div><div class="rk-val acct-credit">${_afk(totDown)}</div><div class="rk-sub">all methods</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Transactions</div><div class="rk-val">${data.length}</div><div class="rk-sub">with down payment</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--orange);">
+                    <div class="rk-label">Average Down</div><div class="rk-val">${_af$(data.length?totDown/data.length:0)}</div><div class="rk-sub">per policy</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--purple);">
+                    <div class="rk-label">Top Method</div>
+                    <div class="rk-val" style="font-size:1rem;">${_ae(methArr[0]?.[0]||'—')}</div>
+                    <div class="rk-sub">${_af$(methArr[0]?.[1].total||0)}</div>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px;">
+                <div class="rpt-chart-wrap">
+                    <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Monthly Down Collections</div>
+                    <canvas id="acctChartDown"></canvas>
+                </div>
+                <div class="rpt-chart-wrap">
+                    <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Down by Payment Method</div>
+                    <canvas id="acctChartDownMethod"></canvas>
+                </div>
+            </div>
+            <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                <thead><tr><th>#</th><th>Date</th><th>Client</th><th>Agent</th><th>Carrier</th><th>LOB</th><th>Down Amount</th><th>Primary Method</th><th>2nd Method</th><th>Total Premium</th><th>Down %</th><th>Policy #</th></tr></thead>
+                <tbody>${data.length?data.map((p,i)=>{
+                    const down=parseFloat(p.down)||0, prem=parseFloat(p.totalPremium)||0;
+                    return`<tr>
+                        <td style="color:var(--gray-400);font-size:11px;">${i+1}</td>
+                        <td>${p.entryDate||'—'}</td>
+                        <td><strong>${_ae(p.customerName||'—')}</strong></td>
+                        <td>${_ae(p.agent||'—')}</td>
+                        <td>${_ae(p.company||'—')}</td>
+                        <td style="font-size:11px;">${_ae(p.lineOfBusiness||'—')}</td>
+                        <td class="acct-credit" style="font-size:14px;">${_af$(down)}</td>
+                        <td><span style="background:var(--blue-pale);color:var(--blue);font-weight:700;padding:2px 7px;border-radius:8px;font-size:11px;">${_ae(p.paymentMethod||'—')}</span></td>
+                        <td style="font-size:11px;color:var(--gray-400);">${_ae(p.paymentMethod2||'—')}</td>
+                        <td>${_af$(prem)}</td>
+                        <td style="font-size:11px;">${prem?(down/prem*100).toFixed(1)+'%':'—'}</td>
+                        <td style="font-family:monospace;font-size:11px;">${_ae(p.policyNumber||'—')}</td>
+                    </tr>`;
+                }).join(''):`<tr><td colspan="12" class="rpt-no-data">No down payment records found.</td></tr>`}
+                </tbody>
+                <tfoot><tr><td colspan="6">TOTAL (${data.length})</td><td>${_af$(totDown)}</td><td colspan="2"></td><td>${_af$(data.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0))}</td><td></td><td></td></tr></tfoot>
+            </table></div>`;
+
+            setTimeout(()=>{
+                _acctDestroy('down');
+                _acctCharts['down']=new Chart(document.getElementById('acctChartDown'),{
+                    type:'bar',
+                    data:{labels:months.map(m=>m.label),datasets:[{label:'Down Collected',data:months.map(m=>data.filter(p=>(p.entryDate||'').startsWith(m.key)).reduce((s,p)=>s+(parseFloat(p.down)||0),0)),
+                        backgroundColor:'rgba(5,150,105,.75)',borderColor:'#059669',borderWidth:1,borderRadius:4}]},
+                    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}}
+                });
+                _acctDestroy('downMethod');
+                _acctCharts['downMethod']=new Chart(document.getElementById('acctChartDownMethod'),{
+                    type:'bar',
+                    data:{labels:methArr.map(([m])=>m),datasets:[{label:'Down Collected',data:methArr.map(([,v])=>v.total),
+                        backgroundColor:DASH_COLORS.map(c=>c+'BB'),borderColor:DASH_COLORS,borderWidth:1,borderRadius:4}]},
+                    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}},y:{ticks:{font:{size:11}}}}}
+                });
+            },50);
+        }
+        window._csvDown=function(){
+            const data=_acctFilter(_acctBinder()).filter(p=>(parseFloat(p.down)||0)>0).sort((a,b)=>(b.entryDate||'').localeCompare(a.entryDate||''));
+            _rptExportCSV(['Date','Client','Agent','Carrier','LOB','Down Amount','Primary Method','2nd Method','Total Premium','Policy #'],data.map(p=>[p.entryDate,p.customerName,p.agent,p.company,p.lineOfBusiness,p.down||0,p.paymentMethod,p.paymentMethod2,p.totalPremium||0,p.policyNumber]),'down_payments.csv');
+        };
+
+        // ── 9. P&L SUMMARY ──────────────────────────────────────────
+        function amsAcctPnL() {
+            const body  = document.getElementById('amsAcctBody');
+            const data  = _acctFilter(_acctBinder());
+            const months= _last12Months();
+
+            const mData = months.map(m=>{
+                const mp = data.filter(p=>(p.entryDate||'').startsWith(m.key));
+                const fees  = mp.reduce((s,p)=>s+(parseFloat(p.agencyFee)||0),0);
+                const acomm = mp.reduce((s,p)=>s+(parseFloat(p.agencyCommission)||0),0);
+                const agcom = mp.reduce((s,p)=>s+(parseFloat(p.agentCommissionShare)||0),0);
+                const down  = mp.reduce((s,p)=>s+(parseFloat(p.down)||0),0);
+                const prem  = mp.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0);
+                const revenue = fees + acomm;
+                const net     = revenue - agcom;
+                return {label:m.label, policies:mp.length, prem, fees, acomm, agcom, down, revenue, net};
+            });
+
+            const totRev   = mData.reduce((s,m)=>s+m.revenue,0);
+            const totNet   = mData.reduce((s,m)=>s+m.net,0);
+            const totFees  = mData.reduce((s,m)=>s+m.fees,0);
+            const totACom  = mData.reduce((s,m)=>s+m.acomm,0);
+            const totAgCom = mData.reduce((s,m)=>s+m.agcom,0);
+            const totPrem  = mData.reduce((s,m)=>s+m.prem,0);
+            const totDown  = mData.reduce((s,m)=>s+m.down,0);
+            const bestMonth= mData.reduce((b,m)=>m.net>b.net?m:b, mData[0]);
+            let running=0;
+
+            body.innerHTML=`
+            <div class="rpt-filters">${_acctFilterRow()} ${_acctButtons('_csvPnL')}</div>
+            <div class="rpt-kpis" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);">
+                    <div class="rk-label">Total Premium Written</div><div class="rk-val">${_afk(totPrem)}</div><div class="rk-sub">client-facing volume</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--orange);">
+                    <div class="rk-label">Agency Fees Revenue</div><div class="rk-val acct-credit">${_afk(totFees)}</div><div class="rk-sub">${totRev?((totFees/totRev)*100).toFixed(0):'0'}% of revenue</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);">
+                    <div class="rk-label">Carrier Commissions</div><div class="rk-val acct-credit">${_afk(totACom)}</div><div class="rk-sub">${totRev?((totACom/totRev)*100).toFixed(0):'0'}% of revenue</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);">
+                    <div class="rk-label">Total Revenue</div><div class="rk-val acct-credit">${_afk(totRev)}</div><div class="rk-sub">fees + commissions</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--red);">
+                    <div class="rk-label">Agent Commissions Paid</div><div class="rk-val acct-debit">${_afk(totAgCom)}</div><div class="rk-sub">paid to producers</div>
+                </div>
+                <div class="rpt-kpi" style="border-top:4px solid #059669;background:var(--green-pale);">
+                    <div class="rk-label">Net Agency Income</div><div class="rk-val ${totNet>=0?'pnl-positive':'pnl-negative'}">${_afk(totNet)}</div><div class="rk-sub">margin: ${totRev?((totNet/totRev)*100).toFixed(0):'0'}%</div>
+                </div>
+            </div>
+            <div class="rpt-chart-wrap" style="margin-bottom:20px;">
+                <div style="font-size:.85rem;font-weight:700;color:var(--navy);margin-bottom:12px;">Monthly Revenue vs. Agent Costs vs. Net Income</div>
+                <canvas id="acctChartPnL" style="max-height:300px;"></canvas>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Monthly P&amp;L Detail</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr>
+                        <th>Month</th><th>Policies</th><th>Premium Written</th>
+                        <th style="color:#fed7aa;">Agency Fees</th><th style="color:#bbf7d0;">Carrier Comm</th>
+                        <th style="color:#bfdbfe;">Total Revenue</th><th style="color:#fecaca;">Agent Splits</th>
+                        <th>Net Income</th><th>Margin</th><th>Running Total</th>
+                    </tr></thead>
+                    <tbody>${mData.map(m=>{running+=m.net;return`<tr>
+                        <td><strong>${m.label}</strong></td>
+                        <td>${m.policies}</td>
+                        <td>${_af$(m.prem)}</td>
+                        <td class="acct-credit">${_af$(m.fees)}</td>
+                        <td class="acct-credit">${_af$(m.acomm)}</td>
+                        <td style="font-weight:700;color:var(--blue);">${_af$(m.revenue)}</td>
+                        <td class="acct-debit">${_af$(m.agcom)}</td>
+                        <td class="${m.net>=0?'pnl-positive':'pnl-negative'}">${_af$(m.net)}</td>
+                        <td style="font-size:11px;">${m.revenue?(m.net/m.revenue*100).toFixed(0)+'%':'—'}</td>
+                        <td style="color:${running>=0?'var(--green)':'var(--red)'};font-weight:600;">${_af$(running)}</td>
+                    </tr>`;}).join('')}</tbody>
+                    <tfoot><tr>
+                        <td>TOTAL</td><td>${data.length}</td><td>${_af$(totPrem)}</td>
+                        <td>${_af$(totFees)}</td><td>${_af$(totACom)}</td>
+                        <td>${_af$(totRev)}</td><td>${_af$(totAgCom)}</td>
+                        <td class="${totNet>=0?'pnl-positive':'pnl-negative'}">${_af$(totNet)}</td>
+                        <td>${totRev?(totNet/totRev*100).toFixed(0)+'%':'—'}</td><td></td>
+                    </tr></tfoot>
+                </table></div>
+            </div>`;
+
+            setTimeout(()=>{
+                _acctDestroy('pnl');
+                _acctCharts['pnl']=new Chart(document.getElementById('acctChartPnL'),{
+                    type:'bar',
+                    data:{labels:mData.map(m=>m.label),datasets:[
+                        {label:'Agency Fees',  data:mData.map(m=>m.fees),  backgroundColor:'rgba(234,88,12,.75)', borderRadius:3, stack:'revenue'},
+                        {label:'Carrier Comm', data:mData.map(m=>m.acomm), backgroundColor:'rgba(5,150,105,.75)', borderRadius:3, stack:'revenue'},
+                        {label:'Agent Splits', data:mData.map(m=>-m.agcom),backgroundColor:'rgba(220,38,38,.7)',  borderRadius:3, stack:'costs'},
+                        {label:'Net Income',   data:mData.map(m=>m.net), type:'line',
+                            borderColor:'#1d4ed8',backgroundColor:'rgba(29,78,216,.08)',
+                            borderWidth:2.5,pointRadius:4,tension:.3,fill:false,yAxisID:'y'},
+                    ]},
+                    options:{responsive:true,
+                        plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+                        scales:{y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}},
+                                x:{stacked:false}}}
+                });
+            },50);
+        }
+        window._csvPnL=function(){
+            const data=_acctFilter(_acctBinder()); const months=_last12Months();
+            _rptExportCSV(['Month','Policies','Premium Written','Agency Fees','Carrier Comm','Total Revenue','Agent Splits','Net Income','Margin %'],
+                months.map(m=>{const mp=data.filter(p=>(p.entryDate||'').startsWith(m.key));
+                    const fees=mp.reduce((s,p)=>s+(parseFloat(p.agencyFee)||0),0);
+                    const acom=mp.reduce((s,p)=>s+(parseFloat(p.agencyCommission)||0),0);
+                    const agco=mp.reduce((s,p)=>s+(parseFloat(p.agentCommissionShare)||0),0);
+                    const prem=mp.reduce((s,p)=>s+(parseFloat(p.totalPremium)||0),0);
+                    const rev=fees+acom; const net=rev-agco;
+                    return[m.label,mp.length,prem.toFixed(2),fees.toFixed(2),acom.toFixed(2),rev.toFixed(2),agco.toFixed(2),net.toFixed(2),rev?(net/rev*100).toFixed(1)+'%':'0%'];
+                }),'pnl_summary.csv');
         };
     </script>
 </body>

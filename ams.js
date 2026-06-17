@@ -256,6 +256,23 @@ function amsLogout() {
     document.getElementById('amsLoginPassword').value = '';
 }
 
+// ── Drive → localStorage sync ────────────────────────────────
+async function amsSyncDataFromDrive() {
+    const keys = ['binderData', 'amsClientData', 'carrierMasterData', 'agentMasterData'];
+    const results = await Promise.allSettled(keys.map(async key => {
+        try {
+            const res  = await fetch(`${AMS_DRIVE_URL}?key=${key}`);
+            const json = await res.json();
+            if (json.success && json.data != null) {
+                localStorage.setItem(key, JSON.stringify(json.data));
+                return { key, count: Array.isArray(json.data) ? json.data.length : Object.keys(json.data).length };
+            }
+        } catch (e) { /* Drive unavailable — use localStorage */ }
+        return { key, count: 0 };
+    }));
+    return results.map(r => r.value || r.reason);
+}
+
 // ── App launch ───────────────────────────────────────────────
 function amsLaunchApp() {
     document.getElementById('amsLoginScreen').style.display = 'none';
@@ -266,8 +283,9 @@ function amsLaunchApp() {
     document.getElementById('amsUserLabel').textContent = amsCurrentUser;
     document.getElementById('amsUserAvatar').textContent = initials;
 
-    // Init IndexedDB for file storage, then load UI
-    amsInitDB().then(() => {
+    // Init IndexedDB + sync from Drive, then load UI
+    amsInitDB().then(async () => {
+        await amsSyncDataFromDrive();
         amsBuildClientIndex();
         amsPopulateAgentFilter();
         amsPopulateCarrierFilter();
