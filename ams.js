@@ -1600,6 +1600,138 @@ const ACORD_FORMS = [
       sections:['applicant','beneficiary','healthInfo','coverage','signature'] },
     { id:'acord162', num:'ACORD 162', name:'Health Insurance Application', cat:'life', catLabel:'Life/Health', icon:'🏥',
       sections:['applicant','dependents','healthHistory','coverage','signature'] },
+
+    // ── Additional ACORD Forms (from NowCerts) ──
+
+    // ACORD 11 - Auto Accident Information
+    { id:'acord11', num:'ACORD 11', name:'Auto Accident Information Form', cat:'claims', catLabel:'Claims', icon:'🚗',
+      sections:['acc_insured','acc_otherParty','acc_vehicleA','acc_vehicleB','acc_scene','acc_witnesses','acc_police','acc_injuries','acc_diagram','remarks'] },
+
+    // ACORD 12 - Exchange of Information
+    { id:'acord12', num:'ACORD 12', name:'Exchange of Information Form', cat:'claims', catLabel:'Claims', icon:'🔄',
+      sections:['exch_yourInfo','exch_otherParty','exch_accident','exch_witnesses','remarks'] },
+
+    // ACORD 13 - Witness Card
+    { id:'acord13', num:'ACORD 13', name:'Witness Card', cat:'claims', catLabel:'Claims', icon:'👁️',
+      sections:['witness_info','witness_accident','witness_statement'] },
+
+    // ACORD 24 - Certificate of Property Insurance
+    { id:'acord24', num:'ACORD 24', name:'Certificate of Property Insurance', cat:'cert', catLabel:'Certificate', icon:'📜',
+      sections:['producer','insured','cert24_company','cert24_property','cert24_coverage','cert24_lossPayee','cert24_mortgagee','remarks'] },
+
+    // ACORD 45 - Commercial Insurance Application Supplement
+    { id:'acord45', num:'ACORD 45', name:'Commercial Insurance Application Supplement', cat:'app', catLabel:'Application', icon:'📋',
+      sections:['applicant','acord45_nature','acord45_premises','acord45_employees','acord45_subcontractors','acord45_loss','remarks'] },
+
+    // ACORD 50 - Home Daycare Supplement
+    { id:'acord50', num:'ACORD 50', name:'Home Daycare Insurance Supplement', cat:'home', catLabel:'Homeowners', icon:'👶',
+      sections:['applicant','acord50_daycare','acord50_employees','acord50_safety','remarks','signature'] },
+
+    // ACORD 83 FL - Florida Personal Umbrella
+    { id:'acord83fl', num:'ACORD 83 FL', name:'Florida Personal Umbrella Application', cat:'auto', catLabel:'Auto', icon:'☂️',
+      sections:['applicant','acord83_underlying_auto','acord83_underlying_home','acord83_underlying_watercraft','acord83_limits','acord83_drivers','acord83_residences','acord83_claims','remarks','signature'] },
+
+    // ACORD 101 - Additional Remarks Schedule
+    { id:'acord101', num:'ACORD 101', name:'Additional Remarks Schedule', cat:'general', catLabel:'General', icon:'📝',
+      sections:['acord101_ref','acord101_remarks'] },
+
+    // ACORD 103 - Personal Auto Additional Resident/Driver
+    { id:'acord103', num:'ACORD 103', name:'Personal Auto - Additional Resident & Driver Info', cat:'auto', catLabel:'Auto', icon:'🚗',
+      sections:['applicant','acord103_resident1','acord103_resident2','acord103_resident3','acord103_driver_detail1','acord103_driver_detail2'] },
+
+    // ACORD 105 - Apartment Building Supplement
+    { id:'acord105', num:'ACORD 105', name:'Apartment Building Supplement', cat:'commercial', catLabel:'Commercial', icon:'🏢',
+      sections:['applicant','acord105_building','acord105_units','acord105_safety','acord105_maintenance','remarks'] },
+
+    // ACORD 125 FL - Florida Commercial App
+    { id:'acord125fl', num:'ACORD 125 FL', name:'Florida Commercial Insurance Application', cat:'app', catLabel:'Application', icon:'📋',
+      sections:['applicant','business','acord125_contact','acord125_premises_p1','acord125_premises_p2','acord125_priorCarrier','acord125_lossHistory','acord125_generalInfo','remarks','signature'] },
+
+    // ACORD 125-126-140 Combined
+    { id:'acord125combo', num:'ACORD 125-126-140', name:'Combined Commercial App / GL / Property', cat:'app', catLabel:'Application', icon:'📦',
+      sections:['applicant','business','acord125_contact','acord125_premises_p1','acord125_priorCarrier','acord125_lossHistory','glInfo','classification','premises','building','valuation','coverage','remarks','signature'] },
+
+    // ACORD 128 - Garage and Dealers Section
+    { id:'acord128', num:'ACORD 128', name:'Garage and Dealers Section', cat:'commercial', catLabel:'Commercial', icon:'🔧',
+      sections:['applicant','acord128_operations','acord128_premises','acord128_coverage','acord128_employees','acord128_sublet','remarks'] },
+
+    // ACORD 129 - Vehicle Schedule
+    { id:'acord129', num:'ACORD 129', name:'Vehicle Schedule', cat:'auto', catLabel:'Auto', icon:'📋',
+      sections:['applicant','acord129_veh1','acord129_veh2','acord129_veh3','acord129_veh4','acord129_veh5'] },
+
+    // ACORD 130 FL - Florida Workers Comp
+    { id:'acord130fl', num:'ACORD 130 FL', name:'Florida Workers Compensation Application', cat:'commercial', catLabel:'Commercial', icon:'👷',
+      sections:['applicant','business','acord130_ownership','acord130_ratingInfo','acord130_class1','acord130_class2','acord130_class3','acord130_priorCarrier','acord130_lossHistory','acord130_stateInfo_fl','acord130_officers','acord130_subcontractors','acord130_safetyProgram','remarks','signature'] },
+
+    // ACORD 130 - Workers Comp Additional Locations (Page 2)
+    { id:'acord130p2', num:'ACORD 130 P2', name:'Workers Compensation - Additional Locations', cat:'commercial', catLabel:'Commercial', icon:'👷',
+      sections:['applicant','acord130_addloc1','acord130_addloc2','acord130_addloc3','acord130_addlClass1','acord130_addlClass2'] },
+
+    // ACORD 140 - Property Additional Locations
+    { id:'acord140addl', num:'ACORD 140 Addl', name:'Property Section - Additional Locations', cat:'commercial', catLabel:'Commercial', icon:'🏗️',
+      sections:['applicant','acord140_loc2','acord140_loc3','acord140_loc2_building','acord140_loc3_building','acord140_addl_coverage'] },
+
+    // ACORD 175 - Commercial Lines
+    { id:'acord175', num:'ACORD 175', name:'Commercial Lines Policy Checklist', cat:'commercial', catLabel:'Commercial', icon:'✅',
+      sections:['insured','policy','acord175_checklist','acord175_endorsements','remarks'] },
+
+    // ACORD 211 - Professional Liability
+    { id:'acord211', num:'ACORD 211', name:'Professional Liability Application', cat:'commercial', catLabel:'Commercial', icon:'⚖️',
+      sections:['applicant','business','acord211_profInfo','acord211_claims','acord211_coverage','remarks','signature'] },
+
+    // ACORD 501 - Surety Report of Execution
+    { id:'acord501', num:'ACORD 501', name:'Surety Report of Execution', cat:'commercial', catLabel:'Commercial', icon:'📎',
+      sections:['acord501_principal','acord501_surety','acord501_bond','acord501_execution','signature'] },
+
+    // ACORD 610 - Premium Payment Supplement
+    { id:'acord610', num:'ACORD 610', name:'Premium Payment Supplement', cat:'general', catLabel:'General', icon:'💳',
+      sections:['insured','policy','acord610_payment','acord610_installments','acord610_financeCompany'] },
+
+    // ACORD 807 - Directors & Officers
+    { id:'acord807', num:'ACORD 807', name:'Directors & Officers Liability Section', cat:'commercial', catLabel:'Commercial', icon:'👔',
+      sections:['applicant','acord807_orgInfo','acord807_directors','acord807_claims','acord807_coverage','remarks','signature'] },
+
+    // ACORD 810 - Business Income / Extra Expense
+    { id:'acord810', num:'ACORD 810', name:'Business Income / Extra Expense / Rental Value Supplement', cat:'commercial', catLabel:'Commercial', icon:'💰',
+      sections:['applicant','policy','acord810_income','acord810_expenses','acord810_rental','acord810_coverage'] },
+
+    // ACORD 811 - Value Reporting
+    { id:'acord811', num:'ACORD 811', name:'Value Reporting Information Supplement', cat:'commercial', catLabel:'Commercial', icon:'📊',
+      sections:['applicant','policy','acord811_loc1','acord811_loc2','acord811_values','remarks'] },
+
+    // ACORD 819 - Producer Appointment
+    { id:'acord819', num:'ACORD 819', name:'P&C Producer Appointment Form', cat:'general', catLabel:'General', icon:'🤝',
+      sections:['acord819_producer','acord819_company','acord819_appointment','acord819_linesAuth','signature'] },
+
+    // ACORD 823 - Misc Professional Liability
+    { id:'acord823', num:'ACORD 823', name:'Miscellaneous Professional Liability Section', cat:'commercial', catLabel:'Commercial', icon:'⚖️',
+      sections:['applicant','acord823_profInfo','acord823_services','acord823_claims','acord823_coverage','remarks','signature'] },
+
+    // ── Custom / Carrier-Specific Forms ──
+
+    // Cancellation Letter to Prior Policy
+    { id:'cancelLetter', num:'Cancel Letter', name:'Cancellation Letter to Prior Policy', cat:'general', catLabel:'General', icon:'✉️',
+      sections:['insured','policy','cancelLetter_details','signature'] },
+
+    // Commercial Auto & Cargo Application
+    { id:'cargoApp', num:'Cargo App', name:'Commercial Auto & Cargo Application', cat:'auto', catLabel:'Auto', icon:'🚛',
+      sections:['applicant','business','cargo_operations','cargo_vehicles','cargo_drivers','cargo_commodities','cargo_coverage','cargo_lossHistory','remarks','signature'] },
+
+    // Safepoint Restaurant Supplemental
+    { id:'safepointRest', num:'Safepoint Rest', name:'Safepoint - Restaurant Supplemental App', cat:'commercial', catLabel:'Commercial', icon:'🍽️',
+      sections:['applicant','sp_restaurant','sp_operations','sp_safety','sp_coverage','remarks'] },
+
+    // Colony Specialty Property Questionnaire
+    { id:'colonyProp', num:'Colony Prop Q', name:'Colony Specialty - Property Questionnaire', cat:'commercial', catLabel:'Commercial', icon:'🏗️',
+      sections:['applicant','colony_property','colony_construction','colony_protection','colony_occupancy','colony_loss','remarks'] },
+
+    // Align General Contractors & Consultants
+    { id:'alignGeneral', num:'Align General', name:'Align General - Contractors & Consultants App', cat:'commercial', catLabel:'Commercial', icon:'🔨',
+      sections:['applicant','business','align_operations','align_subcontractors','align_coverage','align_lossHistory','remarks','signature'] },
+
+    // ENCORE New Client Enrollment
+    { id:'encoreNew', num:'ENCORE New', name:'ENCORE New Client Enrollment', cat:'general', catLabel:'General', icon:'📋',
+      sections:['applicant','encore_account','encore_billing','encore_policies','remarks'] },
 ];
 
 const ACORD_FORM_SECTIONS = {
@@ -1984,6 +2116,1338 @@ const ACORD_FORM_SECTIONS = {
     ]},
     additionalInfo: { title:'Additional Information', fields:[
         {id:'addInfo',label:'Additional Notes',type:'textarea'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 11 - Auto Accident Sections
+    // ══════════════════════════════════════════════════════════
+    acc_insured: { title:'Page 1 — Your Information (Insured)', fields:[
+        {id:'acc_name',label:'Your Name',type:'text',map:'name'},
+        {id:'acc_addr',label:'Address',type:'text',map:'address'},
+        {id:'acc_city',label:'City',type:'text',map:'city'},
+        {id:'acc_state',label:'State',type:'text',map:'state'},
+        {id:'acc_zip',label:'Zip',type:'text',map:'zip'},
+        {id:'acc_phone',label:'Phone',type:'tel',map:'phone1'},
+        {id:'acc_email',label:'Email',type:'email',map:'email'},
+        {id:'acc_dl',label:'Driver License #',type:'text',map:'dlNum'},
+        {id:'acc_dlState',label:'DL State',type:'text',map:'dlState'},
+        {id:'acc_insCompany',label:'Insurance Company',type:'text',map:'company'},
+        {id:'acc_polNum',label:'Policy Number',type:'text',map:'policyNumber'},
+        {id:'acc_agentName',label:'Agent Name',type:'text'},
+        {id:'acc_agentPhone',label:'Agent Phone',type:'tel'},
+    ]},
+    acc_otherParty: { title:'Page 1 — Other Party Information', fields:[
+        {id:'acc_op_name',label:'Other Driver Name',type:'text'},
+        {id:'acc_op_addr',label:'Address',type:'text'},
+        {id:'acc_op_city',label:'City',type:'text'},
+        {id:'acc_op_state',label:'State',type:'text'},
+        {id:'acc_op_zip',label:'Zip',type:'text'},
+        {id:'acc_op_phone',label:'Phone',type:'tel'},
+        {id:'acc_op_dl',label:'Driver License #',type:'text'},
+        {id:'acc_op_dlState',label:'DL State',type:'text'},
+        {id:'acc_op_insCompany',label:'Insurance Company',type:'text'},
+        {id:'acc_op_polNum',label:'Policy Number',type:'text'},
+        {id:'acc_op_vehOwner',label:'Vehicle Owner (if different)',type:'text'},
+    ]},
+    acc_vehicleA: { title:'Page 1 — Your Vehicle', fields:[
+        {id:'acc_va_year',label:'Year',type:'text'},
+        {id:'acc_va_make',label:'Make',type:'text'},
+        {id:'acc_va_model',label:'Model',type:'text'},
+        {id:'acc_va_color',label:'Color',type:'text'},
+        {id:'acc_va_vin',label:'VIN',type:'text'},
+        {id:'acc_va_plate',label:'License Plate #',type:'text'},
+        {id:'acc_va_plateState',label:'Plate State',type:'text'},
+        {id:'acc_va_damage',label:'Damage Description',type:'textarea'},
+        {id:'acc_va_driveable',label:'Driveable?',type:'select',opts:['','Yes','No']},
+        {id:'acc_va_towedTo',label:'Towed To',type:'text'},
+    ]},
+    acc_vehicleB: { title:'Page 1 — Other Vehicle', fields:[
+        {id:'acc_vb_year',label:'Year',type:'text'},
+        {id:'acc_vb_make',label:'Make',type:'text'},
+        {id:'acc_vb_model',label:'Model',type:'text'},
+        {id:'acc_vb_color',label:'Color',type:'text'},
+        {id:'acc_vb_vin',label:'VIN',type:'text'},
+        {id:'acc_vb_plate',label:'License Plate #',type:'text'},
+        {id:'acc_vb_plateState',label:'Plate State',type:'text'},
+        {id:'acc_vb_damage',label:'Damage Description',type:'textarea'},
+        {id:'acc_vb_passengers',label:'Number of Passengers',type:'number'},
+    ]},
+    acc_scene: { title:'Page 2 — Accident Scene Details', fields:[
+        {id:'acc_date',label:'Date of Accident',type:'date'},
+        {id:'acc_time',label:'Time of Accident',type:'time'},
+        {id:'acc_location',label:'Location / Intersection',type:'text'},
+        {id:'acc_city2',label:'City',type:'text'},
+        {id:'acc_state2',label:'State',type:'text'},
+        {id:'acc_roadCondition',label:'Road Condition',type:'select',opts:['','Dry','Wet','Icy','Snow','Gravel','Other']},
+        {id:'acc_weather',label:'Weather',type:'select',opts:['','Clear','Rain','Snow','Fog','Overcast','Other']},
+        {id:'acc_lighting',label:'Lighting',type:'select',opts:['','Daylight','Dusk','Dark - Lighted','Dark - Unlighted']},
+        {id:'acc_speedA',label:'Your Speed (mph)',type:'number'},
+        {id:'acc_speedB',label:'Other Speed (mph)',type:'number'},
+        {id:'acc_trafficControl',label:'Traffic Control',type:'select',opts:['','Signal','Stop Sign','Yield','None','Other']},
+        {id:'acc_description',label:'Description of Accident',type:'textarea'},
+    ]},
+    acc_witnesses: { title:'Page 2 — Witnesses', fields:[
+        {id:'acc_w1_name',label:'Witness 1 Name',type:'text'},
+        {id:'acc_w1_phone',label:'Witness 1 Phone',type:'tel'},
+        {id:'acc_w1_addr',label:'Witness 1 Address',type:'text'},
+        {id:'acc_w2_name',label:'Witness 2 Name',type:'text'},
+        {id:'acc_w2_phone',label:'Witness 2 Phone',type:'tel'},
+        {id:'acc_w2_addr',label:'Witness 2 Address',type:'text'},
+    ]},
+    acc_police: { title:'Page 2 — Police Report', fields:[
+        {id:'acc_policeReport',label:'Police Report Filed?',type:'select',opts:['','Yes','No']},
+        {id:'acc_policeReportNum',label:'Report Number',type:'text'},
+        {id:'acc_policeDept',label:'Department',type:'text'},
+        {id:'acc_officerName',label:'Officer Name / Badge #',type:'text'},
+        {id:'acc_citation',label:'Citation Issued?',type:'select',opts:['','Yes - To You','Yes - To Other','No']},
+        {id:'acc_citationDesc',label:'Citation Description',type:'text'},
+    ]},
+    acc_injuries: { title:'Page 2 — Injuries', fields:[
+        {id:'acc_inj_yourInjury',label:'Your Injuries',type:'textarea'},
+        {id:'acc_inj_yourTreat',label:'Treated At',type:'text'},
+        {id:'acc_inj_yourAmbulance',label:'Ambulance?',type:'select',opts:['','Yes','No']},
+        {id:'acc_inj_passengers',label:'Passenger Injuries',type:'textarea'},
+        {id:'acc_inj_otherInjury',label:'Other Party Injuries',type:'textarea'},
+        {id:'acc_inj_pedestrian',label:'Pedestrian / Cyclist Injuries',type:'textarea'},
+    ]},
+    acc_diagram: { title:'Page 3 — Diagram & Additional Info', fields:[
+        {id:'acc_diagramNotes',label:'Diagram / Sketch Notes (describe positions of vehicles, direction of travel)',type:'textarea'},
+        {id:'acc_additionalInfo',label:'Additional Information',type:'textarea'},
+        {id:'acc_priorDamage',label:'Prior Damage to Your Vehicle?',type:'textarea'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 12 - Exchange of Information
+    // ══════════════════════════════════════════════════════════
+    exch_yourInfo: { title:'Your Information', fields:[
+        {id:'exch_name',label:'Your Name',type:'text',map:'name'},
+        {id:'exch_addr',label:'Address',type:'text',map:'address'},
+        {id:'exch_phone',label:'Phone',type:'tel',map:'phone1'},
+        {id:'exch_dl',label:'Driver License #',type:'text',map:'dlNum'},
+        {id:'exch_insurer',label:'Insurance Company',type:'text',map:'company'},
+        {id:'exch_polNum',label:'Policy Number',type:'text',map:'policyNumber'},
+        {id:'exch_vehYear',label:'Vehicle Year',type:'text'},
+        {id:'exch_vehMake',label:'Vehicle Make',type:'text'},
+        {id:'exch_vehModel',label:'Vehicle Model',type:'text'},
+        {id:'exch_vehPlate',label:'License Plate',type:'text'},
+    ]},
+    exch_otherParty: { title:'Other Party Information', fields:[
+        {id:'exch_op_name',label:'Name',type:'text'},
+        {id:'exch_op_addr',label:'Address',type:'text'},
+        {id:'exch_op_phone',label:'Phone',type:'tel'},
+        {id:'exch_op_dl',label:'Driver License #',type:'text'},
+        {id:'exch_op_insurer',label:'Insurance Company',type:'text'},
+        {id:'exch_op_polNum',label:'Policy Number',type:'text'},
+        {id:'exch_op_veh',label:'Vehicle (Year/Make/Model)',type:'text'},
+        {id:'exch_op_plate',label:'License Plate',type:'text'},
+    ]},
+    exch_accident: { title:'Accident Details', fields:[
+        {id:'exch_date',label:'Date',type:'date'},
+        {id:'exch_time',label:'Time',type:'time'},
+        {id:'exch_location',label:'Location',type:'text'},
+        {id:'exch_desc',label:'Brief Description',type:'textarea'},
+    ]},
+    exch_witnesses: { title:'Witnesses', fields:[
+        {id:'exch_w1',label:'Witness 1 Name & Phone',type:'text'},
+        {id:'exch_w2',label:'Witness 2 Name & Phone',type:'text'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 13 - Witness Card
+    // ══════════════════════════════════════════════════════════
+    witness_info: { title:'Witness Information', fields:[
+        {id:'wit_name',label:'Witness Name',type:'text'},
+        {id:'wit_addr',label:'Address',type:'text'},
+        {id:'wit_city',label:'City',type:'text'},
+        {id:'wit_state',label:'State',type:'text'},
+        {id:'wit_zip',label:'Zip',type:'text'},
+        {id:'wit_phone',label:'Phone',type:'tel'},
+        {id:'wit_email',label:'Email',type:'email'},
+    ]},
+    witness_accident: { title:'Accident Details', fields:[
+        {id:'wit_accDate',label:'Date of Accident',type:'date'},
+        {id:'wit_accTime',label:'Time',type:'time'},
+        {id:'wit_accLocation',label:'Location',type:'text'},
+        {id:'wit_position',label:'Where Were You When You Saw the Accident?',type:'text'},
+    ]},
+    witness_statement: { title:'Witness Statement', fields:[
+        {id:'wit_statement',label:'What Did You See? (detailed statement)',type:'textarea'},
+        {id:'wit_sig',label:'Witness Signature',type:'text'},
+        {id:'wit_sigDate',label:'Date',type:'date'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 24 - Certificate of Property Insurance
+    // ══════════════════════════════════════════════════════════
+    cert24_company: { title:'Insurance Company', fields:[
+        {id:'c24_coName',label:'Company Name',type:'text',map:'company'},
+        {id:'c24_coNAIC',label:'NAIC #',type:'text'},
+        {id:'c24_coAddr',label:'Company Address',type:'text'},
+        {id:'c24_polNum',label:'Policy Number',type:'text',map:'policyNumber'},
+        {id:'c24_effDate',label:'Effective Date',type:'date',map:'effDate'},
+        {id:'c24_expDate',label:'Expiration Date',type:'date',map:'expirationDate'},
+    ]},
+    cert24_property: { title:'Property Information', fields:[
+        {id:'c24_propAddr',label:'Property Location',type:'text',map:'address'},
+        {id:'c24_propCity',label:'City',type:'text',map:'city'},
+        {id:'c24_propState',label:'State',type:'text',map:'state'},
+        {id:'c24_propZip',label:'Zip',type:'text',map:'zip'},
+        {id:'c24_propDesc',label:'Description of Property',type:'textarea'},
+    ]},
+    cert24_coverage: { title:'Coverage', fields:[
+        {id:'c24_covA',label:'Coverage A - Dwelling',type:'number'},
+        {id:'c24_covB',label:'Coverage B - Other Structures',type:'number'},
+        {id:'c24_covC',label:'Coverage C - Personal Property',type:'number'},
+        {id:'c24_covD',label:'Coverage D - Loss of Use',type:'number'},
+        {id:'c24_covE',label:'Coverage E - Personal Liability',type:'number'},
+        {id:'c24_covF',label:'Coverage F - Medical Payments',type:'number'},
+        {id:'c24_deductible',label:'Deductible',type:'text'},
+        {id:'c24_hurricane',label:'Hurricane Deductible',type:'text'},
+        {id:'c24_flood',label:'Flood Coverage',type:'select',opts:['','Yes','No']},
+        {id:'c24_floodPol',label:'Flood Policy Number',type:'text'},
+    ]},
+    cert24_lossPayee: { title:'Loss Payee', fields:[
+        {id:'c24_lpName',label:'Loss Payee Name',type:'text'},
+        {id:'c24_lpAddr',label:'Address',type:'text'},
+        {id:'c24_lpCity',label:'City',type:'text'},
+        {id:'c24_lpState',label:'State',type:'text'},
+        {id:'c24_lpZip',label:'Zip',type:'text'},
+        {id:'c24_lpLoan',label:'Loan #',type:'text'},
+    ]},
+    cert24_mortgagee: { title:'Mortgagee', fields:[
+        {id:'c24_mtgName',label:'Mortgagee Name',type:'text'},
+        {id:'c24_mtgAddr',label:'Address',type:'text'},
+        {id:'c24_mtgCity',label:'City',type:'text'},
+        {id:'c24_mtgState',label:'State',type:'text'},
+        {id:'c24_mtgZip',label:'Zip',type:'text'},
+        {id:'c24_mtgLoan',label:'Loan Number',type:'text'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 45 - Commercial App Supplement
+    // ══════════════════════════════════════════════════════════
+    acord45_nature: { title:'Nature of Business', fields:[
+        {id:'a45_bizType',label:'Type of Business',type:'text'},
+        {id:'a45_bizDesc',label:'Full Description of Business Operations',type:'textarea'},
+        {id:'a45_yearsExp',label:'Years Experience in This Business',type:'number'},
+        {id:'a45_prevBiz',label:'Previous Business (if less than 3 years)',type:'text'},
+    ]},
+    acord45_premises: { title:'Premises Information', fields:[
+        {id:'a45_sqft',label:'Total Square Footage',type:'number'},
+        {id:'a45_floors',label:'Number of Floors',type:'number'},
+        {id:'a45_yrBuilt',label:'Year Built',type:'text'},
+        {id:'a45_construction',label:'Construction Type',type:'select',opts:['','Frame','Masonry','Non-Combustible','Fire Resistive']},
+        {id:'a45_sprinklered',label:'Sprinklered?',type:'select',opts:['','Yes - Full','Yes - Partial','No']},
+        {id:'a45_alarmType',label:'Alarm Type',type:'select',opts:['','Central Station','Local','None']},
+        {id:'a45_occupied',label:'% Occupied by Insured',type:'number'},
+    ]},
+    acord45_employees: { title:'Employee Information', fields:[
+        {id:'a45_ftEmp',label:'Full-Time Employees',type:'number'},
+        {id:'a45_ptEmp',label:'Part-Time Employees',type:'number'},
+        {id:'a45_seasonal',label:'Seasonal Employees',type:'number'},
+        {id:'a45_volunteers',label:'Volunteers',type:'number'},
+        {id:'a45_annPayroll',label:'Annual Payroll',type:'number'},
+    ]},
+    acord45_subcontractors: { title:'Subcontractors', fields:[
+        {id:'a45_useSubs',label:'Use Subcontractors?',type:'select',opts:['','Yes','No']},
+        {id:'a45_subCost',label:'Annual Cost of Subcontracted Work',type:'number'},
+        {id:'a45_subCOI',label:'Require COI from Subs?',type:'select',opts:['','Yes','No']},
+        {id:'a45_subAddlInsured',label:'Named as Additional Insured on Sub Policies?',type:'select',opts:['','Yes','No']},
+    ]},
+    acord45_loss: { title:'Loss History (5 Years)', fields:[
+        {id:'a45_loss1Date',label:'Loss 1 Date',type:'date'},
+        {id:'a45_loss1Desc',label:'Loss 1 Description',type:'text'},
+        {id:'a45_loss1Amt',label:'Loss 1 Amount',type:'number'},
+        {id:'a45_loss1Status',label:'Loss 1 Status',type:'select',opts:['','Open','Closed']},
+        {id:'a45_loss2Date',label:'Loss 2 Date',type:'date'},
+        {id:'a45_loss2Desc',label:'Loss 2 Description',type:'text'},
+        {id:'a45_loss2Amt',label:'Loss 2 Amount',type:'number'},
+        {id:'a45_loss3Date',label:'Loss 3 Date',type:'date'},
+        {id:'a45_loss3Desc',label:'Loss 3 Description',type:'text'},
+        {id:'a45_loss3Amt',label:'Loss 3 Amount',type:'number'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 50 - Home Daycare
+    // ══════════════════════════════════════════════════════════
+    acord50_daycare: { title:'Daycare Operations', fields:[
+        {id:'a50_name',label:'Daycare Name',type:'text'},
+        {id:'a50_license',label:'License Number',type:'text'},
+        {id:'a50_maxChildren',label:'Max # of Children',type:'number'},
+        {id:'a50_ageRange',label:'Age Range of Children',type:'text'},
+        {id:'a50_hours',label:'Hours of Operation',type:'text'},
+        {id:'a50_yearsOp',label:'Years Operating',type:'number'},
+    ]},
+    acord50_employees: { title:'Staff', fields:[
+        {id:'a50_ftStaff',label:'Full-Time Staff',type:'number'},
+        {id:'a50_ptStaff',label:'Part-Time Staff',type:'number'},
+        {id:'a50_bgChecks',label:'Background Checks Completed?',type:'select',opts:['','Yes','No']},
+        {id:'a50_cprTrained',label:'CPR/First Aid Training?',type:'select',opts:['','Yes','No']},
+    ]},
+    acord50_safety: { title:'Safety', fields:[
+        {id:'a50_fenced',label:'Fenced Play Area?',type:'select',opts:['','Yes','No']},
+        {id:'a50_pool',label:'Pool/Water Features?',type:'select',opts:['','Yes','No']},
+        {id:'a50_poolFenced',label:'Pool Fenced/Locked?',type:'select',opts:['','Yes','No','N/A']},
+        {id:'a50_animals',label:'Animals on Premises?',type:'select',opts:['','Yes','No']},
+        {id:'a50_transport',label:'Transport Children?',type:'select',opts:['','Yes','No']},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 83 FL - Florida Personal Umbrella (multi-page)
+    // ══════════════════════════════════════════════════════════
+    acord83_underlying_auto: { title:'Page 1 — Underlying Auto Insurance', fields:[
+        {id:'a83_autoCarrier',label:'Auto Insurance Company',type:'text',map:'company'},
+        {id:'a83_autoPol',label:'Auto Policy Number',type:'text',map:'policyNumber'},
+        {id:'a83_autoBI',label:'BI Limits',type:'text'},
+        {id:'a83_autoPD',label:'PD Limit',type:'text'},
+        {id:'a83_autoUM',label:'UM/UIM Limits',type:'text'},
+        {id:'a83_autoEffDate',label:'Effective Date',type:'date',map:'effDate'},
+        {id:'a83_autoExpDate',label:'Expiration Date',type:'date',map:'expirationDate'},
+        {id:'a83_numVehicles',label:'Number of Vehicles',type:'number'},
+        {id:'a83_numDrivers',label:'Number of Drivers',type:'number'},
+    ]},
+    acord83_underlying_home: { title:'Page 1 — Underlying Homeowners Insurance', fields:[
+        {id:'a83_homeCarrier',label:'Homeowners Insurance Company',type:'text'},
+        {id:'a83_homePol',label:'Policy Number',type:'text'},
+        {id:'a83_homeLiability',label:'Personal Liability Limit',type:'text'},
+        {id:'a83_homeMedPay',label:'Medical Payments',type:'text'},
+        {id:'a83_homeEffDate',label:'Effective Date',type:'date'},
+        {id:'a83_homeExpDate',label:'Expiration Date',type:'date'},
+    ]},
+    acord83_underlying_watercraft: { title:'Page 2 — Underlying Watercraft / Other', fields:[
+        {id:'a83_wcCarrier',label:'Watercraft Insurance Company',type:'text'},
+        {id:'a83_wcPol',label:'Policy Number',type:'text'},
+        {id:'a83_wcLiability',label:'Liability Limit',type:'text'},
+        {id:'a83_otherUnderlying',label:'Other Underlying Policies (describe)',type:'textarea'},
+    ]},
+    acord83_limits: { title:'Page 2 — Umbrella Limits Requested', fields:[
+        {id:'a83_umbLimit',label:'Umbrella Limit Requested',type:'select',opts:['','$1,000,000','$2,000,000','$3,000,000','$5,000,000','$10,000,000']},
+        {id:'a83_sIR',label:'Self-Insured Retention',type:'text'},
+        {id:'a83_umbEffDate',label:'Effective Date',type:'date'},
+        {id:'a83_umbTerm',label:'Term',type:'select',opts:['','Annual','Semi-Annual']},
+    ]},
+    acord83_drivers: { title:'Page 2 — Drivers in Household', fields:[
+        {id:'a83_d1Name',label:'Driver 1 Name',type:'text',map:'name'},
+        {id:'a83_d1DOB',label:'DOB',type:'date',map:'dob'},
+        {id:'a83_d1DL',label:'License #',type:'text',map:'dlNum'},
+        {id:'a83_d1Violations',label:'Violations/Accidents (3 yrs)',type:'text'},
+        {id:'a83_d2Name',label:'Driver 2 Name',type:'text'},
+        {id:'a83_d2DOB',label:'DOB',type:'date'},
+        {id:'a83_d2DL',label:'License #',type:'text'},
+        {id:'a83_d2Violations',label:'Violations/Accidents (3 yrs)',type:'text'},
+        {id:'a83_d3Name',label:'Driver 3 Name',type:'text'},
+        {id:'a83_d3DOB',label:'DOB',type:'date'},
+        {id:'a83_d3DL',label:'License #',type:'text'},
+    ]},
+    acord83_residences: { title:'Page 3 — Residences', fields:[
+        {id:'a83_res1Addr',label:'Residence 1 Address',type:'text',map:'address'},
+        {id:'a83_res1City',label:'City',type:'text',map:'city'},
+        {id:'a83_res1State',label:'State',type:'text',map:'state'},
+        {id:'a83_res1Occ',label:'Occupancy',type:'select',opts:['','Owner','Tenant','Seasonal']},
+        {id:'a83_res2Addr',label:'Residence 2 Address',type:'text'},
+        {id:'a83_res2City',label:'City',type:'text'},
+        {id:'a83_res2State',label:'State',type:'text'},
+        {id:'a83_res2Occ',label:'Occupancy',type:'select',opts:['','Owner','Tenant','Seasonal']},
+        {id:'a83_rentalProp',label:'Own Any Rental Properties?',type:'select',opts:['','Yes','No']},
+        {id:'a83_rentalUnits',label:'Number of Rental Units',type:'number'},
+    ]},
+    acord83_claims: { title:'Page 3 — Claims History', fields:[
+        {id:'a83_priorUmb',label:'Prior Umbrella Carrier',type:'text'},
+        {id:'a83_priorUmbPol',label:'Prior Umbrella Policy #',type:'text'},
+        {id:'a83_claimsLast5',label:'Any Claims in Last 5 Years?',type:'select',opts:['','Yes','No']},
+        {id:'a83_c1Date',label:'Claim 1 Date',type:'date'},
+        {id:'a83_c1Desc',label:'Claim 1 Description',type:'text'},
+        {id:'a83_c1Amt',label:'Claim 1 Amount',type:'number'},
+        {id:'a83_c2Date',label:'Claim 2 Date',type:'date'},
+        {id:'a83_c2Desc',label:'Claim 2 Description',type:'text'},
+        {id:'a83_c2Amt',label:'Claim 2 Amount',type:'number'},
+        {id:'a83_declined',label:'Ever Declined/Cancelled/Non-Renewed?',type:'select',opts:['','Yes','No']},
+        {id:'a83_declinedDetail',label:'Details',type:'text'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 101 - Additional Remarks
+    // ══════════════════════════════════════════════════════════
+    acord101_ref: { title:'Form Reference', fields:[
+        {id:'a101_agency',label:'Agency',type:'text',defaultVal:'Universal Insurance Brokers'},
+        {id:'a101_polNum',label:'Policy Number',type:'text',map:'policyNumber'},
+        {id:'a101_carrier',label:'Carrier',type:'text',map:'company'},
+        {id:'a101_namedInsured',label:'Named Insured',type:'text',map:'name'},
+        {id:'a101_effDate',label:'Effective Date',type:'date',map:'effDate'},
+        {id:'a101_formRef',label:'This Remarks Schedule Relates To (Form #)',type:'text'},
+        {id:'a101_sectionRef',label:'Section / Field Reference',type:'text'},
+    ]},
+    acord101_remarks: { title:'Remarks (Use for additional space)', fields:[
+        {id:'a101_remarks',label:'Additional Remarks',type:'textarea'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 103 - Personal Auto Additional Resident/Driver
+    // ══════════════════════════════════════════════════════════
+    acord103_resident1: { title:'Page 1 — Additional Resident 1', fields:[
+        {id:'a103_r1Name',label:'Name',type:'text'},
+        {id:'a103_r1DOB',label:'Date of Birth',type:'date'},
+        {id:'a103_r1Relation',label:'Relationship',type:'select',opts:['','Spouse','Child','Parent','Sibling','Other']},
+        {id:'a103_r1Gender',label:'Gender',type:'select',opts:['','Male','Female']},
+        {id:'a103_r1Marital',label:'Marital Status',type:'select',opts:['','Single','Married','Divorced','Widowed']},
+        {id:'a103_r1Licensed',label:'Licensed Driver?',type:'select',opts:['','Yes','No']},
+        {id:'a103_r1DL',label:'License #',type:'text'},
+        {id:'a103_r1DLState',label:'DL State',type:'text',defaultVal:'FL'},
+        {id:'a103_r1Excluded',label:'Excluded from Policy?',type:'select',opts:['','Yes','No']},
+    ]},
+    acord103_resident2: { title:'Page 1 — Additional Resident 2', fields:[
+        {id:'a103_r2Name',label:'Name',type:'text'},
+        {id:'a103_r2DOB',label:'Date of Birth',type:'date'},
+        {id:'a103_r2Relation',label:'Relationship',type:'select',opts:['','Spouse','Child','Parent','Sibling','Other']},
+        {id:'a103_r2Gender',label:'Gender',type:'select',opts:['','Male','Female']},
+        {id:'a103_r2Marital',label:'Marital Status',type:'select',opts:['','Single','Married','Divorced','Widowed']},
+        {id:'a103_r2Licensed',label:'Licensed Driver?',type:'select',opts:['','Yes','No']},
+        {id:'a103_r2DL',label:'License #',type:'text'},
+        {id:'a103_r2DLState',label:'DL State',type:'text',defaultVal:'FL'},
+    ]},
+    acord103_resident3: { title:'Page 2 — Additional Resident 3', fields:[
+        {id:'a103_r3Name',label:'Name',type:'text'},
+        {id:'a103_r3DOB',label:'Date of Birth',type:'date'},
+        {id:'a103_r3Relation',label:'Relationship',type:'select',opts:['','Spouse','Child','Parent','Sibling','Other']},
+        {id:'a103_r3Gender',label:'Gender',type:'select',opts:['','Male','Female']},
+        {id:'a103_r3Licensed',label:'Licensed Driver?',type:'select',opts:['','Yes','No']},
+        {id:'a103_r3DL',label:'License #',type:'text'},
+    ]},
+    acord103_driver_detail1: { title:'Page 2 — Driver Details (SR-22 / Violations)', fields:[
+        {id:'a103_dd1Name',label:'Driver Name',type:'text'},
+        {id:'a103_dd1SR22',label:'SR-22 Filing Required?',type:'select',opts:['','Yes','No']},
+        {id:'a103_dd1Vio1Date',label:'Violation 1 Date',type:'date'},
+        {id:'a103_dd1Vio1Desc',label:'Violation 1 Description',type:'text'},
+        {id:'a103_dd1Vio2Date',label:'Violation 2 Date',type:'date'},
+        {id:'a103_dd1Vio2Desc',label:'Violation 2 Description',type:'text'},
+        {id:'a103_dd1Acc1Date',label:'Accident 1 Date',type:'date'},
+        {id:'a103_dd1Acc1Desc',label:'Accident 1 Description',type:'text'},
+        {id:'a103_dd1Acc1Amt',label:'Accident 1 Amount',type:'number'},
+    ]},
+    acord103_driver_detail2: { title:'Page 2 — Driver Details 2', fields:[
+        {id:'a103_dd2Name',label:'Driver Name',type:'text'},
+        {id:'a103_dd2SR22',label:'SR-22 Filing Required?',type:'select',opts:['','Yes','No']},
+        {id:'a103_dd2Vio1Date',label:'Violation 1 Date',type:'date'},
+        {id:'a103_dd2Vio1Desc',label:'Violation 1 Description',type:'text'},
+        {id:'a103_dd2Acc1Date',label:'Accident 1 Date',type:'date'},
+        {id:'a103_dd2Acc1Desc',label:'Accident 1 Description',type:'text'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 105 - Apartment Building Supplement
+    // ══════════════════════════════════════════════════════════
+    acord105_building: { title:'Building Information', fields:[
+        {id:'a105_addr',label:'Building Address',type:'text',map:'address'},
+        {id:'a105_city',label:'City',type:'text',map:'city'},
+        {id:'a105_state',label:'State',type:'text',map:'state'},
+        {id:'a105_zip',label:'Zip',type:'text',map:'zip'},
+        {id:'a105_yrBuilt',label:'Year Built',type:'text'},
+        {id:'a105_stories',label:'Number of Stories',type:'number'},
+        {id:'a105_construction',label:'Construction Type',type:'select',opts:['','Frame','Masonry','Non-Combustible','Fire Resistive']},
+        {id:'a105_roofType',label:'Roof Type',type:'select',opts:['','Shingle','Tile','Metal','Flat/Built-up','Other']},
+        {id:'a105_roofAge',label:'Roof Year',type:'text'},
+    ]},
+    acord105_units: { title:'Unit Information', fields:[
+        {id:'a105_totalUnits',label:'Total Number of Units',type:'number'},
+        {id:'a105_occupied',label:'Number Occupied',type:'number'},
+        {id:'a105_vacant',label:'Number Vacant',type:'number'},
+        {id:'a105_commercial',label:'Any Commercial Units?',type:'select',opts:['','Yes','No']},
+        {id:'a105_commDesc',label:'Commercial Unit Description',type:'text'},
+        {id:'a105_avgRent',label:'Average Monthly Rent',type:'number'},
+        {id:'a105_annGrossIncome',label:'Annual Gross Rental Income',type:'number'},
+    ]},
+    acord105_safety: { title:'Safety & Systems', fields:[
+        {id:'a105_sprinklers',label:'Sprinkler System?',type:'select',opts:['','Yes - All','Yes - Partial','No']},
+        {id:'a105_fireAlarm',label:'Fire Alarm System?',type:'select',opts:['','Central Station','Local','Smoke Detectors Only','None']},
+        {id:'a105_security',label:'Security System?',type:'select',opts:['','Yes','No']},
+        {id:'a105_pool',label:'Swimming Pool?',type:'select',opts:['','Yes','No']},
+        {id:'a105_poolFenced',label:'Pool Fenced/Gated?',type:'select',opts:['','Yes','No','N/A']},
+        {id:'a105_elevator',label:'Elevator?',type:'select',opts:['','Yes','No']},
+        {id:'a105_laundry',label:'Laundry Facilities?',type:'select',opts:['','In-Unit','Common Area','None']},
+    ]},
+    acord105_maintenance: { title:'Maintenance & Management', fields:[
+        {id:'a105_managed',label:'Professionally Managed?',type:'select',opts:['','Yes','No']},
+        {id:'a105_mgmtCo',label:'Management Company Name',type:'text'},
+        {id:'a105_onSiteMgr',label:'On-Site Manager?',type:'select',opts:['','Yes','No']},
+        {id:'a105_maintenance',label:'Maintenance Staff',type:'number'},
+        {id:'a105_lastRenovation',label:'Last Major Renovation',type:'text'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 125 FL - Florida Commercial (multi-page)
+    // ══════════════════════════════════════════════════════════
+    acord125_contact: { title:'Page 1 — Contact Information', fields:[
+        {id:'a125_phone',label:'Business Phone',type:'tel',map:'phone1'},
+        {id:'a125_fax',label:'Fax',type:'tel'},
+        {id:'a125_email',label:'Email',type:'email',map:'email'},
+        {id:'a125_website',label:'Website',type:'text'},
+        {id:'a125_entityType',label:'Entity Type',type:'select',opts:['','Individual','Corporation','LLC','Partnership','Joint Venture','Trust','Non-Profit','Other']},
+        {id:'a125_stateInc',label:'State of Incorporation',type:'text',defaultVal:'FL'},
+        {id:'a125_dateInc',label:'Date of Incorporation',type:'date'},
+        {id:'a125_fein',label:'FEIN',type:'text'},
+    ]},
+    acord125_premises_p1: { title:'Page 2 — Premises Location 1', fields:[
+        {id:'a125_loc1Addr',label:'Location 1 Address',type:'text',map:'address'},
+        {id:'a125_loc1City',label:'City',type:'text',map:'city'},
+        {id:'a125_loc1State',label:'State',type:'text',map:'state'},
+        {id:'a125_loc1Zip',label:'Zip',type:'text',map:'zip'},
+        {id:'a125_loc1County',label:'County',type:'text'},
+        {id:'a125_loc1Occupied',label:'Interest',type:'select',opts:['','Owner','Tenant','Both']},
+        {id:'a125_loc1SqFt',label:'Square Footage',type:'number'},
+        {id:'a125_loc1yrBuilt',label:'Year Built',type:'text'},
+        {id:'a125_loc1Construction',label:'Construction',type:'select',opts:['','Frame','Joisted Masonry','Non-Combustible','Masonry NC','Mod Fire Resistive','Fire Resistive']},
+        {id:'a125_loc1Stories',label:'Stories',type:'number'},
+        {id:'a125_loc1Basement',label:'Basement?',type:'select',opts:['','Yes','No']},
+        {id:'a125_loc1Sprinkler',label:'Sprinklered?',type:'select',opts:['','Yes - Full','Yes - Partial','No']},
+    ]},
+    acord125_premises_p2: { title:'Page 2 — Premises Location 2', fields:[
+        {id:'a125_loc2Addr',label:'Location 2 Address',type:'text'},
+        {id:'a125_loc2City',label:'City',type:'text'},
+        {id:'a125_loc2State',label:'State',type:'text'},
+        {id:'a125_loc2Zip',label:'Zip',type:'text'},
+        {id:'a125_loc2SqFt',label:'Square Footage',type:'number'},
+        {id:'a125_loc2yrBuilt',label:'Year Built',type:'text'},
+        {id:'a125_loc2Construction',label:'Construction',type:'select',opts:['','Frame','Joisted Masonry','Non-Combustible','Masonry NC','Fire Resistive']},
+    ]},
+    acord125_priorCarrier: { title:'Page 3 — Prior Carrier Information', fields:[
+        {id:'a125_priorGL',label:'Prior GL Carrier',type:'text'},
+        {id:'a125_priorGLPol',label:'GL Policy #',type:'text'},
+        {id:'a125_priorGLPrem',label:'GL Premium',type:'number'},
+        {id:'a125_priorGLExp',label:'GL Expiration Date',type:'date'},
+        {id:'a125_priorProp',label:'Prior Property Carrier',type:'text'},
+        {id:'a125_priorPropPol',label:'Property Policy #',type:'text'},
+        {id:'a125_priorPropPrem',label:'Property Premium',type:'number'},
+        {id:'a125_priorAuto',label:'Prior Auto Carrier',type:'text'},
+        {id:'a125_priorAutoPol',label:'Auto Policy #',type:'text'},
+        {id:'a125_priorWC',label:'Prior WC Carrier',type:'text'},
+        {id:'a125_priorWCPol',label:'WC Policy #',type:'text'},
+        {id:'a125_priorUmb',label:'Prior Umbrella Carrier',type:'text'},
+        {id:'a125_priorUmbPol',label:'Umbrella Policy #',type:'text'},
+        {id:'a125_yearsWithPrior',label:'Years with Prior Carrier',type:'number'},
+        {id:'a125_reasonChange',label:'Reason for Change',type:'text'},
+    ]},
+    acord125_lossHistory: { title:'Page 3 — Loss History (5 Years)', fields:[
+        {id:'a125_l1Date',label:'Loss 1 Date',type:'date'},
+        {id:'a125_l1Type',label:'Type (GL/Prop/Auto/WC)',type:'text'},
+        {id:'a125_l1Desc',label:'Description',type:'text'},
+        {id:'a125_l1AmtPaid',label:'Amount Paid',type:'number'},
+        {id:'a125_l1AmtReserved',label:'Amount Reserved',type:'number'},
+        {id:'a125_l1Status',label:'Status',type:'select',opts:['','Open','Closed']},
+        {id:'a125_l2Date',label:'Loss 2 Date',type:'date'},
+        {id:'a125_l2Type',label:'Type',type:'text'},
+        {id:'a125_l2Desc',label:'Description',type:'text'},
+        {id:'a125_l2AmtPaid',label:'Amount Paid',type:'number'},
+        {id:'a125_l3Date',label:'Loss 3 Date',type:'date'},
+        {id:'a125_l3Type',label:'Type',type:'text'},
+        {id:'a125_l3Desc',label:'Description',type:'text'},
+        {id:'a125_l3AmtPaid',label:'Amount Paid',type:'number'},
+        {id:'a125_l4Date',label:'Loss 4 Date',type:'date'},
+        {id:'a125_l4Desc',label:'Description',type:'text'},
+        {id:'a125_l4AmtPaid',label:'Amount Paid',type:'number'},
+    ]},
+    acord125_generalInfo: { title:'Page 4 — General Information', fields:[
+        {id:'a125_anyLawsuits',label:'Any Pending Lawsuits?',type:'select',opts:['','Yes','No']},
+        {id:'a125_lawsuitDetails',label:'Lawsuit Details',type:'textarea'},
+        {id:'a125_bankruptcy',label:'Bankruptcy in Last 5 Years?',type:'select',opts:['','Yes','No']},
+        {id:'a125_declined',label:'Ever Declined/Cancelled/Non-Renewed?',type:'select',opts:['','Yes','No']},
+        {id:'a125_declinedDetail',label:'Details',type:'text'},
+        {id:'a125_anyChanges',label:'Any Business Changes Anticipated?',type:'select',opts:['','Yes','No']},
+        {id:'a125_changeDetail',label:'Change Details',type:'textarea'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 128 - Garage and Dealers (multi-page)
+    // ══════════════════════════════════════════════════════════
+    acord128_operations: { title:'Page 1 — Garage Operations', fields:[
+        {id:'a128_opType',label:'Type of Operations',type:'select',opts:['','New Car Dealer','Used Car Dealer','Repair Shop','Body Shop','Service Station','Parking Garage','Car Wash','Towing','Other']},
+        {id:'a128_opDesc',label:'Full Description of Operations',type:'textarea'},
+        {id:'a128_franch',label:'Franchise/Brand',type:'text'},
+        {id:'a128_numBays',label:'Number of Service Bays',type:'number'},
+        {id:'a128_annGross',label:'Annual Gross Sales',type:'number'},
+        {id:'a128_numNewSold',label:'# New Vehicles Sold Annually',type:'number'},
+        {id:'a128_numUsedSold',label:'# Used Vehicles Sold Annually',type:'number'},
+        {id:'a128_maxVehiclesOnLot',label:'Max Vehicles on Lot',type:'number'},
+    ]},
+    acord128_premises: { title:'Page 1 — Premises', fields:[
+        {id:'a128_addr',label:'Location Address',type:'text',map:'address'},
+        {id:'a128_city',label:'City',type:'text',map:'city'},
+        {id:'a128_state',label:'State',type:'text',map:'state'},
+        {id:'a128_zip',label:'Zip',type:'text',map:'zip'},
+        {id:'a128_sqft',label:'Total Square Footage',type:'number'},
+        {id:'a128_lotSqft',label:'Lot Size (sq ft)',type:'number'},
+        {id:'a128_fenced',label:'Lot Fenced?',type:'select',opts:['','Yes','No']},
+        {id:'a128_lighted',label:'Lot Lighted?',type:'select',opts:['','Yes','No']},
+        {id:'a128_security',label:'Security System?',type:'select',opts:['','Yes','No']},
+    ]},
+    acord128_coverage: { title:'Page 2 — Coverage', fields:[
+        {id:'a128_gkBI',label:'Garagekeepers BI Limit',type:'text'},
+        {id:'a128_gkPD',label:'Garagekeepers PD Limit',type:'text'},
+        {id:'a128_gkCompDed',label:'Garagekeepers Comp Deductible',type:'text'},
+        {id:'a128_gkCollDed',label:'Garagekeepers Coll Deductible',type:'text'},
+        {id:'a128_maxAnyOneVeh',label:'Max Value Any One Vehicle',type:'number'},
+        {id:'a128_dealersOpen',label:'Dealers Open Lot',type:'number'},
+        {id:'a128_falseP',label:'False Pretense Coverage',type:'select',opts:['','Yes','No']},
+        {id:'a128_demoUse',label:'Demo / Test Drive Coverage',type:'select',opts:['','Yes','No']},
+    ]},
+    acord128_employees: { title:'Page 2 — Employees', fields:[
+        {id:'a128_totalEmp',label:'Total Employees',type:'number'},
+        {id:'a128_mechanics',label:'# Mechanics',type:'number'},
+        {id:'a128_salespeople',label:'# Salespeople',type:'number'},
+        {id:'a128_drivers',label:'# Drivers (pickup/delivery)',type:'number'},
+        {id:'a128_empMVR',label:'MVRs Obtained for All?',type:'select',opts:['','Yes','No']},
+    ]},
+    acord128_sublet: { title:'Page 2 — Sublet Work', fields:[
+        {id:'a128_subletWork',label:'Any Sublet Work?',type:'select',opts:['','Yes','No']},
+        {id:'a128_subletDesc',label:'Description of Sublet Work',type:'text'},
+        {id:'a128_subletAmt',label:'Annual Sublet Amount',type:'number'},
+        {id:'a128_subletCOI',label:'Require COI from Sublet?',type:'select',opts:['','Yes','No']},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 129 - Vehicle Schedule (5 vehicles)
+    // ══════════════════════════════════════════════════════════
+    acord129_veh1: { title:'Vehicle 1', fields:[
+        {id:'a129_v1Year',label:'Year',type:'text'},
+        {id:'a129_v1Make',label:'Make',type:'text'},
+        {id:'a129_v1Model',label:'Model',type:'text'},
+        {id:'a129_v1VIN',label:'VIN',type:'text'},
+        {id:'a129_v1GVW',label:'GVW',type:'text'},
+        {id:'a129_v1Cost',label:'Cost New / Actual Value',type:'number'},
+        {id:'a129_v1Use',label:'Use',type:'select',opts:['','Service','Commercial','Retail','Pleasure','Farm']},
+        {id:'a129_v1Radius',label:'Radius of Operation',type:'select',opts:['','Local (0-50)','Intermediate (50-200)','Long Distance (200+)']},
+        {id:'a129_v1BI',label:'BI Limits',type:'text'},
+        {id:'a129_v1PD',label:'PD Limit',type:'text'},
+        {id:'a129_v1CompDed',label:'Comp Ded',type:'text'},
+        {id:'a129_v1CollDed',label:'Coll Ded',type:'text'},
+        {id:'a129_v1Hired',label:'Hired?',type:'select',opts:['','Yes','No']},
+    ]},
+    acord129_veh2: { title:'Vehicle 2', fields:[
+        {id:'a129_v2Year',label:'Year',type:'text'},{id:'a129_v2Make',label:'Make',type:'text'},{id:'a129_v2Model',label:'Model',type:'text'},
+        {id:'a129_v2VIN',label:'VIN',type:'text'},{id:'a129_v2GVW',label:'GVW',type:'text'},{id:'a129_v2Cost',label:'Cost/Value',type:'number'},
+        {id:'a129_v2Use',label:'Use',type:'select',opts:['','Service','Commercial','Retail','Pleasure','Farm']},
+        {id:'a129_v2BI',label:'BI',type:'text'},{id:'a129_v2PD',label:'PD',type:'text'},{id:'a129_v2CompDed',label:'Comp Ded',type:'text'},{id:'a129_v2CollDed',label:'Coll Ded',type:'text'},
+    ]},
+    acord129_veh3: { title:'Vehicle 3', fields:[
+        {id:'a129_v3Year',label:'Year',type:'text'},{id:'a129_v3Make',label:'Make',type:'text'},{id:'a129_v3Model',label:'Model',type:'text'},
+        {id:'a129_v3VIN',label:'VIN',type:'text'},{id:'a129_v3GVW',label:'GVW',type:'text'},{id:'a129_v3Cost',label:'Cost/Value',type:'number'},
+        {id:'a129_v3Use',label:'Use',type:'select',opts:['','Service','Commercial','Retail','Pleasure','Farm']},
+        {id:'a129_v3BI',label:'BI',type:'text'},{id:'a129_v3PD',label:'PD',type:'text'},{id:'a129_v3CompDed',label:'Comp Ded',type:'text'},{id:'a129_v3CollDed',label:'Coll Ded',type:'text'},
+    ]},
+    acord129_veh4: { title:'Vehicle 4', fields:[
+        {id:'a129_v4Year',label:'Year',type:'text'},{id:'a129_v4Make',label:'Make',type:'text'},{id:'a129_v4Model',label:'Model',type:'text'},
+        {id:'a129_v4VIN',label:'VIN',type:'text'},{id:'a129_v4GVW',label:'GVW',type:'text'},{id:'a129_v4Cost',label:'Cost/Value',type:'number'},
+        {id:'a129_v4Use',label:'Use',type:'select',opts:['','Service','Commercial','Retail','Pleasure','Farm']},
+        {id:'a129_v4BI',label:'BI',type:'text'},{id:'a129_v4PD',label:'PD',type:'text'},{id:'a129_v4CompDed',label:'Comp Ded',type:'text'},{id:'a129_v4CollDed',label:'Coll Ded',type:'text'},
+    ]},
+    acord129_veh5: { title:'Vehicle 5', fields:[
+        {id:'a129_v5Year',label:'Year',type:'text'},{id:'a129_v5Make',label:'Make',type:'text'},{id:'a129_v5Model',label:'Model',type:'text'},
+        {id:'a129_v5VIN',label:'VIN',type:'text'},{id:'a129_v5GVW',label:'GVW',type:'text'},{id:'a129_v5Cost',label:'Cost/Value',type:'number'},
+        {id:'a129_v5Use',label:'Use',type:'select',opts:['','Service','Commercial','Retail','Pleasure','Farm']},
+        {id:'a129_v5BI',label:'BI',type:'text'},{id:'a129_v5PD',label:'PD',type:'text'},{id:'a129_v5CompDed',label:'Comp Ded',type:'text'},{id:'a129_v5CollDed',label:'Coll Ded',type:'text'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 130 FL - Florida Workers Comp (multi-page)
+    // ══════════════════════════════════════════════════════════
+    acord130_ownership: { title:'Page 1 — Ownership', fields:[
+        {id:'a130_entityType',label:'Entity Type',type:'select',opts:['','Individual','Corporation','LLC','Partnership','Joint Venture','Trust','Non-Profit']},
+        {id:'a130_stateInc',label:'State of Incorporation',type:'text',defaultVal:'FL'},
+        {id:'a130_fein',label:'FEIN',type:'text'},
+        {id:'a130_yearEstablished',label:'Year Established',type:'text'},
+    ]},
+    acord130_ratingInfo: { title:'Page 1 — Rating Information', fields:[
+        {id:'a130_expMod',label:'Experience Modification Factor',type:'text'},
+        {id:'a130_expModEffDate',label:'Mod Effective Date',type:'date'},
+        {id:'a130_interstate',label:'Interstate?',type:'select',opts:['','Yes','No']},
+        {id:'a130_numStates',label:'Number of States',type:'number'},
+        {id:'a130_otherStates',label:'Other States',type:'text'},
+    ]},
+    acord130_class1: { title:'Page 2 — Classification 1', fields:[
+        {id:'a130_c1Code',label:'Class Code',type:'text'},
+        {id:'a130_c1Desc',label:'Description',type:'text'},
+        {id:'a130_c1NumEmp',label:'# Employees',type:'number'},
+        {id:'a130_c1FT',label:'Full-Time',type:'number'},
+        {id:'a130_c1PT',label:'Part-Time',type:'number'},
+        {id:'a130_c1Payroll',label:'Annual Remuneration',type:'number'},
+        {id:'a130_c1Rate',label:'Rate',type:'number'},
+        {id:'a130_c1Premium',label:'Estimated Premium',type:'number'},
+    ]},
+    acord130_class2: { title:'Page 2 — Classification 2', fields:[
+        {id:'a130_c2Code',label:'Class Code',type:'text'},
+        {id:'a130_c2Desc',label:'Description',type:'text'},
+        {id:'a130_c2NumEmp',label:'# Employees',type:'number'},
+        {id:'a130_c2Payroll',label:'Annual Remuneration',type:'number'},
+        {id:'a130_c2Rate',label:'Rate',type:'number'},
+        {id:'a130_c2Premium',label:'Estimated Premium',type:'number'},
+    ]},
+    acord130_class3: { title:'Page 2 — Classification 3', fields:[
+        {id:'a130_c3Code',label:'Class Code',type:'text'},
+        {id:'a130_c3Desc',label:'Description',type:'text'},
+        {id:'a130_c3NumEmp',label:'# Employees',type:'number'},
+        {id:'a130_c3Payroll',label:'Annual Remuneration',type:'number'},
+        {id:'a130_c3Rate',label:'Rate',type:'number'},
+    ]},
+    acord130_priorCarrier: { title:'Page 3 — Prior Carrier', fields:[
+        {id:'a130_priorCarrier1',label:'Prior Carrier (Current)',type:'text'},
+        {id:'a130_priorPol1',label:'Policy Number',type:'text'},
+        {id:'a130_priorEff1',label:'Effective Date',type:'date'},
+        {id:'a130_priorExp1',label:'Expiration Date',type:'date'},
+        {id:'a130_priorPrem1',label:'Annual Premium',type:'number'},
+        {id:'a130_priorCarrier2',label:'Prior Carrier (Previous Year)',type:'text'},
+        {id:'a130_priorPol2',label:'Policy Number',type:'text'},
+        {id:'a130_priorPrem2',label:'Annual Premium',type:'number'},
+        {id:'a130_priorCarrier3',label:'Prior Carrier (2 Years Ago)',type:'text'},
+        {id:'a130_priorPol3',label:'Policy Number',type:'text'},
+        {id:'a130_priorPrem3',label:'Annual Premium',type:'number'},
+    ]},
+    acord130_lossHistory: { title:'Page 3 — Loss History (5 Years)', fields:[
+        {id:'a130_l1Year',label:'Year 1',type:'text'},
+        {id:'a130_l1NumClaims',label:'# Claims',type:'number'},
+        {id:'a130_l1Incurred',label:'Total Incurred',type:'number'},
+        {id:'a130_l2Year',label:'Year 2',type:'text'},
+        {id:'a130_l2NumClaims',label:'# Claims',type:'number'},
+        {id:'a130_l2Incurred',label:'Total Incurred',type:'number'},
+        {id:'a130_l3Year',label:'Year 3',type:'text'},
+        {id:'a130_l3NumClaims',label:'# Claims',type:'number'},
+        {id:'a130_l3Incurred',label:'Total Incurred',type:'number'},
+        {id:'a130_l4Year',label:'Year 4',type:'text'},
+        {id:'a130_l4NumClaims',label:'# Claims',type:'number'},
+        {id:'a130_l4Incurred',label:'Total Incurred',type:'number'},
+        {id:'a130_l5Year',label:'Year 5',type:'text'},
+        {id:'a130_l5NumClaims',label:'# Claims',type:'number'},
+        {id:'a130_l5Incurred',label:'Total Incurred',type:'number'},
+    ]},
+    acord130_stateInfo_fl: { title:'Page 4 — Florida-Specific Information', fields:[
+        {id:'a130_fl_drugFree',label:'Drug-Free Workplace Program?',type:'select',opts:['','Yes','No']},
+        {id:'a130_fl_drugFreeDiscount',label:'Drug-Free Discount Applied?',type:'select',opts:['','Yes','No']},
+        {id:'a130_fl_safetyDiscount',label:'Safety Program Credit?',type:'select',opts:['','Yes','No']},
+        {id:'a130_fl_deductible',label:'WC Deductible Elected',type:'select',opts:['','None','$1,000','$2,500','$5,000','$10,000']},
+        {id:'a130_fl_managed',label:'Managed Care Arrangement',type:'select',opts:['','Yes','No']},
+        {id:'a130_fl_leased',label:'Any Leased Employees?',type:'select',opts:['','Yes','No']},
+        {id:'a130_fl_leasedFrom',label:'PEO / Leasing Company',type:'text'},
+        {id:'a130_fl_subExcluded',label:'Subcontractors - Workers Excluded?',type:'select',opts:['','Yes','No']},
+    ]},
+    acord130_officers: { title:'Page 4 — Officers / Partners / Members', fields:[
+        {id:'a130_off1Name',label:'Officer 1 Name',type:'text'},
+        {id:'a130_off1Title',label:'Title',type:'text'},
+        {id:'a130_off1Owner',label:'Ownership %',type:'number'},
+        {id:'a130_off1Incl',label:'Included/Excluded',type:'select',opts:['','Included','Excluded']},
+        {id:'a130_off1Duties',label:'Duties',type:'text'},
+        {id:'a130_off1Payroll',label:'Annual Payroll',type:'number'},
+        {id:'a130_off2Name',label:'Officer 2 Name',type:'text'},
+        {id:'a130_off2Title',label:'Title',type:'text'},
+        {id:'a130_off2Owner',label:'Ownership %',type:'number'},
+        {id:'a130_off2Incl',label:'Included/Excluded',type:'select',opts:['','Included','Excluded']},
+        {id:'a130_off2Duties',label:'Duties',type:'text'},
+        {id:'a130_off2Payroll',label:'Annual Payroll',type:'number'},
+        {id:'a130_off3Name',label:'Officer 3 Name',type:'text'},
+        {id:'a130_off3Title',label:'Title',type:'text'},
+        {id:'a130_off3Owner',label:'Ownership %',type:'number'},
+        {id:'a130_off3Incl',label:'Included/Excluded',type:'select',opts:['','Included','Excluded']},
+    ]},
+    acord130_subcontractors: { title:'Page 5 — Subcontractors', fields:[
+        {id:'a130_useSubs',label:'Use Subcontractors?',type:'select',opts:['','Yes','No']},
+        {id:'a130_subCost',label:'Annual Cost of Subcontracted Work',type:'number'},
+        {id:'a130_subUninsured',label:'Any Uninsured Subcontractors?',type:'select',opts:['','Yes','No']},
+        {id:'a130_subCOI',label:'Certificates of Insurance Required?',type:'select',opts:['','Yes','No']},
+        {id:'a130_subWCRequired',label:'WC Required from All Subs?',type:'select',opts:['','Yes','No']},
+    ]},
+    acord130_safetyProgram: { title:'Page 5 — Safety Program', fields:[
+        {id:'a130_safetyProgram',label:'Written Safety Program?',type:'select',opts:['','Yes','No']},
+        {id:'a130_safetyOfficer',label:'Designated Safety Officer',type:'text'},
+        {id:'a130_safetyMeetings',label:'Regular Safety Meetings?',type:'select',opts:['','Yes','No']},
+        {id:'a130_safetyTraining',label:'New Employee Safety Training?',type:'select',opts:['','Yes','No']},
+        {id:'a130_ppe',label:'PPE Provided?',type:'select',opts:['','Yes','No']},
+        {id:'a130_firstAid',label:'First Aid Kits on Site?',type:'select',opts:['','Yes','No']},
+        {id:'a130_osha',label:'OSHA Violations in Last 3 Years?',type:'select',opts:['','Yes','No']},
+        {id:'a130_oshaDetail',label:'OSHA Violation Details',type:'textarea'},
+    ]},
+
+    // ACORD 130 Additional Locations
+    acord130_addloc1: { title:'Additional Location 1', fields:[
+        {id:'a130_al1Addr',label:'Address',type:'text'},{id:'a130_al1City',label:'City',type:'text'},{id:'a130_al1State',label:'State',type:'text'},{id:'a130_al1Zip',label:'Zip',type:'text'},
+        {id:'a130_al1NumEmp',label:'# Employees',type:'number'},{id:'a130_al1Payroll',label:'Total Payroll',type:'number'},
+    ]},
+    acord130_addloc2: { title:'Additional Location 2', fields:[
+        {id:'a130_al2Addr',label:'Address',type:'text'},{id:'a130_al2City',label:'City',type:'text'},{id:'a130_al2State',label:'State',type:'text'},{id:'a130_al2Zip',label:'Zip',type:'text'},
+        {id:'a130_al2NumEmp',label:'# Employees',type:'number'},{id:'a130_al2Payroll',label:'Total Payroll',type:'number'},
+    ]},
+    acord130_addloc3: { title:'Additional Location 3', fields:[
+        {id:'a130_al3Addr',label:'Address',type:'text'},{id:'a130_al3City',label:'City',type:'text'},{id:'a130_al3State',label:'State',type:'text'},{id:'a130_al3Zip',label:'Zip',type:'text'},
+        {id:'a130_al3NumEmp',label:'# Employees',type:'number'},{id:'a130_al3Payroll',label:'Total Payroll',type:'number'},
+    ]},
+    acord130_addlClass1: { title:'Additional Location Classifications 1', fields:[
+        {id:'a130_alc1Code',label:'Class Code',type:'text'},{id:'a130_alc1Desc',label:'Description',type:'text'},{id:'a130_alc1Payroll',label:'Payroll',type:'number'},
+    ]},
+    acord130_addlClass2: { title:'Additional Location Classifications 2', fields:[
+        {id:'a130_alc2Code',label:'Class Code',type:'text'},{id:'a130_alc2Desc',label:'Description',type:'text'},{id:'a130_alc2Payroll',label:'Payroll',type:'number'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 140 - Additional Locations
+    // ══════════════════════════════════════════════════════════
+    acord140_loc2: { title:'Location 2', fields:[
+        {id:'a140_l2Addr',label:'Address',type:'text'},{id:'a140_l2City',label:'City',type:'text'},{id:'a140_l2State',label:'State',type:'text'},{id:'a140_l2Zip',label:'Zip',type:'text'},
+        {id:'a140_l2YrBuilt',label:'Year Built',type:'text'},{id:'a140_l2SqFt',label:'Square Footage',type:'number'},{id:'a140_l2Stories',label:'Stories',type:'number'},
+        {id:'a140_l2Construction',label:'Construction',type:'select',opts:['','Frame','Joisted Masonry','Non-Combustible','Fire Resistive']},
+        {id:'a140_l2Occupancy',label:'Occupancy',type:'text'},
+    ]},
+    acord140_loc3: { title:'Location 3', fields:[
+        {id:'a140_l3Addr',label:'Address',type:'text'},{id:'a140_l3City',label:'City',type:'text'},{id:'a140_l3State',label:'State',type:'text'},{id:'a140_l3Zip',label:'Zip',type:'text'},
+        {id:'a140_l3YrBuilt',label:'Year Built',type:'text'},{id:'a140_l3SqFt',label:'Square Footage',type:'number'},
+        {id:'a140_l3Construction',label:'Construction',type:'select',opts:['','Frame','Joisted Masonry','Non-Combustible','Fire Resistive']},
+    ]},
+    acord140_loc2_building: { title:'Location 2 Building Values', fields:[
+        {id:'a140_l2BldgVal',label:'Building Value',type:'number'},{id:'a140_l2BPP',label:'BPP Value',type:'number'},
+        {id:'a140_l2BI',label:'Business Income',type:'number'},{id:'a140_l2EE',label:'Extra Expense',type:'number'},
+    ]},
+    acord140_loc3_building: { title:'Location 3 Building Values', fields:[
+        {id:'a140_l3BldgVal',label:'Building Value',type:'number'},{id:'a140_l3BPP',label:'BPP Value',type:'number'},
+        {id:'a140_l3BI',label:'Business Income',type:'number'},{id:'a140_l3EE',label:'Extra Expense',type:'number'},
+    ]},
+    acord140_addl_coverage: { title:'Additional Location Coverage', fields:[
+        {id:'a140_addlCoins',label:'Coinsurance %',type:'select',opts:['','80%','90%','100%']},
+        {id:'a140_addlValuation',label:'Valuation',type:'select',opts:['','Replacement Cost','Actual Cash Value','Agreed Value','Functional Replacement']},
+        {id:'a140_addlCause',label:'Cause of Loss',type:'select',opts:['','Basic','Broad','Special']},
+        {id:'a140_addlDeductible',label:'Deductible',type:'text'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 175 - Commercial Lines Checklist
+    // ══════════════════════════════════════════════════════════
+    acord175_checklist: { title:'Policy Checklist', fields:[
+        {id:'a175_gl',label:'General Liability',type:'select',opts:['','Included','Not Included','Separate Policy']},
+        {id:'a175_property',label:'Property',type:'select',opts:['','Included','Not Included','Separate Policy']},
+        {id:'a175_auto',label:'Commercial Auto',type:'select',opts:['','Included','Not Included','Separate Policy']},
+        {id:'a175_wc',label:'Workers Compensation',type:'select',opts:['','Included','Not Included','Separate Policy']},
+        {id:'a175_umbrella',label:'Umbrella / Excess',type:'select',opts:['','Included','Not Included','Separate Policy']},
+        {id:'a175_crime',label:'Crime',type:'select',opts:['','Included','Not Included']},
+        {id:'a175_epli',label:'EPLI',type:'select',opts:['','Included','Not Included']},
+        {id:'a175_cyber',label:'Cyber Liability',type:'select',opts:['','Included','Not Included']},
+        {id:'a175_do',label:'D&O',type:'select',opts:['','Included','Not Included']},
+        {id:'a175_profLiab',label:'Professional Liability',type:'select',opts:['','Included','Not Included']},
+        {id:'a175_im',label:'Inland Marine',type:'select',opts:['','Included','Not Included']},
+    ]},
+    acord175_endorsements: { title:'Endorsements', fields:[
+        {id:'a175_addlInsured',label:'Additional Insured Endorsements',type:'textarea'},
+        {id:'a175_waiverSub',label:'Waiver of Subrogation',type:'textarea'},
+        {id:'a175_primNonContrib',label:'Primary & Non-Contributory',type:'textarea'},
+        {id:'a175_otherEndorsements',label:'Other Endorsements',type:'textarea'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 211 - Professional Liability
+    // ══════════════════════════════════════════════════════════
+    acord211_profInfo: { title:'Professional Information', fields:[
+        {id:'a211_profType',label:'Type of Professional Service',type:'text'},
+        {id:'a211_yearsExp',label:'Years of Professional Experience',type:'number'},
+        {id:'a211_licenses',label:'Professional Licenses Held',type:'text'},
+        {id:'a211_numProf',label:'# Licensed Professionals',type:'number'},
+        {id:'a211_annRevenue',label:'Annual Gross Revenue',type:'number'},
+        {id:'a211_annBillings',label:'Annual Billings',type:'number'},
+        {id:'a211_largestProject',label:'Largest Single Project/Contract',type:'number'},
+        {id:'a211_contracts',label:'Use Written Contracts?',type:'select',opts:['','Always','Usually','Sometimes','Never']},
+    ]},
+    acord211_claims: { title:'Claims History', fields:[
+        {id:'a211_anyClaimsEver',label:'Any Claims/Suits Ever?',type:'select',opts:['','Yes','No']},
+        {id:'a211_claimsLast5',label:'# Claims Last 5 Years',type:'number'},
+        {id:'a211_c1Date',label:'Claim 1 Date',type:'date'},
+        {id:'a211_c1Desc',label:'Description',type:'text'},
+        {id:'a211_c1Amt',label:'Amount',type:'number'},
+        {id:'a211_c1Status',label:'Status',type:'select',opts:['','Open','Closed','Reserved']},
+        {id:'a211_c2Date',label:'Claim 2 Date',type:'date'},
+        {id:'a211_c2Desc',label:'Description',type:'text'},
+        {id:'a211_c2Amt',label:'Amount',type:'number'},
+        {id:'a211_awareClaim',label:'Aware of Any Potential Claims?',type:'select',opts:['','Yes','No']},
+        {id:'a211_awareDetail',label:'Details',type:'textarea'},
+    ]},
+    acord211_coverage: { title:'Coverage Requested', fields:[
+        {id:'a211_limit',label:'Per Claim Limit',type:'select',opts:['','$250,000','$500,000','$1,000,000','$2,000,000','$5,000,000']},
+        {id:'a211_aggregate',label:'Aggregate Limit',type:'select',opts:['','$500,000','$1,000,000','$2,000,000','$5,000,000','$10,000,000']},
+        {id:'a211_deductible',label:'Deductible',type:'select',opts:['','$1,000','$2,500','$5,000','$10,000','$25,000']},
+        {id:'a211_retro',label:'Retroactive Date',type:'date'},
+        {id:'a211_priorCarrier',label:'Prior Carrier',type:'text'},
+        {id:'a211_priorLimit',label:'Prior Limits',type:'text'},
+        {id:'a211_priorPrem',label:'Prior Premium',type:'number'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 501 - Surety Report of Execution
+    // ══════════════════════════════════════════════════════════
+    acord501_principal: { title:'Principal', fields:[
+        {id:'a501_prinName',label:'Principal Name',type:'text',map:'name'},
+        {id:'a501_prinAddr',label:'Address',type:'text',map:'address'},
+        {id:'a501_prinCity',label:'City',type:'text',map:'city'},
+        {id:'a501_prinState',label:'State',type:'text',map:'state'},
+        {id:'a501_prinZip',label:'Zip',type:'text',map:'zip'},
+    ]},
+    acord501_surety: { title:'Surety Company', fields:[
+        {id:'a501_suretyName',label:'Surety Company',type:'text'},
+        {id:'a501_suretyAddr',label:'Address',type:'text'},
+        {id:'a501_attorneyInFact',label:'Attorney-in-Fact',type:'text'},
+    ]},
+    acord501_bond: { title:'Bond Information', fields:[
+        {id:'a501_bondNum',label:'Bond Number',type:'text'},
+        {id:'a501_bondType',label:'Type of Bond',type:'text'},
+        {id:'a501_bondAmt',label:'Bond Amount',type:'number'},
+        {id:'a501_bondPrem',label:'Premium',type:'number'},
+        {id:'a501_obligee',label:'Obligee',type:'text'},
+        {id:'a501_obligeeAddr',label:'Obligee Address',type:'text'},
+        {id:'a501_effDate',label:'Effective Date',type:'date'},
+        {id:'a501_expDate',label:'Expiration Date',type:'date'},
+    ]},
+    acord501_execution: { title:'Execution Details', fields:[
+        {id:'a501_execDate',label:'Date of Execution',type:'date'},
+        {id:'a501_execPlace',label:'Place of Execution',type:'text'},
+        {id:'a501_witnessName',label:'Witness Name',type:'text'},
+        {id:'a501_notaryName',label:'Notary Public Name',type:'text'},
+        {id:'a501_notaryComm',label:'Commission Expiration',type:'date'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 610 - Premium Payment Supplement
+    // ══════════════════════════════════════════════════════════
+    acord610_payment: { title:'Payment Information', fields:[
+        {id:'a610_totalPrem',label:'Total Policy Premium',type:'number',map:'premium'},
+        {id:'a610_payPlan',label:'Payment Plan',type:'select',opts:['','Annual','Semi-Annual','Quarterly','Monthly','10-Pay','9-Pay','Other']},
+        {id:'a610_downPayment',label:'Down Payment Amount',type:'number'},
+        {id:'a610_downPayDate',label:'Down Payment Due Date',type:'date'},
+        {id:'a610_payMethod',label:'Payment Method',type:'select',opts:['','Check','EFT/ACH','Credit Card','Premium Finance','Direct Bill','Agency Bill']},
+    ]},
+    acord610_installments: { title:'Installment Schedule', fields:[
+        {id:'a610_inst1Date',label:'Installment 1 Due',type:'date'},{id:'a610_inst1Amt',label:'Amount',type:'number'},
+        {id:'a610_inst2Date',label:'Installment 2 Due',type:'date'},{id:'a610_inst2Amt',label:'Amount',type:'number'},
+        {id:'a610_inst3Date',label:'Installment 3 Due',type:'date'},{id:'a610_inst3Amt',label:'Amount',type:'number'},
+        {id:'a610_inst4Date',label:'Installment 4 Due',type:'date'},{id:'a610_inst4Amt',label:'Amount',type:'number'},
+        {id:'a610_inst5Date',label:'Installment 5 Due',type:'date'},{id:'a610_inst5Amt',label:'Amount',type:'number'},
+        {id:'a610_inst6Date',label:'Installment 6 Due',type:'date'},{id:'a610_inst6Amt',label:'Amount',type:'number'},
+    ]},
+    acord610_financeCompany: { title:'Premium Finance Company', fields:[
+        {id:'a610_finCo',label:'Finance Company Name',type:'text'},
+        {id:'a610_finAddr',label:'Address',type:'text'},
+        {id:'a610_finPhone',label:'Phone',type:'tel'},
+        {id:'a610_finAcct',label:'Account Number',type:'text'},
+        {id:'a610_finAmt',label:'Amount Financed',type:'number'},
+        {id:'a610_finRate',label:'Interest Rate %',type:'number'},
+        {id:'a610_finTerm',label:'Term (months)',type:'number'},
+        {id:'a610_finMonthly',label:'Monthly Payment',type:'number'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 807 - Directors & Officers (multi-page)
+    // ══════════════════════════════════════════════════════════
+    acord807_orgInfo: { title:'Page 1 — Organization Information', fields:[
+        {id:'a807_orgType',label:'Type of Organization',type:'select',opts:['','For-Profit Corporation','Non-Profit','LLC','Partnership','Association','Other']},
+        {id:'a807_stateInc',label:'State of Incorporation',type:'text',defaultVal:'FL'},
+        {id:'a807_dateInc',label:'Date of Incorporation',type:'date'},
+        {id:'a807_publicPrivate',label:'Public or Private?',type:'select',opts:['','Public','Private']},
+        {id:'a807_stockExchange',label:'Stock Exchange (if public)',type:'text'},
+        {id:'a807_annRevenue',label:'Total Annual Revenue',type:'number'},
+        {id:'a807_totalAssets',label:'Total Assets',type:'number'},
+        {id:'a807_numEmp',label:'Total Employees',type:'number'},
+        {id:'a807_numSubs',label:'Number of Subsidiaries',type:'number'},
+        {id:'a807_subNames',label:'Subsidiary Names',type:'textarea'},
+    ]},
+    acord807_directors: { title:'Page 2 — Directors & Officers', fields:[
+        {id:'a807_d1Name',label:'Director/Officer 1 Name',type:'text'},
+        {id:'a807_d1Title',label:'Title',type:'text'},
+        {id:'a807_d1Since',label:'Serving Since',type:'date'},
+        {id:'a807_d1Compensation',label:'Annual Compensation',type:'number'},
+        {id:'a807_d2Name',label:'Director/Officer 2 Name',type:'text'},
+        {id:'a807_d2Title',label:'Title',type:'text'},
+        {id:'a807_d2Since',label:'Serving Since',type:'date'},
+        {id:'a807_d3Name',label:'Director/Officer 3 Name',type:'text'},
+        {id:'a807_d3Title',label:'Title',type:'text'},
+        {id:'a807_d4Name',label:'Director/Officer 4 Name',type:'text'},
+        {id:'a807_d4Title',label:'Title',type:'text'},
+        {id:'a807_d5Name',label:'Director/Officer 5 Name',type:'text'},
+        {id:'a807_d5Title',label:'Title',type:'text'},
+        {id:'a807_totalBoard',label:'Total Board Members',type:'number'},
+        {id:'a807_indepBoard',label:'# Independent Board Members',type:'number'},
+    ]},
+    acord807_claims: { title:'Page 3 — Claims / Prior Coverage', fields:[
+        {id:'a807_anyClaims',label:'Any Claims/Suits Last 5 Years?',type:'select',opts:['','Yes','No']},
+        {id:'a807_c1Date',label:'Claim 1 Date',type:'date'},
+        {id:'a807_c1Desc',label:'Description',type:'text'},
+        {id:'a807_c1Amt',label:'Amount',type:'number'},
+        {id:'a807_c1Status',label:'Status',type:'select',opts:['','Open','Closed']},
+        {id:'a807_awarePotential',label:'Aware of Potential Claims?',type:'select',opts:['','Yes','No']},
+        {id:'a807_awareDetail',label:'Details',type:'textarea'},
+        {id:'a807_priorCarrier',label:'Prior D&O Carrier',type:'text'},
+        {id:'a807_priorLimit',label:'Prior Limit',type:'text'},
+        {id:'a807_priorRetro',label:'Retroactive Date',type:'date'},
+        {id:'a807_priorPrem',label:'Prior Premium',type:'number'},
+    ]},
+    acord807_coverage: { title:'Page 3 — Coverage Requested', fields:[
+        {id:'a807_limit',label:'Limit of Liability',type:'select',opts:['','$500,000','$1,000,000','$2,000,000','$5,000,000','$10,000,000']},
+        {id:'a807_retention',label:'Retention / Deductible',type:'select',opts:['','$0','$5,000','$10,000','$25,000','$50,000']},
+        {id:'a807_sideA',label:'Side A (Non-Indemnifiable)',type:'select',opts:['','Included','Not Included']},
+        {id:'a807_sideB',label:'Side B (Corporate Reimbursement)',type:'select',opts:['','Included','Not Included']},
+        {id:'a807_sideC',label:'Side C (Entity Coverage)',type:'select',opts:['','Included','Not Included']},
+        {id:'a807_epli',label:'Include EPLI?',type:'select',opts:['','Yes','No']},
+        {id:'a807_fiduciary',label:'Include Fiduciary?',type:'select',opts:['','Yes','No']},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 810 - Business Income / Extra Expense
+    // ══════════════════════════════════════════════════════════
+    acord810_income: { title:'Business Income', fields:[
+        {id:'a810_annGross',label:'Annual Gross Sales/Revenue',type:'number'},
+        {id:'a810_annPayroll',label:'Annual Payroll',type:'number'},
+        {id:'a810_annExpenses',label:'Annual Operating Expenses',type:'number'},
+        {id:'a810_netIncome',label:'Net Income (Profit)',type:'number'},
+        {id:'a810_ordPayroll',label:'Ordinary Payroll Amount',type:'number'},
+        {id:'a810_ordPayrollDays',label:'Ordinary Payroll # of Days',type:'number'},
+    ]},
+    acord810_expenses: { title:'Extra Expense', fields:[
+        {id:'a810_extraExpEst',label:'Estimated Extra Expense if Shutdown',type:'number'},
+        {id:'a810_tempLocCost',label:'Temp Location Cost (monthly)',type:'number'},
+        {id:'a810_equipRental',label:'Equipment Rental Cost (monthly)',type:'number'},
+        {id:'a810_maxDowntime',label:'Estimated Max Downtime (months)',type:'number'},
+    ]},
+    acord810_rental: { title:'Rental Value', fields:[
+        {id:'a810_rentalIncome',label:'Monthly Rental Income',type:'number'},
+        {id:'a810_annRentalIncome',label:'Annual Rental Income',type:'number'},
+        {id:'a810_numUnits',label:'Number of Rental Units',type:'number'},
+        {id:'a810_avgVacancy',label:'Average Vacancy Rate %',type:'number'},
+    ]},
+    acord810_coverage: { title:'Coverage Options', fields:[
+        {id:'a810_biLimit',label:'Business Income Limit',type:'number'},
+        {id:'a810_eeLimit',label:'Extra Expense Limit',type:'number'},
+        {id:'a810_rentalLimit',label:'Rental Value Limit',type:'number'},
+        {id:'a810_coinsurance',label:'Coinsurance %',type:'select',opts:['','50%','60%','70%','80%','90%','100%']},
+        {id:'a810_waitPeriod',label:'Waiting Period',type:'select',opts:['','24 hours','48 hours','72 hours']},
+        {id:'a810_indemnity',label:'Period of Indemnity',type:'select',opts:['','12 months','18 months','24 months','Actual Loss Sustained']},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 811 - Value Reporting
+    // ══════════════════════════════════════════════════════════
+    acord811_loc1: { title:'Location 1 Values', fields:[
+        {id:'a811_l1Addr',label:'Address',type:'text',map:'address'},
+        {id:'a811_l1Bldg',label:'Building Value',type:'number'},
+        {id:'a811_l1BPP',label:'BPP Value',type:'number'},
+        {id:'a811_l1Stock',label:'Stock / Inventory',type:'number'},
+        {id:'a811_l1Total',label:'Total Values',type:'number'},
+    ]},
+    acord811_loc2: { title:'Location 2 Values', fields:[
+        {id:'a811_l2Addr',label:'Address',type:'text'},
+        {id:'a811_l2Bldg',label:'Building Value',type:'number'},
+        {id:'a811_l2BPP',label:'BPP Value',type:'number'},
+        {id:'a811_l2Stock',label:'Stock / Inventory',type:'number'},
+        {id:'a811_l2Total',label:'Total Values',type:'number'},
+    ]},
+    acord811_values: { title:'Reporting Summary', fields:[
+        {id:'a811_reportDate',label:'Report Date',type:'date'},
+        {id:'a811_reportPeriod',label:'Report Period',type:'select',opts:['','Monthly','Quarterly','Semi-Annual','Annual']},
+        {id:'a811_totalAllLocs',label:'Total All Locations',type:'number'},
+        {id:'a811_maxAnyOneLoc',label:'Max Value Any One Location',type:'number'},
+        {id:'a811_preparedBy',label:'Prepared By',type:'text'},
+        {id:'a811_preparedTitle',label:'Title',type:'text'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 819 - Producer Appointment
+    // ══════════════════════════════════════════════════════════
+    acord819_producer: { title:'Producer Information', fields:[
+        {id:'a819_prodName',label:'Producer / Agent Name',type:'text'},
+        {id:'a819_prodAgency',label:'Agency Name',type:'text',defaultVal:'Universal Insurance Brokers'},
+        {id:'a819_prodAddr',label:'Address',type:'text'},
+        {id:'a819_prodCity',label:'City',type:'text'},
+        {id:'a819_prodState',label:'State',type:'text',defaultVal:'FL'},
+        {id:'a819_prodZip',label:'Zip',type:'text'},
+        {id:'a819_prodSSN',label:'SSN / Tax ID',type:'text'},
+        {id:'a819_prodDOB',label:'Date of Birth',type:'date'},
+        {id:'a819_prodLicNum',label:'License Number',type:'text'},
+        {id:'a819_prodLicState',label:'License State',type:'text',defaultVal:'FL'},
+        {id:'a819_prodLicExp',label:'License Expiration',type:'date'},
+        {id:'a819_prodEO',label:'E&O Insurance Carrier',type:'text'},
+        {id:'a819_prodEOPol',label:'E&O Policy Number',type:'text'},
+        {id:'a819_prodEOExp',label:'E&O Expiration',type:'date'},
+    ]},
+    acord819_company: { title:'Company Information', fields:[
+        {id:'a819_coName',label:'Insurance Company Name',type:'text'},
+        {id:'a819_coNAIC',label:'NAIC Code',type:'text'},
+        {id:'a819_coAddr',label:'Company Address',type:'text'},
+    ]},
+    acord819_appointment: { title:'Appointment Details', fields:[
+        {id:'a819_action',label:'Action',type:'select',opts:['','New Appointment','Termination','Change']},
+        {id:'a819_effDate',label:'Effective Date',type:'date'},
+        {id:'a819_termDate',label:'Termination Date (if applicable)',type:'date'},
+        {id:'a819_termReason',label:'Reason for Termination',type:'select',opts:['','Voluntary','Involuntary - Cause','Involuntary - Other','Mutual Agreement']},
+        {id:'a819_termDetail',label:'Termination Details',type:'textarea'},
+    ]},
+    acord819_linesAuth: { title:'Lines of Authority', fields:[
+        {id:'a819_propCas',label:'Property & Casualty',type:'select',opts:['','Yes','No']},
+        {id:'a819_life',label:'Life',type:'select',opts:['','Yes','No']},
+        {id:'a819_health',label:'Health',type:'select',opts:['','Yes','No']},
+        {id:'a819_surety',label:'Surety',type:'select',opts:['','Yes','No']},
+        {id:'a819_variable',label:'Variable Products',type:'select',opts:['','Yes','No']},
+        {id:'a819_otherLines',label:'Other Lines',type:'text'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // ACORD 823 - Misc Professional Liability
+    // ══════════════════════════════════════════════════════════
+    acord823_profInfo: { title:'Professional Information', fields:[
+        {id:'a823_profType',label:'Type of Professional',type:'text'},
+        {id:'a823_specialty',label:'Specialty / Area of Practice',type:'text'},
+        {id:'a823_yearsExp',label:'Years Experience',type:'number'},
+        {id:'a823_numPractitioners',label:'# Practitioners',type:'number'},
+        {id:'a823_annRevenue',label:'Annual Revenue',type:'number'},
+        {id:'a823_annFees',label:'Annual Professional Fees',type:'number'},
+    ]},
+    acord823_services: { title:'Services Provided', fields:[
+        {id:'a823_svcDesc',label:'Description of Services',type:'textarea'},
+        {id:'a823_clientTypes',label:'Types of Clients Served',type:'textarea'},
+        {id:'a823_contracts',label:'Written Contracts Used?',type:'select',opts:['','Always','Usually','Sometimes','Never']},
+        {id:'a823_engagementLetters',label:'Engagement Letters Used?',type:'select',opts:['','Always','Usually','Sometimes','Never']},
+        {id:'a823_peerReview',label:'Subject to Peer Review?',type:'select',opts:['','Yes','No']},
+    ]},
+    acord823_claims: { title:'Claims', fields:[
+        {id:'a823_anyClaims',label:'Any Claims Last 5 Years?',type:'select',opts:['','Yes','No']},
+        {id:'a823_c1Date',label:'Claim 1 Date',type:'date'},
+        {id:'a823_c1Desc',label:'Description',type:'text'},
+        {id:'a823_c1Amt',label:'Amount',type:'number'},
+        {id:'a823_c2Date',label:'Claim 2 Date',type:'date'},
+        {id:'a823_c2Desc',label:'Description',type:'text'},
+        {id:'a823_c2Amt',label:'Amount',type:'number'},
+        {id:'a823_declined',label:'Ever Declined/Cancelled?',type:'select',opts:['','Yes','No']},
+    ]},
+    acord823_coverage: { title:'Coverage', fields:[
+        {id:'a823_limit',label:'Per Claim Limit',type:'select',opts:['','$250,000','$500,000','$1,000,000','$2,000,000','$5,000,000']},
+        {id:'a823_agg',label:'Aggregate',type:'select',opts:['','$500,000','$1,000,000','$2,000,000','$5,000,000','$10,000,000']},
+        {id:'a823_deductible',label:'Deductible',type:'select',opts:['','$1,000','$2,500','$5,000','$10,000','$25,000']},
+        {id:'a823_retro',label:'Retroactive Date',type:'date'},
+        {id:'a823_priorCarrier',label:'Prior Carrier',type:'text'},
+        {id:'a823_priorPrem',label:'Prior Premium',type:'number'},
+    ]},
+
+    // ══════════════════════════════════════════════════════════
+    // Custom Forms
+    // ══════════════════════════════════════════════════════════
+    cancelLetter_details: { title:'Cancellation Letter Details', fields:[
+        {id:'cl_priorCarrier',label:'Prior Insurance Company',type:'text'},
+        {id:'cl_priorPol',label:'Prior Policy Number',type:'text'},
+        {id:'cl_priorEffDate',label:'Prior Policy Effective Date',type:'date'},
+        {id:'cl_priorExpDate',label:'Prior Policy Expiration Date',type:'date'},
+        {id:'cl_cancelDate',label:'Requested Cancellation Date',type:'date'},
+        {id:'cl_reason',label:'Reason for Cancellation',type:'select',opts:['','Replaced with New Policy','Sold Property','Vehicle Sold','No Longer Needed','Other']},
+        {id:'cl_newCarrier',label:'New Insurance Company',type:'text'},
+        {id:'cl_newPolNum',label:'New Policy Number',type:'text'},
+        {id:'cl_newEffDate',label:'New Policy Effective Date',type:'date'},
+        {id:'cl_refundMethod',label:'Refund Method',type:'select',opts:['','Check','EFT','Credit to Account']},
+        {id:'cl_additionalNotes',label:'Additional Notes',type:'textarea'},
+    ]},
+
+    cargo_operations: { title:'Operations', fields:[
+        {id:'cg_opType',label:'Type of Trucking Operations',type:'select',opts:['','For Hire','Private','Both']},
+        {id:'cg_authority',label:'Operating Authority / MC #',type:'text'},
+        {id:'cg_dot',label:'DOT #',type:'text'},
+        {id:'cg_radius',label:'Radius of Operations',type:'select',opts:['','Local (0-100 mi)','Regional (100-500 mi)','Long Haul (500+ mi)','Nationwide']},
+        {id:'cg_numPowerUnits',label:'# Power Units',type:'number'},
+        {id:'cg_numTrailers',label:'# Trailers',type:'number'},
+        {id:'cg_numDrivers',label:'# Drivers',type:'number'},
+        {id:'cg_annMiles',label:'Total Annual Miles',type:'number'},
+        {id:'cg_annRevenue',label:'Annual Gross Revenue',type:'number'},
+    ]},
+    cargo_vehicles: { title:'Vehicle Schedule', fields:[
+        {id:'cg_v1Year',label:'Unit 1 Year',type:'text'},{id:'cg_v1Make',label:'Make',type:'text'},{id:'cg_v1Model',label:'Model',type:'text'},
+        {id:'cg_v1VIN',label:'VIN',type:'text'},{id:'cg_v1GVW',label:'GVW',type:'text'},{id:'cg_v1Value',label:'Value',type:'number'},
+        {id:'cg_v2Year',label:'Unit 2 Year',type:'text'},{id:'cg_v2Make',label:'Make',type:'text'},{id:'cg_v2Model',label:'Model',type:'text'},
+        {id:'cg_v2VIN',label:'VIN',type:'text'},{id:'cg_v2GVW',label:'GVW',type:'text'},{id:'cg_v2Value',label:'Value',type:'number'},
+        {id:'cg_v3Year',label:'Unit 3 Year',type:'text'},{id:'cg_v3Make',label:'Make',type:'text'},{id:'cg_v3Model',label:'Model',type:'text'},
+        {id:'cg_v3VIN',label:'VIN',type:'text'},{id:'cg_v3GVW',label:'GVW',type:'text'},{id:'cg_v3Value',label:'Value',type:'number'},
+    ]},
+    cargo_drivers: { title:'Driver Information', fields:[
+        {id:'cg_d1Name',label:'Driver 1 Name',type:'text'},{id:'cg_d1DOB',label:'DOB',type:'date'},{id:'cg_d1DL',label:'CDL #',type:'text'},
+        {id:'cg_d1DLState',label:'State',type:'text',defaultVal:'FL'},{id:'cg_d1Exp',label:'Years CDL Experience',type:'number'},
+        {id:'cg_d1MVR',label:'MVR Clean?',type:'select',opts:['','Yes','No']},
+        {id:'cg_d2Name',label:'Driver 2 Name',type:'text'},{id:'cg_d2DOB',label:'DOB',type:'date'},{id:'cg_d2DL',label:'CDL #',type:'text'},
+        {id:'cg_d2DLState',label:'State',type:'text'},{id:'cg_d2Exp',label:'Years CDL Experience',type:'number'},
+        {id:'cg_d3Name',label:'Driver 3 Name',type:'text'},{id:'cg_d3DOB',label:'DOB',type:'date'},{id:'cg_d3DL',label:'CDL #',type:'text'},
+    ]},
+    cargo_commodities: { title:'Commodities Hauled', fields:[
+        {id:'cg_comm1',label:'Commodity 1',type:'text'},
+        {id:'cg_comm1Pct',label:'% of Hauls',type:'number'},
+        {id:'cg_comm1MaxLoad',label:'Max Load Value',type:'number'},
+        {id:'cg_comm2',label:'Commodity 2',type:'text'},
+        {id:'cg_comm2Pct',label:'% of Hauls',type:'number'},
+        {id:'cg_comm2MaxLoad',label:'Max Load Value',type:'number'},
+        {id:'cg_comm3',label:'Commodity 3',type:'text'},
+        {id:'cg_comm3Pct',label:'% of Hauls',type:'number'},
+        {id:'cg_hazmat',label:'Haul Hazmat?',type:'select',opts:['','Yes','No']},
+        {id:'cg_hazmatDesc',label:'Hazmat Description',type:'text'},
+        {id:'cg_refrig',label:'Refrigerated?',type:'select',opts:['','Yes','No']},
+    ]},
+    cargo_coverage: { title:'Coverage', fields:[
+        {id:'cg_alBI',label:'Auto Liability BI',type:'text'},
+        {id:'cg_alPD',label:'Auto Liability PD',type:'text'},
+        {id:'cg_alCSL',label:'Combined Single Limit',type:'text'},
+        {id:'cg_cargoLimit',label:'Cargo Coverage Limit',type:'number'},
+        {id:'cg_cargoDeduct',label:'Cargo Deductible',type:'text'},
+        {id:'cg_reefer',label:'Reefer Breakdown Coverage',type:'select',opts:['','Yes','No']},
+        {id:'cg_trailer',label:'Trailer Interchange Coverage',type:'select',opts:['','Yes','No']},
+        {id:'cg_pollution',label:'Pollution Liability',type:'select',opts:['','Yes','No']},
+        {id:'cg_genLiab',label:'General Liability',type:'select',opts:['','Yes','No']},
+        {id:'cg_physDam',label:'Physical Damage',type:'select',opts:['','Comp + Coll','Comp Only','None']},
+    ]},
+    cargo_lossHistory: { title:'Loss History (3 Years)', fields:[
+        {id:'cg_l1Year',label:'Year 1',type:'text'},{id:'cg_l1Claims',label:'# Claims',type:'number'},{id:'cg_l1Incurred',label:'Total Incurred',type:'number'},
+        {id:'cg_l2Year',label:'Year 2',type:'text'},{id:'cg_l2Claims',label:'# Claims',type:'number'},{id:'cg_l2Incurred',label:'Total Incurred',type:'number'},
+        {id:'cg_l3Year',label:'Year 3',type:'text'},{id:'cg_l3Claims',label:'# Claims',type:'number'},{id:'cg_l3Incurred',label:'Total Incurred',type:'number'},
+    ]},
+
+    // Safepoint Restaurant
+    sp_restaurant: { title:'Restaurant Information', fields:[
+        {id:'sp_restName',label:'Restaurant Name',type:'text'},
+        {id:'sp_cuisine',label:'Type of Cuisine',type:'text'},
+        {id:'sp_seating',label:'Seating Capacity',type:'number'},
+        {id:'sp_annSales',label:'Annual Food/Beverage Sales',type:'number'},
+        {id:'sp_liquorPct',label:'Liquor Sales % of Total',type:'number'},
+        {id:'sp_hoursOp',label:'Hours of Operation',type:'text'},
+        {id:'sp_daysOpen',label:'Days Open Per Week',type:'number'},
+        {id:'sp_delivery',label:'Delivery Service?',type:'select',opts:['','Yes','No']},
+        {id:'sp_catering',label:'Catering?',type:'select',opts:['','Yes','No']},
+    ]},
+    sp_operations: { title:'Operations', fields:[
+        {id:'sp_deepFryer',label:'Deep Fryer?',type:'select',opts:['','Yes','No']},
+        {id:'sp_grill',label:'Open Flame Grill?',type:'select',opts:['','Yes','No']},
+        {id:'sp_hood',label:'Exhaust Hood System?',type:'select',opts:['','Yes','No']},
+        {id:'sp_hoodInsp',label:'Hood System Last Inspected',type:'date'},
+        {id:'sp_ansulSystem',label:'Ansul/Suppression System?',type:'select',opts:['','Yes','No']},
+        {id:'sp_ansulInsp',label:'Suppression Last Inspected',type:'date'},
+        {id:'sp_playground',label:'Playground Equipment?',type:'select',opts:['','Yes','No']},
+        {id:'sp_entertainment',label:'Entertainment/Dancing?',type:'select',opts:['','Yes','No']},
+    ]},
+    sp_safety: { title:'Safety', fields:[
+        {id:'sp_fireExt',label:'Fire Extinguishers?',type:'select',opts:['','Yes','No']},
+        {id:'sp_fireAlarm',label:'Fire Alarm?',type:'select',opts:['','Yes','No']},
+        {id:'sp_sprinkler',label:'Sprinkler System?',type:'select',opts:['','Yes','No']},
+        {id:'sp_floorMats',label:'Non-Slip Floor Mats?',type:'select',opts:['','Yes','No']},
+        {id:'sp_healthInsp',label:'Last Health Inspection Date',type:'date'},
+        {id:'sp_healthScore',label:'Health Inspection Score',type:'text'},
+    ]},
+    sp_coverage: { title:'Coverage Requested', fields:[
+        {id:'sp_propLimit',label:'Building / BPP Limit',type:'number'},
+        {id:'sp_glLimit',label:'GL Limit',type:'text'},
+        {id:'sp_liquorLiab',label:'Liquor Liability',type:'select',opts:['','Yes','No']},
+        {id:'sp_spoilage',label:'Spoilage Coverage',type:'select',opts:['','Yes','No']},
+        {id:'sp_equipBreak',label:'Equipment Breakdown',type:'select',opts:['','Yes','No']},
+        {id:'sp_signCoverage',label:'Sign Coverage',type:'select',opts:['','Yes','No']},
+    ]},
+
+    // Colony Specialty Property
+    colony_property: { title:'Property Details', fields:[
+        {id:'col_propAddr',label:'Property Address',type:'text',map:'address'},
+        {id:'col_propCity',label:'City',type:'text',map:'city'},
+        {id:'col_propState',label:'State',type:'text',map:'state'},
+        {id:'col_propZip',label:'Zip',type:'text',map:'zip'},
+        {id:'col_propType',label:'Property Type',type:'select',opts:['','Commercial','Residential','Industrial','Vacant Land','Mixed Use']},
+        {id:'col_yrBuilt',label:'Year Built',type:'text'},
+        {id:'col_sqft',label:'Total Square Footage',type:'number'},
+        {id:'col_stories',label:'Stories',type:'number'},
+    ]},
+    colony_construction: { title:'Construction', fields:[
+        {id:'col_constType',label:'Construction Type',type:'select',opts:['','Frame','Masonry','Non-Combustible','Fire Resistive']},
+        {id:'col_roofType',label:'Roof Type',type:'select',opts:['','Shingle','Tile','Metal','Flat/Built-up','TPO','Other']},
+        {id:'col_roofYear',label:'Roof Year / Last Replaced',type:'text'},
+        {id:'col_electrical',label:'Electrical Updated',type:'text'},
+        {id:'col_plumbing',label:'Plumbing Updated',type:'text'},
+        {id:'col_hvac',label:'HVAC Updated',type:'text'},
+        {id:'col_wiring',label:'Wiring Type',type:'select',opts:['','Copper','Aluminum','Knob & Tube','Unknown']},
+    ]},
+    colony_protection: { title:'Protection', fields:[
+        {id:'col_fireStation',label:'Distance to Fire Station (miles)',type:'number'},
+        {id:'col_fireHydrant',label:'Distance to Fire Hydrant (feet)',type:'number'},
+        {id:'col_protClass',label:'Protection Class',type:'text'},
+        {id:'col_alarm',label:'Alarm System',type:'select',opts:['','Central Station','Local','None']},
+        {id:'col_sprinkler',label:'Sprinkler',type:'select',opts:['','Full','Partial','None']},
+        {id:'col_deadbolts',label:'Deadbolt Locks',type:'select',opts:['','Yes','No']},
+        {id:'col_gatedComm',label:'Gated Community?',type:'select',opts:['','Yes','No']},
+        {id:'col_hurricane',label:'Hurricane Shutters/Impact Windows?',type:'select',opts:['','Shutters','Impact Windows','Both','None']},
+    ]},
+    colony_occupancy: { title:'Occupancy', fields:[
+        {id:'col_occupancy',label:'Occupancy Type',type:'select',opts:['','Owner-Occupied','Tenant-Occupied','Vacant','Under Construction','Seasonal']},
+        {id:'col_vacantMonths',label:'If Seasonal/Vacant - Months Vacant',type:'number'},
+        {id:'col_numTenants',label:'Number of Tenants',type:'number'},
+        {id:'col_commercialUse',label:'Any Commercial Use?',type:'select',opts:['','Yes','No']},
+        {id:'col_commDesc',label:'Commercial Use Description',type:'text'},
+    ]},
+    colony_loss: { title:'Loss History', fields:[
+        {id:'col_anyLoss5yr',label:'Any Losses Last 5 Years?',type:'select',opts:['','Yes','No']},
+        {id:'col_l1Date',label:'Loss 1 Date',type:'date'},
+        {id:'col_l1Type',label:'Type (Fire/Water/Wind/Theft)',type:'text'},
+        {id:'col_l1Amt',label:'Amount',type:'number'},
+        {id:'col_l2Date',label:'Loss 2 Date',type:'date'},
+        {id:'col_l2Type',label:'Type',type:'text'},
+        {id:'col_l2Amt',label:'Amount',type:'number'},
+    ]},
+
+    // Align General Contractors
+    align_operations: { title:'Contractor Operations', fields:[
+        {id:'al_opType',label:'Type of Contractor',type:'text'},
+        {id:'al_opDesc',label:'Full Description of Operations',type:'textarea'},
+        {id:'al_yearsInBiz',label:'Years in Business',type:'number'},
+        {id:'al_annRevenue',label:'Annual Gross Revenue',type:'number'},
+        {id:'al_largestProject',label:'Largest Single Project Value',type:'number'},
+        {id:'al_avgProjectSize',label:'Average Project Size',type:'number'},
+        {id:'al_workHeight',label:'Max Working Height (feet)',type:'number'},
+        {id:'al_residential',label:'% Residential',type:'number'},
+        {id:'al_commercial',label:'% Commercial',type:'number'},
+        {id:'al_newConst',label:'% New Construction',type:'number'},
+        {id:'al_remodel',label:'% Remodel/Renovation',type:'number'},
+    ]},
+    align_subcontractors: { title:'Subcontractor Management', fields:[
+        {id:'al_useSubs',label:'Use Subcontractors?',type:'select',opts:['','Yes','No']},
+        {id:'al_subPct',label:'% of Work Subcontracted',type:'number'},
+        {id:'al_subAnnCost',label:'Annual Sub Costs',type:'number'},
+        {id:'al_subCOI',label:'Require COI from All Subs?',type:'select',opts:['','Yes','No']},
+        {id:'al_subAddlInsured',label:'Named as Additional Insured?',type:'select',opts:['','Yes','No']},
+        {id:'al_subWC',label:'Require WC from All Subs?',type:'select',opts:['','Yes','No']},
+        {id:'al_subContracts',label:'Written Contracts with Subs?',type:'select',opts:['','Always','Usually','Sometimes','Never']},
+    ]},
+    align_coverage: { title:'Coverage Requested', fields:[
+        {id:'al_glLimit',label:'GL Occurrence Limit',type:'text'},
+        {id:'al_glAggregate',label:'GL Aggregate',type:'text'},
+        {id:'al_prodOps',label:'Products/Completed Operations',type:'text'},
+        {id:'al_profLiab',label:'Professional Liability',type:'select',opts:['','Yes','No']},
+        {id:'al_pollution',label:'Contractors Pollution',type:'select',opts:['','Yes','No']},
+        {id:'al_toolsEquip',label:'Tools & Equipment Coverage',type:'number'},
+        {id:'al_installationFloater',label:'Installation Floater',type:'select',opts:['','Yes','No']},
+        {id:'al_buildersRisk',label:'Builders Risk',type:'select',opts:['','Yes','No']},
+    ]},
+    align_lossHistory: { title:'Loss History', fields:[
+        {id:'al_l1Date',label:'Loss 1 Date',type:'date'},{id:'al_l1Desc',label:'Description',type:'text'},{id:'al_l1Amt',label:'Amount',type:'number'},
+        {id:'al_l2Date',label:'Loss 2 Date',type:'date'},{id:'al_l2Desc',label:'Description',type:'text'},{id:'al_l2Amt',label:'Amount',type:'number'},
+        {id:'al_l3Date',label:'Loss 3 Date',type:'date'},{id:'al_l3Desc',label:'Description',type:'text'},{id:'al_l3Amt',label:'Amount',type:'number'},
+    ]},
+
+    // ENCORE New Client
+    encore_account: { title:'Account Setup', fields:[
+        {id:'enc_acctType',label:'Account Type',type:'select',opts:['','Individual','Business','Non-Profit']},
+        {id:'enc_referredBy',label:'Referred By',type:'text'},
+        {id:'enc_assignedAgent',label:'Assigned Agent',type:'text'},
+        {id:'enc_assignedCSR',label:'Assigned CSR',type:'text'},
+    ]},
+    encore_billing: { title:'Billing Preferences', fields:[
+        {id:'enc_billMethod',label:'Billing Method',type:'select',opts:['','Direct Bill','Agency Bill','Premium Finance']},
+        {id:'enc_payMethod',label:'Payment Method',type:'select',opts:['','Check','EFT/ACH','Credit Card','Cash']},
+        {id:'enc_billEmail',label:'Billing Email',type:'email',map:'email'},
+        {id:'enc_autopay',label:'Auto-Pay Enrolled?',type:'select',opts:['','Yes','No']},
+    ]},
+    encore_policies: { title:'Policies to Enroll', fields:[
+        {id:'enc_pol1Type',label:'Policy 1 Type',type:'text'},
+        {id:'enc_pol1Carrier',label:'Carrier',type:'text'},
+        {id:'enc_pol1PolNum',label:'Policy #',type:'text'},
+        {id:'enc_pol1EffDate',label:'Effective',type:'date'},
+        {id:'enc_pol2Type',label:'Policy 2 Type',type:'text'},
+        {id:'enc_pol2Carrier',label:'Carrier',type:'text'},
+        {id:'enc_pol2PolNum',label:'Policy #',type:'text'},
+        {id:'enc_pol2EffDate',label:'Effective',type:'date'},
+        {id:'enc_pol3Type',label:'Policy 3 Type',type:'text'},
+        {id:'enc_pol3Carrier',label:'Carrier',type:'text'},
+        {id:'enc_pol3PolNum',label:'Policy #',type:'text'},
     ]},
 };
 
