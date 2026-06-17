@@ -91,6 +91,14 @@ function amsGetCarriers()    { return JSON.parse(localStorage.getItem('carrierMa
 
 function amsSave(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
+    amsSyncToDrive(key, value);
+}
+
+async function amsSyncToDrive(key, value) {
+    try {
+        const payload = JSON.stringify({ key: key, value: value });
+        await fetch(AMS_DRIVE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, mode: 'no-cors' });
+    } catch (e) { /* Drive unavailable */ }
 }
 
 // Lock or unlock an agent <select> based on current role.
@@ -781,7 +789,7 @@ function amsSavePolicyModal() {
         });
     }
 
-    localStorage.setItem('binderData', JSON.stringify(binder));  // triggers storage event in Binder Book
+    amsSave('binderData', binder);
 
     amsClosePolicyModal();
     amsBuildClientIndex();
@@ -1478,7 +1486,7 @@ function amsChangePolicyStatus(policyId, newStatus) {
     
     if (idx !== -1) {
         binder[idx].policyStatus = newStatus;
-        localStorage.setItem('binderData', JSON.stringify(binder));
+        amsSave('binderData', binder);
         
         // Close menu and refresh
         const menu = document.getElementById('amsPolicyActionMenu');
@@ -1496,7 +1504,7 @@ function amsDeletePolicy(policyId) {
     
     const binder = amsGetBinderData();
     const filtered = binder.filter(p => p.id !== policyId);
-    localStorage.setItem('binderData', JSON.stringify(filtered));
+    amsSave('binderData', filtered);
     
     amsBuildClientIndex();
     amsRenderPolicies(amsActiveKey);
