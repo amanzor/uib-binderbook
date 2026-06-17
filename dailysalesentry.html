@@ -740,21 +740,6 @@
         });
     });
 
-    // Override form submit to redirect back after save
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('agentForm')?.addEventListener('submit', (e) => {
-            // Let app.js handle save, then show success message
-            const origSubmit = e.target.onsubmit;
-            setTimeout(() => {
-                const msg = document.getElementById('successMessage');
-                if (msg) {
-                    msg.classList.add('show');
-                    msg.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    setTimeout(() => msg.classList.remove('show'), 4000);
-                }
-            }, 300);
-        });
-    });
 </script>
 </body>
 </html>

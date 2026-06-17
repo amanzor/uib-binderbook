@@ -981,12 +981,31 @@ function saveEntry() {
     document.getElementById('agentCommission').value = '';
     // Hide auto-calc breakdown labels
     const rateLabel = document.getElementById('commissionRateLabel');
-    const breakdown = document.getElementById('commissionBreakdown');
+    const breakdownEl = document.getElementById('commissionBreakdown');
     if (rateLabel) { rateLabel.style.display = 'none'; rateLabel.textContent = ''; }
-    if (breakdown) { breakdown.style.display = 'none'; breakdown.textContent = ''; }
-    closeDailySalesModal();
-    setTodayDate();
-    loadAgentData();
+    if (breakdownEl) { breakdownEl.style.display = 'none'; breakdownEl.textContent = ''; }
+
+    // Detect standalone daily sales entry page vs main app modal
+    const isStandalonePage = window.location.pathname.includes('dailysalesentry');
+
+    if (isStandalonePage) {
+        // Re-assign location for next entry
+        const autoLoc = (currentUser === 'Jorge Castro') ? 'Franchise' : 'Hialeah Office';
+        _selectedSalesLocation = autoLoc;
+        const locSel2 = document.getElementById('salesLocationSelect');
+        if (locSel2) locSel2.value = autoLoc;
+        setTodayDate();
+        generateBinderNumber();
+        refreshAllCarrierDropdowns();
+        populateSourceDropdown('source', '');
+        resetDriversVehicles();
+    } else {
+        closeDailySalesModal();
+        setTodayDate();
+        loadAgentData();
+    }
+
+    if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
 }
 
 // ── Daily Verification Log ────────────────────────────────────
