@@ -1192,7 +1192,6 @@
             <div id="agentSection" class="section">
                 <div class="user-info">
                     <span id="userDisplay"></span>
-                    <button class="btn-success btn-sm" onclick="openLeadEntryModal()" style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none;"><i data-lucide="user-check"></i> Lead Entry</button>
                     <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
                     <button class="btn-success btn-sm" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
                     <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
@@ -1582,25 +1581,6 @@
                     </div><!-- end inner content wrapper -->
                     </div><!-- end modal-content -->
                 </div><!-- end dailySalesModal -->
-
-                <!-- ── Lead Entry Type Modal ─────────────────────────── -->
-                <div id="leadEntryModal" class="modal" style="z-index:10010;background:rgba(15,23,42,.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);">
-                    <div class="modal-content" style="max-width:420px;text-align:center;padding:32px;">
-                        <h3 style="margin:0 0 8px;font-size:20px;font-weight:800;color:#1e293b;"><i data-lucide="user-check" style="width:22px;height:22px;vertical-align:-4px;margin-right:6px;color:#d97706;"></i>New Lead Entry</h3>
-                        <p style="color:#64748b;margin:0 0 24px;font-size:14px;">What type of lead would you like to create?</p>
-                        <div style="display:flex;gap:16px;justify-content:center;">
-                            <button class="btn-sm" onclick="closeLeadEntryModal(); alert('Commercial lead form coming soon!')" style="flex:1;padding:18px 24px;font-size:15px;font-weight:700;background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff;border:none;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">
-                                <i data-lucide="building-2" style="width:28px;height:28px;"></i>
-                                Commercial
-                            </button>
-                            <button class="btn-sm" onclick="closeLeadEntryModal(); alert('Personal lead form coming soon!')" style="flex:1;padding:18px 24px;font-size:15px;font-weight:700;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;">
-                                <i data-lucide="user" style="width:28px;height:28px;"></i>
-                                Personal
-                            </button>
-                        </div>
-                        <button class="btn-sm" onclick="closeLeadEntryModal()" style="margin-top:20px;background:none;border:1px solid #cbd5e1;color:#64748b;padding:8px 24px;border-radius:8px;cursor:pointer;font-size:13px;">Cancel</button>
-                    </div>
-                </div>
 
                 <!-- ── Binder File Upload Modal ─────────────────────────── -->
                 <div id="binderFileModal" class="modal" style="align-items:flex-start;justify-content:center;padding:20px 0;z-index:10010;background:rgba(15,23,42,.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);">
