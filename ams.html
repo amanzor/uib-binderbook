@@ -1341,7 +1341,7 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="ams.js?v=20260617h"></script>
+    <script src="ams.js?v=20260617i"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
         const _dashCharts = {};
@@ -3420,10 +3420,11 @@
                 card.id = 'al3Card' + idx;
                 card.innerHTML = `
                     <div class="al3-file-icon">📄</div>
-                    <div class="al3-file-info">
+                    <div class="al3-file-info" style="flex:1;">
                         <div class="al3-file-name">${_ae(file.name)}</div>
                         <div class="al3-file-meta">${size} &bull; <span id="al3Status${idx}" class="al3-file-status al3-status-pending">Parsing...</span></div>
-                    </div>`;
+                    </div>
+                    <button onclick="al3DeleteFile('${_ae(file.name)}')" title="Remove file" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:16px;padding:4px 8px;margin-left:auto;">✕</button>`;
                 listEl.appendChild(card);
 
                 const reader = new FileReader();
@@ -3555,9 +3556,9 @@
                     <table class="al3-parsed-table">
                         <thead><tr>
                             <th>#</th><th>Insured Name</th><th>Policy Number</th><th>Eff. Date</th><th>Exp. Date</th>
-                            <th>Premium</th><th>Company</th><th>LOB</th><th>City/State</th><th>Source File</th>
+                            <th>Premium</th><th>Company</th><th>LOB</th><th>City/State</th><th>Source File</th><th style="width:40px;"></th>
                         </tr></thead>
-                        <tbody>${allRecords.map((r, i) => `<tr>
+                        <tbody>${allRecords.map((r, i) => `<tr id="al3Row${i}">
                             <td>${i+1}</td>
                             <td style="font-weight:600;">${_ae(r.insuredName||'—')}</td>
                             <td>${_ae(r.policyNumber||'—')}</td>
@@ -3568,6 +3569,7 @@
                             <td>${_ae(r.lineOfBusiness||'—')}</td>
                             <td>${_ae([r.city,r.state].filter(Boolean).join(', ')||'—')}</td>
                             <td style="font-size:11px;color:var(--gray-400);">${_ae(r._file)}</td>
+                            <td><button onclick="al3DeleteRecord(${i})" title="Remove record" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:15px;padding:2px 6px;">✕</button></td>
                         </tr>`).join('')}</tbody>
                     </table>
                 </div>`;
@@ -3596,6 +3598,52 @@
             const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
             const blob = new Blob([csv], {type:'text/csv'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'al3_parsed.csv'; a.click();
+        }
+
+        function al3DeleteRecord(globalIdx) {
+            let count = 0;
+            for (const file of _al3Files) {
+                if (globalIdx < count + file.records.length) {
+                    file.records.splice(globalIdx - count, 1);
+                    break;
+                }
+                count += file.records.length;
+            }
+            _al3Files = _al3Files.filter(f => f.records.length > 0);
+            al3RenderParsed();
+            al3RenderFileList();
+            if (!_al3Files.length) {
+                document.getElementById('al3ImportBar').style.display = 'none';
+                document.getElementById('al3ParsedOutput').innerHTML = '';
+            }
+        }
+
+        function al3DeleteFile(fileName) {
+            _al3Files = _al3Files.filter(f => f.name !== fileName);
+            al3RenderParsed();
+            al3RenderFileList();
+            if (!_al3Files.length) {
+                document.getElementById('al3ImportBar').style.display = 'none';
+                document.getElementById('al3ParsedOutput').innerHTML = '';
+                document.getElementById('al3FileList').innerHTML = '';
+            }
+        }
+
+        function al3RenderFileList() {
+            const listEl = document.getElementById('al3FileList');
+            listEl.innerHTML = '';
+            _al3Files.forEach(f => {
+                const card = document.createElement('div');
+                card.className = 'al3-file-card';
+                card.innerHTML = `
+                    <div class="al3-file-icon">📄</div>
+                    <div class="al3-file-info" style="flex:1;">
+                        <div class="al3-file-name">${_ae(f.name)}</div>
+                        <div class="al3-file-meta"><span class="al3-file-status al3-status-parsed">${f.records.length} records</span></div>
+                    </div>
+                    <button onclick="al3DeleteFile('${_ae(f.name)}')" title="Remove file" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:16px;padding:4px 8px;margin-left:auto;">✕</button>`;
+                listEl.appendChild(card);
+            });
         }
 
         function al3ImportToAMS() {
