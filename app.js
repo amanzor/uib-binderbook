@@ -1952,9 +1952,24 @@ function showSuccess() {
 
 // Agent Data Display
 function loadAgentData() {
-    const agentEntries = allData.filter(d => d.agent === currentUser);
-    renderAgentTable(agentEntries);
-    apdInit(); // refresh inline production dashboard
+    const month = document.getElementById('agentFilter')?.value || '';
+    const query = (document.getElementById('agentSubmissionSearch')?.value || '').trim().toLowerCase();
+
+    let entries = allData.filter(d => d.agent === currentUser);
+    if (month) entries = entries.filter(d => d.entryDate && d.entryDate.startsWith(month));
+    if (query) {
+        entries = entries.filter(d => {
+            const haystack = [
+                d.customerName, d.contactName, d.company, d.mga,
+                d.policyNumber, d.binderNumber, d.lineOfBusiness,
+                d.policyType, d.location, d.entryDateDisplay
+            ].filter(Boolean).join(' ').toLowerCase();
+            return haystack.includes(query);
+        });
+    }
+
+    renderAgentTable(entries);
+    apdInit();
 }
 
 function renderAgentTable(entries) {
