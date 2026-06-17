@@ -3683,7 +3683,7 @@ function acordPrintForm(formId) {
     </style></head><body>
     <div class="form-header">
         <div><h1>${form.num}<br><span style="font-size:13px;font-weight:normal;">${form.name}</span></h1></div>
-        <div class="agency">Universal Insurance Brokers<br>Agent Code: 24258<br>admin@universalinsurancebroker.com<br>Date: ${new Date().toLocaleDateString()}</div>
+        <div class="agency">Universal Insurance Brokers<br>admin@universalinsurancebroker.com<br>Date: ${new Date().toLocaleDateString()}</div>
     </div>`;
 
     form.sections.forEach(secKey => {
