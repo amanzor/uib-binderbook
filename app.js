@@ -895,6 +895,19 @@ function saveEntry() {
     };
     entry.agentCommissionShare = parseFloat(((entry.agencyFee + entry.agencyCommission) * 0.5).toFixed(2));
 
+    // Duplicate guard — block if same agent + customer + policy# + company + date already exists
+    const isDupe = allData.some(d =>
+        d.agent === entry.agent &&
+        d.customerName === entry.customerName &&
+        d.policyNumber === entry.policyNumber &&
+        d.company === entry.company &&
+        d.entryDate === entry.entryDate
+    );
+    if (isDupe) {
+        alert('⚠️ Duplicate entry detected — an entry with the same customer, policy #, company, and date already exists. Entry was not saved.');
+        return;
+    }
+
     allData.push(entry);
     localStorage.setItem('binderData', JSON.stringify(allData));
 
@@ -7123,19 +7136,7 @@ function claudeMaybeAutoSubmit(extracted, autoAdded) {
     };
 
     if (missing.length === 0) {
-        // Auto-submit!
-        claudeShowToast(`✓ Prefilled from PDF · ${counts.drivers} driver${counts.drivers !== 1 ? 's' : ''} · ${counts.vehicles} vehicle${counts.vehicles !== 1 ? 's' : ''}${autoAdded.length ? ' · auto-added ' + autoAdded.join(', ') : ''}\nSaving entry…`, 'success');
-        setTimeout(() => {
-            try {
-                if (typeof saveEntry === 'function') {
-                    saveEntry();
-                    claudeShowToast('✅ Entry saved automatically!', 'success');
-                }
-            } catch (e) {
-                console.error('Auto-save failed:', e);
-                claudeShowToast(`⚠️ Auto-save failed: ${e.message}. Please review and click Save Policy Entry manually.`, 'warn');
-            }
-        }, 800);
+        claudeShowToast(`✓ Prefilled from PDF · ${counts.drivers} driver${counts.drivers !== 1 ? 's' : ''} · ${counts.vehicles} vehicle${counts.vehicles !== 1 ? 's' : ''}${autoAdded.length ? ' · auto-added ' + autoAdded.join(', ') : ''}\nPlease review the entry and click Save Policy Entry.`, 'success');
     } else {
         const missingLabels = missing.map(f => f.label).join(', ');
         // Highlight the first missing field
