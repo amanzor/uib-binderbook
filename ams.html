@@ -468,6 +468,37 @@
         .pnl-positive { color: var(--green); font-weight: 800; }
         .pnl-negative { color: var(--red);   font-weight: 800; }
 
+        /* ── AL3 DROP ZONE ────────────────────────────────────────── */
+        .al3-dropzone {
+            border: 2.5px dashed var(--gray-300); border-radius: 12px; padding: 48px 24px;
+            text-align: center; cursor: pointer; transition: all .2s;
+            background: var(--gray-50);
+        }
+        .al3-dropzone:hover, .al3-dropzone.dragover {
+            border-color: var(--blue); background: var(--blue-pale);
+        }
+        .al3-drop-icon { font-size: 48px; margin-bottom: 12px; }
+        .al3-drop-title { font-size: 16px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+        .al3-drop-sub { font-size: 13px; color: var(--gray-500); }
+        .al3-file-card {
+            display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+            background: white; border: 1px solid var(--gray-200); border-radius: 8px;
+            margin-bottom: 8px; transition: all .15s;
+        }
+        .al3-file-card:hover { border-color: var(--blue); box-shadow: 0 2px 8px rgba(29,78,216,.1); }
+        .al3-file-icon { font-size: 24px; flex-shrink: 0; }
+        .al3-file-info { flex: 1; min-width: 0; }
+        .al3-file-name { font-weight: 600; font-size: 13px; color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .al3-file-meta { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+        .al3-file-status { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; }
+        .al3-status-parsed { background: var(--green-pale); color: var(--green); }
+        .al3-status-error { background: var(--red-pale); color: var(--red); }
+        .al3-status-pending { background: #fef3c7; color: #92400e; }
+        .al3-parsed-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+        .al3-parsed-table th { background: var(--navy); color: white; padding: 8px 10px; text-align: left; position: sticky; top: 0; }
+        .al3-parsed-table td { padding: 6px 10px; border-bottom: 1px solid var(--gray-200); }
+        .al3-parsed-table tr:hover td { background: var(--blue-pale); }
+
         /* ── RESPONSIVE ───────────────────────────────────────────── */
         @media (max-width: 768px) {
             .ams-sidebar { width: 100%; position: relative; top: auto; bottom: auto; left: auto; height: auto; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--gray-200); }
@@ -609,6 +640,9 @@
                     <button class="sidebar-nav-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
                         <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
                     </button>
+                    <button class="sidebar-nav-btn" id="sidebarNavDownload" onclick="amsSidebarNav('download')">
+                        <i data-lucide="download" style="width:15px;height:15px;"></i> Download
+                    </button>
                 </nav>
 
                 <div class="sidebar-toolbar" id="sidebarSearchToolbar">
@@ -731,6 +765,25 @@
                             <h3 style="color:var(--gray-500);margin-bottom:8px;">Select an Accounting Report</h3>
                             <p>Choose a section from the tabs above.</p>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Download / AL3 panel -->
+                <div id="amsDownloadPanel" style="display:none;" class="reports-panel">
+                    <div style="flex:1;padding:24px;overflow-y:auto;">
+                        <h2 style="color:var(--navy);margin-bottom:6px;font-size:20px;"><i data-lucide="download" style="width:20px;height:20px;vertical-align:-4px;"></i> AL3 File Processor</h2>
+                        <p style="color:var(--gray-500);font-size:13px;margin-bottom:20px;">Drop or select AL3 (ACORD) files to parse and process policy download data.</p>
+
+                        <div id="al3DropZone" class="al3-dropzone">
+                            <div class="al3-drop-icon">📥</div>
+                            <div class="al3-drop-title">Drop AL3 Files Here</div>
+                            <div class="al3-drop-sub">or click to browse</div>
+                            <div style="font-size:11px;color:var(--gray-400);margin-top:8px;">.al3 &bull; .dat &bull; .txt</div>
+                            <input type="file" id="al3FileInput" multiple accept=".al3,.dat,.txt" style="display:none;" onchange="al3HandleFiles(this.files)">
+                        </div>
+
+                        <div id="al3FileList" style="margin-top:20px;"></div>
+                        <div id="al3ParsedOutput" style="margin-top:20px;"></div>
                     </div>
                 </div>
 
@@ -1270,7 +1323,7 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="ams.js?v=20260617c"></script>
+    <script src="ams.js?v=20260617d"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
         const _dashCharts = {};
@@ -1280,7 +1333,7 @@
         }
 
         function amsSidebarNav(section) {
-            const sections = ['dashboard','search','reports','accounting'];
+            const sections = ['dashboard','search','reports','accounting','download'];
             sections.forEach(s => {
                 const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
                 if (btn) btn.classList.toggle('active', s === section);
@@ -1291,6 +1344,7 @@
             const dashPanel     = document.getElementById('amsDashboardPanel');
             const reportsPanel  = document.getElementById('amsReportsPanel');
             const acctPanel     = document.getElementById('amsAccountingPanel');
+            const dlPanel       = document.getElementById('amsDownloadPanel');
             const welcome       = document.getElementById('amsWelcome');
             const detail        = document.getElementById('amsClientDetail');
 
@@ -1299,6 +1353,7 @@
             dashPanel.style.display    = 'none';
             reportsPanel.style.display = 'none';
             acctPanel.style.display    = 'none';
+            dlPanel.style.display      = 'none';
             welcome.style.display      = 'none';
             detail.style.display       = 'none';
 
@@ -1316,6 +1371,9 @@
             } else if (section === 'accounting') {
                 acctPanel.style.display = 'flex';
                 if (!_activeAcct) amsShowAccounting('overview');
+            } else if (section === 'download') {
+                dlPanel.style.display = 'flex';
+                lucide.createIcons();
             }
         }
 
@@ -3304,6 +3362,199 @@
                     return[m.label,mp.length,prem.toFixed(2),fees.toFixed(2),acom.toFixed(2),rev.toFixed(2),agco.toFixed(2),net.toFixed(2),rev?(net/rev*100).toFixed(1)+'%':'0%'];
                 }),'pnl_summary.csv');
         };
+        // ══════════════════════════════════════════════════════
+        // AL3 FILE PROCESSOR
+        // ══════════════════════════════════════════════════════
+
+        (function() {
+            const zone = document.getElementById('al3DropZone');
+            const input = document.getElementById('al3FileInput');
+            if (!zone || !input) return;
+
+            zone.addEventListener('click', () => input.click());
+            zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+            zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                al3HandleFiles(e.dataTransfer.files);
+            });
+        })();
+
+        let _al3Files = [];
+
+        function al3HandleFiles(files) {
+            const listEl = document.getElementById('al3FileList');
+            const outputEl = document.getElementById('al3ParsedOutput');
+            if (!files.length) return;
+
+            _al3Files = [];
+            listEl.innerHTML = '';
+            outputEl.innerHTML = '';
+
+            Array.from(files).forEach((file, idx) => {
+                const size = file.size < 1024 ? file.size + ' B'
+                    : file.size < 1048576 ? (file.size/1024).toFixed(1) + ' KB'
+                    : (file.size/1048576).toFixed(2) + ' MB';
+
+                const card = document.createElement('div');
+                card.className = 'al3-file-card';
+                card.id = 'al3Card' + idx;
+                card.innerHTML = `
+                    <div class="al3-file-icon">📄</div>
+                    <div class="al3-file-info">
+                        <div class="al3-file-name">${_ae(file.name)}</div>
+                        <div class="al3-file-meta">${size} &bull; <span id="al3Status${idx}" class="al3-file-status al3-status-pending">Parsing...</span></div>
+                    </div>`;
+                listEl.appendChild(card);
+
+                const reader = new FileReader();
+                reader.onload = e => {
+                    try {
+                        const records = al3Parse(e.target.result);
+                        _al3Files.push({ name: file.name, records });
+                        const statusEl = document.getElementById('al3Status' + idx);
+                        statusEl.textContent = records.length + ' records';
+                        statusEl.className = 'al3-file-status al3-status-parsed';
+                        al3RenderParsed();
+                    } catch(err) {
+                        const statusEl = document.getElementById('al3Status' + idx);
+                        statusEl.textContent = 'Error: ' + err.message;
+                        statusEl.className = 'al3-file-status al3-status-error';
+                    }
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        function al3Parse(text) {
+            const lines = text.split(/\r?\n/).filter(l => l.trim());
+            const records = [];
+            let current = null;
+
+            for (const line of lines) {
+                const txnCode = line.substring(0, 2).trim();
+                const segId = line.length > 2 ? line.substring(2, 6).trim() : '';
+
+                if (txnCode === '02' || txnCode === '01') {
+                    if (current) records.push(current);
+                    current = { raw: [], fields: {} };
+                }
+                if (current) {
+                    current.raw.push(line);
+                    al3ExtractFields(current.fields, line, txnCode, segId);
+                }
+            }
+            if (current) records.push(current);
+
+            return records;
+        }
+
+        function al3ExtractFields(fields, line, txnCode, segId) {
+            if (line.length < 10) return;
+
+            const extractRange = (start, len) => {
+                if (line.length >= start + len) return line.substring(start, start + len).trim();
+                return '';
+            };
+
+            if (segId === 'NASL' || segId === 'NA01') {
+                fields.insuredName = fields.insuredName || extractRange(6, 60);
+            }
+            if (segId === 'POCY' || segId === 'PO01') {
+                fields.policyNumber = fields.policyNumber || extractRange(6, 30);
+                fields.effectiveDate = fields.effectiveDate || extractRange(36, 8);
+                fields.expirationDate = fields.expirationDate || extractRange(44, 8);
+            }
+            if (segId === 'PRMY' || segId === 'PM01') {
+                const prem = extractRange(6, 12);
+                if (prem) fields.premium = fields.premium || prem;
+            }
+            if (segId === 'AGCY' || segId === 'AG01') {
+                fields.agencyCode = fields.agencyCode || extractRange(6, 15);
+            }
+            if (segId === 'COCD' || segId === 'CO01') {
+                fields.companyCode = fields.companyCode || extractRange(6, 10);
+                fields.companyName = fields.companyName || extractRange(16, 50);
+            }
+            if (segId === 'ADRS' || segId === 'AD01') {
+                fields.address = fields.address || extractRange(6, 60);
+            }
+            if (segId === 'CTST' || segId === 'CS01') {
+                fields.city = fields.city || extractRange(6, 30);
+                fields.state = fields.state || extractRange(36, 2);
+                fields.zip = fields.zip || extractRange(38, 10);
+            }
+            if (segId === 'LOBR' || segId === 'LB01') {
+                fields.lineOfBusiness = fields.lineOfBusiness || extractRange(6, 30);
+            }
+
+            if (!fields.insuredName) {
+                const nameMatch = line.match(/(?:INSURED|NAMED)\s*[:=]?\s*(.{5,60})/i);
+                if (nameMatch) fields.insuredName = nameMatch[1].trim();
+            }
+            if (!fields.policyNumber) {
+                const polMatch = line.match(/(?:POLICY|POL)\s*(?:NO|NUM|#|NUMBER)?\s*[:=]?\s*([A-Z0-9\-]{4,30})/i);
+                if (polMatch) fields.policyNumber = polMatch[1].trim();
+            }
+        }
+
+        function al3FormatDate(d) {
+            if (!d || d.length !== 8) return d || '';
+            return d.substring(4,6) + '/' + d.substring(6,8) + '/' + d.substring(0,4);
+        }
+
+        function al3RenderParsed() {
+            const el = document.getElementById('al3ParsedOutput');
+            const allRecords = _al3Files.flatMap(f => f.records.map(r => ({...r.fields, _file: f.name})));
+
+            if (!allRecords.length) {
+                el.innerHTML = '<p style="color:var(--gray-500);text-align:center;padding:20px;">No records parsed yet.</p>';
+                return;
+            }
+
+            el.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <h3 style="color:var(--navy);font-size:15px;"><i data-lucide="file-text" style="width:16px;height:16px;vertical-align:-3px;"></i> Parsed Records (${allRecords.length})</h3>
+                    <button class="btn-secondary btn-sm" onclick="al3ExportCSV()" style="font-size:11px;background:var(--green-pale);color:var(--green);border-color:var(--green);">⬇ Export CSV</button>
+                </div>
+                <div style="max-height:400px;overflow:auto;border:1px solid var(--gray-200);border-radius:8px;">
+                    <table class="al3-parsed-table">
+                        <thead><tr>
+                            <th>#</th><th>Insured Name</th><th>Policy Number</th><th>Eff. Date</th><th>Exp. Date</th>
+                            <th>Premium</th><th>Company</th><th>LOB</th><th>City/State</th><th>Source File</th>
+                        </tr></thead>
+                        <tbody>${allRecords.map((r, i) => `<tr>
+                            <td>${i+1}</td>
+                            <td style="font-weight:600;">${_ae(r.insuredName||'—')}</td>
+                            <td>${_ae(r.policyNumber||'—')}</td>
+                            <td>${al3FormatDate(r.effectiveDate)}</td>
+                            <td>${al3FormatDate(r.expirationDate)}</td>
+                            <td>${r.premium ? '$' + parseFloat(r.premium).toLocaleString() : '—'}</td>
+                            <td>${_ae(r.companyName||r.companyCode||'—')}</td>
+                            <td>${_ae(r.lineOfBusiness||'—')}</td>
+                            <td>${_ae([r.city,r.state].filter(Boolean).join(', ')||'—')}</td>
+                            <td style="font-size:11px;color:var(--gray-400);">${_ae(r._file)}</td>
+                        </tr>`).join('')}</tbody>
+                    </table>
+                </div>`;
+            lucide.createIcons();
+        }
+
+        function al3ExportCSV() {
+            const allRecords = _al3Files.flatMap(f => f.records.map(r => ({...r.fields, _file: f.name})));
+            if (!allRecords.length) return;
+            const esc = v => `"${String(v||'').replace(/"/g,'""')}"`;
+            const headers = ['Insured Name','Policy Number','Effective Date','Expiration Date','Premium','Company','LOB','Address','City','State','Zip','Source File'];
+            const rows = allRecords.map(r => [
+                r.insuredName, r.policyNumber, al3FormatDate(r.effectiveDate), al3FormatDate(r.expirationDate),
+                r.premium, r.companyName||r.companyCode, r.lineOfBusiness, r.address, r.city, r.state, r.zip, r._file
+            ]);
+            const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
+            const blob = new Blob([csv], {type:'text/csv'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'al3_parsed.csv'; a.click();
+        }
+
     </script>
 </body>
 </html>
