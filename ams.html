@@ -771,37 +771,85 @@
                 <!-- Download / AL3 panel -->
                 <div id="amsDownloadPanel" style="display:none;" class="reports-panel">
                     <div style="flex:1;padding:24px;overflow-y:auto;">
-                        <h2 style="color:var(--navy);margin-bottom:6px;font-size:20px;"><i data-lucide="download" style="width:20px;height:20px;vertical-align:-4px;"></i> AL3 File Processor</h2>
-                        <p style="color:var(--gray-500);font-size:13px;margin-bottom:20px;">Drop or select AL3 (ACORD) files to parse and process policy download data.</p>
+                        <h2 style="color:var(--navy);margin-bottom:6px;font-size:20px;"><i data-lucide="download" style="width:20px;height:20px;vertical-align:-4px;"></i> AL3 / ACORD Download Processor</h2>
+                        <p style="color:var(--gray-500);font-size:13px;margin-bottom:4px;">Process AL3 &amp; AL1 files from carrier downloads. Supports all ACORD transaction types.</p>
+                        <p style="color:var(--gray-400);font-size:11px;margin-bottom:20px;">Progressive Agent Code: 24258 &bull; Universal Insurance Brokers &bull; Certified AL3 Download</p>
 
-                        <div id="al3DropZone" class="al3-dropzone">
-                            <div class="al3-drop-icon">📥</div>
-                            <div class="al3-drop-title">Drop AL3 Files Here</div>
-                            <div class="al3-drop-sub">or click to browse</div>
-                            <div style="font-size:11px;color:var(--gray-400);margin-top:8px;">.al3 &bull; .dat &bull; .txt</div>
-                            <input type="file" id="al3FileInput" multiple accept=".al3,.dat,.txt" style="display:none;" onchange="al3HandleFiles(this.files)">
+                        <!-- Sub-tabs -->
+                        <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--gray-200);padding-bottom:0;">
+                            <button class="al3-subtab active" id="al3TabUpload" onclick="al3SwitchTab('upload')" style="padding:8px 16px;border:none;background:none;font-size:12px;font-weight:600;color:var(--navy);border-bottom:2px solid var(--navy);margin-bottom:-2px;cursor:pointer;">📥 Upload &amp; Parse</button>
+                            <button class="al3-subtab" id="al3TabSessions" onclick="al3SwitchTab('sessions')" style="padding:8px 16px;border:none;background:none;font-size:12px;font-weight:600;color:var(--gray-400);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;">📋 Session Log</button>
+                            <button class="al3-subtab" id="al3TabDuplicates" onclick="al3SwitchTab('duplicates')" style="padding:8px 16px;border:none;background:none;font-size:12px;font-weight:600;color:var(--gray-400);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;">🔍 Duplicate Check</button>
                         </div>
 
-                        <div id="al3FileList" style="margin-top:20px;"></div>
+                        <!-- Upload tab -->
+                        <div id="al3PanelUpload">
+                            <div id="al3DropZone" class="al3-dropzone">
+                                <div class="al3-drop-icon">📥</div>
+                                <div class="al3-drop-title">Drop AL3 / AL1 Files Here</div>
+                                <div class="al3-drop-sub">or click to browse</div>
+                                <div style="font-size:11px;color:var(--gray-400);margin-top:8px;">.al3 &bull; .al1 &bull; .dat &bull; .txt</div>
+                                <input type="file" id="al3FileInput" multiple accept=".al3,.al1,.dat,.txt" style="display:none;" onchange="al3HandleFiles(this.files)">
+                            </div>
 
-                        <!-- Import action bar -->
-                        <div id="al3ImportBar" style="display:none;margin-top:16px;padding:14px 20px;background:linear-gradient(135deg,var(--navy),#1a365d);border-radius:10px;display:none;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-                            <div style="display:flex;align-items:center;gap:12px;">
-                                <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔄</div>
-                                <div>
-                                    <div style="color:#fff;font-weight:700;font-size:14px;" id="al3ImportTitle">0 Records Ready</div>
-                                    <div style="color:rgba(255,255,255,.6);font-size:11px;" id="al3ImportSub">Merge parsed AL3 data into AMS</div>
+                            <div id="al3FileList" style="margin-top:20px;"></div>
+
+                            <!-- Filters -->
+                            <div id="al3FilterBar" style="display:none;margin-top:12px;padding:10px 14px;background:var(--gray-50);border-radius:8px;display:none;flex-wrap:wrap;gap:8px;align-items:center;">
+                                <select id="al3FilterTxn" onchange="al3RenderParsed()" style="padding:5px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;">
+                                    <option value="">All Transactions</option>
+                                    <option value="NBS">NBS – New Business</option>
+                                    <option value="PCH">PCH – Policy Change</option>
+                                    <option value="RWQ">RWQ – Renewal Quote</option>
+                                    <option value="RRQ">RRQ – Renewal Request</option>
+                                    <option value="RWL">RWL – Renewal</option>
+                                    <option value="RIX">RIX – Reinstatement</option>
+                                    <option value="RWX">RWX – Rewrite</option>
+                                    <option value="XLN">XLN – Cancellation</option>
+                                    <option value="XLC">XLC – Cancel/Rewrite</option>
+                                    <option value="REI">REI – Reinstate</option>
+                                    <option value="SYN">SYN – Sync</option>
+                                    <option value="PRT">PRT – Print</option>
+                                </select>
+                                <select id="al3FilterCarrier" onchange="al3RenderParsed()" style="padding:5px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;">
+                                    <option value="">All Carriers</option>
+                                </select>
+                                <input id="al3FilterSearch" oninput="al3RenderParsed()" placeholder="Search insured / policy #..." style="padding:5px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;width:180px;">
+                                <button onclick="al3ClearFilters()" style="padding:4px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;background:#fff;cursor:pointer;">Clear</button>
+                            </div>
+
+                            <!-- Stats cards -->
+                            <div id="al3StatsBar" style="display:none;margin-top:12px;display:none;gap:8px;flex-wrap:wrap;"></div>
+
+                            <!-- Import action bar -->
+                            <div id="al3ImportBar" style="display:none;margin-top:16px;padding:14px 20px;background:linear-gradient(135deg,var(--navy),#1a365d);border-radius:10px;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔄</div>
+                                    <div>
+                                        <div style="color:#fff;font-weight:700;font-size:14px;" id="al3ImportTitle">0 Records Ready</div>
+                                        <div style="color:rgba(255,255,255,.6);font-size:11px;" id="al3ImportSub">Merge parsed AL3 data into AMS</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <span id="al3ImportStatus" style="color:rgba(255,255,255,.7);font-size:11px;"></span>
+                                    <button id="al3ImportBtn" onclick="al3ImportToAMS()" style="padding:8px 20px;background:#48bb78;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;">
+                                        Import to AMS
+                                    </button>
                                 </div>
                             </div>
-                            <div style="display:flex;gap:8px;align-items:center;">
-                                <span id="al3ImportStatus" style="color:rgba(255,255,255,.7);font-size:11px;"></span>
-                                <button id="al3ImportBtn" onclick="al3ImportToAMS()" style="padding:8px 20px;background:#48bb78;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;">
-                                    Import to AMS
-                                </button>
-                            </div>
+
+                            <div id="al3ParsedOutput" style="margin-top:20px;"></div>
                         </div>
 
-                        <div id="al3ParsedOutput" style="margin-top:20px;"></div>
+                        <!-- Sessions tab -->
+                        <div id="al3PanelSessions" style="display:none;">
+                            <div id="al3SessionLog" style="margin-top:8px;"></div>
+                        </div>
+
+                        <!-- Duplicates tab -->
+                        <div id="al3PanelDuplicates" style="display:none;">
+                            <div id="al3DuplicateOutput" style="margin-top:8px;"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -3400,6 +3448,32 @@
         })();
 
         let _al3Files = [];
+        let _al3Sessions = JSON.parse(localStorage.getItem('al3Sessions') || '[]');
+
+        const AL3_TXN_CODES = {
+            NBS: 'New Business', PCH: 'Policy Change', RWQ: 'Renewal Quote',
+            RRQ: 'Renewal Request', RWL: 'Renewal', RIX: 'Reinstatement',
+            RWX: 'Rewrite', XLN: 'Cancellation', XLC: 'Cancel/Rewrite',
+            REI: 'Reinstate', SYN: 'Sync', PRT: 'Print'
+        };
+
+        function al3SwitchTab(tab) {
+            ['upload','sessions','duplicates'].forEach(t => {
+                const panel = document.getElementById('al3Panel' + t.charAt(0).toUpperCase() + t.slice(1));
+                const btn = document.getElementById('al3Tab' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (panel) panel.style.display = t === tab ? '' : 'none';
+                if (btn) { btn.style.color = t === tab ? 'var(--navy)' : 'var(--gray-400)'; btn.style.borderBottomColor = t === tab ? 'var(--navy)' : 'transparent'; }
+            });
+            if (tab === 'sessions') al3RenderSessions();
+            if (tab === 'duplicates') al3RenderDuplicates();
+        }
+
+        function al3ClearFilters() {
+            document.getElementById('al3FilterTxn').value = '';
+            document.getElementById('al3FilterCarrier').value = '';
+            document.getElementById('al3FilterSearch').value = '';
+            al3RenderParsed();
+        }
 
         function al3HandleFiles(files) {
             const listEl = document.getElementById('al3FileList');
@@ -3419,7 +3493,7 @@
                 card.className = 'al3-file-card';
                 card.id = 'al3Card' + idx;
                 card.innerHTML = `
-                    <div class="al3-file-icon">📄</div>
+                    <div class="al3-file-icon">${file.name.toLowerCase().endsWith('.al1') ? '📝' : '📄'}</div>
                     <div class="al3-file-info" style="flex:1;">
                         <div class="al3-file-name">${_ae(file.name)}</div>
                         <div class="al3-file-meta">${size} &bull; <span id="al3Status${idx}" class="al3-file-status al3-status-pending">Parsing...</span></div>
@@ -3430,11 +3504,13 @@
                 const reader = new FileReader();
                 reader.onload = e => {
                     try {
-                        const records = al3Parse(e.target.result);
-                        _al3Files.push({ name: file.name, records });
+                        const isAL1 = file.name.toLowerCase().endsWith('.al1');
+                        const records = isAL1 ? al1Parse(e.target.result, file.name) : al3Parse(e.target.result);
+                        _al3Files.push({ name: file.name, records, type: isAL1 ? 'AL1' : 'AL3' });
                         const statusEl = document.getElementById('al3Status' + idx);
-                        statusEl.textContent = records.length + ' records';
+                        statusEl.textContent = records.length + ' records' + (isAL1 ? ' (AL1 memo)' : '');
                         statusEl.className = 'al3-file-status al3-status-parsed';
+                        al3LogSession(file.name, records);
                         al3RenderParsed();
                     } catch(err) {
                         const statusEl = document.getElementById('al3Status' + idx);
@@ -3450,27 +3526,76 @@
             const lines = text.split(/\r?\n/).filter(l => l.trim());
             const records = [];
             let current = null;
+            let seqNum = 0;
 
             for (const line of lines) {
-                const txnCode = line.substring(0, 2).trim();
-                const segId = line.length > 2 ? line.substring(2, 6).trim() : '';
+                const txnCode = line.substring(0, 3).trim();
+                const segId = line.length > 3 ? line.substring(3, 7).trim() : '';
+                const legacyTxn = line.substring(0, 2).trim();
+                const legacySeg = line.length > 2 ? line.substring(2, 6).trim() : '';
 
-                if (txnCode === '02' || txnCode === '01') {
-                    if (current) records.push(current);
-                    current = { raw: [], fields: {} };
+                const isHeader = txnCode === '02' || txnCode === '01' || legacyTxn === '02' || legacyTxn === '01'
+                    || (AL3_TXN_CODES[txnCode] !== undefined);
+
+                if (isHeader && (!current || (current.raw.length > 0))) {
+                    if (current && current.fields.insuredName) records.push(current);
+                    seqNum++;
+                    current = { raw: [], fields: { _seqNum: seqNum }, remarks: [], coverages: [], violations: [], priorDamage: [], priorPolicies: [] };
                 }
-                if (current) {
-                    current.raw.push(line);
-                    al3ExtractFields(current.fields, line, txnCode, segId);
+                if (!current) {
+                    current = { raw: [], fields: { _seqNum: seqNum }, remarks: [], coverages: [], violations: [], priorDamage: [], priorPolicies: [] };
                 }
+                current.raw.push(line);
+
+                if (AL3_TXN_CODES[txnCode]) {
+                    current.fields.transactionCode = txnCode;
+                    current.fields.transactionType = AL3_TXN_CODES[txnCode];
+                }
+
+                al3ExtractFields(current.fields, line, txnCode, segId);
+                al3ExtractFields(current.fields, line, legacyTxn, legacySeg);
+                al3ExtractRecordGroups(current, line);
             }
-            if (current) records.push(current);
+            if (current && (current.fields.insuredName || current.fields.policyNumber)) records.push(current);
 
             return records;
         }
 
+        function al1Parse(text, fileName) {
+            const lines = text.split(/\r?\n/);
+            const records = [];
+            let current = null;
+            let memoText = [];
+
+            for (const line of lines) {
+                if (line.match(/^(?:MEMO|UW\s*MEMO|UNDERWRITING)/i) || (!current && line.trim())) {
+                    if (current) { current.fields.memoText = memoText.join('\n'); records.push(current); }
+                    current = { raw: [], fields: { _type: 'AL1', _file: fileName }, remarks: [], coverages: [], violations: [], priorDamage: [], priorPolicies: [] };
+                    memoText = [];
+                }
+                if (current) {
+                    current.raw.push(line);
+                    memoText.push(line);
+
+                    const polMatch = line.match(/(?:POLICY|POL)\s*(?:NO|NUM|#|NUMBER)?\s*[:=]?\s*([A-Z0-9\-]{4,30})/i);
+                    if (polMatch && !current.fields.policyNumber) current.fields.policyNumber = polMatch[1].trim();
+
+                    const nameMatch = line.match(/(?:INSURED|NAMED|NAME)\s*[:=]?\s*(.{5,60})/i);
+                    if (nameMatch && !current.fields.insuredName) current.fields.insuredName = nameMatch[1].trim();
+
+                    const dateMatch = line.match(/(?:EFF|EFFECTIVE)\s*(?:DATE)?\s*[:=]?\s*(\d{2}[\/-]\d{2}[\/-]\d{4})/i);
+                    if (dateMatch && !current.fields.effectiveDate) current.fields.effectiveDate = dateMatch[1];
+
+                    current.fields.transactionCode = 'AL1';
+                    current.fields.transactionType = 'UW Memo';
+                }
+            }
+            if (current) { current.fields.memoText = memoText.join('\n'); records.push(current); }
+            return records;
+        }
+
         function al3ExtractFields(fields, line, txnCode, segId) {
-            if (line.length < 10) return;
+            if (line.length < 6) return;
 
             const extractRange = (start, len) => {
                 if (line.length >= start + len) return line.substring(start, start + len).trim();
@@ -3513,6 +3638,19 @@
                 const rate = extractRange(18, 6);
                 if (rate) fields.commissionRate = fields.commissionRate || rate;
             }
+            // 5BPI03 - Business Purpose Info (personal/commercial)
+            if (segId === 'BPI0' || line.includes('5BPI03')) {
+                fields.businessUse = fields.businessUse || extractRange(7, 30);
+            }
+            // 5BPI20 - Vehicle Use
+            if (line.includes('5BPI20')) {
+                fields.vehicleUse = fields.vehicleUse || extractRange(7, 40);
+            }
+            // 5PPH03 - Prior Policy Holder (renewal matching)
+            if (segId === 'PPH0' || line.includes('5PPH03')) {
+                fields.priorPolicyNumber = fields.priorPolicyNumber || extractRange(7, 30);
+                fields.priorCarrier = fields.priorCarrier || extractRange(37, 40);
+            }
 
             if (!fields.commission) {
                 const commMatch = line.match(/(?:COMMISSION|COMM)\s*(?:AMT|AMOUNT)?\s*[:=]?\s*\$?\s*([\d,.]+)/i);
@@ -3533,33 +3671,135 @@
             }
         }
 
+        function al3ExtractRecordGroups(record, line) {
+            // 5RMK - Remarks
+            if (line.includes('5RMK') || line.match(/^RMK/)) {
+                const rmk = line.length > 7 ? line.substring(7).trim() : line.substring(3).trim();
+                if (rmk) record.remarks.push(rmk);
+            }
+            // 5CVG - Coverage detail
+            if (line.includes('5CVG') || line.match(/^CVG/)) {
+                const cvgCode = line.length > 7 ? line.substring(7, 17).trim() : '';
+                const cvgLimit = line.length > 17 ? line.substring(17, 29).trim() : '';
+                const cvgPrem = line.length > 29 ? line.substring(29, 41).trim() : '';
+                const cvgDeduct = line.length > 41 ? line.substring(41, 53).trim() : '';
+                if (cvgCode || cvgLimit) record.coverages.push({ code: cvgCode, limit: cvgLimit, premium: cvgPrem, deductible: cvgDeduct });
+            }
+            // 6PDA - Prior Damage
+            if (line.includes('6PDA')) {
+                const pdDate = line.length > 7 ? line.substring(7, 15).trim() : '';
+                const pdDesc = line.length > 15 ? line.substring(15, 75).trim() : '';
+                const pdAmt = line.length > 75 ? line.substring(75, 87).trim() : '';
+                if (pdDesc || pdDate) record.priorDamage.push({ date: pdDate, description: pdDesc, amount: pdAmt });
+            }
+            // 6VIO - Violations
+            if (line.includes('6VIO')) {
+                const vDate = line.length > 7 ? line.substring(7, 15).trim() : '';
+                const vCode = line.length > 15 ? line.substring(15, 25).trim() : '';
+                const vDesc = line.length > 25 ? line.substring(25, 85).trim() : '';
+                if (vCode || vDesc) record.violations.push({ date: vDate, code: vCode, description: vDesc });
+            }
+        }
+
         function al3FormatDate(d) {
-            if (!d || d.length !== 8) return d || '';
+            if (!d || d.length < 8) return d || '';
+            if (d.includes('/') || d.includes('-')) return d;
             return d.substring(4,6) + '/' + d.substring(6,8) + '/' + d.substring(0,4);
+        }
+
+        function al3GetAllRecords() {
+            return _al3Files.flatMap(f => f.records.map(r => ({...r.fields, _file: f.name, _remarks: r.remarks, _coverages: r.coverages, _violations: r.violations, _priorDamage: r.priorDamage})));
+        }
+
+        function al3GetFilteredRecords() {
+            let records = al3GetAllRecords();
+            const txnF = document.getElementById('al3FilterTxn')?.value || '';
+            const carrierF = document.getElementById('al3FilterCarrier')?.value || '';
+            const searchF = (document.getElementById('al3FilterSearch')?.value || '').toLowerCase();
+
+            if (txnF) records = records.filter(r => r.transactionCode === txnF);
+            if (carrierF) records = records.filter(r => (r.companyName || r.companyCode || '') === carrierF);
+            if (searchF) records = records.filter(r =>
+                (r.insuredName || '').toLowerCase().includes(searchF) ||
+                (r.policyNumber || '').toLowerCase().includes(searchF)
+            );
+            return records;
         }
 
         function al3RenderParsed() {
             const el = document.getElementById('al3ParsedOutput');
-            const allRecords = _al3Files.flatMap(f => f.records.map(r => ({...r.fields, _file: f.name})));
+            const allRecords = al3GetAllRecords();
+            const filtered = al3GetFilteredRecords();
 
             if (!allRecords.length) {
                 el.innerHTML = '<p style="color:var(--gray-500);text-align:center;padding:20px;">No records parsed yet.</p>';
+                document.getElementById('al3FilterBar').style.display = 'none';
+                document.getElementById('al3StatsBar').style.display = 'none';
                 return;
             }
 
+            // Populate carrier filter
+            const carrierSel = document.getElementById('al3FilterCarrier');
+            const curCarrier = carrierSel.value;
+            const carriers = [...new Set(allRecords.map(r => r.companyName || r.companyCode || '').filter(Boolean))].sort();
+            carrierSel.innerHTML = '<option value="">All Carriers</option>' + carriers.map(c => `<option value="${_ae(c)}"${c === curCarrier ? ' selected' : ''}>${_ae(c)}</option>`).join('');
+
+            document.getElementById('al3FilterBar').style.display = 'flex';
+
+            // Stats
+            const txnCounts = {};
+            allRecords.forEach(r => { const t = r.transactionCode || 'Unknown'; txnCounts[t] = (txnCounts[t] || 0) + 1; });
+            const totalPrem = allRecords.reduce((s, r) => s + (parseFloat(r.premium) || 0), 0);
+            const statsEl = document.getElementById('al3StatsBar');
+            statsEl.style.display = 'flex';
+            statsEl.innerHTML = `
+                <div style="flex:1;min-width:120px;padding:10px 14px;background:var(--blue-pale);border-radius:8px;text-align:center;">
+                    <div style="font-size:20px;font-weight:700;color:var(--navy);">${allRecords.length}</div>
+                    <div style="font-size:10px;color:var(--gray-500);">Total Records</div>
+                </div>
+                <div style="flex:1;min-width:120px;padding:10px 14px;background:var(--green-pale);border-radius:8px;text-align:center;">
+                    <div style="font-size:20px;font-weight:700;color:var(--green);">$${totalPrem.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
+                    <div style="font-size:10px;color:var(--gray-500);">Total Premium</div>
+                </div>
+                <div style="flex:1;min-width:120px;padding:10px 14px;background:#fef3c7;border-radius:8px;text-align:center;">
+                    <div style="font-size:20px;font-weight:700;color:#92400e;">${carriers.length}</div>
+                    <div style="font-size:10px;color:var(--gray-500);">Carriers</div>
+                </div>
+                <div style="flex:1;min-width:120px;padding:10px 14px;background:#fce7f3;border-radius:8px;text-align:center;">
+                    <div style="font-size:20px;font-weight:700;color:#9d174d;">${Object.keys(txnCounts).length}</div>
+                    <div style="font-size:10px;color:var(--gray-500);">Txn Types</div>
+                </div>`;
+
+            const txnBadge = c => {
+                const colors = { NBS:'#48bb78', PCH:'#4299e1', RWL:'#9f7aea', XLN:'#e53e3e', XLC:'#ed8936', REI:'#38b2ac', RWX:'#667eea', RWQ:'#d69e2e', RRQ:'#dd6b20', SYN:'#718096', PRT:'#a0aec0', AL1:'#805ad5' };
+                return `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${colors[c]||'#718096'}20;color:${colors[c]||'#718096'};">${c}</span>`;
+            };
+
             el.innerHTML = `
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                    <h3 style="color:var(--navy);font-size:15px;"><i data-lucide="file-text" style="width:16px;height:16px;vertical-align:-3px;"></i> Parsed Records (${allRecords.length})</h3>
-                    <button class="btn-secondary btn-sm" onclick="al3ExportCSV()" style="font-size:11px;background:var(--green-pale);color:var(--green);border-color:var(--green);">⬇ Export CSV</button>
+                    <h3 style="color:var(--navy);font-size:15px;">Parsed Records (${filtered.length}${filtered.length !== allRecords.length ? ' of ' + allRecords.length : ''})</h3>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn-secondary btn-sm" onclick="al3ExportCSV()" style="font-size:11px;background:var(--green-pale);color:var(--green);border-color:var(--green);">⬇ CSV</button>
+                        <button class="btn-secondary btn-sm" onclick="al3ExportSessionLog()" style="font-size:11px;">📋 Session Log</button>
+                    </div>
                 </div>
                 <div style="max-height:400px;overflow:auto;border:1px solid var(--gray-200);border-radius:8px;">
                     <table class="al3-parsed-table">
                         <thead><tr>
-                            <th>#</th><th>Insured Name</th><th>Policy Number</th><th>Eff. Date</th><th>Exp. Date</th>
-                            <th>Premium</th><th>Company</th><th>LOB</th><th>City/State</th><th>Source File</th><th style="width:40px;"></th>
+                            <th>#</th><th>Txn</th><th>Insured Name</th><th>Policy Number</th><th>Eff. Date</th><th>Exp. Date</th>
+                            <th>Premium</th><th>Carrier</th><th>LOB</th><th>Details</th><th>File</th><th style="width:40px;"></th>
                         </tr></thead>
-                        <tbody>${allRecords.map((r, i) => `<tr id="al3Row${i}">
+                        <tbody>${filtered.map((r, i) => {
+                            const detailParts = [];
+                            if (r._coverages && r._coverages.length) detailParts.push(r._coverages.length + ' cvg');
+                            if (r._remarks && r._remarks.length) detailParts.push(r._remarks.length + ' rmk');
+                            if (r._violations && r._violations.length) detailParts.push(r._violations.length + ' vio');
+                            if (r._priorDamage && r._priorDamage.length) detailParts.push(r._priorDamage.length + ' dmg');
+                            if (r.priorPolicyNumber) detailParts.push('renewal');
+                            if (r.memoText) detailParts.push('memo');
+                            return `<tr id="al3Row${i}" onclick="al3ShowRecordDetail(${i})" style="cursor:pointer;">
                             <td>${i+1}</td>
+                            <td>${txnBadge(r.transactionCode || '—')}</td>
                             <td style="font-weight:600;">${_ae(r.insuredName||'—')}</td>
                             <td>${_ae(r.policyNumber||'—')}</td>
                             <td>${al3FormatDate(r.effectiveDate)}</td>
@@ -3567,15 +3807,14 @@
                             <td>${r.premium ? '$' + parseFloat(r.premium).toLocaleString() : '—'}</td>
                             <td>${_ae(r.companyName||r.companyCode||'—')}</td>
                             <td>${_ae(r.lineOfBusiness||'—')}</td>
-                            <td>${_ae([r.city,r.state].filter(Boolean).join(', ')||'—')}</td>
-                            <td style="font-size:11px;color:var(--gray-400);">${_ae(r._file)}</td>
-                            <td><button onclick="al3DeleteRecord(${i})" title="Remove record" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:15px;padding:2px 6px;">✕</button></td>
-                        </tr>`).join('')}</tbody>
+                            <td style="font-size:10px;color:var(--gray-400);">${detailParts.join(', ') || '—'}</td>
+                            <td style="font-size:10px;color:var(--gray-400);">${_ae(r._file)}</td>
+                            <td><button onclick="event.stopPropagation();al3DeleteRecord(${i})" title="Remove" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:15px;padding:2px 6px;">✕</button></td>
+                        </tr>`;}).join('')}</tbody>
                     </table>
                 </div>`;
             lucide.createIcons();
 
-            // Show/update import bar
             const bar = document.getElementById('al3ImportBar');
             bar.style.display = 'flex';
             document.getElementById('al3ImportTitle').textContent = allRecords.length + ' Records Ready';
@@ -3586,14 +3825,194 @@
             btn.style.background = '#48bb78';
         }
 
-        function al3ExportCSV() {
-            const allRecords = _al3Files.flatMap(f => f.records.map(r => ({...r.fields, _file: f.name})));
-            if (!allRecords.length) return;
+        function al3ShowRecordDetail(idx) {
+            const records = al3GetFilteredRecords();
+            const r = records[idx];
+            if (!r) return;
+
+            let html = `<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this)this.remove()">
+                <div style="background:#fff;border-radius:12px;max-width:700px;width:95%;max-height:85vh;overflow-y:auto;padding:24px;" onclick="event.stopPropagation()">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <h3 style="color:var(--navy);font-size:17px;">${_ae(r.insuredName || 'Unknown')}</h3>
+                        <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-400);">✕</button>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:16px;">
+                        <div><b>Transaction:</b> ${r.transactionCode || '—'} – ${r.transactionType || '—'}</div>
+                        <div><b>Policy #:</b> ${_ae(r.policyNumber || '—')}</div>
+                        <div><b>Effective:</b> ${al3FormatDate(r.effectiveDate)}</div>
+                        <div><b>Expiration:</b> ${al3FormatDate(r.expirationDate)}</div>
+                        <div><b>Premium:</b> ${r.premium ? '$' + parseFloat(r.premium).toLocaleString() : '—'}</div>
+                        <div><b>Commission:</b> ${r.commission ? '$' + parseFloat(r.commission).toLocaleString() : '—'} ${r.commissionRate ? '(' + r.commissionRate + '%)' : ''}</div>
+                        <div><b>Carrier:</b> ${_ae(r.companyName || r.companyCode || '—')}</div>
+                        <div><b>LOB:</b> ${_ae(r.lineOfBusiness || '—')}</div>
+                        <div><b>Agency Code:</b> ${_ae(r.agencyCode || '—')}</div>
+                        <div><b>Address:</b> ${_ae([r.address, r.city, r.state, r.zip].filter(Boolean).join(', ') || '—')}</div>
+                        ${r.priorPolicyNumber ? `<div><b>Prior Policy:</b> ${_ae(r.priorPolicyNumber)}</div><div><b>Prior Carrier:</b> ${_ae(r.priorCarrier || '—')}</div>` : ''}
+                        ${r.businessUse ? `<div><b>Business Use:</b> ${_ae(r.businessUse)}</div>` : ''}
+                        ${r.vehicleUse ? `<div><b>Vehicle Use:</b> ${_ae(r.vehicleUse)}</div>` : ''}
+                    </div>`;
+
+            if (r._coverages && r._coverages.length) {
+                html += `<h4 style="font-size:13px;color:var(--navy);margin:12px 0 6px;">Coverages (${r._coverages.length})</h4>
+                    <table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="background:var(--gray-50);"><th style="padding:4px 8px;text-align:left;">Code</th><th>Limit</th><th>Premium</th><th>Deductible</th></tr></thead>
+                    <tbody>${r._coverages.map(c => `<tr><td style="padding:3px 8px;">${_ae(c.code)}</td><td>${_ae(c.limit)}</td><td>${_ae(c.premium)}</td><td>${_ae(c.deductible)}</td></tr>`).join('')}</tbody></table>`;
+            }
+            if (r._remarks && r._remarks.length) {
+                html += `<h4 style="font-size:13px;color:var(--navy);margin:12px 0 6px;">Remarks (${r._remarks.length})</h4>
+                    <div style="background:var(--gray-50);padding:8px 12px;border-radius:6px;font-size:11px;white-space:pre-wrap;">${r._remarks.map(m => _ae(m)).join('\n')}</div>`;
+            }
+            if (r._violations && r._violations.length) {
+                html += `<h4 style="font-size:13px;color:#e53e3e;margin:12px 0 6px;">Violations (${r._violations.length})</h4>
+                    <table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="background:#fff5f5;"><th style="padding:4px 8px;text-align:left;">Date</th><th>Code</th><th>Description</th></tr></thead>
+                    <tbody>${r._violations.map(v => `<tr><td style="padding:3px 8px;">${al3FormatDate(v.date)}</td><td>${_ae(v.code)}</td><td>${_ae(v.description)}</td></tr>`).join('')}</tbody></table>`;
+            }
+            if (r._priorDamage && r._priorDamage.length) {
+                html += `<h4 style="font-size:13px;color:#d69e2e;margin:12px 0 6px;">Prior Damage (${r._priorDamage.length})</h4>
+                    <table style="width:100%;font-size:11px;border-collapse:collapse;"><thead><tr style="background:#fffbeb;"><th style="padding:4px 8px;text-align:left;">Date</th><th>Description</th><th>Amount</th></tr></thead>
+                    <tbody>${r._priorDamage.map(d => `<tr><td style="padding:3px 8px;">${al3FormatDate(d.date)}</td><td>${_ae(d.description)}</td><td>${_ae(d.amount)}</td></tr>`).join('')}</tbody></table>`;
+            }
+            if (r.memoText) {
+                html += `<h4 style="font-size:13px;color:#805ad5;margin:12px 0 6px;">AL1 Underwriting Memo</h4>
+                    <div style="background:#faf5ff;padding:10px 14px;border-radius:6px;font-size:11px;white-space:pre-wrap;max-height:200px;overflow-y:auto;">${_ae(r.memoText)}</div>`;
+            }
+
+            html += `</div></div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        // Session logging
+        function al3LogSession(fileName, records) {
+            const session = {
+                id: Date.now(),
+                timestamp: new Date().toLocaleString('en-US') + ' ET',
+                fileName: fileName,
+                recordCount: records.length,
+                txnTypes: [...new Set(records.map(r => r.fields.transactionCode).filter(Boolean))],
+                carriers: [...new Set(records.map(r => r.fields.companyName || r.fields.companyCode).filter(Boolean))],
+                totalPremium: records.reduce((s, r) => s + (parseFloat(r.fields.premium) || 0), 0),
+                agencyCode: records.find(r => r.fields.agencyCode)?.fields.agencyCode || '24258'
+            };
+            _al3Sessions.unshift(session);
+            if (_al3Sessions.length > 100) _al3Sessions = _al3Sessions.slice(0, 100);
+            localStorage.setItem('al3Sessions', JSON.stringify(_al3Sessions));
+        }
+
+        function al3RenderSessions() {
+            const el = document.getElementById('al3SessionLog');
+            if (!_al3Sessions.length) {
+                el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);"><div style="font-size:40px;margin-bottom:12px;">📋</div><p>No download sessions logged yet.</p></div>';
+                return;
+            }
+            el.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <h3 style="color:var(--navy);font-size:15px;">Download Sessions (${_al3Sessions.length})</h3>
+                    <button onclick="_al3Sessions=[];localStorage.removeItem('al3Sessions');al3RenderSessions();" class="btn-secondary btn-sm" style="font-size:11px;color:#e53e3e;border-color:#e53e3e;">Clear Log</button>
+                </div>
+                <div style="max-height:500px;overflow-y:auto;">
+                ${_al3Sessions.map((s, i) => `
+                    <div style="padding:12px 16px;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:8px;${i===0?'background:var(--blue-pale);border-color:var(--blue);':''}">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div style="font-weight:600;font-size:13px;color:var(--navy);">${_ae(s.fileName)}</div>
+                            <div style="font-size:10px;color:var(--gray-400);">${_ae(s.timestamp)}</div>
+                        </div>
+                        <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--gray-500);">
+                            <span><b>${s.recordCount}</b> records</span>
+                            <span>$${(s.totalPremium||0).toLocaleString()}</span>
+                            <span>Agency: ${_ae(s.agencyCode)}</span>
+                            ${s.txnTypes.length ? `<span>Types: ${s.txnTypes.join(', ')}</span>` : ''}
+                            ${s.carriers.length ? `<span>Carriers: ${s.carriers.join(', ')}</span>` : ''}
+                        </div>
+                    </div>
+                `).join('')}
+                </div>`;
+        }
+
+        function al3ExportSessionLog() {
             const esc = v => `"${String(v||'').replace(/"/g,'""')}"`;
-            const headers = ['Insured Name','Policy Number','Effective Date','Expiration Date','Premium','Company','LOB','Address','City','State','Zip','Source File'];
-            const rows = allRecords.map(r => [
-                r.insuredName, r.policyNumber, al3FormatDate(r.effectiveDate), al3FormatDate(r.expirationDate),
-                r.premium, r.companyName||r.companyCode, r.lineOfBusiness, r.address, r.city, r.state, r.zip, r._file
+            const headers = ['Timestamp','File','Records','Premium','Agency Code','Transaction Types','Carriers'];
+            const rows = _al3Sessions.map(s => [s.timestamp, s.fileName, s.recordCount, s.totalPremium, s.agencyCode, (s.txnTypes||[]).join(';'), (s.carriers||[]).join(';')]);
+            const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
+            const blob = new Blob([csv], {type:'text/csv'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'al3_session_log.csv'; a.click();
+        }
+
+        // Duplicate detection
+        function al3RenderDuplicates() {
+            const el = document.getElementById('al3DuplicateOutput');
+            const allRecords = al3GetAllRecords();
+            const binder = amsGetBinderData();
+
+            const dupeMap = {};
+            allRecords.forEach((r, i) => {
+                const key = ((r.policyNumber || '') + '|||' + (r.insuredName || '')).toLowerCase();
+                if (!dupeMap[key]) dupeMap[key] = [];
+                dupeMap[key].push({ ...r, _idx: i, _source: 'upload' });
+            });
+
+            const existingDupes = [];
+            allRecords.forEach(r => {
+                if (!r.policyNumber) return;
+                const match = binder.find(b => b.policyNumber && b.policyNumber.trim().toLowerCase() === r.policyNumber.trim().toLowerCase());
+                if (match) existingDupes.push({ uploaded: r, existing: match });
+            });
+
+            const uploadDupes = Object.values(dupeMap).filter(arr => arr.length > 1);
+
+            if (!uploadDupes.length && !existingDupes.length) {
+                el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray-400);">
+                    <div style="font-size:40px;margin-bottom:12px;">✅</div>
+                    <p>${allRecords.length ? 'No duplicates found in ' + allRecords.length + ' uploaded records.' : 'Upload AL3 files first to check for duplicates.'}</p>
+                </div>`;
+                return;
+            }
+
+            let html = '<h3 style="color:var(--navy);font-size:15px;margin-bottom:12px;">Duplicate Analysis</h3>';
+
+            if (existingDupes.length) {
+                html += `<div style="margin-bottom:16px;">
+                    <h4 style="font-size:13px;color:#e53e3e;margin-bottom:8px;">⚠ ${existingDupes.length} Already in AMS</h4>
+                    <div style="max-height:300px;overflow-y:auto;border:1px solid #fed7d7;border-radius:8px;">
+                    <table style="width:100%;font-size:11px;border-collapse:collapse;">
+                        <thead><tr style="background:#fff5f5;"><th style="padding:6px 8px;text-align:left;">Policy #</th><th>Insured</th><th>Uploaded Carrier</th><th>Existing Status</th><th>Existing Eff Date</th></tr></thead>
+                        <tbody>${existingDupes.map(d => `<tr>
+                            <td style="padding:4px 8px;">${_ae(d.uploaded.policyNumber)}</td>
+                            <td>${_ae(d.uploaded.insuredName || '—')}</td>
+                            <td>${_ae(d.uploaded.companyName || '—')}</td>
+                            <td>${_ae(d.existing.status || '—')}</td>
+                            <td>${_ae(d.existing.effDate || '—')}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
+                    <p style="font-size:11px;color:var(--gray-400);margin-top:6px;">These will be skipped during import to prevent duplicates.</p>
+                </div>`;
+            }
+
+            if (uploadDupes.length) {
+                html += `<div>
+                    <h4 style="font-size:13px;color:#d69e2e;margin-bottom:8px;">⚠ ${uploadDupes.length} Duplicates Within Upload</h4>
+                    ${uploadDupes.map(group => `
+                        <div style="border:1px solid #fef3c7;border-radius:8px;padding:10px;margin-bottom:8px;background:#fffbeb;">
+                            <div style="font-weight:600;font-size:12px;margin-bottom:4px;">${_ae(group[0].policyNumber || 'No Policy #')} — ${_ae(group[0].insuredName || 'Unknown')}</div>
+                            <div style="font-size:11px;color:var(--gray-500);">${group.length} occurrences across: ${[...new Set(group.map(r => r._file))].join(', ')}</div>
+                        </div>
+                    `).join('')}
+                </div>`;
+            }
+
+            el.innerHTML = html;
+        }
+
+        function al3ExportCSV() {
+            const records = al3GetFilteredRecords();
+            if (!records.length) return;
+            const esc = v => `"${String(v||'').replace(/"/g,'""')}"`;
+            const headers = ['Txn Code','Txn Type','Insured Name','Policy Number','Effective Date','Expiration Date','Premium','Commission','Comm Rate','Company','LOB','Address','City','State','Zip','Agency Code','Prior Policy','Remarks','Coverages','Source File'];
+            const rows = records.map(r => [
+                r.transactionCode, r.transactionType, r.insuredName, r.policyNumber,
+                al3FormatDate(r.effectiveDate), al3FormatDate(r.expirationDate),
+                r.premium, r.commission, r.commissionRate,
+                r.companyName||r.companyCode, r.lineOfBusiness, r.address, r.city, r.state, r.zip,
+                r.agencyCode, r.priorPolicyNumber,
+                (r._remarks||[]).join('; '), (r._coverages||[]).map(c => c.code + ':' + c.limit).join('; '), r._file
             ]);
             const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
             const blob = new Blob([csv], {type:'text/csv'});
@@ -3615,6 +4034,8 @@
             if (!_al3Files.length) {
                 document.getElementById('al3ImportBar').style.display = 'none';
                 document.getElementById('al3ParsedOutput').innerHTML = '';
+                document.getElementById('al3FilterBar').style.display = 'none';
+                document.getElementById('al3StatsBar').style.display = 'none';
             }
         }
 
@@ -3626,6 +4047,8 @@
                 document.getElementById('al3ImportBar').style.display = 'none';
                 document.getElementById('al3ParsedOutput').innerHTML = '';
                 document.getElementById('al3FileList').innerHTML = '';
+                document.getElementById('al3FilterBar').style.display = 'none';
+                document.getElementById('al3StatsBar').style.display = 'none';
             }
         }
 
@@ -3636,10 +4059,10 @@
                 const card = document.createElement('div');
                 card.className = 'al3-file-card';
                 card.innerHTML = `
-                    <div class="al3-file-icon">📄</div>
+                    <div class="al3-file-icon">${f.type === 'AL1' ? '📝' : '📄'}</div>
                     <div class="al3-file-info" style="flex:1;">
                         <div class="al3-file-name">${_ae(f.name)}</div>
-                        <div class="al3-file-meta"><span class="al3-file-status al3-status-parsed">${f.records.length} records</span></div>
+                        <div class="al3-file-meta"><span class="al3-file-status al3-status-parsed">${f.records.length} records${f.type === 'AL1' ? ' (AL1)' : ''}</span></div>
                     </div>
                     <button onclick="al3DeleteFile('${_ae(f.name)}')" title="Remove file" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:16px;padding:4px 8px;margin-left:auto;">✕</button>`;
                 listEl.appendChild(card);
@@ -3647,7 +4070,7 @@
         }
 
         function al3ImportToAMS() {
-            const allRecords = _al3Files.flatMap(f => f.records.map(r => ({...r.fields, _file: f.name})));
+            const allRecords = al3GetAllRecords();
             if (!allRecords.length) return;
 
             const btn = document.getElementById('al3ImportBtn');
@@ -3664,7 +4087,13 @@
             const dateISO = now.toISOString().split('T')[0];
             const baseId = Date.now();
 
-            let added = 0, skipped = 0, clientsAdded = 0;
+            let added = 0, skipped = 0, clientsAdded = 0, updated = 0;
+
+            const existingByPol = {};
+            binder.forEach((p, idx) => {
+                const k = (p.policyNumber || '').trim().toLowerCase();
+                if (k) existingByPol[k] = idx;
+            });
 
             const existingKeys = new Set();
             binder.forEach(p => {
@@ -3674,9 +4103,44 @@
 
             allRecords.forEach((r, i) => {
                 const name = (r.insuredName || '').trim();
-                if (!name) { skipped++; return; }
+                if (!name && !r.policyNumber) { skipped++; return; }
 
                 const polNum = (r.policyNumber || '').trim();
+                const txn = r.transactionCode || '';
+
+                // Handle cancellations - update existing record status
+                if ((txn === 'XLN' || txn === 'XLC') && polNum && existingByPol[polNum.toLowerCase()] !== undefined) {
+                    const existIdx = existingByPol[polNum.toLowerCase()];
+                    binder[existIdx].status = 'Cancelled';
+                    binder[existIdx].al3LastTxn = txn;
+                    updated++;
+                    return;
+                }
+
+                // Handle reinstatements
+                if ((txn === 'REI' || txn === 'RIX') && polNum && existingByPol[polNum.toLowerCase()] !== undefined) {
+                    const existIdx = existingByPol[polNum.toLowerCase()];
+                    binder[existIdx].status = 'Active';
+                    binder[existIdx].al3LastTxn = txn;
+                    updated++;
+                    return;
+                }
+
+                // Handle policy changes - update premium
+                if (txn === 'PCH' && polNum && existingByPol[polNum.toLowerCase()] !== undefined) {
+                    const existIdx = existingByPol[polNum.toLowerCase()];
+                    const premVal = parseFloat(r.premium) || 0;
+                    if (premVal) binder[existIdx].basePremium = premVal;
+                    if (premVal) binder[existIdx].totalPremium = premVal;
+                    binder[existIdx].al3LastTxn = txn;
+                    updated++;
+                    return;
+                }
+
+                // Skip AL1 memos as standalone policy records
+                if (txn === 'AL1') { skipped++; return; }
+
+                // Dedup for new business / renewals
                 const dedupKey = polNum + '|||' + amsClientKey(name);
                 if (polNum && existingKeys.has(dedupKey)) { skipped++; return; }
 
@@ -3694,11 +4158,11 @@
                 const record = {
                     id: baseId + i,
                     agent: '',
-                    customerName: name,
+                    customerName: name || 'Unknown',
                     contactName: '',
                     source: 'AL3 Import',
                     referredBy: '',
-                    policyType: 'AL3 Download',
+                    policyType: txn ? AL3_TXN_CODES[txn] || 'AL3 Download' : 'AL3 Download',
                     lineOfBusiness: r.lineOfBusiness || '',
                     company: r.companyName || r.companyCode || '',
                     mga: '',
@@ -3711,7 +4175,7 @@
                     paymentType: '',
                     paymentMethod2: '',
                     policyNumber: polNum,
-                    binderNumber: 'AL3-' + String(i + 1).padStart(4, '0'),
+                    binderNumber: 'AL3-' + String(baseId + i).slice(-6),
                     entryDate: dateISO,
                     entryDateDisplay: ts,
                     effDate: effDate,
@@ -3719,17 +4183,24 @@
                     term: '12',
                     location: '',
                     timestamp: ts,
-                    status: 'Active',
-                    al3SourceFile: r._file
+                    status: (txn === 'XLN' || txn === 'XLC') ? 'Cancelled' : 'Active',
+                    al3SourceFile: r._file,
+                    al3TxnCode: txn,
+                    al3PriorPolicy: r.priorPolicyNumber || '',
+                    al3Remarks: (r._remarks || []).join('; '),
+                    al3CoverageCount: (r._coverages || []).length
                 };
 
                 binder.push(record);
-                if (polNum) existingKeys.add(dedupKey);
+                if (polNum) {
+                    existingKeys.add(dedupKey);
+                    existingByPol[polNum.toLowerCase()] = binder.length - 1;
+                }
                 added++;
 
-                const ck = amsClientKey(name);
+                const ck = amsClientKey(name || 'Unknown');
                 if (!contacts[ck]) {
-                    const parts = name.split(/[,\s]+/).filter(Boolean);
+                    const parts = (name || 'Unknown').split(/[,\s]+/).filter(Boolean);
                     contacts[ck] = {
                         firstName: parts[0] || name,
                         lastName: parts.slice(1).join(' ') || '',
@@ -3753,7 +4224,7 @@
 
             btn.textContent = 'Imported!';
             btn.style.background = '#38a169';
-            statusEl.textContent = added + ' policies added, ' + clientsAdded + ' new clients, ' + skipped + ' skipped (duplicate/empty)';
+            statusEl.textContent = added + ' added, ' + updated + ' updated, ' + clientsAdded + ' new clients, ' + skipped + ' skipped';
             document.getElementById('al3ImportTitle').textContent = 'Import Complete';
             document.getElementById('al3ImportSub').textContent = 'Data merged into AMS successfully';
 
