@@ -1246,6 +1246,15 @@ function downloadVerificationForm(entry) {
 }
 
 // ── New Prospect ──────────────────────────────────────────────
+function openLeadEntryModal() {
+    const m = document.getElementById('leadEntryModal');
+    m.classList.add('active');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+function closeLeadEntryModal() {
+    document.getElementById('leadEntryModal').classList.remove('active');
+}
+
 function openNewProspectModal() {
     const m = document.getElementById('newProspectModal');
     m.classList.add('active');
@@ -4316,211 +4325,394 @@ function getAgentCommissionShares(agentName) {
     return byMonth;
 }
 
+// ── Commission Detail Sort State ──
+let _commDetailSortField = 'date';
+let _commDetailSortDir   = 'desc';
+
+function _getAgentPolicyEntries(agent) {
+    return allData.filter(d => d.agent === agent);
+}
+
+function _entryMonth(e) {
+    try {
+        return new Date(e.entryDate + 'T12:00:00').toLocaleDateString('en-US', { year:'numeric', month:'long' });
+    } catch(_) { return ''; }
+}
+
 function loadAgentCommissionData() {
-    const commissions = loadCommissionData();
     const agent = currentUser;
-
-    const agentData = commissions[agent] || { monthlyPaidCommissionCarriers: {}, grossPaidCarriers: {} };
+    const entries = _getAgentPolicyEntries(agent);
+    const commissions = loadCommissionData();
+    const agentData = commissions[agent] || { monthlyPaidCommissionCarriers:{}, grossPaidCarriers:{} };
     const monthlyPaidCarriers = agentData.monthlyPaidCommissionCarriers || {};
-    const grossPaidCarriers = agentData.grossPaidCarriers || {};
-    const agentShares = getAgentCommissionShares(agent);
+    const grossPaidCarriers   = agentData.grossPaidCarriers || {};
 
-    // Collect all available years from data and populate year dropdown
-    const allYearsSet = new Set();
-    const collectYears = (carriers) => {
+    // ── Populate dynamic filter dropdowns ──
+    const allYears = new Set(), allCarriers = new Set(), allLOBs = new Set();
+    entries.forEach(e => {
+        const m = _entryMonth(e);
+        const parts = m.split(' ');
+        if (parts.length === 2) allYears.add(parts[1]);
+        if (e.company) allCarriers.add(e.company);
+        if (e.lineOfBusiness) allLOBs.add(e.lineOfBusiness);
+    });
+    // Also gather years from carrier-level commission data
+    const _addCarrierYears = (carriers) => {
         Object.values(carriers).forEach(months => {
-            Object.keys(months).forEach(m => {
-                const parts = m.split(' ');
-                if (parts.length === 2) allYearsSet.add(parts[1]);
-            });
+            Object.keys(months).forEach(m => { const p = m.split(' '); if (p.length === 2) allYears.add(p[1]); });
         });
     };
-    collectYears(monthlyPaidCarriers);
-    collectYears(grossPaidCarriers);
-    Object.keys(agentShares).forEach(m => { const p = m.split(' '); if (p.length === 2) allYearsSet.add(p[1]); });
+    _addCarrierYears(monthlyPaidCarriers);
+    _addCarrierYears(grossPaidCarriers);
 
-    const yearSel = document.getElementById('commFilterYear');
-    if (yearSel) {
-        const currentYearVal = yearSel.value;
-        const sortedYears = [...allYearsSet].sort((a, b) => b - a);
-        yearSel.innerHTML = '<option value="">All Years</option>' +
-            sortedYears.map(y => `<option value="${y}" ${y === currentYearVal ? 'selected' : ''}>${y}</option>`).join('');
-    }
+    const _populateSelect = (id, items, sorter) => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const cur = sel.value;
+        const sorted = [...items].sort(sorter || ((a,b) => a.localeCompare(b)));
+        const firstOpt = sel.options[0]?.textContent || 'All';
+        sel.innerHTML = `<option value="">${firstOpt}</option>` +
+            sorted.map(v => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v}</option>`).join('');
+    };
+    _populateSelect('commFilterYear',    allYears,    (a,b) => b-a);
+    _populateSelect('commFilterCarrier',  allCarriers);
+    _populateSelect('commFilterLOB',      allLOBs);
 
-    // Read active filters
-    const filterMonth = document.getElementById('commFilterMonth')?.value || '';
-    const filterYear  = document.getElementById('commFilterYear')?.value  || '';
+    // ── Read active filters ──
+    const fMonth   = document.getElementById('commFilterMonth')?.value   || '';
+    const fYear    = document.getElementById('commFilterYear')?.value    || '';
+    const fCarrier = document.getElementById('commFilterCarrier')?.value || '';
+    const fLOB     = document.getElementById('commFilterLOB')?.value     || '';
 
     const monthMatches = (monthKey) => {
-        if (!filterMonth && !filterYear) return true;
+        if (!fMonth && !fYear) return true;
         const [mName, mYear] = monthKey.split(' ');
-        if (filterMonth && mName !== filterMonth) return false;
-        if (filterYear  && mYear  !== filterYear)  return false;
+        if (fMonth && mName !== fMonth) return false;
+        if (fYear  && mYear !== fYear)  return false;
         return true;
     };
 
-    // Filter carrier data
+    const entryMatches = (e) => {
+        const m = _entryMonth(e);
+        if (!monthMatches(m)) return false;
+        if (fCarrier && e.company !== fCarrier) return false;
+        if (fLOB && e.lineOfBusiness !== fLOB) return false;
+        return true;
+    };
+
+    // ── Filtered policy entries (for detail view + stats) ──
+    const filtered = entries.filter(entryMatches);
+
+    // ── Stats from actual policy entries ──
+    let totalAgencyComm = 0, totalAgentShare = 0, totalPolicies = filtered.length;
+    filtered.forEach(e => {
+        totalAgencyComm += e.agencyCommission || 0;
+        totalAgentShare += e.agentCommissionShare || 0;
+    });
+    const grandTotal = totalAgencyComm + totalAgentShare;
+
+    const el = (id) => document.getElementById(id);
+    el('agentTotalCommissions').textContent = `$${grandTotal.toFixed(2)}`;
+    el('agentCommissionCount').textContent  = totalPolicies;
+    el('agentAvgCommission').textContent    = `$${(totalPolicies > 0 ? grandTotal / totalPolicies : 0).toFixed(2)}`;
+    if (el('agentAgencyCommTotal')) el('agentAgencyCommTotal').textContent = `$${totalAgencyComm.toFixed(2)}`;
+    if (el('agentShareTotal'))      el('agentShareTotal').textContent      = `$${totalAgentShare.toFixed(2)}`;
+
+    // ── Summary tab (carrier-level aggregated view) ──
     const filterCarriers = (carriers) => {
         const result = {};
         Object.entries(carriers).forEach(([carrier, months]) => {
-            const filteredMonths = Object.fromEntries(
-                Object.entries(months).filter(([month]) => monthMatches(month))
+            if (fCarrier && carrier !== fCarrier) return;
+            const fm = Object.fromEntries(
+                Object.entries(months).filter(([month, entry]) => {
+                    if (!monthMatches(month)) return false;
+                    if (fLOB) {
+                        const lob = typeof entry === 'object' ? entry.lob : '';
+                        if (!lob.includes(fLOB)) return false;
+                    }
+                    return true;
+                })
             );
-            if (Object.keys(filteredMonths).length > 0) result[carrier] = filteredMonths;
+            if (Object.keys(fm).length > 0) result[carrier] = fm;
         });
         return result;
     };
 
     const filteredMonthly = filterCarriers(monthlyPaidCarriers);
     const filteredGross   = filterCarriers(grossPaidCarriers);
+    const agentShares     = getAgentCommissionShares(agent);
     const filteredShares  = Object.fromEntries(
         Object.entries(agentShares).filter(([month]) => monthMatches(month))
     );
 
-    // Totals from filtered data
-    let totalCommissions = 0;
-    let allMonths = new Set();
-
-    Object.values(filteredMonthly).forEach(carrier => {
-        Object.entries(carrier).forEach(([month, entry]) => {
-            totalCommissions += typeof entry === 'object' ? entry.amount : entry;
-            allMonths.add(month);
-        });
-    });
-    Object.values(filteredGross).forEach(carrier => {
-        Object.entries(carrier).forEach(([month, entry]) => {
-            totalCommissions += typeof entry === 'object' ? entry.amount : entry;
-            allMonths.add(month);
-        });
-    });
-    Object.entries(filteredShares).forEach(([month, m]) => {
-        totalCommissions += m.total;
-        allMonths.add(month);
-    });
-
-    const monthCount = allMonths.size;
-    document.getElementById('agentTotalCommissions').textContent = `$${totalCommissions.toFixed(2)}`;
-    document.getElementById('agentAvgCommission').textContent = `$${(monthCount > 0 ? totalCommissions / monthCount : 0).toFixed(2)}`;
-    document.getElementById('agentCommissionCount').textContent = monthCount;
-
-    const tbody = document.getElementById('agentCommissionTable');
+    const summaryTbody = el('agentCommissionTable');
     const hasCarrierData = Object.keys(filteredMonthly).length > 0 || Object.keys(filteredGross).length > 0;
-    const hasShareData = Object.keys(filteredShares).length > 0;
+    const hasShareData   = Object.keys(filteredShares).length > 0;
 
     if (!hasCarrierData && !hasShareData) {
-        tbody.innerHTML = '<tr><td colspan="4" class="no-data">No commission data for the selected period</td></tr>';
+        summaryTbody.innerHTML = '<tr><td colspan="4" class="no-data">No commission data for the selected period</td></tr>';
+    } else {
+        let html = '';
+        const renderCarrierRows = (carriers, header, color) => {
+            if (Object.keys(carriers).length === 0) return;
+            html += `<tr style="background-color:${color};font-weight:bold;"><td colspan="4">${header}</td></tr>`;
+            Object.entries(carriers).forEach(([carrier, months]) => {
+                Object.entries(months).forEach(([month, entry], idx) => {
+                    const amount  = typeof entry === 'object' ? entry.amount  : entry;
+                    const lob     = typeof entry === 'object' ? entry.lob     : '-';
+                    const rate    = typeof entry === 'object' ? entry.rate    : 0;
+                    const premium = typeof entry === 'object' ? entry.premium : 0;
+                    const display = premium > 0 && rate > 0
+                        ? `$${premium.toFixed(2)} × ${rate}% = <strong>$${amount.toFixed(2)}</strong>`
+                        : `$${amount.toFixed(2)}`;
+                    html += `<tr><td>${idx === 0 ? carrier : ''}</td><td>${lob}</td><td>${month}</td><td style="font-family:monospace;font-size:.9em;">${display}</td></tr>`;
+                });
+            });
+        };
+        renderCarrierRows(filteredMonthly, '📅 Monthly Paid Commission Carriers', '#e3f2fd');
+        renderCarrierRows(filteredGross,   '💰 Gross Paid Carriers', '#f3e5f5');
+        if (hasShareData) {
+            html += `<tr style="background-color:#e8f5e9;font-weight:bold;"><td colspan="4">🤝 Agent Commission (50% of Fee + Commission)</td></tr>`;
+            Object.entries(filteredShares).forEach(([month, data]) => {
+                html += `<tr>
+                    <td>Agent Share</td>
+                    <td>${data.count} polic${data.count===1?'y':'ies'}</td>
+                    <td>${month}</td>
+                    <td style="font-family:monospace;font-size:.9em;">($${data.agencyFeeTotal.toFixed(2)} + $${data.agencyCommissionTotal.toFixed(2)}) × 50% = <strong>$${data.total.toFixed(2)}</strong></td>
+                </tr>`;
+            });
+        }
+        summaryTbody.innerHTML = html;
+    }
+
+    // ── Detail tab (per-policy rows) ──
+    _renderCommDetailTable(filtered);
+}
+
+function _renderCommDetailTable(filtered) {
+    const sortField = _commDetailSortField;
+    const sortDir   = _commDetailSortDir;
+
+    const sorted = [...filtered].sort((a, b) => {
+        let va, vb;
+        switch (sortField) {
+            case 'date':       va = a.entryDate || ''; vb = b.entryDate || ''; break;
+            case 'carrier':    va = (a.company||'').toLowerCase(); vb = (b.company||'').toLowerCase(); break;
+            case 'premium':    va = a.basePremium || 0; vb = b.basePremium || 0; break;
+            case 'agencyComm': va = a.agencyCommission || 0; vb = b.agencyCommission || 0; break;
+            case 'agentShare': va = a.agentCommissionShare || 0; vb = b.agentCommissionShare || 0; break;
+            default:           va = a.entryDate || ''; vb = b.entryDate || '';
+        }
+        if (typeof va === 'string') {
+            const cmp = va.localeCompare(vb);
+            return sortDir === 'asc' ? cmp : -cmp;
+        }
+        return sortDir === 'asc' ? va - vb : vb - va;
+    });
+
+    const detailTbody = document.getElementById('agentCommDetailTable');
+    if (!detailTbody) return;
+
+    if (sorted.length === 0) {
+        detailTbody.innerHTML = '<tr><td colspan="12" class="no-data">No policies found for selected filters</td></tr>';
         return;
     }
 
-    let tableHTML = '';
-
-    const renderCarrierRows = (carriers, header, color) => {
-        if (Object.keys(carriers).length === 0) return;
-        tableHTML += `<tr style="background-color: ${color}; font-weight: bold;"><td colspan="4">${header}</td></tr>`;
-        Object.entries(carriers).forEach(([carrier, months]) => {
-            Object.entries(months).forEach(([month, entry], idx) => {
-                const amount = typeof entry === 'object' ? entry.amount : entry;
-                const lob = typeof entry === 'object' ? entry.lob : '-';
-                const rate = typeof entry === 'object' ? entry.rate : 0;
-                const premium = typeof entry === 'object' ? entry.premium : 0;
-                const display = premium > 0 && rate > 0 ? `($${premium.toFixed(2)}×${rate}%)×50%=$${amount.toFixed(2)}` : `$${amount.toFixed(2)}`;
-                tableHTML += `<tr><td>${idx === 0 ? carrier : ''}</td><td>${lob}</td><td>${month}</td><td style="font-family: monospace; font-size: 0.95em;">${display}</td></tr>`;
-            });
-        });
+    const fmt = (v) => v ? `$${parseFloat(v).toFixed(2)}` : '-';
+    const rate = (e) => {
+        if (!e.company || !e.lineOfBusiness || !e.paymentType || !e.policyType) return '-';
+        const r = getCommissionRate(e.company, e.lineOfBusiness, e.paymentType, e.policyType);
+        return r > 0 ? `${r}%` : '-';
     };
 
-    renderCarrierRows(filteredMonthly, '📅 Monthly Paid Commission Carriers', '#e3f2fd');
-    renderCarrierRows(filteredGross,   '💰 Gross Paid Carriers', '#f3e5f5');
+    let html = '';
+    sorted.forEach(e => {
+        const dateDisplay = e.entryDate ? new Date(e.entryDate + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '-';
+        const typeColor = e.paymentType === 'Gross Paid' ? '#7c3aed' : '#1d4ed8';
+        const typeIcon  = e.paymentType === 'Gross Paid' ? '🔥' : '📅';
+        html += `<tr>
+            <td style="white-space:nowrap;font-size:12px;">${dateDisplay}</td>
+            <td style="font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.customerName||''}">${e.customerName || '-'}</td>
+            <td style="font-size:12px;">${e.company || '-'}</td>
+            <td style="font-size:12px;">${e.lineOfBusiness || '-'}</td>
+            <td style="font-size:12px;">${e.policyType || '-'}</td>
+            <td style="font-size:11px;color:#64748b;font-family:monospace;">${e.binderNumber || '-'}</td>
+            <td style="font-family:monospace;font-size:12px;">${fmt(e.basePremium)}</td>
+            <td style="font-size:12px;color:#059669;font-weight:600;">${rate(e)}</td>
+            <td style="font-family:monospace;font-size:12px;font-weight:700;color:#166534;">${fmt(e.agencyCommission)}</td>
+            <td style="font-family:monospace;font-size:12px;">${fmt(e.agencyFee)}</td>
+            <td style="font-family:monospace;font-size:12px;font-weight:700;color:#1d4ed8;">${fmt(e.agentCommissionShare)}</td>
+            <td style="font-size:11px;color:${typeColor};font-weight:700;white-space:nowrap;">${typeIcon} ${e.paymentType || '-'}</td>
+        </tr>`;
+    });
 
-    if (hasShareData) {
-        tableHTML += `<tr style="background-color: #e8f5e9; font-weight: bold;"><td colspan="4">🤝 Agent Commission (50% of Agency Fee + Agency Commission)</td></tr>`;
-        Object.entries(filteredShares).forEach(([month, data]) => {
-            tableHTML += `<tr>
-                <td>Agent Commission</td>
-                <td>${data.count} polic${data.count === 1 ? 'y' : 'ies'}</td>
-                <td>${month}</td>
-                <td style="font-family: monospace; font-size: 0.95em;">($${data.agencyFeeTotal.toFixed(2)}+$${data.agencyCommissionTotal.toFixed(2)})×50%=<strong>$${data.total.toFixed(2)}</strong></td>
-            </tr>`;
-        });
+    // Totals row
+    let tPremium = 0, tAgencyComm = 0, tFee = 0, tAgentShare = 0;
+    sorted.forEach(e => {
+        tPremium    += e.basePremium || 0;
+        tAgencyComm += e.agencyCommission || 0;
+        tFee        += e.agencyFee || 0;
+        tAgentShare += e.agentCommissionShare || 0;
+    });
+    html += `<tr style="background:#0d1f3c;color:#fff;font-weight:700;">
+        <td colspan="6" style="color:#fff;">TOTAL (${sorted.length} policies)</td>
+        <td style="font-family:monospace;color:#fff;">${fmt(tPremium)}</td>
+        <td style="color:#fff;">—</td>
+        <td style="font-family:monospace;color:#4ade80;">${fmt(tAgencyComm)}</td>
+        <td style="font-family:monospace;color:#fff;">${fmt(tFee)}</td>
+        <td style="font-family:monospace;color:#60a5fa;">${fmt(tAgentShare)}</td>
+        <td style="color:#fff;">—</td>
+    </tr>`;
+
+    detailTbody.innerHTML = html;
+}
+
+function commSortDetail(field) {
+    if (_commDetailSortField === field) {
+        _commDetailSortDir = _commDetailSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        _commDetailSortField = field;
+        _commDetailSortDir = 'desc';
     }
+    loadAgentCommissionData();
+}
 
-    tbody.innerHTML = tableHTML;
+function switchCommTab(tab) {
+    const summary = document.getElementById('commViewSummary');
+    const detail  = document.getElementById('commViewDetail');
+    const btnS    = document.getElementById('commTabSummary');
+    const btnD    = document.getElementById('commTabDetail');
+    if (!summary || !detail) return;
+
+    if (tab === 'detail') {
+        summary.style.display = 'none';
+        detail.style.display  = 'block';
+        if (btnS) { btnS.style.background = 'transparent'; btnS.style.color = '#64748b'; btnS.style.boxShadow = 'none'; }
+        if (btnD) { btnD.style.background = '#fff'; btnD.style.color = '#1d4ed8'; btnD.style.boxShadow = '0 1px 3px rgba(0,0,0,.1)'; }
+    } else {
+        summary.style.display = 'block';
+        detail.style.display  = 'none';
+        if (btnS) { btnS.style.background = '#fff'; btnS.style.color = '#1d4ed8'; btnS.style.boxShadow = '0 1px 3px rgba(0,0,0,.1)'; }
+        if (btnD) { btnD.style.background = 'transparent'; btnD.style.color = '#64748b'; btnD.style.boxShadow = 'none'; }
+    }
 }
 
 function clearCommissionFilters() {
-    const m = document.getElementById('commFilterMonth');
-    const y = document.getElementById('commFilterYear');
-    if (m) m.value = '';
-    if (y) y.value = '';
+    ['commFilterMonth','commFilterYear','commFilterCarrier','commFilterLOB'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const sort = document.getElementById('commSortBy');
+    if (sort) sort.value = 'date-desc';
+    _commDetailSortField = 'date';
+    _commDetailSortDir   = 'desc';
     loadAgentCommissionData();
 }
 
 function exportAgentCommissions() {
-    const commissions = loadCommissionData();
     const agent = currentUser;
-    const agentData = commissions[agent] || { monthlyPaidCommissionCarriers: {}, grossPaidCarriers: {} };
-
-    const monthlyPaidCarriers = agentData.monthlyPaidCommissionCarriers || {};
-    const grossPaidCarriers = agentData.grossPaidCarriers || {};
+    const entries = _getAgentPolicyEntries(agent);
 
     let csvLines = [
         `Commission Statement - ${agent}`,
-        `Generated: ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })} ET`,
-        ''
+        `Generated: ${getEasternDateTimeDisplay()}`,
+        '',
+        'Date,Customer,Carrier,LOB,Policy Type,Binder #,Base Premium,Agency Commission,Agency Fee,Agent Share (50%),Commission Type'
     ];
 
-    let totalAll = 0;
+    let totalAgencyComm = 0, totalAgentShare = 0;
+    entries.sort((a,b) => (a.entryDate||'').localeCompare(b.entryDate||'')).forEach(e => {
+        const date = e.entryDate ? new Date(e.entryDate + 'T12:00:00').toLocaleDateString('en-US') : '';
+        const esc = (v) => `"${(v||'').replace(/"/g,'""')}"`;
+        csvLines.push([
+            date, esc(e.customerName), esc(e.company), esc(e.lineOfBusiness),
+            e.policyType, e.binderNumber,
+            (e.basePremium||0).toFixed(2), (e.agencyCommission||0).toFixed(2),
+            (e.agencyFee||0).toFixed(2), (e.agentCommissionShare||0).toFixed(2),
+            e.paymentType
+        ].join(','));
+        totalAgencyComm += e.agencyCommission || 0;
+        totalAgentShare += e.agentCommissionShare || 0;
+    });
 
-    // Monthly Paid Commission Carriers
-    if (Object.keys(monthlyPaidCarriers).length > 0) {
-        csvLines.push('MONTHLY PAID COMMISSION CARRIERS');
-        csvLines.push('Carrier,Line of Business,Month,Commission');
-        Object.entries(monthlyPaidCarriers).forEach(([carrier, months]) => {
-            Object.entries(months).forEach(([month, entry]) => {
-                const amount = typeof entry === 'object' ? entry.amount : entry;
-                const lob = typeof entry === 'object' ? entry.lob : '-';
-                csvLines.push(`${carrier},${lob},${month},$${amount.toFixed(2)}`);
-                totalAll += amount;
-            });
-        });
-        csvLines.push('');
-    }
-
-    // Gross Paid Carriers
-    if (Object.keys(grossPaidCarriers).length > 0) {
-        csvLines.push('GROSS PAID CARRIERS');
-        csvLines.push('Carrier,Line of Business,Month,Commission');
-        Object.entries(grossPaidCarriers).forEach(([carrier, months]) => {
-            Object.entries(months).forEach(([month, entry]) => {
-                const amount = typeof entry === 'object' ? entry.amount : entry;
-                const lob = typeof entry === 'object' ? entry.lob : '-';
-                csvLines.push(`${carrier},${lob},${month},$${amount.toFixed(2)}`);
-                totalAll += amount;
-            });
-        });
-        csvLines.push('');
-    }
-
-    const agentShares = getAgentCommissionShares(agent);
-    if (Object.keys(agentShares).length > 0) {
-        csvLines.push('AGENT COMMISSION (50% OF AGENCY COMMISSION)');
-        csvLines.push('Month,Policies,Agency Commission,Agent Share (50%)');
-        Object.entries(agentShares).forEach(([month, data]) => {
-            csvLines.push(`${month},${data.count},$${data.agencyTotal.toFixed(2)},$${data.total.toFixed(2)}`);
-            totalAll += data.total;
-        });
-        csvLines.push('');
-    }
-
-    csvLines.push(`TOTAL,$${totalAll.toFixed(2)}`);
+    csvLines.push('');
+    csvLines.push(`TOTAL AGENCY COMMISSION,$${totalAgencyComm.toFixed(2)}`);
+    csvLines.push(`TOTAL AGENT SHARE,$${totalAgentShare.toFixed(2)}`);
+    csvLines.push(`GRAND TOTAL,$${(totalAgencyComm + totalAgentShare).toFixed(2)}`);
 
     const csv = csvLines.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const blob = new Blob([csv], { type:'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${agent}_commissions_${getEasternDateString()}.csv`;
     a.click();
+}
+
+function exportAgentCommissionsPDF() {
+    const agent = currentUser;
+    const entries = _getAgentPolicyEntries(agent);
+    const sorted = [...entries].sort((a,b) => (a.entryDate||'').localeCompare(b.entryDate||''));
+    const fmt = (v) => v ? `$${parseFloat(v).toFixed(2)}` : '-';
+
+    let totalAgencyComm = 0, totalAgentShare = 0, totalPremium = 0, totalFee = 0;
+    sorted.forEach(e => {
+        totalAgencyComm += e.agencyCommission || 0;
+        totalAgentShare += e.agentCommissionShare || 0;
+        totalPremium    += e.basePremium || 0;
+        totalFee        += e.agencyFee || 0;
+    });
+
+    const rows = sorted.map(e => {
+        const date = e.entryDate ? new Date(e.entryDate + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '-';
+        return `<tr>
+            <td>${date}</td><td>${e.customerName||'-'}</td><td>${e.company||'-'}</td>
+            <td>${e.lineOfBusiness||'-'}</td><td>${e.policyType||'-'}</td>
+            <td>${fmt(e.basePremium)}</td><td>${fmt(e.agencyCommission)}</td>
+            <td>${fmt(e.agencyFee)}</td><td style="font-weight:700;">${fmt(e.agentCommissionShare)}</td>
+            <td>${e.paymentType||'-'}</td>
+        </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><title>Commission Statement — ${agent}</title>
+    <style>
+        body{font-family:'Segoe UI',system-ui,sans-serif;margin:24px;color:#1e293b;font-size:11px;}
+        h2{color:#0d1f3c;margin-bottom:4px;}
+        .meta{color:#64748b;font-size:12px;margin-bottom:20px;}
+        table{width:100%;border-collapse:collapse;margin-bottom:20px;}
+        th{background:#0d1f3c;color:#fff;padding:8px 6px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.3px;}
+        td{padding:6px;border-bottom:1px solid #e2e8f0;font-size:11px;}
+        tr:nth-child(even){background:#f8fafc;}
+        .totals{background:#0d1f3c;color:#fff;font-weight:700;}
+        .totals td{border:none;padding:8px 6px;}
+        .summary{display:flex;gap:20px;margin-bottom:20px;}
+        .sbox{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;flex:1;text-align:center;}
+        .sbox .lbl{font-size:10px;text-transform:uppercase;color:#64748b;letter-spacing:.5px;}
+        .sbox .val{font-size:18px;font-weight:800;color:#0d1f3c;margin-top:4px;}
+        @media print { body{margin:12px;} }
+    </style>
+    <script>window.onload = () => window.print();<\/script>
+    </head><body>
+    <h2>Commission Statement — ${agent}</h2>
+    <div class="meta">Generated: ${getEasternDateTimeDisplay()} &middot; ${sorted.length} policies</div>
+    <div class="summary">
+        <div class="sbox"><div class="lbl">Total Commissions</div><div class="val">${fmt(totalAgencyComm + totalAgentShare)}</div></div>
+        <div class="sbox"><div class="lbl">Agency Commission</div><div class="val">${fmt(totalAgencyComm)}</div></div>
+        <div class="sbox"><div class="lbl">Agent Share (50%)</div><div class="val">${fmt(totalAgentShare)}</div></div>
+        <div class="sbox"><div class="lbl">Policies</div><div class="val">${sorted.length}</div></div>
+    </div>
+    <table>
+        <thead><tr><th>Date</th><th>Customer</th><th>Carrier</th><th>LOB</th><th>Type</th><th>Premium</th><th>Agency Comm</th><th>Fee</th><th>Agent Share</th><th>Comm Type</th></tr></thead>
+        <tbody>${rows}
+        <tr class="totals">
+            <td colspan="5">TOTAL</td>
+            <td>${fmt(totalPremium)}</td><td>${fmt(totalAgencyComm)}</td><td>${fmt(totalFee)}</td><td>${fmt(totalAgentShare)}</td><td>—</td>
+        </tr></tbody>
+    </table></body></html>`;
+
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
 }
 
 // ================================================================
