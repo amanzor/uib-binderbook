@@ -84,7 +84,7 @@ let amsFilteredKeys  = [];   // keys after search/filter
 let _amsSearchTimer  = null;
 
 // ── Data helpers ─────────────────────────────────────────────
-function amsGetBinderData()  { return JSON.parse(localStorage.getItem('binderData'))  || []; }
+function amsGetBinderData()  { let d = JSON.parse(localStorage.getItem('binderData'))  || []; if (!Array.isArray(d)) d = d.value || []; return d; }
 function amsGetClientData()  { return JSON.parse(localStorage.getItem('amsClientData')) || {}; }
 function amsGetCredentials() { return JSON.parse(localStorage.getItem('agentCredentials')) || {}; }
 function amsGetCarriers()    { return JSON.parse(localStorage.getItem('carrierMasterData')) || {}; }
@@ -264,8 +264,13 @@ async function amsSyncDataFromDrive() {
             const res  = await fetch(`${AMS_DRIVE_URL}?key=${key}`);
             const json = await res.json();
             if (json.success && json.data != null) {
-                localStorage.setItem(key, JSON.stringify(json.data));
-                return { key, count: Array.isArray(json.data) ? json.data.length : Object.keys(json.data).length };
+                let data = json.data;
+                // Unwrap {value: [...]} if data was stored with wrapper
+                if (data && !Array.isArray(data) && data.value && Array.isArray(data.value)) {
+                    data = data.value;
+                }
+                localStorage.setItem(key, JSON.stringify(data));
+                return { key, count: Array.isArray(data) ? data.length : Object.keys(data).length };
             }
         } catch (e) { /* Drive unavailable — use localStorage */ }
         return { key, count: 0 };

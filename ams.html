@@ -1270,7 +1270,7 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="ams.js?v=20260617a"></script>
+    <script src="ams.js?v=20260617b"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
         const _dashCharts = {};
@@ -1344,7 +1344,8 @@
         }
 
         function amsRenderDashboard() {
-            const binder = JSON.parse(localStorage.getItem('binderData') || '[]');
+            let binder = JSON.parse(localStorage.getItem('binderData') || '[]');
+            if (!Array.isArray(binder)) binder = binder.value || Object.values(binder) || [];
             const today  = new Date();
 
             // ── Active = not a cancellation & (no expDate OR expDate >= today) ──
@@ -1537,7 +1538,7 @@
         }
 
         // ── Shared: get binder + filter by entryDate range ────
-        function _rptBinder() { return JSON.parse(localStorage.getItem('binderData')||'[]'); }
+        function _rptBinder() { let d = JSON.parse(localStorage.getItem('binderData')||'[]'); if (!Array.isArray(d)) d = d.value || []; return d; }
         function _rptFilter(entries, from, to) {
             return entries.filter(p => {
                 if (!p.entryDate) return true;
@@ -2345,11 +2346,11 @@
             return entries.filter(p => !p.entryDate || (p.entryDate >= from && p.entryDate <= to));
         }
 
-        function _acctBinder() { return JSON.parse(localStorage.getItem('binderData')||'[]'); }
+        function _acctBinder() { let d = JSON.parse(localStorage.getItem('binderData')||'[]'); if (!Array.isArray(d)) d = d.value || []; return d; }
 
         function _acctExport(headers, rows, filename) {
             const esc = v => `"${String(v||'').replace(/"/g,'""')}"`;
-            const blob = new Blob([[headers,…rows].map(r=>r.map(esc).join(',')).join('\n')],{type:'text/csv'});
+            const blob = new Blob([[headers,...rows].map(r=>r.map(esc).join(',')).join('\n')],{type:'text/csv'});
             const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click();
         }
 
