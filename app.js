@@ -6736,12 +6736,15 @@ async function claudeSendMessage() {
         // Check if reply contains a sales entry extraction JSON
         const extracted = pdfWasAttached ? claudeTryParseEntry(replyText) : null;
         if (extracted) {
+            if (!window._claudeExtractions) window._claudeExtractions = [];
+            window._claudeExtractions.push(extracted);
+            const _extIdx = window._claudeExtractions.length - 1;
             const msg = claudeAddMessage('assistant', '');
             msg.innerHTML = claudeRenderMarkdown(replyText) +
                 `<div style="margin-top:14px;padding:12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;">
                     <div style="font-weight:700;color:#15803d;margin-bottom:8px;">✓ Sales entry extracted</div>
                     <div style="font-size:12px;color:#166534;margin-bottom:10px;">PDF: ${pdfFileName}</div>
-                    <button onclick='claudePrefillEntry(${JSON.stringify(extracted).replace(/'/g, "&#39;")})'
+                    <button onclick="claudePrefillEntry(window._claudeExtractions[${_extIdx}])"
                         style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
                         📋 Open Daily Sales Entry with these values
                     </button>
@@ -7286,12 +7289,15 @@ async function claudeInlineSendMessage() {
 
         const extracted = pdfWasAttached ? claudeTryParseEntry(replyText) : null;
         if (extracted) {
+            if (!window._claudeExtractions) window._claudeExtractions = [];
+            window._claudeExtractions.push(extracted);
+            const _extIdx = window._claudeExtractions.length - 1;
             const msg = claudeInlineAddMessage('assistant', '');
             msg.innerHTML = claudeRenderMarkdown(replyText) +
                 `<div style="margin-top:14px;padding:12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;">
                     <div style="font-weight:700;color:#15803d;margin-bottom:8px;">✓ Sales entry extracted</div>
                     <div style="font-size:12px;color:#166534;margin-bottom:10px;">PDF: ${pdfFileName}</div>
-                    <button onclick='claudePrefillEntry(${JSON.stringify(extracted).replace(/'/g, "&#39;")})'
+                    <button onclick="claudePrefillEntry(window._claudeExtractions[${_extIdx}])"
                         style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
                         📋 Open Daily Sales Entry with these values
                     </button>
