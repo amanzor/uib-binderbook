@@ -1131,6 +1131,7 @@
                         <button class="ams-tab"         data-tab="policies" onclick="amsShowTab('policies')"><i data-lucide="file-text"></i> Policies</button>
                         <button class="ams-tab"         data-tab="notes"    onclick="amsShowTab('notes')"><i data-lucide="message-square"></i> Notes</button>
                         <button class="ams-tab"         data-tab="documents" onclick="amsShowTab('documents')"><i data-lucide="folder-open"></i> Documents <span id="docTabBadge" style="display:none;background:var(--blue);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
+                        <button class="ams-tab"         data-tab="forms" onclick="amsShowTab('forms')"><i data-lucide="clipboard-list"></i> Forms</button>
                     </div>
 
                     <!-- ── TAB: Contact Info ── -->
@@ -1431,6 +1432,28 @@
                         </div>
                     </div><!-- /tabDocuments -->
 
+                    <!-- ── TAB: Forms ── -->
+                    <div id="tabForms" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                            <h3 style="color:var(--navy);font-size:16px;"><i data-lucide="clipboard-list" style="width:16px;height:16px;vertical-align:-3px;"></i> ACORD Forms</h3>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="text" id="acordFormSearch" oninput="acordFilterForms()" placeholder="Search forms..." style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;width:180px;">
+                                <select id="acordFormCat" onchange="acordFilterForms()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;">
+                                    <option value="">All Categories</option>
+                                    <option value="app">Applications</option>
+                                    <option value="auto">Auto</option>
+                                    <option value="home">Homeowners</option>
+                                    <option value="commercial">Commercial</option>
+                                    <option value="general">General</option>
+                                    <option value="claims">Claims</option>
+                                    <option value="cert">Certificates</option>
+                                    <option value="life">Life / Health</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="acordFormsList"></div>
+                    </div><!-- /tabForms -->
+
                 </div><!-- /amsClientDetail -->
             </main><!-- /ams-main -->
         </div><!-- /ams-body -->
@@ -1641,7 +1664,7 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="ams.js?v=20260617i"></script>
+    <script src="ams.js?v=20260617j"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
         const _dashCharts = {};

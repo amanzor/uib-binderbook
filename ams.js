@@ -607,12 +607,13 @@ function amsRenderNotes(key) {
 
 // ── Tabs ─────────────────────────────────────────────────────
 function amsShowTab(tab) {
-    ['contact','policies','notes','documents'].forEach(t => {
+    ['contact','policies','notes','documents','forms'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         if (el) el.style.display = t === tab ? 'block' : 'none';
         document.querySelector(`.ams-tab[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
     });
     if (tab === 'documents' && amsActiveKey) amsRenderFileGrid();
+    if (tab === 'forms' && amsActiveKey) acordRenderFormsList();
 }
 
 // ── Save contact info ────────────────────────────────────────
@@ -1523,4 +1524,738 @@ function amsUpdateVehiclesEmptyState() {
     const vs = document.getElementById('amsVehiclesEmptyState');
     if (!vc || !vs) return;
     vs.style.display = vc.children.length === 0 ? 'block' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════
+// ACORD FORMS MODULE
+// ══════════════════════════════════════════════════════════════
+
+const ACORD_FORMS = [
+    // Applications
+    { id:'acord125', num:'ACORD 125', name:'Commercial Insurance Application', cat:'app', catLabel:'Application', icon:'📋',
+      sections:['applicant','business','premises','coverage','remarks','signature'] },
+    { id:'acord126', num:'ACORD 126', name:'Commercial General Liability Section', cat:'commercial', catLabel:'Commercial', icon:'🏢',
+      sections:['applicant','glInfo','premises','classification','coverage','remarks'] },
+    { id:'acord127', num:'ACORD 127', name:'Business Auto Section', cat:'auto', catLabel:'Auto', icon:'🚛',
+      sections:['applicant','vehicles','drivers','coverage','remarks'] },
+    { id:'acord130', num:'ACORD 130', name:'Workers Compensation Application', cat:'commercial', catLabel:'Commercial', icon:'👷',
+      sections:['applicant','business','classification','coverage','remarks','signature'] },
+    { id:'acord131', num:'ACORD 131', name:'Umbrella / Excess Liability', cat:'commercial', catLabel:'Commercial', icon:'☂️',
+      sections:['applicant','underlying','coverage','remarks'] },
+    { id:'acord140', num:'ACORD 140', name:'Property Section', cat:'commercial', catLabel:'Commercial', icon:'🏗️',
+      sections:['applicant','building','valuation','coverage','remarks'] },
+
+    // Personal Lines
+    { id:'acord80', num:'ACORD 80', name:'Homeowners Application', cat:'home', catLabel:'Homeowners', icon:'🏠',
+      sections:['applicant','property','construction','coverage','mortgagee','remarks','signature'] },
+    { id:'acord90', num:'ACORD 90', name:'Personal Auto Application', cat:'auto', catLabel:'Auto', icon:'🚗',
+      sections:['applicant','vehicles','drivers','coverage','violations','remarks','signature'] },
+    { id:'acord95', num:'ACORD 95', name:'Personal Auto Supplement', cat:'auto', catLabel:'Auto', icon:'🚗',
+      sections:['applicant','vehicles','drivers','additionalInfo'] },
+
+    // Certificates
+    { id:'acord25', num:'ACORD 25', name:'Certificate of Liability Insurance', cat:'cert', catLabel:'Certificate', icon:'📜',
+      sections:['producer','insured','insurers','coverages','certificateHolder','remarks'] },
+    { id:'acord27', num:'ACORD 27', name:'Evidence of Property Insurance', cat:'cert', catLabel:'Certificate', icon:'📜',
+      sections:['producer','insured','company','property','coverage','mortgagee'] },
+    { id:'acord28', num:'ACORD 28', name:'Evidence of Commercial Property Insurance', cat:'cert', catLabel:'Certificate', icon:'📜',
+      sections:['producer','insured','company','property','coverage','additionalInterest'] },
+
+    // Claims
+    { id:'acord1', num:'ACORD 1', name:'Property Loss Notice', cat:'claims', catLabel:'Claims', icon:'⚠️',
+      sections:['insured','policy','lossInfo','propertyDamage','remarks'] },
+    { id:'acord2', num:'ACORD 2', name:'Automobile Loss Notice', cat:'claims', catLabel:'Claims', icon:'💥',
+      sections:['insured','policy','lossInfo','vehicleInfo','injuries','remarks'] },
+    { id:'acord3', num:'ACORD 3', name:'General Liability Loss Notice', cat:'claims', catLabel:'Claims', icon:'⚠️',
+      sections:['insured','policy','lossInfo','injuredParty','remarks'] },
+    { id:'acord4', num:'ACORD 4', name:'Workers Compensation - First Report', cat:'claims', catLabel:'Claims', icon:'🏥',
+      sections:['employer','employee','injuryInfo','treatment','remarks'] },
+
+    // General / Agency
+    { id:'acord35', num:'ACORD 35', name:'Agency - Company Agreement', cat:'general', catLabel:'General', icon:'🤝',
+      sections:['agency','company','terms','signature'] },
+    { id:'acord36', num:'ACORD 36', name:'Agent Statement / Inspection Report', cat:'general', catLabel:'General', icon:'🔍',
+      sections:['applicant','propertyInfo','observations','recommendations','signature'] },
+    { id:'acord37', num:'ACORD 37', name:'Request for Cancellation', cat:'general', catLabel:'General', icon:'❌',
+      sections:['insured','policy','cancellationInfo','remarks','signature'] },
+    { id:'acord38', num:'ACORD 38', name:'Request for Policy Change / Endorsement', cat:'general', catLabel:'General', icon:'✏️',
+      sections:['insured','policy','changeDescription','remarks','signature'] },
+
+    // Inland Marine / Specialty
+    { id:'acord75', num:'ACORD 75', name:'Insurance Binder', cat:'general', catLabel:'General', icon:'📎',
+      sections:['producer','insured','company','binderInfo','coverage','remarks'] },
+    { id:'acord160', num:'ACORD 160', name:'Inland Marine Application', cat:'commercial', catLabel:'Commercial', icon:'🚢',
+      sections:['applicant','propertyDescription','valuation','coverage','remarks'] },
+    { id:'acord163', num:'ACORD 163', name:'Contractors Equipment', cat:'commercial', catLabel:'Commercial', icon:'🔧',
+      sections:['applicant','equipmentSchedule','coverage','remarks'] },
+
+    // Auto Supplements
+    { id:'acord91', num:'ACORD 91', name:'Personal Auto - FL PIP', cat:'auto', catLabel:'Auto', icon:'🚗',
+      sections:['applicant','pipElection','householdMembers','signature'] },
+    { id:'acord92', num:'ACORD 92', name:'Personal Watercraft Application', cat:'auto', catLabel:'Auto', icon:'🚤',
+      sections:['applicant','watercraft','operators','coverage','remarks','signature'] },
+
+    // Life & Health
+    { id:'acord161', num:'ACORD 161', name:'Life Insurance Application', cat:'life', catLabel:'Life/Health', icon:'❤️',
+      sections:['applicant','beneficiary','healthInfo','coverage','signature'] },
+    { id:'acord162', num:'ACORD 162', name:'Health Insurance Application', cat:'life', catLabel:'Life/Health', icon:'🏥',
+      sections:['applicant','dependents','healthHistory','coverage','signature'] },
+];
+
+const ACORD_FORM_SECTIONS = {
+    applicant: { title:'Applicant / Named Insured', fields:[
+        {id:'appName',label:'Full Name',type:'text',map:'name'},
+        {id:'appDBA',label:'DBA / Trade Name',type:'text'},
+        {id:'appMailAddr',label:'Mailing Address',type:'text',map:'address'},
+        {id:'appCity',label:'City',type:'text',map:'city'},
+        {id:'appState',label:'State',type:'text',map:'state'},
+        {id:'appZip',label:'Zip Code',type:'text',map:'zip'},
+        {id:'appPhone',label:'Phone',type:'tel',map:'phone1'},
+        {id:'appEmail',label:'Email',type:'email',map:'email'},
+        {id:'appDOB',label:'Date of Birth',type:'date',map:'dob'},
+        {id:'appSSN4',label:'SSN (last 4)',type:'text',map:'ssn4'},
+        {id:'appGender',label:'Gender',type:'select',opts:['','Male','Female','Non-binary'],map:'gender'},
+        {id:'appMarital',label:'Marital Status',type:'select',opts:['','Single','Married','Divorced','Widowed'],map:'marital'},
+    ]},
+    insured: { title:'Insured Information', fields:[
+        {id:'insName',label:'Insured Name',type:'text',map:'name'},
+        {id:'insAddr',label:'Address',type:'text',map:'address'},
+        {id:'insCity',label:'City',type:'text',map:'city'},
+        {id:'insState',label:'State',type:'text',map:'state'},
+        {id:'insZip',label:'Zip',type:'text',map:'zip'},
+        {id:'insPhone',label:'Phone',type:'tel',map:'phone1'},
+        {id:'insEmail',label:'Email',type:'email',map:'email'},
+    ]},
+    producer: { title:'Producer / Agency Information', fields:[
+        {id:'prodAgency',label:'Agency Name',type:'text',defaultVal:'Universal Insurance Brokers'},
+        {id:'prodContact',label:'Contact Name',type:'text'},
+        {id:'prodPhone',label:'Phone',type:'tel'},
+        {id:'prodEmail',label:'Email',type:'email',defaultVal:'admin@universalinsurancebroker.com'},
+        {id:'prodAddr',label:'Address',type:'text'},
+        {id:'prodCity',label:'City',type:'text'},
+        {id:'prodState',label:'State',type:'text',defaultVal:'FL'},
+        {id:'prodZip',label:'Zip',type:'text'},
+        {id:'prodCode',label:'Producer Code',type:'text',defaultVal:'24258'},
+    ]},
+    policy: { title:'Policy Information', fields:[
+        {id:'polNumber',label:'Policy Number',type:'text',map:'policyNumber'},
+        {id:'polEffDate',label:'Effective Date',type:'date',map:'effDate'},
+        {id:'polExpDate',label:'Expiration Date',type:'date',map:'expirationDate'},
+        {id:'polCarrier',label:'Insurance Company',type:'text',map:'company'},
+        {id:'polLOB',label:'Line of Business',type:'text',map:'lineOfBusiness'},
+        {id:'polPremium',label:'Premium',type:'number',map:'premium'},
+    ]},
+    business: { title:'Business / Operations', fields:[
+        {id:'bizType',label:'Type of Business',type:'text'},
+        {id:'bizDesc',label:'Description of Operations',type:'textarea'},
+        {id:'bizSIC',label:'SIC Code',type:'text'},
+        {id:'bizNAICS',label:'NAICS Code',type:'text'},
+        {id:'bizYrsOp',label:'Years in Business',type:'number'},
+        {id:'bizFEIN',label:'FEIN',type:'text'},
+        {id:'bizNumEmp',label:'Number of Employees',type:'number'},
+        {id:'bizAnnualRev',label:'Annual Revenue',type:'number'},
+    ]},
+    vehicles: { title:'Vehicle Information', fields:[
+        {id:'veh1Year',label:'Year',type:'text'},
+        {id:'veh1Make',label:'Make',type:'text'},
+        {id:'veh1Model',label:'Model',type:'text'},
+        {id:'veh1VIN',label:'VIN',type:'text'},
+        {id:'veh1Use',label:'Use (Pleasure/Commute/Business)',type:'select',opts:['','Pleasure','Commute','Business','Farm']},
+        {id:'veh1Annual',label:'Annual Miles',type:'number'},
+        {id:'veh1Garage',label:'Garaging Zip',type:'text',map:'zip'},
+    ]},
+    drivers: { title:'Driver Information', fields:[
+        {id:'drv1Name',label:'Driver Name',type:'text',map:'name'},
+        {id:'drv1DOB',label:'Date of Birth',type:'date',map:'dob'},
+        {id:'drv1Gender',label:'Gender',type:'select',opts:['','Male','Female','Non-binary'],map:'gender'},
+        {id:'drv1Marital',label:'Marital Status',type:'select',opts:['','Single','Married','Divorced','Widowed'],map:'marital'},
+        {id:'drv1DL',label:'License Number',type:'text',map:'dlNum'},
+        {id:'drv1DLState',label:'License State',type:'text',map:'dlState'},
+        {id:'drv1DLExp',label:'License Exp. Date',type:'date',map:'dlExp'},
+        {id:'drv1Relation',label:'Relationship to Named Insured',type:'select',opts:['','Self','Spouse','Child','Other']},
+    ]},
+    coverage: { title:'Coverage / Limits', fields:[
+        {id:'covBI',label:'Bodily Injury Limits',type:'text'},
+        {id:'covPD',label:'Property Damage Limit',type:'text'},
+        {id:'covMed',label:'Medical Payments',type:'text'},
+        {id:'covUM',label:'Uninsured Motorist',type:'text'},
+        {id:'covComp',label:'Comprehensive Deductible',type:'text'},
+        {id:'covColl',label:'Collision Deductible',type:'text'},
+        {id:'covPIP',label:'PIP',type:'text'},
+        {id:'covRental',label:'Rental Reimbursement',type:'text'},
+        {id:'covTow',label:'Towing / Roadside',type:'text'},
+    ]},
+    coverages: { title:'Coverages', fields:[
+        {id:'cglOcc',label:'CGL Each Occurrence',type:'text'},
+        {id:'cglAgg',label:'General Aggregate',type:'text'},
+        {id:'cglProdOps',label:'Products/Completed Ops',type:'text'},
+        {id:'cglPersAdv',label:'Personal & Advertising Injury',type:'text'},
+        {id:'cglDmgRent',label:'Damage to Rented Premises',type:'text'},
+        {id:'cglMedExp',label:'Medical Expense',type:'text'},
+        {id:'autoCSL',label:'Auto Combined Single Limit',type:'text'},
+        {id:'umbLimit',label:'Umbrella / Excess Limit',type:'text'},
+        {id:'wcStatLimits',label:'WC Statutory Limits',type:'text'},
+        {id:'wcEL',label:'Employers Liability',type:'text'},
+    ]},
+    property: { title:'Property Information', fields:[
+        {id:'propAddr',label:'Property Address',type:'text',map:'address'},
+        {id:'propCity',label:'City',type:'text',map:'city'},
+        {id:'propState',label:'State',type:'text',map:'state'},
+        {id:'propZip',label:'Zip',type:'text',map:'zip'},
+        {id:'propYrBuilt',label:'Year Built',type:'text'},
+        {id:'propSqFt',label:'Square Footage',type:'number'},
+        {id:'propStories',label:'Number of Stories',type:'number'},
+        {id:'propOccupancy',label:'Occupancy Type',type:'select',opts:['','Owner-Occupied','Tenant','Vacant','Under Construction']},
+        {id:'propValue',label:'Dwelling Value / Replacement Cost',type:'number'},
+    ]},
+    construction: { title:'Construction Details', fields:[
+        {id:'constType',label:'Construction Type',type:'select',opts:['','Frame','Masonry','Steel','Concrete','Other']},
+        {id:'constRoof',label:'Roof Type',type:'select',opts:['','Shingle','Tile','Metal','Flat','Other']},
+        {id:'constRoofAge',label:'Roof Age (years)',type:'number'},
+        {id:'constElectrical',label:'Electrical Updated',type:'select',opts:['','Yes','No','Unknown']},
+        {id:'constPlumbing',label:'Plumbing Updated',type:'select',opts:['','Yes','No','Unknown']},
+        {id:'constHVAC',label:'HVAC Updated',type:'select',opts:['','Yes','No','Unknown']},
+        {id:'constProtection',label:'Protection Class',type:'text'},
+    ]},
+    mortgagee: { title:'Mortgagee / Additional Interest', fields:[
+        {id:'mortName',label:'Mortgagee Name',type:'text'},
+        {id:'mortAddr',label:'Address',type:'text'},
+        {id:'mortCity',label:'City',type:'text'},
+        {id:'mortState',label:'State',type:'text'},
+        {id:'mortZip',label:'Zip',type:'text'},
+        {id:'mortLoan',label:'Loan Number',type:'text'},
+    ]},
+    additionalInterest: { title:'Additional Interest', fields:[
+        {id:'addIntName',label:'Name',type:'text'},
+        {id:'addIntAddr',label:'Address',type:'text'},
+        {id:'addIntType',label:'Interest Type',type:'select',opts:['','Mortgagee','Loss Payee','Additional Insured','Certificate Holder']},
+        {id:'addIntRef',label:'Reference / Loan #',type:'text'},
+    ]},
+    certificateHolder: { title:'Certificate Holder', fields:[
+        {id:'certHolderName',label:'Name',type:'text'},
+        {id:'certHolderAddr',label:'Address',type:'text'},
+        {id:'certHolderCity',label:'City',type:'text'},
+        {id:'certHolderState',label:'State',type:'text'},
+        {id:'certHolderZip',label:'Zip',type:'text'},
+    ]},
+    insurers: { title:'Insurers Affording Coverage', fields:[
+        {id:'insrA',label:'Insurer A',type:'text'},
+        {id:'insrANAIC',label:'NAIC #',type:'text'},
+        {id:'insrB',label:'Insurer B',type:'text'},
+        {id:'insrBNAIC',label:'NAIC #',type:'text'},
+    ]},
+    company: { title:'Insurance Company', fields:[
+        {id:'coName',label:'Company Name',type:'text',map:'company'},
+        {id:'coNAIC',label:'NAIC Code',type:'text'},
+        {id:'coAddr',label:'Address',type:'text'},
+    ]},
+    remarks: { title:'Remarks / Special Conditions', fields:[
+        {id:'remarks',label:'Remarks',type:'textarea'},
+    ]},
+    signature: { title:'Signature', fields:[
+        {id:'sigApplicant',label:'Applicant Signature',type:'text'},
+        {id:'sigDate',label:'Date',type:'date'},
+        {id:'sigProducer',label:'Producer / Agent Signature',type:'text'},
+        {id:'sigProducerDate',label:'Date',type:'date'},
+    ]},
+    lossInfo: { title:'Loss / Occurrence Information', fields:[
+        {id:'lossDate',label:'Date of Loss',type:'date'},
+        {id:'lossTime',label:'Time of Loss',type:'time'},
+        {id:'lossLocation',label:'Location of Loss',type:'text'},
+        {id:'lossDesc',label:'Description of Loss',type:'textarea'},
+        {id:'lossEstimate',label:'Estimated Amount of Loss',type:'number'},
+        {id:'lossPoliceReport',label:'Police / Fire Report #',type:'text'},
+    ]},
+    propertyDamage: { title:'Property Damage Details', fields:[
+        {id:'pdDesc',label:'Description of Damage',type:'textarea'},
+        {id:'pdEstRepair',label:'Estimated Repair Cost',type:'number'},
+        {id:'pdContractor',label:'Contractor / Repair Company',type:'text'},
+    ]},
+    vehicleInfo: { title:'Vehicle Involved', fields:[
+        {id:'accVehYear',label:'Year',type:'text'},
+        {id:'accVehMake',label:'Make',type:'text'},
+        {id:'accVehModel',label:'Model',type:'text'},
+        {id:'accVehVIN',label:'VIN',type:'text'},
+        {id:'accVehDamage',label:'Damage Description',type:'textarea'},
+    ]},
+    injuries: { title:'Injury Information', fields:[
+        {id:'injName',label:'Injured Party Name',type:'text'},
+        {id:'injDesc',label:'Description of Injury',type:'textarea'},
+        {id:'injTreated',label:'Was Medical Treatment Received?',type:'select',opts:['','Yes','No']},
+        {id:'injHospital',label:'Hospital / Doctor',type:'text'},
+    ]},
+    injuredParty: { title:'Injured / Claimant Information', fields:[
+        {id:'claimantName',label:'Name',type:'text'},
+        {id:'claimantAddr',label:'Address',type:'text'},
+        {id:'claimantPhone',label:'Phone',type:'tel'},
+        {id:'claimantInjury',label:'Injury Description',type:'textarea'},
+    ]},
+    violations: { title:'Violations / Accidents', fields:[
+        {id:'vio1Date',label:'Date',type:'date'},
+        {id:'vio1Type',label:'Type (Accident/Violation)',type:'select',opts:['','Accident','Violation']},
+        {id:'vio1Desc',label:'Description',type:'text'},
+        {id:'vio1Driver',label:'Driver',type:'text'},
+    ]},
+    binderInfo: { title:'Binder Details', fields:[
+        {id:'binderNum',label:'Binder Number',type:'text'},
+        {id:'binderEffDate',label:'Effective Date',type:'date'},
+        {id:'binderExpDate',label:'Expiration Date',type:'date'},
+        {id:'binderPremium',label:'Estimated Premium',type:'number'},
+    ]},
+    cancellationInfo: { title:'Cancellation Details', fields:[
+        {id:'cancelDate',label:'Requested Cancel Date',type:'date'},
+        {id:'cancelReason',label:'Reason for Cancellation',type:'select',opts:['','Insured Request','Non-Payment','Replacement Coverage','Sold Property','Other']},
+        {id:'cancelReasonOther',label:'Other Reason',type:'text'},
+    ]},
+    changeDescription: { title:'Requested Changes', fields:[
+        {id:'changeEffDate',label:'Change Effective Date',type:'date'},
+        {id:'changeDesc',label:'Description of Change',type:'textarea'},
+    ]},
+    glInfo: { title:'General Liability Information', fields:[
+        {id:'glClassCode',label:'Classification Code',type:'text'},
+        {id:'glClassDesc',label:'Classification Description',type:'text'},
+        {id:'glPremBasis',label:'Premium Basis (Sales/Payroll/Area)',type:'text'},
+        {id:'glExposure',label:'Exposure Amount',type:'number'},
+        {id:'glRate',label:'Rate',type:'number'},
+    ]},
+    premises: { title:'Premises Information', fields:[
+        {id:'premAddr',label:'Location Address',type:'text',map:'address'},
+        {id:'premCity',label:'City',type:'text',map:'city'},
+        {id:'premState',label:'State',type:'text',map:'state'},
+        {id:'premZip',label:'Zip',type:'text',map:'zip'},
+        {id:'premOccupancy',label:'Occupancy',type:'text'},
+        {id:'premSqFt',label:'Square Footage',type:'number'},
+    ]},
+    classification: { title:'Classification', fields:[
+        {id:'classCode',label:'Class Code',type:'text'},
+        {id:'classDesc',label:'Description',type:'text'},
+        {id:'classPayroll',label:'Remuneration / Payroll',type:'number'},
+        {id:'classRate',label:'Rate',type:'number'},
+    ]},
+    underlying: { title:'Underlying Insurance', fields:[
+        {id:'ulCGL',label:'CGL Policy Number',type:'text'},
+        {id:'ulCGLLimit',label:'CGL Limit',type:'text'},
+        {id:'ulAuto',label:'Auto Policy Number',type:'text'},
+        {id:'ulAutoLimit',label:'Auto Limit',type:'text'},
+        {id:'ulEmpl',label:'Employers Liability Policy',type:'text'},
+        {id:'ulEmplLimit',label:'EL Limit',type:'text'},
+    ]},
+    building: { title:'Building Information', fields:[
+        {id:'bldgAddr',label:'Location Address',type:'text',map:'address'},
+        {id:'bldgConstruction',label:'Construction',type:'select',opts:['','Frame','Joisted Masonry','Non-Combustible','Masonry Non-Combustible','Modified Fire Resistive','Fire Resistive']},
+        {id:'bldgYrBuilt',label:'Year Built',type:'text'},
+        {id:'bldgSqFt',label:'Square Footage',type:'number'},
+        {id:'bldgStories',label:'Stories',type:'number'},
+        {id:'bldgOccupancy',label:'Occupancy',type:'text'},
+    ]},
+    valuation: { title:'Valuation', fields:[
+        {id:'valBuilding',label:'Building Value',type:'number'},
+        {id:'valBPP',label:'Business Personal Property',type:'number'},
+        {id:'valBI',label:'Business Income',type:'number'},
+        {id:'valExtra',label:'Extra Expense',type:'number'},
+        {id:'valBlanket',label:'Blanket Coverage',type:'number'},
+    ]},
+    propertyDescription: { title:'Property Description', fields:[
+        {id:'imPropDesc',label:'Description of Property',type:'textarea'},
+        {id:'imPropValue',label:'Value',type:'number'},
+        {id:'imPropLoc',label:'Location',type:'text'},
+    ]},
+    equipmentSchedule: { title:'Equipment Schedule', fields:[
+        {id:'eq1Desc',label:'Description',type:'text'},
+        {id:'eq1Serial',label:'Serial / ID',type:'text'},
+        {id:'eq1Year',label:'Year',type:'text'},
+        {id:'eq1Value',label:'Value',type:'number'},
+    ]},
+    pipElection: { title:'PIP Election (Florida)', fields:[
+        {id:'pipLimit',label:'PIP Limit',type:'select',opts:['$10,000','$2,500 (Limited)']},
+        {id:'pipDeduct',label:'PIP Deductible',type:'select',opts:['$0','$250','$500','$1,000']},
+        {id:'pipWorkLoss',label:'Work Loss Exclusion',type:'select',opts:['','Included','Excluded']},
+    ]},
+    householdMembers: { title:'Household Members', fields:[
+        {id:'hh1Name',label:'Name',type:'text'},
+        {id:'hh1Relation',label:'Relationship',type:'text'},
+        {id:'hh1DOB',label:'Date of Birth',type:'date'},
+        {id:'hh1Coverage',label:'Covered?',type:'select',opts:['','Yes','No']},
+    ]},
+    watercraft: { title:'Watercraft Information', fields:[
+        {id:'wcYear',label:'Year',type:'text'},
+        {id:'wcMake',label:'Make / Manufacturer',type:'text'},
+        {id:'wcModel',label:'Model',type:'text'},
+        {id:'wcLength',label:'Length (ft)',type:'number'},
+        {id:'wcHull',label:'Hull ID',type:'text'},
+        {id:'wcHP',label:'Horsepower',type:'number'},
+        {id:'wcValue',label:'Value',type:'number'},
+        {id:'wcType',label:'Type',type:'select',opts:['','Inboard','Outboard','I/O','Jet','Sailboat','PWC']},
+    ]},
+    operators: { title:'Operators', fields:[
+        {id:'op1Name',label:'Operator Name',type:'text',map:'name'},
+        {id:'op1DOB',label:'Date of Birth',type:'date',map:'dob'},
+        {id:'op1Exp',label:'Years of Experience',type:'number'},
+        {id:'op1Cert',label:'Boating Safety Certificate',type:'select',opts:['','Yes','No']},
+    ]},
+    employer: { title:'Employer Information', fields:[
+        {id:'empName',label:'Employer Name',type:'text'},
+        {id:'empAddr',label:'Address',type:'text'},
+        {id:'empCity',label:'City',type:'text'},
+        {id:'empState',label:'State',type:'text'},
+        {id:'empFEIN',label:'FEIN',type:'text'},
+        {id:'empSIC',label:'SIC Code',type:'text'},
+    ]},
+    employee: { title:'Employee Information', fields:[
+        {id:'eeFirstName',label:'First Name',type:'text'},
+        {id:'eeLastName',label:'Last Name',type:'text'},
+        {id:'eeDOB',label:'Date of Birth',type:'date'},
+        {id:'eeGender',label:'Gender',type:'select',opts:['','Male','Female']},
+        {id:'eeSSN',label:'SSN',type:'text'},
+        {id:'eeOccupation',label:'Occupation',type:'text'},
+        {id:'eeHireDate',label:'Date of Hire',type:'date'},
+        {id:'eeWage',label:'Wage / Salary',type:'number'},
+    ]},
+    injuryInfo: { title:'Injury / Illness Information', fields:[
+        {id:'injDate',label:'Date of Injury',type:'date'},
+        {id:'injTime',label:'Time',type:'time'},
+        {id:'injLoc',label:'Location (on premises?)',type:'text'},
+        {id:'injBodyPart',label:'Body Part(s) Affected',type:'text'},
+        {id:'injNature',label:'Nature of Injury',type:'text'},
+        {id:'injCause',label:'Cause / How Injury Occurred',type:'textarea'},
+    ]},
+    treatment: { title:'Medical Treatment', fields:[
+        {id:'txPhysician',label:'Treating Physician',type:'text'},
+        {id:'txHospital',label:'Hospital / Clinic',type:'text'},
+        {id:'txAddr',label:'Address',type:'text'},
+        {id:'txInitialDate',label:'Date of Initial Treatment',type:'date'},
+        {id:'txEmergency',label:'Emergency Room?',type:'select',opts:['','Yes','No']},
+        {id:'txHospitalized',label:'Hospitalized?',type:'select',opts:['','Yes','No']},
+    ]},
+    agency: { title:'Agency Details', fields:[
+        {id:'agName',label:'Agency Name',type:'text',defaultVal:'Universal Insurance Brokers'},
+        {id:'agAddr',label:'Address',type:'text'},
+        {id:'agCity',label:'City',type:'text'},
+        {id:'agState',label:'State',type:'text',defaultVal:'FL'},
+        {id:'agPhone',label:'Phone',type:'tel'},
+        {id:'agEmail',label:'Email',type:'email',defaultVal:'admin@universalinsurancebroker.com'},
+        {id:'agLicense',label:'License Number',type:'text'},
+    ]},
+    terms: { title:'Agreement Terms', fields:[
+        {id:'termEffDate',label:'Effective Date',type:'date'},
+        {id:'termTerritory',label:'Territory',type:'text'},
+        {id:'termCommRate',label:'Commission Rate %',type:'number'},
+        {id:'termAuthority',label:'Binding Authority Limit',type:'number'},
+    ]},
+    observations: { title:'Observations', fields:[
+        {id:'obsExterior',label:'Exterior Condition',type:'textarea'},
+        {id:'obsInterior',label:'Interior Condition',type:'textarea'},
+        {id:'obsHazards',label:'Hazards Noted',type:'textarea'},
+    ]},
+    recommendations: { title:'Recommendations', fields:[
+        {id:'recText',label:'Recommendations',type:'textarea'},
+    ]},
+    propertyInfo: { title:'Property Information', fields:[
+        {id:'piAddr',label:'Address',type:'text',map:'address'},
+        {id:'piType',label:'Property Type',type:'select',opts:['','Single Family','Multi-Family','Condo','Townhouse','Mobile Home','Commercial']},
+        {id:'piYrBuilt',label:'Year Built',type:'text'},
+        {id:'piCondition',label:'Overall Condition',type:'select',opts:['','Excellent','Good','Average','Fair','Poor']},
+    ]},
+    beneficiary: { title:'Beneficiary', fields:[
+        {id:'benName',label:'Beneficiary Name',type:'text'},
+        {id:'benRelation',label:'Relationship',type:'text'},
+        {id:'benPercent',label:'Percentage',type:'number'},
+        {id:'benContName',label:'Contingent Beneficiary',type:'text'},
+    ]},
+    healthInfo: { title:'Health Information', fields:[
+        {id:'hlHeight',label:'Height',type:'text'},
+        {id:'hlWeight',label:'Weight',type:'text'},
+        {id:'hlTobacco',label:'Tobacco Use',type:'select',opts:['','Yes','No']},
+        {id:'hlConditions',label:'Pre-existing Conditions',type:'textarea'},
+        {id:'hlMedications',label:'Current Medications',type:'textarea'},
+        {id:'hlPhysician',label:'Primary Physician',type:'text'},
+    ]},
+    dependents: { title:'Dependents', fields:[
+        {id:'dep1Name',label:'Name',type:'text'},
+        {id:'dep1DOB',label:'Date of Birth',type:'date'},
+        {id:'dep1Relation',label:'Relationship',type:'select',opts:['','Spouse','Child','Domestic Partner']},
+        {id:'dep1Gender',label:'Gender',type:'select',opts:['','Male','Female']},
+    ]},
+    healthHistory: { title:'Health History', fields:[
+        {id:'hhHospital',label:'Hospitalized in last 5 years?',type:'select',opts:['','Yes','No']},
+        {id:'hhSurgery',label:'Surgeries in last 5 years?',type:'select',opts:['','Yes','No']},
+        {id:'hhDisability',label:'Any disabilities?',type:'select',opts:['','Yes','No']},
+        {id:'hhDetails',label:'Details (if yes)',type:'textarea'},
+    ]},
+    additionalInfo: { title:'Additional Information', fields:[
+        {id:'addInfo',label:'Additional Notes',type:'textarea'},
+    ]},
+};
+
+function acordGetClientMapping() {
+    if (!amsActiveKey) return {};
+    const contacts = amsGetClientData();
+    const contact = contacts[amsActiveKey] || {};
+    const client = amsClientIndex[amsActiveKey];
+    const policies = client?.policies || [];
+    const latestPolicy = policies[0] || {};
+
+    return {
+        name: ((contact.firstName || '') + ' ' + (contact.lastName || '')).trim() || client?.displayName || '',
+        address: contact.address || '',
+        city: contact.city || '',
+        state: contact.state || '',
+        zip: contact.zip || '',
+        phone1: contact.phone1 || '',
+        phone2: contact.phone2 || '',
+        email: contact.email || '',
+        dob: contact.dob || '',
+        ssn4: contact.ssn4 || '',
+        gender: contact.gender || '',
+        marital: contact.marital || '',
+        dlNum: contact.dlNum || '',
+        dlState: contact.dlState || '',
+        dlExp: contact.dlExp || '',
+        policyNumber: latestPolicy.policyNumber || '',
+        effDate: latestPolicy.effDate || '',
+        expirationDate: latestPolicy.expirationDate || '',
+        company: latestPolicy.company || '',
+        lineOfBusiness: latestPolicy.lineOfBusiness || '',
+        premium: latestPolicy.basePremium || latestPolicy.totalPremium || '',
+    };
+}
+
+function acordRenderFormsList() {
+    const el = document.getElementById('acordFormsList');
+    if (!el) return;
+
+    const search = (document.getElementById('acordFormSearch')?.value || '').toLowerCase();
+    const cat = document.getElementById('acordFormCat')?.value || '';
+
+    let forms = ACORD_FORMS;
+    if (cat) forms = forms.filter(f => f.cat === cat);
+    if (search) forms = forms.filter(f => (f.num + ' ' + f.name).toLowerCase().includes(search));
+
+    if (!forms.length) {
+        el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);">No forms match your search.</div>';
+        return;
+    }
+
+    const catColors = {
+        app:'#4299e1', auto:'#48bb78', home:'#ed8936', commercial:'#9f7aea',
+        general:'#718096', claims:'#e53e3e', cert:'#38b2ac', life:'#d69e2e'
+    };
+
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
+        ${forms.map(f => `
+            <div style="border:1px solid var(--gray-200);border-radius:10px;padding:16px;cursor:pointer;transition:all .2s;background:#fff;"
+                 onmouseover="this.style.borderColor='${catColors[f.cat]||'var(--blue)'}';this.style.boxShadow='0 2px 8px rgba(0,0,0,.08)';"
+                 onmouseout="this.style.borderColor='var(--gray-200)';this.style.boxShadow='none';"
+                 onclick="acordOpenForm('${f.id}')">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                    <div style="font-size:24px;">${f.icon}</div>
+                    <div>
+                        <div style="font-weight:700;font-size:13px;color:var(--navy);">${amsEscHtml(f.num)}</div>
+                        <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${catColors[f.cat]||'#718096'}20;color:${catColors[f.cat]||'#718096'};font-weight:600;">${amsEscHtml(f.catLabel)}</span>
+                    </div>
+                </div>
+                <div style="font-size:12px;color:var(--gray-500);line-height:1.4;">${amsEscHtml(f.name)}</div>
+                <div style="margin-top:8px;font-size:10px;color:var(--gray-400);">${f.sections.length} sections</div>
+            </div>
+        `).join('')}
+    </div>`;
+}
+
+function acordFilterForms() {
+    acordRenderFormsList();
+}
+
+function acordOpenForm(formId) {
+    const form = ACORD_FORMS.find(f => f.id === formId);
+    if (!form) return;
+
+    const mapping = acordGetClientMapping();
+    const savedForms = JSON.parse(localStorage.getItem('acordSavedForms') || '{}');
+    const savedData = savedForms[amsActiveKey + '_' + formId] || {};
+
+    let sectionsHtml = '';
+    form.sections.forEach(secKey => {
+        const sec = ACORD_FORM_SECTIONS[secKey];
+        if (!sec) return;
+
+        sectionsHtml += `<div style="margin-bottom:20px;">
+            <h4 style="font-size:13px;color:var(--navy);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--gray-200);">${amsEscHtml(sec.title)}</h4>
+            <div style="display:grid;grid-template-columns:${sec.fields.some(f => f.type === 'textarea') ? '1fr' : '1fr 1fr'};gap:10px;">
+                ${sec.fields.map(f => {
+                    const savedVal = savedData[f.id] || '';
+                    const mappedVal = savedVal || (f.map ? mapping[f.map] || '' : '') || f.defaultVal || '';
+                    const inputId = 'af_' + f.id;
+
+                    let input = '';
+                    if (f.type === 'textarea') {
+                        input = `<textarea id="${inputId}" style="width:100%;padding:7px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:12px;min-height:60px;resize:vertical;box-sizing:border-box;font-family:inherit;">${amsEscHtml(mappedVal)}</textarea>`;
+                    } else if (f.type === 'select') {
+                        input = `<select id="${inputId}" style="width:100%;padding:7px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:12px;box-sizing:border-box;">
+                            ${(f.opts || []).map(o => `<option value="${amsEscHtml(o)}"${o === mappedVal ? ' selected' : ''}>${amsEscHtml(o || '— Select —')}</option>`).join('')}
+                        </select>`;
+                    } else {
+                        input = `<input type="${f.type}" id="${inputId}" value="${amsEscHtml(mappedVal)}" style="width:100%;padding:7px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:12px;box-sizing:border-box;">`;
+                    }
+
+                    const hasMapped = f.map && mapping[f.map];
+                    return `<div${f.type === 'textarea' ? ' style="grid-column:1/-1;"' : ''}>
+                        <label style="font-size:10px;font-weight:600;color:var(--gray-500);display:block;margin-bottom:3px;">
+                            ${amsEscHtml(f.label)}
+                            ${hasMapped ? '<span style="color:var(--green);font-size:9px;"> ✓ auto-filled</span>' : ''}
+                        </label>
+                        ${input}
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>`;
+    });
+
+    const modal = document.createElement('div');
+    modal.id = 'acordFormModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
+
+    modal.innerHTML = `
+        <div style="background:#fff;border-radius:12px;max-width:800px;width:95%;max-height:90vh;display:flex;flex-direction:column;" onclick="event.stopPropagation()">
+            <div style="padding:20px 24px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+                <div>
+                    <h2 style="font-size:18px;color:var(--navy);margin:0;">${form.icon} ${amsEscHtml(form.num)} — ${amsEscHtml(form.name)}</h2>
+                    <p style="font-size:11px;color:var(--gray-400);margin:4px 0 0;">Fields marked with ✓ were auto-filled from client data. All fields are editable.</p>
+                </div>
+                <button onclick="document.getElementById('acordFormModal').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--gray-400);padding:4px 8px;">✕</button>
+            </div>
+            <div style="padding:24px;overflow-y:auto;flex:1;">
+                ${sectionsHtml}
+            </div>
+            <div style="padding:14px 24px;border-top:1px solid var(--gray-200);display:flex;gap:8px;justify-content:space-between;flex-shrink:0;">
+                <div style="display:flex;gap:8px;">
+                    <button onclick="acordAutoFill('${formId}')" style="padding:8px 16px;background:var(--blue-pale);color:var(--navy);border:1px solid var(--blue);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">🔄 Re-fill from Client</button>
+                    <button onclick="acordClearForm('${formId}')" style="padding:8px 16px;background:#fff;color:var(--gray-500);border:1px solid var(--gray-200);border-radius:6px;font-size:12px;cursor:pointer;">Clear All</button>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button onclick="acordSaveForm('${formId}')" style="padding:8px 16px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">💾 Save Draft</button>
+                    <button onclick="acordPrintForm('${formId}')" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">🖨 Print / PDF</button>
+                </div>
+            </div>
+        </div>`;
+
+    document.body.appendChild(modal);
+}
+
+function acordAutoFill(formId) {
+    const form = ACORD_FORMS.find(f => f.id === formId);
+    if (!form) return;
+    const mapping = acordGetClientMapping();
+
+    form.sections.forEach(secKey => {
+        const sec = ACORD_FORM_SECTIONS[secKey];
+        if (!sec) return;
+        sec.fields.forEach(f => {
+            if (f.map && mapping[f.map]) {
+                const el = document.getElementById('af_' + f.id);
+                if (el) el.value = mapping[f.map];
+            }
+            if (f.defaultVal) {
+                const el = document.getElementById('af_' + f.id);
+                if (el && !el.value) el.value = f.defaultVal;
+            }
+        });
+    });
+}
+
+function acordClearForm(formId) {
+    const form = ACORD_FORMS.find(f => f.id === formId);
+    if (!form) return;
+    if (!confirm('Clear all fields in this form?')) return;
+
+    form.sections.forEach(secKey => {
+        const sec = ACORD_FORM_SECTIONS[secKey];
+        if (!sec) return;
+        sec.fields.forEach(f => {
+            const el = document.getElementById('af_' + f.id);
+            if (el) el.value = '';
+        });
+    });
+}
+
+function acordSaveForm(formId) {
+    const form = ACORD_FORMS.find(f => f.id === formId);
+    if (!form || !amsActiveKey) return;
+
+    const data = {};
+    form.sections.forEach(secKey => {
+        const sec = ACORD_FORM_SECTIONS[secKey];
+        if (!sec) return;
+        sec.fields.forEach(f => {
+            const el = document.getElementById('af_' + f.id);
+            if (el && el.value) data[f.id] = el.value;
+        });
+    });
+
+    const savedForms = JSON.parse(localStorage.getItem('acordSavedForms') || '{}');
+    savedForms[amsActiveKey + '_' + formId] = data;
+    localStorage.setItem('acordSavedForms', JSON.stringify(savedForms));
+    alert('Draft saved for ' + form.num + '!');
+}
+
+function acordPrintForm(formId) {
+    const form = ACORD_FORMS.find(f => f.id === formId);
+    if (!form) return;
+
+    let html = `<!DOCTYPE html><html><head><title>${form.num} - ${form.name}</title>
+    <style>
+        body{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:20px;font-size:11px;color:#333;}
+        h1{font-size:18px;border-bottom:3px solid #1a365d;padding-bottom:8px;color:#1a365d;}
+        h2{font-size:14px;color:#1a365d;margin:16px 0 8px;border-bottom:1px solid #ddd;padding-bottom:4px;}
+        .form-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;}
+        .form-header .agency{text-align:right;font-size:10px;color:#666;}
+        .field-row{display:flex;gap:12px;margin-bottom:6px;}
+        .field{flex:1;}
+        .field label{font-weight:bold;font-size:9px;text-transform:uppercase;color:#666;display:block;}
+        .field .val{border-bottom:1px solid #999;min-height:16px;padding:2px 0;font-size:11px;}
+        .full-width{width:100%;}
+        .footer{margin-top:30px;border-top:2px solid #1a365d;padding-top:10px;font-size:9px;color:#666;display:flex;justify-content:space-between;}
+        @media print{body{padding:0;margin:10mm;}}
+    </style></head><body>
+    <div class="form-header">
+        <div><h1>${form.num}<br><span style="font-size:13px;font-weight:normal;">${form.name}</span></h1></div>
+        <div class="agency">Universal Insurance Brokers<br>Agent Code: 24258<br>admin@universalinsurancebroker.com<br>Date: ${new Date().toLocaleDateString()}</div>
+    </div>`;
+
+    form.sections.forEach(secKey => {
+        const sec = ACORD_FORM_SECTIONS[secKey];
+        if (!sec) return;
+        html += `<h2>${sec.title}</h2>`;
+
+        const fields = sec.fields;
+        for (let i = 0; i < fields.length; i += 2) {
+            const f1 = fields[i];
+            const f2 = fields[i + 1];
+            const v1 = document.getElementById('af_' + f1.id)?.value || '';
+
+            if (f1.type === 'textarea') {
+                html += `<div class="field full-width" style="margin-bottom:8px;"><label>${f1.label}</label><div class="val" style="min-height:40px;white-space:pre-wrap;">${amsEscHtml(v1)}</div></div>`;
+                if (f2) {
+                    i--;
+                }
+            } else if (f2) {
+                const v2 = document.getElementById('af_' + f2.id)?.value || '';
+                html += `<div class="field-row"><div class="field"><label>${f1.label}</label><div class="val">${amsEscHtml(v1)}</div></div>`;
+                if (f2.type === 'textarea') {
+                    html += `</div><div class="field full-width" style="margin-bottom:8px;"><label>${f2.label}</label><div class="val" style="min-height:40px;white-space:pre-wrap;">${amsEscHtml(v2)}</div></div>`;
+                } else {
+                    html += `<div class="field"><label>${f2.label}</label><div class="val">${amsEscHtml(v2)}</div></div></div>`;
+                }
+            } else {
+                html += `<div class="field-row"><div class="field"><label>${f1.label}</label><div class="val">${amsEscHtml(v1)}</div></div><div class="field"></div></div>`;
+            }
+        }
+    });
+
+    html += `<div class="footer"><div>Generated by UIB AMS — ${form.num}</div><div>Page 1 of 1</div></div></body></html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => win.print(), 500);
 }
