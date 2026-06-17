@@ -1691,10 +1691,18 @@
                             <button class="btn-secondary btn-sm" onclick="document.getElementById('agentSubmissionSearch').value='';searchAgentSubmissions();" style="white-space:nowrap;">✕ Clear</button>
                         </div>
                     </div>
+                    <div id="bulkDeleteBar" style="display:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;padding:10px 20px;border-radius:10px;margin-bottom:10px;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;">
+                        <span style="font-weight:700;font-size:14px;"><span id="bulkSelectedCount">0</span> selected</span>
+                        <div style="display:flex;gap:8px;">
+                            <button onclick="bulkDeleteSelected()" style="background:#fff;color:#dc2626;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">🗑️ Delete Selected</button>
+                            <button onclick="bulkClearSelection()" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">✕ Cancel</button>
+                        </div>
+                    </div>
                     <div class="table-container">
                         <table>
                             <thead>
                                 <tr>
+                                    <th style="width:36px;text-align:center;"><input type="checkbox" id="agentSelectAll" onchange="toggleSelectAllAgent(this)" title="Select all"></th>
                                     <th>Date</th>
                                     <th>Customer</th>
                                     <th>Policy Type</th>
@@ -1706,7 +1714,7 @@
                                 </tr>
                             </thead>
                             <tbody id="agentTable">
-                                <tr><td colspan="8" class="no-data">No entries yet</td></tr>
+                                <tr><td colspan="9" class="no-data">No entries yet</td></tr>
                             </tbody>
                         </table>
                     </div>

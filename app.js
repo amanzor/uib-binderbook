@@ -1987,13 +1987,18 @@ function loadAgentData() {
 
 function renderAgentTable(entries) {
     const tbody = document.getElementById('agentTable');
+    const selectAll = document.getElementById('agentSelectAll');
+    if (selectAll) selectAll.checked = false;
+    _updateBulkDeleteBar();
+
     if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="no-data">No entries yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="no-data">No entries yet</td></tr>';
         return;
     }
 
     tbody.innerHTML = entries.map(entry => `
         <tr>
+            <td style="text-align:center;"><input type="checkbox" class="agent-row-cb" value="${entry.id}" onchange="_updateBulkDeleteBar()"></td>
             <td>${formatDate(entry.entryDate)}</td>
             <td>${entry.customerName}</td>
             <td>${entry.policyType}</td>
@@ -2010,6 +2015,43 @@ function renderAgentTable(entries) {
     `).join('');
     refreshIcons();
     if (window.UIBMotion) UIBMotion.animateTableRows(document.getElementById('agentTable'));
+}
+
+function toggleSelectAllAgent(masterCb) {
+    document.querySelectorAll('.agent-row-cb').forEach(cb => cb.checked = masterCb.checked);
+    _updateBulkDeleteBar();
+}
+
+function _updateBulkDeleteBar() {
+    const checked = document.querySelectorAll('.agent-row-cb:checked');
+    const bar = document.getElementById('bulkDeleteBar');
+    const count = document.getElementById('bulkSelectedCount');
+    if (!bar) return;
+    if (checked.length > 0) {
+        bar.style.display = 'flex';
+        if (count) count.textContent = checked.length;
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+function bulkDeleteSelected() {
+    const checked = document.querySelectorAll('.agent-row-cb:checked');
+    const ids = [...checked].map(cb => parseInt(cb.value));
+    if (ids.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${ids.length} selected entr${ids.length === 1 ? 'y' : 'ies'}? This cannot be undone.`)) return;
+
+    allData = allData.filter(d => !ids.includes(d.id));
+    localStorage.setItem('binderData', JSON.stringify(allData));
+    loadAgentData();
+    if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
+}
+
+function bulkClearSelection() {
+    document.querySelectorAll('.agent-row-cb').forEach(cb => cb.checked = false);
+    const selectAll = document.getElementById('agentSelectAll');
+    if (selectAll) selectAll.checked = false;
+    _updateBulkDeleteBar();
 }
 
 function filterAgentData() {
