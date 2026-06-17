@@ -783,6 +783,24 @@
                         </div>
 
                         <div id="al3FileList" style="margin-top:20px;"></div>
+
+                        <!-- Import action bar -->
+                        <div id="al3ImportBar" style="display:none;margin-top:16px;padding:14px 20px;background:linear-gradient(135deg,var(--navy),#1a365d);border-radius:10px;display:none;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔄</div>
+                                <div>
+                                    <div style="color:#fff;font-weight:700;font-size:14px;" id="al3ImportTitle">0 Records Ready</div>
+                                    <div style="color:rgba(255,255,255,.6);font-size:11px;" id="al3ImportSub">Merge parsed AL3 data into AMS</div>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <span id="al3ImportStatus" style="color:rgba(255,255,255,.7);font-size:11px;"></span>
+                                <button id="al3ImportBtn" onclick="al3ImportToAMS()" style="padding:8px 20px;background:#48bb78;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;">
+                                    Import to AMS
+                                </button>
+                            </div>
+                        </div>
+
                         <div id="al3ParsedOutput" style="margin-top:20px;"></div>
                     </div>
                 </div>
@@ -1323,7 +1341,7 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="ams.js?v=20260617d"></script>
+    <script src="ams.js?v=20260617e"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
         const _dashCharts = {};
@@ -3539,6 +3557,16 @@
                     </table>
                 </div>`;
             lucide.createIcons();
+
+            // Show/update import bar
+            const bar = document.getElementById('al3ImportBar');
+            bar.style.display = 'flex';
+            document.getElementById('al3ImportTitle').textContent = allRecords.length + ' Records Ready';
+            document.getElementById('al3ImportStatus').textContent = '';
+            const btn = document.getElementById('al3ImportBtn');
+            btn.disabled = false;
+            btn.textContent = 'Import to AMS';
+            btn.style.background = '#48bb78';
         }
 
         function al3ExportCSV() {
@@ -3553,6 +3581,124 @@
             const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
             const blob = new Blob([csv], {type:'text/csv'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'al3_parsed.csv'; a.click();
+        }
+
+        function al3ImportToAMS() {
+            const allRecords = _al3Files.flatMap(f => f.records.map(r => ({...r.fields, _file: f.name})));
+            if (!allRecords.length) return;
+
+            const btn = document.getElementById('al3ImportBtn');
+            const statusEl = document.getElementById('al3ImportStatus');
+            btn.disabled = true;
+            btn.textContent = 'Importing...';
+            btn.style.background = '#718096';
+            statusEl.textContent = 'Processing...';
+
+            const binder = amsGetBinderData();
+            const contacts = amsGetClientData();
+            const now = new Date();
+            const ts = now.toLocaleDateString('en-US') + ', ' + now.toLocaleTimeString('en-US') + ' ET';
+            const dateISO = now.toISOString().split('T')[0];
+            const baseId = Date.now();
+
+            let added = 0, skipped = 0, clientsAdded = 0;
+
+            const existingKeys = new Set();
+            binder.forEach(p => {
+                const k = (p.policyNumber || '').trim() + '|||' + amsClientKey(p.customerName);
+                if (k !== '|||') existingKeys.add(k);
+            });
+
+            allRecords.forEach((r, i) => {
+                const name = (r.insuredName || '').trim();
+                if (!name) { skipped++; return; }
+
+                const polNum = (r.policyNumber || '').trim();
+                const dedupKey = polNum + '|||' + amsClientKey(name);
+                if (polNum && existingKeys.has(dedupKey)) { skipped++; return; }
+
+                const effRaw = r.effectiveDate || '';
+                const expRaw = r.expirationDate || '';
+                const effDate = effRaw.length === 8
+                    ? effRaw.substring(0,4) + '-' + effRaw.substring(4,6) + '-' + effRaw.substring(6,8)
+                    : dateISO;
+                const expDate = expRaw.length === 8
+                    ? expRaw.substring(0,4) + '-' + expRaw.substring(4,6) + '-' + expRaw.substring(6,8)
+                    : '';
+
+                const premVal = parseFloat(r.premium) || 0;
+
+                const record = {
+                    id: baseId + i,
+                    agent: '',
+                    customerName: name,
+                    contactName: '',
+                    source: 'AL3 Import',
+                    referredBy: '',
+                    policyType: 'AL3 Download',
+                    lineOfBusiness: r.lineOfBusiness || '',
+                    company: r.companyName || r.companyCode || '',
+                    mga: '',
+                    down: 0,
+                    agencyFee: 0,
+                    basePremium: premVal,
+                    agencyCommission: 0,
+                    agentCommissionShare: 0,
+                    totalPremium: premVal,
+                    paymentType: '',
+                    paymentMethod2: '',
+                    policyNumber: polNum,
+                    binderNumber: 'AL3-' + String(i + 1).padStart(4, '0'),
+                    entryDate: dateISO,
+                    entryDateDisplay: ts,
+                    effDate: effDate,
+                    expirationDate: expDate,
+                    term: '12',
+                    location: '',
+                    timestamp: ts,
+                    status: 'Active',
+                    al3SourceFile: r._file
+                };
+
+                binder.push(record);
+                if (polNum) existingKeys.add(dedupKey);
+                added++;
+
+                const ck = amsClientKey(name);
+                if (!contacts[ck]) {
+                    const parts = name.split(/[,\s]+/).filter(Boolean);
+                    contacts[ck] = {
+                        firstName: parts[0] || name,
+                        lastName: parts.slice(1).join(' ') || '',
+                        phone: '',
+                        email: '',
+                        address: r.address || '',
+                        city: r.city || '',
+                        state: r.state || '',
+                        zip: r.zip || '',
+                        agent: '',
+                        notes: 'Imported from AL3 file: ' + (r._file || ''),
+                        source: 'AL3 Import'
+                    };
+                    clientsAdded++;
+                }
+            });
+
+            localStorage.setItem('binderData', JSON.stringify(binder));
+            localStorage.setItem('amsClientData', JSON.stringify(contacts));
+            amsBuildClientIndex();
+
+            btn.textContent = 'Imported!';
+            btn.style.background = '#38a169';
+            statusEl.textContent = added + ' policies added, ' + clientsAdded + ' new clients, ' + skipped + ' skipped (duplicate/empty)';
+            document.getElementById('al3ImportTitle').textContent = 'Import Complete';
+            document.getElementById('al3ImportSub').textContent = 'Data merged into AMS successfully';
+
+            setTimeout(() => {
+                btn.textContent = 'Import to AMS';
+                btn.style.background = '#48bb78';
+                btn.disabled = false;
+            }, 5000);
         }
 
     </script>
