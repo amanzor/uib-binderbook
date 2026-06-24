@@ -651,7 +651,7 @@ function calculateAgentCommission() {
     const total      = fee + commission;
     const hasSecond  = !!(document.getElementById('secondAgent')?.value);
 
-    const agentRate   = hasSecond ? 0.30 : 0.50;
+    const agentRate   = hasSecond ? 0.25 : 0.50;
     const agentShare  = parseFloat((total * agentRate).toFixed(2));
 
     const agentField = document.getElementById('agentCommission');
@@ -659,13 +659,13 @@ function calculateAgentCommission() {
 
     const label = document.getElementById('agentCommissionLabel');
     if (label) label.textContent = hasSecond
-        ? '🔒 (Fee + Commission) × 30%'
+        ? '🔒 (Fee + Commission) × 25%'
         : '🔒 (Fee + Commission) × 50%';
 
     const secondField = document.getElementById('secondAgentCommission');
     const secondGroup = document.getElementById('secondAgentCommissionGroup');
     if (hasSecond) {
-        const secondShare = parseFloat((total * 0.20).toFixed(2));
+        const secondShare = parseFloat((total * 0.25).toFixed(2));
         if (secondField) secondField.value = secondShare > 0 ? secondShare : '';
         if (secondGroup) secondGroup.style.display = '';
     } else {
@@ -929,8 +929,8 @@ function saveEntry() {
     };
     const hasSecond = !!entry.secondAgent;
     const commBase  = entry.agencyFee + entry.agencyCommission;
-    entry.agentCommissionShare     = parseFloat((commBase * (hasSecond ? 0.30 : 0.50)).toFixed(2));
-    entry.secondAgentCommission    = hasSecond ? parseFloat((commBase * 0.20).toFixed(2)) : 0;
+    entry.agentCommissionShare     = parseFloat((commBase * (hasSecond ? 0.25 : 0.50)).toFixed(2));
+    entry.secondAgentCommission    = hasSecond ? parseFloat((commBase * 0.25).toFixed(2)) : 0;
 
     // Duplicate guard — block if same agent + customer + policy# + company + date already exists
     const isDupe = allData.some(d =>
@@ -2469,8 +2469,8 @@ function updateEntry() {
     entry.secondAgent = document.getElementById('editSecondAgent')?.value || '';
     const _hasSecond = !!entry.secondAgent;
     const _commBase  = entry.agencyFee + entry.agencyCommission;
-    entry.agentCommissionShare  = parseFloat((_commBase * (_hasSecond ? 0.30 : 0.50)).toFixed(2));
-    entry.secondAgentCommission = _hasSecond ? parseFloat((_commBase * 0.20).toFixed(2)) : 0;
+    entry.agentCommissionShare  = parseFloat((_commBase * (_hasSecond ? 0.25 : 0.50)).toFixed(2));
+    entry.secondAgentCommission = _hasSecond ? parseFloat((_commBase * 0.25).toFixed(2)) : 0;
     localStorage.setItem('binderData', JSON.stringify(allData));
     // Re-sync to AMS so any contact/source/agent changes propagate
     if (typeof syncEntryToAMS === 'function') syncEntryToAMS(entry);
