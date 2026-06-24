@@ -1766,6 +1766,13 @@
                         <select id="apd_agentFilter"    onchange="apdApplyFilters()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;background:#fff;min-width:130px;"></select>
                         <select id="apd_lobFilter"      onchange="apdApplyFilters()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;background:#fff;min-width:130px;"></select>
                         <select id="apd_locationFilter" onchange="apdApplyFilters()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;background:#fff;min-width:130px;"></select>
+                        <select id="apd_typeFilter" onchange="apdApplyFilters()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;background:#fff;min-width:130px;">
+                            <option value="">All Types</option>
+                            <option value="New">New</option>
+                            <option value="Rewrite">Rewrite</option>
+                            <option value="Renew A-B">Renew A-B</option>
+                            <option value="Renewal">Renewal</option>
+                        </select>
                         <!-- View toggle + export -->
                         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
                             <button id="apd_viewTable" onclick="apdSwitchView('table')" class="btn-primary btn-sm" style="display:flex;align-items:center;gap:5px;">

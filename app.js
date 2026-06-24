@@ -5755,6 +5755,7 @@ function _apdSaveState() {
         agent:   document.getElementById('apd_agentFilter')?.value    || '',
         lob:     document.getElementById('apd_lobFilter')?.value      || '',
         loc:     document.getElementById('apd_locationFilter')?.value || '',
+        type:    document.getElementById('apd_typeFilter')?.value     || '',
         dateFrom: document.getElementById('apd_dateFrom')?.value || '',
         dateTo:   document.getElementById('apd_dateTo')?.value   || '',
     };
@@ -5802,6 +5803,10 @@ function apdInit() {
         if (saved?.loc) locSel.value = saved.loc;
     }
 
+    // Restore Type filter
+    const typeSel = document.getElementById('apd_typeFilter');
+    if (typeSel && saved?.type) typeSel.value = saved.type;
+
     // Restore or default custom range
     const today = getEasternDateString();
     const firstOfMonth = today.slice(0, 7) + '-01';
@@ -5833,6 +5838,7 @@ function apdGetFilteredData() {
     const agentF = document.getElementById('apd_agentFilter')?.value    || '';
     const lobF   = document.getElementById('apd_lobFilter')?.value      || '';
     const locF   = document.getElementById('apd_locationFilter')?.value || '';
+    const typeF  = document.getElementById('apd_typeFilter')?.value     || '';
     const dFrom  = document.getElementById('apd_dateFrom')?.value || '';
     const dTo    = document.getElementById('apd_dateTo')?.value   || '';
 
@@ -5848,6 +5854,7 @@ function apdGetFilteredData() {
         if (agentF && d.agent           !== agentF) return false;
         if (lobF   && d.lineOfBusiness  !== lobF)   return false;
         if (locF   && (d.location || '') !== locF)  return false;
+        if (typeF  && d.policyType      !== typeF)  return false;
         return true;
     });
 }
