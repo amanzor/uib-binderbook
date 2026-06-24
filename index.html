@@ -1684,6 +1684,16 @@
                             <label>Filter by Month:</label>
                             <input type="month" id="agentFilter">
                         </div>
+                        <div class="filter-group">
+                            <label>Filter by Type:</label>
+                            <select id="agentTypeFilter" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;">
+                                <option value="">All Types</option>
+                                <option value="New">New</option>
+                                <option value="Rewrite">Rewrite</option>
+                                <option value="Renew A-B">Renew A-B</option>
+                                <option value="Renewal">Renewal</option>
+                            </select>
+                        </div>
                         <button class="btn-primary btn-sm" onclick="filterAgentData()">Filter</button>
                         <button class="btn-secondary btn-sm" onclick="resetAgentFilter()">Reset</button>
                         <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">

@@ -2075,20 +2075,18 @@ function bulkClearSelection() {
 
 function filterAgentData() {
     const month = document.getElementById('agentFilter').value;
-    if (!month) {
-        loadAgentData();
-        return;
-    }
+    const type = document.getElementById('agentTypeFilter')?.value || '';
 
-    const agentEntries = allData.filter(d =>
-        d.agent === currentUser &&
-        d.entryDate.startsWith(month)
-    );
+    let agentEntries = allData.filter(d => d.agent === currentUser);
+    if (month) agentEntries = agentEntries.filter(d => d.entryDate && d.entryDate.startsWith(month));
+    if (type) agentEntries = agentEntries.filter(d => d.policyType === type);
     renderAgentTable(agentEntries);
 }
 
 function resetAgentFilter() {
     document.getElementById('agentFilter').value = '';
+    const typeFilter = document.getElementById('agentTypeFilter');
+    if (typeFilter) typeFilter.value = '';
     const search = document.getElementById('agentSubmissionSearch');
     if (search) search.value = '';
     loadAgentData();
@@ -2097,9 +2095,11 @@ function resetAgentFilter() {
 function searchAgentSubmissions() {
     const query = (document.getElementById('agentSubmissionSearch')?.value || '').trim().toLowerCase();
     const month = document.getElementById('agentFilter')?.value || '';
+    const type = document.getElementById('agentTypeFilter')?.value || '';
 
     let entries = allData.filter(d => d.agent === currentUser);
     if (month) entries = entries.filter(d => d.entryDate && d.entryDate.startsWith(month));
+    if (type) entries = entries.filter(d => d.policyType === type);
 
     if (query) {
         entries = entries.filter(d => {
