@@ -5746,45 +5746,71 @@ let _apdView    = 'table';
 let _apdSortCol = 'entryDate';
 let _apdSortDir = -1;
 
+function _apdSaveState() {
+    const state = {
+        period:  _apdPeriod,
+        view:    _apdView,
+        sortCol: _apdSortCol,
+        sortDir: _apdSortDir,
+        agent:   document.getElementById('apd_agentFilter')?.value    || '',
+        lob:     document.getElementById('apd_lobFilter')?.value      || '',
+        loc:     document.getElementById('apd_locationFilter')?.value || '',
+        dateFrom: document.getElementById('apd_dateFrom')?.value || '',
+        dateTo:   document.getElementById('apd_dateTo')?.value   || '',
+    };
+    localStorage.setItem('apdState', JSON.stringify(state));
+}
+
 function apdInit() {
     // Refresh allData
     allData = JSON.parse(localStorage.getItem('binderData')) || [];
 
+    // Restore saved state (fall back to defaults if none)
+    const saved = JSON.parse(localStorage.getItem('apdState') || 'null');
+    _apdPeriod  = saved?.period  || 'today';
+    _apdView    = saved?.view    || 'table';
+    _apdSortCol = saved?.sortCol || 'entryDate';
+    _apdSortDir = saved?.sortDir ?? -1;
+
     // Populate Agent filter
     const agents = [...new Set(allData.map(d => d.agent).filter(Boolean))].sort();
     const agentSel = document.getElementById('apd_agentFilter');
-    if (agentSel) agentSel.innerHTML =
-        '<option value="">All Agents</option>' +
-        agents.map(a => `<option value="${a}">${a}</option>`).join('');
+    if (agentSel) {
+        agentSel.innerHTML =
+            '<option value="">All Agents</option>' +
+            agents.map(a => `<option value="${a}">${a}</option>`).join('');
+        if (saved?.agent) agentSel.value = saved.agent;
+    }
 
     // Populate LOB filter
     const lobs = [...new Set(allData.map(d => d.lineOfBusiness).filter(Boolean))].sort();
     const lobSel = document.getElementById('apd_lobFilter');
-    if (lobSel) lobSel.innerHTML =
-        '<option value="">All LOBs</option>' +
-        lobs.map(l => `<option value="${l}">${l}</option>`).join('');
+    if (lobSel) {
+        lobSel.innerHTML =
+            '<option value="">All LOBs</option>' +
+            lobs.map(l => `<option value="${l}">${l}</option>`).join('');
+        if (saved?.lob) lobSel.value = saved.lob;
+    }
 
     // Populate Location filter
     const locs = [...new Set(allData.map(d => d.location).filter(Boolean))].sort();
     const locSel = document.getElementById('apd_locationFilter');
-    if (locSel) locSel.innerHTML =
-        '<option value="">All Locations</option>' +
-        locs.map(l => `<option value="${l}">${l}</option>`).join('');
+    if (locSel) {
+        locSel.innerHTML =
+            '<option value="">All Locations</option>' +
+            locs.map(l => `<option value="${l}">${l}</option>`).join('');
+        if (saved?.loc) locSel.value = saved.loc;
+    }
 
-    // Default custom range
+    // Restore or default custom range
     const today = getEasternDateString();
     const firstOfMonth = today.slice(0, 7) + '-01';
     const dFrom = document.getElementById('apd_dateFrom');
     const dTo   = document.getElementById('apd_dateTo');
-    if (dFrom && !dFrom.value) dFrom.value = firstOfMonth;
-    if (dTo   && !dTo.value)   dTo.value   = today;
+    if (dFrom) dFrom.value = saved?.dateFrom || firstOfMonth;
+    if (dTo)   dTo.value   = saved?.dateTo   || today;
 
-    _apdPeriod  = 'today';
-    _apdView    = 'table';
-    _apdSortCol = 'entryDate';
-    _apdSortDir = -1;
-
-    apdSetPeriod('today');
+    apdSetPeriod(_apdPeriod);
     refreshIcons();
 }
 
@@ -5796,6 +5822,7 @@ function apdSetPeriod(period) {
     });
     const cr = document.getElementById('apd_customRange');
     if (cr) cr.style.display = period === 'custom' ? 'flex' : 'none';
+    _apdSaveState();
     apdApplyFilters();
 }
 
@@ -5826,6 +5853,7 @@ function apdGetFilteredData() {
 }
 
 function apdApplyFilters() {
+    _apdSaveState();
     const data = apdGetFilteredData();
     apdRenderStats(data);
 
@@ -5961,6 +5989,7 @@ function apdSort(col) {
 
 function apdSwitchView(view) {
     _apdView = view;
+    _apdSaveState();
     const tBtn = document.getElementById('apd_viewTable');
     const cBtn = document.getElementById('apd_viewChart');
     if (tBtn) tBtn.className = (view === 'table' ? 'btn-primary' : 'btn-secondary') + ' btn-sm';
