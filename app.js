@@ -648,9 +648,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 function calculateAgentCommission() {
     const fee        = parseFloat(document.getElementById('agencyFee')?.value) || 0;
     const commission = parseFloat(document.getElementById('agencyCommission')?.value) || 0;
-    const agentShare = parseFloat(((fee + commission) * 0.5).toFixed(2));
-    const field = document.getElementById('agentCommission');
-    if (field) field.value = agentShare > 0 ? agentShare : '';
+    const total      = fee + commission;
+    const hasSecond  = !!(document.getElementById('secondAgent')?.value);
+
+    const agentRate   = hasSecond ? 0.30 : 0.50;
+    const agentShare  = parseFloat((total * agentRate).toFixed(2));
+
+    const agentField = document.getElementById('agentCommission');
+    if (agentField) agentField.value = agentShare > 0 ? agentShare : '';
+
+    const label = document.getElementById('agentCommissionLabel');
+    if (label) label.textContent = hasSecond
+        ? '🔒 (Fee + Commission) × 30%'
+        : '🔒 (Fee + Commission) × 50%';
+
+    const secondField = document.getElementById('secondAgentCommission');
+    const secondGroup = document.getElementById('secondAgentCommissionGroup');
+    if (hasSecond) {
+        const secondShare = parseFloat((total * 0.20).toFixed(2));
+        if (secondField) secondField.value = secondShare > 0 ? secondShare : '';
+        if (secondGroup) secondGroup.style.display = '';
+    } else {
+        if (secondField) secondField.value = '';
+        if (secondGroup) secondGroup.style.display = 'none';
+    }
+}
+
+function populate2ndAgentDropdown(selectId, selectedValue) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const agentMasterData = JSON.parse(localStorage.getItem('agentMasterData')) || {};
+    const masterAgents = Object.keys(agentMasterData);
+    const entryAgents  = [...new Set((JSON.parse(localStorage.getItem('binderData')) || []).map(d => d.agent).filter(Boolean))];
+    const agents = [...new Set([...masterAgents, ...entryAgents])].sort();
+    sel.innerHTML = '<option value="">— None —</option>' +
+        agents.map(a => `<option value="${a}"${a === selectedValue ? ' selected' : ''}>${a}</option>`).join('');
 }
 
 function autoCalculateCommission() {
@@ -765,6 +797,7 @@ function showAgentSection(agent) {
     showSection('agentSection');
     document.getElementById('userDisplay').textContent = `👤 Agent: ${agent}`;
     document.getElementById('agentForm').reset();
+    populate2ndAgentDropdown('secondAgent', '');
     setTodayDate();
     generateBinderNumber();
 }
@@ -891,9 +924,13 @@ function saveEntry() {
         location: document.getElementById('salesLocationSelect')?.value || _selectedSalesLocation || '',
         drivers: collectDriverRows(),
         vehicles: collectVehicleRows(),
-        timestamp: getEasternTimestamp()
+        timestamp: getEasternTimestamp(),
+        secondAgent: document.getElementById('secondAgent')?.value || ''
     };
-    entry.agentCommissionShare = parseFloat(((entry.agencyFee + entry.agencyCommission) * 0.5).toFixed(2));
+    const hasSecond = !!entry.secondAgent;
+    const commBase  = entry.agencyFee + entry.agencyCommission;
+    entry.agentCommissionShare     = parseFloat((commBase * (hasSecond ? 0.30 : 0.50)).toFixed(2));
+    entry.secondAgentCommission    = hasSecond ? parseFloat((commBase * 0.20).toFixed(2)) : 0;
 
     // Duplicate guard — block if same agent + customer + policy# + company + date already exists
     const isDupe = allData.some(d =>
@@ -979,6 +1016,12 @@ function saveEntry() {
     showSuccess();
     document.getElementById('agentForm').reset();
     document.getElementById('agentCommission').value = '';
+    document.getElementById('secondAgentCommission').value = '';
+    const secondGroup = document.getElementById('secondAgentCommissionGroup');
+    if (secondGroup) secondGroup.style.display = 'none';
+    const agentCommLabel = document.getElementById('agentCommissionLabel');
+    if (agentCommLabel) agentCommLabel.textContent = '🔒 (Fee + Commission) × 50%';
+    populate2ndAgentDropdown('secondAgent', '');
     // Hide auto-calc breakdown labels
     const rateLabel = document.getElementById('commissionRateLabel');
     const breakdownEl = document.getElementById('commissionBreakdown');
@@ -2391,6 +2434,7 @@ function openEditModal(id) {
     document.getElementById('editAgencyCommission').value = entry.agencyCommission || '';
     document.getElementById('editPaymentType').value = entry.paymentType || '';
     document.getElementById('editStatus').value = entry.status || '';
+    populate2ndAgentDropdown('editSecondAgent', entry.secondAgent || '');
     document.getElementById('editModal').classList.add('active');
 }
 
@@ -2422,7 +2466,11 @@ function updateEntry() {
     entry.agencyCommission = parseFloat(document.getElementById('editAgencyCommission').value) || 0;
     entry.paymentType = document.getElementById('editPaymentType').value;
     entry.status = document.getElementById('editStatus').value;
-    entry.agentCommissionShare = parseFloat(((entry.agencyFee + entry.agencyCommission) * 0.5).toFixed(2));
+    entry.secondAgent = document.getElementById('editSecondAgent')?.value || '';
+    const _hasSecond = !!entry.secondAgent;
+    const _commBase  = entry.agencyFee + entry.agencyCommission;
+    entry.agentCommissionShare  = parseFloat((_commBase * (_hasSecond ? 0.30 : 0.50)).toFixed(2));
+    entry.secondAgentCommission = _hasSecond ? parseFloat((_commBase * 0.20).toFixed(2)) : 0;
     localStorage.setItem('binderData', JSON.stringify(allData));
     // Re-sync to AMS so any contact/source/agent changes propagate
     if (typeof syncEntryToAMS === 'function') syncEntryToAMS(entry);
