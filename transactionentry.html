@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>New Transaction Entry - UIB Binder Book</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy:       #0d1f3c;
+            --blue:       #1d4ed8;
+            --blue-mid:   #2563eb;
+            --blue-light: #3b82f6;
+            --blue-pale:  #eff6ff;
+            --green:      #059669;
+            --green-pale: #ecfdf5;
+            --red:        #dc2626;
+            --red-pale:   #fef2f2;
+            --purple:     #7c3aed;
+            --gray-50:    #f8fafc;
+            --gray-100:   #f1f5f9;
+            --gray-200:   #e2e8f0;
+            --gray-300:   #cbd5e1;
+            --gray-400:   #94a3b8;
+            --gray-500:   #64748b;
+            --gray-700:   #334155;
+            --gray-900:   #0f172a;
+            --white:      #ffffff;
+            --radius-sm:  6px;
+            --radius-md:  10px;
+            --radius-lg:  16px;
+            --radius-xl:  22px;
+            --shadow-sm:  0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
+            --shadow-md:  0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.05);
+            --shadow-lg:  0 12px 32px rgba(0,0,0,.1),0 4px 8px rgba(0,0,0,.06);
+            --shadow-xl:  0 30px 60px rgba(0,0,0,.18);
+        }
+
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: var(--white);
+            min-height: 100%;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Header */
+        .app-header {
+            background: linear-gradient(135deg, #0d1f3c 0%, #163057 55%, #1d4ed8 100%);
+            color: white;
+            padding: 16px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            box-shadow: 0 2px 12px rgba(0,0,0,.2);
+        }
+        .app-header .title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .app-header h1 {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: -0.3px;
+            color: #fff;
+        }
+        .app-header .header-icon { height: 28px; width: auto; }
+
+        /* Buttons */
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: .2px;
+            transition: all .18s ease;
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-primary {
+            background: linear-gradient(to right, #0f2a78 0%, #1d4ed8 60%, #2563eb 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(29,78,216,.35), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-primary:hover { background:linear-gradient(to right,#0c2268 0%,#1539a8 60%,#1d4ed8 100%); transform:translateY(-1px); }
+        .btn-secondary {
+            background: linear-gradient(to right, #c8d5e3 0%, #dde6f0 55%, #f1f5f9 100%);
+            color: var(--gray-700);
+            border: 1px solid var(--gray-200);
+        }
+        .btn-secondary:hover { background:linear-gradient(to right,#b0c2d4 0%,#c8d5e3 55%,#dde6f0 100%); transform:translateY(-1px); }
+        .btn-success {
+            background: linear-gradient(to right, #024b36 0%, #059669 60%, #10b981 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(5,150,105,.35), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-success:hover { background:linear-gradient(to right,#013d2c 0%,#047857 60%,#059669 100%); transform:translateY(-1px); }
+        .btn-danger {
+            background: linear-gradient(to right, #7f1010 0%, #dc2626 60%, #ef4444 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(220,38,38,.35), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-danger:hover { background:linear-gradient(to right,#6b0d0d 0%,#b91c1c 60%,#dc2626 100%); transform:translateY(-1px); }
+        .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
+        .btn-purple {
+            background: linear-gradient(to right, #3b1a8c 0%, #7c3aed 60%, #8b5cf6 100%);
+            color: white;
+        }
+
+        /* Form styles */
+        .form-group { display:flex; flex-direction:column; }
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--gray-700);
+            font-size: 13px;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 10px 12px;
+            border: 1.5px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--gray-900);
+            background: var(--white);
+            transition: border-color .15s, box-shadow .15s;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--blue-light);
+            box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+        }
+        .form-group select { appearance: auto; }
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        /* Main content area */
+        .page-body {
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 28px 24px 60px;
+        }
+
+        /* Success banner */
+        .success-message {
+            background: var(--green-pale);
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+            padding: 13px 16px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 18px;
+            font-weight: 600;
+            font-size: .9rem;
+            display: none;
+        }
+        .success-message.show { display:block; }
+
+        /* Modal (for Add Carrier, Add Source, etc.) */
+        .modal {
+            display: none;
+            position: fixed; inset: 0;
+            z-index: 9999;
+            background: rgba(15,23,42,.55);
+            backdrop-filter: blur(4px);
+            align-items: flex-start;
+            justify-content: center;
+            padding: 24px 16px;
+            overflow-y: auto;
+        }
+        .modal.active { display:flex; }
+        .modal-content {
+            background: white;
+            padding: 28px;
+            border-radius: var(--radius-lg);
+            max-width: 500px;
+            width: 100%;
+            box-shadow: var(--shadow-xl);
+            border: 1px solid var(--gray-200);
+            margin: auto;
+        }
+        .modal-content h3 { color:var(--navy); margin-bottom:18px; font-size:1.1rem; font-weight:700; }
+        .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; flex-wrap:wrap; }
+
+        /* Sync banner */
+        #syncBanner {
+            display:none;
+            position:fixed; bottom:20px; right:20px;
+            background:#003399; color:white;
+            padding:10px 18px; border-radius:8px;
+            font-size:13px; font-weight:bold;
+            z-index:9999; align-items:center; gap:8px;
+            box-shadow:0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        /* Lucide icons */
+        svg.lucide {
+            display: inline-block;
+            width: 15px; height: 15px;
+            stroke-width: 2;
+            vertical-align: -0.14em;
+            pointer-events: none;
+            flex-shrink: 0;
+        }
+        h3 svg.lucide { width:18px; height:18px; }
+
+        /* Ripple */
+        .m-ripple {
+            position: absolute; border-radius: 50%; pointer-events: none;
+            background: rgba(255,255,255,.22); transform: scale(0);
+        }
+
+        /* LOB multi-select */
+        .lob-multiselect { position:relative; width:100%; display:block; }
+        .lob-multiselect-btn {
+            display:block; width:100%; padding:5px 8px; text-align:left;
+            background:white; border:1px solid var(--gray-200);
+            border-radius:var(--radius-sm); cursor:pointer;
+            font-size:13px; font-family:inherit; font-weight:400;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+            color:var(--gray-700); transition:border-color .15s;
+        }
+        .lob-dropdown {
+            display:none; position:fixed; z-index:99999;
+            background:white; border:1px solid var(--gray-200);
+            border-radius:var(--radius-md); max-height:240px;
+            overflow-y:auto; min-width:220px; width:260px;
+            box-shadow:var(--shadow-lg);
+        }
+        .lob-dropdown.open { display:block; }
+        .lob-dropdown label {
+            display:flex; align-items:center; gap:8px;
+            padding:6px 12px; cursor:pointer; font-size:13px;
+            font-family:inherit; font-weight:400;
+            white-space:nowrap; margin:0; color:var(--gray-700);
+        }
+        .lob-dropdown label:hover { background:var(--blue-pale); }
+        .lob-dropdown label input[type=checkbox] { margin:0; cursor:pointer; accent-color:var(--blue); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .page-body { padding: 16px 12px 40px; }
+            .app-header { padding: 12px 16px; }
+            .app-header h1 { font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Sync Banner -->
+<div id="syncBanner" style="display:none; position:fixed; bottom:20px; right:20px; background:#003399; color:white; padding:10px 18px; border-radius:8px; font-size:13px; font-weight:bold; z-index:9999; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+    <i data-lucide="refresh-cw"></i> Syncing with Google Drive...
+</div>
+
+<!-- Sticky Header -->
+<div class="app-header">
+    <div class="title-group">
+        <img src="icon.png" alt="UIB" class="header-icon">
+        <h1><i data-lucide="file-plus" style="width:20px;height:20px;margin-right:6px;vertical-align:-3px;"></i>New Transaction Entry</h1>
+    </div>
+    <button type="button" class="btn-danger btn-sm" onclick="window.location.href='./'">&#10005; Close</button>
+</div>
+
+<!-- Page Content -->
+<div class="page-body">
+
+    <div class="success-message" id="successMessage"><i data-lucide="check-circle"></i> Transaction entry saved successfully!</div>
+
+    <!-- Office Location -->
+    <div style="margin-bottom:18px;">
+        <label style="font-size:13px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">&#128205; Office Location *</label>
+        <select id="salesLocationSelect" required onchange="_selectedSalesLocation = this.value"
+            style="width:100%;padding:11px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;font-weight:600;background:#fff;color:#374151;">
+            <option value="">— Select Location —</option>
+            <option value="Lehigh Acres Office">&#128205; Lehigh Acres Office</option>
+            <option value="Hialeah Office">&#128205; Hialeah Office</option>
+            <option value="Franchise">&#127978; Franchise</option>
+        </select>
+    </div>
+
+    <!-- Client Lookup -->
+    <div style="margin-bottom:18px; background:#f0f9ff; border:1.5px solid #bae6fd; border-radius:10px; padding:14px 16px;">
+        <div style="font-size:12px; font-weight:700; color:#0369a1; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+            <i data-lucide="search" style="width:13px;height:13px;"></i> Search Existing Clients First
+        </div>
+        <div style="position:relative;">
+            <input type="text" id="clientLookupInput"
+                placeholder="Type client name to check if they're already in the system…"
+                oninput="clientLookupSearch(this.value)"
+                autocomplete="off"
+                style="width:100%; padding:9px 12px 9px 36px; border:1px solid #7dd3fc; border-radius:7px; font-size:14px; background:#fff; outline:none; box-shadow:0 1px 3px rgba(0,0,0,.06);">
+            <i data-lucide="search" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:#7dd3fc;pointer-events:none;"></i>
+            <button type="button" id="clientLookupClear" onclick="clientLookupClear()" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;padding:2px 6px;font-size:14px;color:#94a3b8;cursor:pointer;">&#10005;</button>
+        </div>
+        <div id="clientLookupResults" style="margin-top:8px;"></div>
+    </div>
+
+    <form id="agentForm">
+
+        <!-- Customer Information -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #bfdbfe;">
+                    <span style="font-size:15px;font-weight:700;color:#1e40af;">&#128100; Customer Information</span>
+                    <span style="font-size:12px;color:#1d4ed8;font-style:italic;">— who the policy is for and how they got here</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                    <div class="form-group" style="margin:0;position:relative;">
+                        <label>Customer Name *</label>
+                        <input type="text" id="customerName" required autocomplete="off"
+                            oninput="customerNameAutocomplete(this.value)"
+                            onblur="setTimeout(()=>customerNameDropdownHide(),200)"
+                            onkeydown="customerNameDropdownKeyNav(event)">
+                        <div id="customerNameDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:#fff;border:1.5px solid #bae6fd;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);max-height:280px;overflow-y:auto;margin-top:3px;"></div>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Contact Name</label>
+                        <input type="text" id="contactName" placeholder="Optional">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Source <span style="font-size:11px;color:#1d4ed8;font-weight:500;">(optional)</span></label>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <select id="source" onchange="sourceDropdownChanged(this)" style="flex:1;"></select>
+                            <button type="button" onclick="openAddSourceModal()" title="Add new source"
+                                style="flex-shrink:0;padding:7px 10px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:6px;font-size:16px;font-weight:700;cursor:pointer;line-height:1;">&#65291;</button>
+                        </div>
+                        <div id="newSourceRow" style="display:none;margin-top:6px;">
+                            <input type="text" id="newSourceInput" placeholder="Type new source name…"
+                                style="width:100%;padding:7px 10px;border:1px solid #93c5fd;border-radius:6px;font-size:13px;"
+                                onkeydown="if(event.key==='Enter'){event.preventDefault();saveNewSource();}">
+                            <div style="display:flex;gap:6px;margin-top:5px;">
+                                <button type="button" onclick="saveNewSource()" class="btn-primary btn-sm" style="flex:1;">&#10003; Save Source</button>
+                                <button type="button" onclick="cancelNewSource()" class="btn-secondary btn-sm" style="flex:1;">&#10005; Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Referred By <span style="font-size:11px;color:#1d4ed8;font-weight:500;">(optional)</span></label>
+                        <input type="text" id="referredBy" placeholder="Name of referrer (optional)">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Policy Information -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1.5px solid #c4b5fd;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #ddd6fe;">
+                    <span style="font-size:15px;font-weight:700;color:#5b21b6;">&#128196; Policy Information</span>
+                    <span style="font-size:12px;color:#7c3aed;font-style:italic;">— policy type, carrier, dates, and term</span>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Policy Type *</label>
+                        <select id="policyType" required>
+                            <option value="">Select Type</option>
+                            <option value="New">New</option>
+                            <option value="Rewrite">Rewrite</option>
+                            <option value="Renew A-B">Renew A-B</option>
+                            <option value="Renewal">Renewal</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Line of Business *</label>
+                        <select id="lineOfBusiness" required>
+                            <option value="">Select Line</option>
+                            <option value="BOP">BOP</option>
+                            <option value="Boat">Boat</option>
+                            <option value="Builders Risk">Builders Risk</option>
+                            <option value="Business Owner">Business Owner</option>
+                            <option value="Classic Collectors">Classic Collectors</option>
+                            <option value="Commercial Auto">Commercial Auto</option>
+                            <option value="Commercial Property">Commercial Property</option>
+                            <option value="Excess Liability">Excess Liability</option>
+                            <option value="Flood">Flood</option>
+                            <option value="Garage Keepers">Garage Keepers</option>
+                            <option value="General Liability">General Liability</option>
+                            <option value="Home Owners DP1">Home Owners DP1</option>
+                            <option value="Home Owners DP2">Home Owners DP2</option>
+                            <option value="Home Owners DP3">Home Owners DP3</option>
+                            <option value="Home Owners H3">Home Owners H3</option>
+                            <option value="Home Owners H4">Home Owners H4</option>
+                            <option value="Home Owners H6">Home Owners H6</option>
+                            <option value="Home Owners H8">Home Owners H8</option>
+                            <option value="Inland Marine">Inland Marine</option>
+                            <option value="Motorcycle/ATV">Motorcycle/ATV</option>
+                            <option value="Non-Trucking Liability">Non-Trucking Liability</option>
+                            <option value="Personal Auto">Personal Auto</option>
+                            <option value="Pollution Liability">Pollution Liability</option>
+                            <option value="Professional Liability">Professional Liability</option>
+                            <option value="Surety Bond">Surety Bond</option>
+                            <option value="Trucking">Trucking</option>
+                            <option value="Umbrella">Umbrella</option>
+                            <option value="Workers Comp">Workers Comp</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>Insurance Company *</span>
+                            <button type="button" class="btn-success btn-sm" onclick="openAddCarrierModal('company')" style="padding:2px 8px;font-size:11px;"><i data-lucide="plus-circle"></i> Add</button>
+                        </label>
+                        <select id="company" required>
+                            <option value="">Select Company</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>MGA / Premium Finance</label>
+                        <select id="mga">
+                            <option value="">Select MGA (Optional)</option>
+                            <option value="5Star">5Star</option>
+                            <option value="ACI-Ascendant">ACI-Ascendant</option>
+                            <option value="All Risk">All Risk</option>
+                            <option value="Appalachian">Appalachian</option>
+                            <option value="Bass Underwriters">Bass Underwriters</option>
+                            <option value="FastComp">FastComp</option>
+                            <option value="Hiscox-London">Hiscox-London</option>
+                            <option value="Hull&amp;Co">Hull&amp;Co</option>
+                            <option value="London Underwriters">London Underwriters</option>
+                            <option value="MJ Kelly">MJ Kelly</option>
+                            <option value="Phyladelphia">Phyladelphia</option>
+                            <option value="SCU">SCU</option>
+                            <option value="Security Underwriters">Security Underwriters</option>
+                            <option value="Shelly Middle Brooks">Shelly Middle Brooks</option>
+                            <option value="Surety One">Surety One</option>
+                            <option value="Tapco">Tapco</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Policy Number</label>
+                        <input type="text" id="policyNumber">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Binder Number <span style="font-size:11px;color:#7c3aed;font-weight:600;">(Auto-Generated)</span></label>
+                        <input type="text" id="binderNumber" readonly style="background-color:#f0f0f0;cursor:not-allowed;">
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Entry Date &amp; Time <span style="font-size:11px;color:var(--gray-400);font-weight:400;">(auto)</span></label>
+                        <input type="text" id="entryDateDisplay" readonly
+                            style="background:#f0f0f0;cursor:not-allowed;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;width:100%;box-sizing:border-box;color:var(--gray-700);"
+                            placeholder="Opening form…">
+                        <input type="hidden" id="entryDate">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Effective Date *</label>
+                        <input type="date" id="effDate" required>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Term (Months) *</label>
+                        <select id="term" required>
+                            <option value="">Select Term</option>
+                            <option value="6">6 Months</option>
+                            <option value="12">12 Months</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Financial Information -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #bbf7d0;">
+                    <span style="font-size:15px;font-weight:700;color:#166534;">&#128176; Financial Information</span>
+                    <span style="font-size:12px;color:#15803d;font-style:italic;">— premiums, fees, payment, and commissions</span>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Down Payment ($)</label>
+                        <input type="number" id="down" step="0.01" min="0">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Agency Fee ($)</label>
+                        <input type="number" id="agencyFee" step="0.01" min="0">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Base Premium ($) *</label>
+                        <input type="number" id="basePremium" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Total Premium ($) *</label>
+                        <input type="number" id="totalPremium" step="0.01" min="0" required>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Payment Method *</label>
+                        <select id="paymentMethod" required>
+                            <option value="">Select Method</option>
+                            <option value="CC-Agency">CC-Agency</option>
+                            <option value="CC-Client">CC-Client</option>
+                            <option value="CC-Company">CC-Company</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Check">Check</option>
+                            <option value="ACH to Agency">ACH to Agency</option>
+                            <option value="Direct Billing">Direct Billing</option>
+                            <option value="EFT">EFT</option>
+                            <option value="Escrow">Escrow</option>
+                            <option value="Money Order">Money Order</option>
+                            <option value="Premium Finance">Premium Finance</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Second Payment Method</label>
+                        <select id="paymentMethod2">
+                            <option value="">Select Method (Optional)</option>
+                            <option value="CC-Agency">CC-Agency</option>
+                            <option value="CC-Client">CC-Client</option>
+                            <option value="CC-Company">CC-Company</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Check">Check</option>
+                            <option value="ACH to Agency">ACH to Agency</option>
+                            <option value="Direct Billing">Direct Billing</option>
+                            <option value="EFT">EFT</option>
+                            <option value="Escrow">Escrow</option>
+                            <option value="Money Order">Money Order</option>
+                            <option value="Premium Finance">Premium Finance</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Agency Commission ($)
+                            <span style="font-size:11px;color:#059669;font-weight:600;display:block;margin-top:2px;">&#128274; Carrier Rate × Base Premium</span>
+                        </label>
+                        <input type="number" id="agencyCommission" step="0.01" min="0" readonly
+                            style="background-color:#fff;cursor:not-allowed;font-weight:700;color:#166534;border-color:#bbf7d0;">
+                        <div id="commissionBreakdown" style="display:none;margin-top:5px;padding:6px 10px;background:#dcfce7;border-radius:6px;font-size:12px;color:#166534;font-weight:600;"></div>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Agent Commission ($)
+                            <span style="font-size:11px;color:#059669;font-weight:600;display:block;margin-top:2px;">&#128274; (Fee + Commission) × 50%</span>
+                        </label>
+                        <input type="number" id="agentCommission" step="0.01" min="0" readonly
+                            style="background-color:#fff;cursor:not-allowed;font-weight:700;color:#166534;border-color:#bbf7d0;">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Commission Type *</label>
+                        <select id="paymentType" required>
+                            <option value="">Select Commission Type</option>
+                            <option value="Monthly Paid">&#128197; Monthly Paid</option>
+                            <option value="Gross Paid">&#128293; Gross Paid</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drivers -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:1.5px solid #5eead4;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #99f6e4;gap:10px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-size:15px;font-weight:700;color:#115e59;">&#128664; Driver(s) Information</span>
+                        <span style="font-size:11px;background:#ccfbf1;color:#134e4a;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">Optional</span>
+                        <span style="font-size:12px;color:#0d9488;font-style:italic;">— skip if not applicable</span>
+                    </div>
+                    <button type="button" onclick="addDriverRow()" style="background:linear-gradient(135deg,#0d9488,#0f766e);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Driver</button>
+                </div>
+                <div id="driversContainer"></div>
+                <div id="driversEmptyState" style="text-align:center;padding:14px 8px;font-size:13px;color:#475569;font-style:italic;">No drivers added. Click <strong style="color:#0d9488;">+ Add Driver</strong> if you need to capture driver details.</div>
+            </div>
+        </div>
+
+        <!-- Vehicles -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #fed7aa;gap:10px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-size:15px;font-weight:700;color:#9a3412;">&#128663; Vehicle(s) Information</span>
+                        <span style="font-size:11px;background:#ffedd5;color:#7c2d12;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">Optional</span>
+                        <span style="font-size:12px;color:#c2410c;font-style:italic;">— skip if not applicable</span>
+                    </div>
+                    <button type="button" onclick="addVehicleRow()" style="background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Vehicle</button>
+                </div>
+                <div id="vehiclesContainer"></div>
+                <div id="vehiclesEmptyState" style="text-align:center;padding:14px 8px;font-size:13px;color:#475569;font-style:italic;">No vehicles added. Click <strong style="color:#c2410c;">+ Add Vehicle</strong> if you need to capture vehicle details.</div>
+            </div>
+        </div>
+
+        <!-- File Attachment -->
+        <div style="margin:0 0 16px 0;padding:12px 14px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span style="font-size:13px;color:#374151;font-weight:600;">&#128193; Attach Documents</span>
+            <button type="button" id="binderAttachBtn" onclick="binderOpenPendingFileModal()" style="padding:7px 16px;font-size:13px;border:none;border-radius:7px;cursor:pointer;background:#16a34a;color:#fff;font-weight:600;display:flex;align-items:center;gap:6px;">
+                &#128206; Attach Files
+            </button>
+            <span id="binderAttachBadge" style="display:none;background:#059669;color:#fff;font-size:12px;font-weight:700;border-radius:12px;padding:2px 10px;"></span>
+            <span style="font-size:12px;color:#6b7280;font-style:italic;">Files attach to this client in AMS</span>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-success" style="padding:12px 40px;font-size:15px;">&#128190; Save Transaction Entry</button>
+        </div>
+    </form>
+
+</div>
+
+<!-- Modals needed by app.js (Add Carrier, Add Source, Edit, Binder File, etc.) -->
+<div id="addCarrierModal" class="modal">
+    <div class="modal-content" style="max-width:520px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <h3 style="margin:0;"><i data-lucide="plus-circle"></i> Add / Edit Carrier</h3>
+            <button type="button" class="btn-danger btn-sm" onclick="closeAddCarrierModal()">&#10005;</button>
+        </div>
+        <form id="carrierForm" onsubmit="saveCarrier(event)">
+            <div class="form-group" style="margin-bottom:12px;">
+                <label>Carrier Name *</label>
+                <input type="text" id="carrierName" required placeholder="e.g. Progressive">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label>Commission Rate (%) — by LOB</label>
+                <div id="carrierLobRates" style="display:flex;flex-direction:column;gap:8px;margin-top:4px;"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeAddCarrierModal()">Cancel</button>
+                <button type="submit" class="btn-success">&#128190; Save Carrier</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="addSourceModal" class="modal">
+    <div class="modal-content" style="max-width:420px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <h3 style="margin:0;">Add Source</h3>
+            <button type="button" class="btn-danger btn-sm" onclick="closeAddSourceModal()">&#10005;</button>
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+            <label>Source Name *</label>
+            <input type="text" id="modalSourceInput" placeholder="e.g. Google Ads"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();saveModalSource();}">
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="closeAddSourceModal()">Cancel</button>
+            <button type="button" class="btn-success" onclick="saveModalSource()">&#10003; Save</button>
+        </div>
+    </div>
+</div>
+
+<div id="editModal" class="modal">
+    <div class="modal-content wide" style="max-width:700px;max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <h3 style="margin:0;"><i data-lucide="edit"></i> Edit Entry</h3>
+            <button type="button" class="btn-danger btn-sm" onclick="closeEditModal()">&#10005; Close</button>
+        </div>
+        <form id="editForm" onsubmit="saveEdit(event)"></form>
+    </div>
+</div>
+
+<div id="binderFileModal" class="modal" style="align-items:flex-start;justify-content:center;padding:20px 0;z-index:10010;background:rgba(15,23,42,.65);backdrop-filter:blur(4px);">
+    <div class="modal-content" style="max-width:600px;width:96%;max-height:88vh;overflow-y:auto;margin:30px auto 0;box-shadow:0 25px 60px rgba(0,0,0,.45);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h3 style="margin:0;color:#065f46;font-size:16px;">&#128193; Client Files</h3>
+            <button type="button" class="btn-danger btn-sm" onclick="binderCloseFileModal()">&#10005; Close</button>
+        </div>
+        <div id="binderFileModalBody"></div>
+    </div>
+</div>
+
+<!-- Stub elements app.js may reference that don't exist on this page -->
+<div id="agentSection" style="display:none;"></div>
+<div id="loginSection" style="display:none;"></div>
+<div id="adminSection" style="display:none;"></div>
+<div id="prospectsSection" style="display:none;"></div>
+<div id="salesLocationModal" style="display:none;"></div>
+<div id="dailySalesModal" style="display:none;"></div>
+<span id="userDisplay" style="display:none;"></span>
+<input type="hidden" id="prospectDateAdded">
+
+<script src="app.js"></script>
+<script src="motion.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedUser = sessionStorage.getItem('uibCurrentUser');
+        if (!savedUser) {
+            window.location.href = './';
+            return;
+        }
+
+        currentUser = savedUser;
+        currentRole = savedUser === 'Admin' ? 'admin' : 'agent';
+
+        const userDisplay = document.getElementById('userDisplay');
+        if (userDisplay) userDisplay.textContent = `👤 ${currentUser}`;
+
+        const autoLocation = (currentUser === 'Jorge Castro') ? 'Franchise' : 'Hialeah Office';
+        _selectedSalesLocation = autoLocation;
+        const locSel = document.getElementById('salesLocationSelect');
+        if (locSel) locSel.value = autoLocation;
+
+        refreshAllCarrierDropdowns();
+        populateSourceDropdown('source', '');
+        resetDriversVehicles();
+        setTodayDate();
+        generateBinderNumber();
+
+        syncFromDrive().then(() => {
+            allData = JSON.parse(localStorage.getItem('binderData')) || [];
+            generateBinderNumber();
+            refreshIcons();
+        });
+    });
+</script>
+</body>
+</html>
