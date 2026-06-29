@@ -735,6 +735,7 @@
             allData = JSON.parse(localStorage.getItem('binderData')) || [];
             generateBinderNumber();
             refreshIcons();
+            txnCheckPendingPrefill();
         });
     });
 
@@ -776,6 +777,46 @@
             </div>
         `).join('');
         dd.style.display = 'block';
+    }
+
+    function txnCheckPendingPrefill() {
+        const raw = sessionStorage.getItem('uibPendingTransaction');
+        if (!raw) return;
+        sessionStorage.removeItem('uibPendingTransaction');
+        try {
+            const ext = JSON.parse(raw);
+            const setVal = (id, val) => {
+                const el = document.getElementById(id);
+                if (el && val !== undefined && val !== null && val !== '') el.value = val;
+            };
+            setVal('customerName', ext.customerName);
+            setVal('contactName', ext.contactName);
+            setVal('referredBy', ext.referredBy);
+            if (ext.transactionType) setVal('policyType', ext.transactionType);
+            setVal('lineOfBusiness', ext.lineOfBusiness);
+            setVal('mga', ext.mga);
+            setVal('policyNumber', ext.policyNumber);
+            setVal('effDate', ext.effDate);
+            setVal('term', ext.term);
+            setVal('down', ext.down);
+            setVal('agencyFee', ext.agencyFee);
+            setVal('basePremium', ext.basePremium);
+            setVal('totalPremium', ext.totalPremium);
+            setVal('paymentMethod', ext.paymentMethod);
+            setVal('paymentMethod2', ext.paymentMethod2);
+            setVal('paymentType', ext.paymentType);
+            if (ext.company) {
+                refreshAllCarrierDropdowns();
+                setTimeout(() => setVal('company', ext.company), 100);
+            }
+            if (ext.source) {
+                populateSourceDropdown('source', ext.source);
+            }
+            if (ext.policyNumber) {
+                txnSelectPolicy(ext.policyNumber);
+            }
+            if (typeof autoCalculateCommission === 'function') setTimeout(() => autoCalculateCommission(), 200);
+        } catch (e) { /* ignore parse errors */ }
     }
 
     function txnSelectPolicy(polNum) {

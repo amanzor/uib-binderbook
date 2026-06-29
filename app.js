@@ -6764,7 +6764,8 @@ function claudeOpenPanel() {
 
 • Answer questions about your binder data ("how many policies did Amanda write this month?")
 • Help draft emails and explanations
-• **Extract a sales entry from a PDF** — click 📎 to upload a policy doc and I'll pre-fill the form
+• **Extract a sales entry from a PDF** — click 📎 to upload a policy doc and I'll pre-fill the Daily Sales Entry form
+• **Extract transactions from a PDF** — upload an endorsement, payment, WC exemption, or other transaction document and I'll pre-fill the New Transaction Entry form
 
 How can I help?`);
     }
@@ -6897,15 +6898,30 @@ async function claudeSendMessage() {
             if (!window._claudeExtractions) window._claudeExtractions = [];
             window._claudeExtractions.push(extracted);
             const _extIdx = window._claudeExtractions.length - 1;
+            const isTransaction = extracted.entryType === 'transaction';
             const msg = claudeAddMessage('assistant', '');
+            const typeLabel = isTransaction ? 'Transaction' : 'Sales entry';
+            const txnTypeLabel = extracted.transactionType ? ` (${extracted.transactionType})` : '';
             msg.innerHTML = claudeRenderMarkdown(replyText) +
-                `<div style="margin-top:14px;padding:12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;">
-                    <div style="font-weight:700;color:#15803d;margin-bottom:8px;">✓ Sales entry extracted</div>
+                `<div style="margin-top:14px;padding:12px;background:${isTransaction ? '#fffbeb' : '#f0fdf4'};border:1.5px solid ${isTransaction ? '#fbbf24' : '#86efac'};border-radius:10px;">
+                    <div style="font-weight:700;color:${isTransaction ? '#92400e' : '#15803d'};margin-bottom:8px;">✓ ${typeLabel} extracted${txnTypeLabel}</div>
                     <div style="font-size:12px;color:#166534;margin-bottom:10px;">PDF: ${pdfFileName}</div>
-                    <button onclick="claudePrefillEntry(window._claudeExtractions[${_extIdx}])"
-                        style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
-                        📋 Open Daily Sales Entry with these values
-                    </button>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        ${isTransaction ? `<button onclick="claudePrefillTransaction(window._claudeExtractions[${_extIdx}])"
+                            style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
+                            📋 Open New Transaction Entry with these values
+                        </button>` : `<button onclick="claudePrefillEntry(window._claudeExtractions[${_extIdx}])"
+                            style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
+                            📋 Open Daily Sales Entry with these values
+                        </button>`}
+                        ${isTransaction ? `<button onclick="claudePrefillEntry(window._claudeExtractions[${_extIdx}])"
+                            style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px;">
+                            or Daily Sales Entry
+                        </button>` : `<button onclick="claudePrefillTransaction(window._claudeExtractions[${_extIdx}])"
+                            style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px;">
+                            or Transaction Entry
+                        </button>`}
+                    </div>
                 </div>`;
         } else {
             claudeAddMessage('assistant', claudeRenderMarkdown(replyText), true);
@@ -6936,21 +6952,28 @@ GUIDELINES:
         return base + `
 
 PDF EXTRACTION MODE — be exhaustive:
-The user has uploaded a PDF (likely an insurance binder, declaration page, or policy document).
+The user has uploaded a PDF (likely an insurance binder, declaration page, policy document, endorsement, payment receipt, WC exemption, or other transaction document).
 Extract EVERY field you can find — customer info, policy details, financials, drivers, AND vehicles.
 Do not skip fields just because they appear later in the document.
+
+IMPORTANT — Detect the document type:
+- If the PDF is an ENDORSEMENT, PAYMENT, WC EXEMPTION, or other TRANSACTION document (not a new/renewal policy), set "entryType": "transaction" and set "transactionType" to one of: "Endorsement", "Payment", "WC Exemptions", or "Miscellaneous".
+- If the PDF is a new policy, renewal, rewrite, or binder, set "entryType": "policy" and set "policyType" normally.
 
 Respond with a JSON object wrapped in \`\`\`json fences. The JSON must be the LAST thing in your response.
 
 Full JSON shape (omit any field you can't find — don't make values up):
 \`\`\`json
 {
+  "entryType": "policy|transaction",
+  "transactionType": "Endorsement|Payment|WC Exemptions|Miscellaneous (only when entryType=transaction)",
+
   "customerName": "string (primary insured / business name)",
   "contactName": "string (if separate contact listed)",
   "source": "string (e.g. Referral, Walk-In, Online, Phone, Repeat Client)",
   "referredBy": "string (name of referrer if mentioned)",
 
-  "policyType": "New|Rewrite|Renewal|Renew A-B",
+  "policyType": "New|Rewrite|Renewal|Renew A-B (only when entryType=policy)",
   "lineOfBusiness": "exact match preferred: BOP, Boat, Builders Risk, Business Owner, Classic Collectors, Commercial Auto, Commercial Property, Excess Liability, Flood, Garage Keepers, General Liability, Home Owners DP1/DP2/DP3/H3/H4/H6/H8, Inland Marine, Motorcycle/ATV, Non-Trucking Liability, Personal Auto, Pollution Liability, Professional Liability, Surety Bond, Trucking, Umbrella, Workers Comp",
   "company": "string (insurance carrier name)",
   "mga": "string (MGA / Premium Finance company)",
@@ -6995,8 +7018,11 @@ EXTRACTION TIPS:
 - Home / commercial property policies usually have no drivers or vehicles — leave those arrays empty rather than inventing entries.
 - If the PDF shows a date as MM/DD/YYYY, convert to YYYY-MM-DD.
 - For VINs, strip spaces and uppercase the result.
+- ENDORSEMENTS typically show a policy number, the endorsement effective date, premium change (additional or return premium), and the insured name. Always extract the policy number so it can be matched to an existing policy.
+- PAYMENT documents show a policy number, payment amount, payment method, and date.
+- WC EXEMPTION documents show officer/member names and exemption details.
 
-Before the JSON, give a brief 2-3 sentence summary of what you found (carrier, # of drivers, # of vehicles, premium). The current agent (${currentUser || amsCurrentUser}) will be auto-assigned to the entry.`;
+Before the JSON, give a brief 2-3 sentence summary of what you found (document type, carrier, policy number, premium/amount). The current agent (${currentUser || amsCurrentUser}) will be auto-assigned to the entry.`;
     }
     return base;
 }
@@ -7245,6 +7271,13 @@ function claudePrefillEntry(extracted) {
         // Validate required fields — auto-save if all present
         setTimeout(() => claudeMaybeAutoSubmit(extracted, autoAdded), 300);
     }, 250);
+}
+
+function claudePrefillTransaction(extracted) {
+    claudeClosePanel();
+    sessionStorage.setItem('uibCurrentUser', currentUser || '');
+    sessionStorage.setItem('uibPendingTransaction', JSON.stringify(extracted));
+    window.location.href = './transactionentry';
 }
 
 function claudeMaybeAutoSubmit(extracted, autoAdded) {
