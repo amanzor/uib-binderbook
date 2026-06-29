@@ -453,9 +453,13 @@
                 </div>
 
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
-                    <div class="form-group" style="margin:0;">
-                        <label>Policy Number</label>
-                        <input type="text" id="policyNumber">
+                    <div class="form-group" style="margin:0;position:relative;">
+                        <label>Policy Number * <span style="font-size:11px;color:#7c3aed;font-weight:500;">(must match existing policy)</span></label>
+                        <input type="text" id="policyNumber" required autocomplete="off"
+                            oninput="txnPolicySearch(this.value)"
+                            onblur="setTimeout(()=>{document.getElementById('policySearchDropdown').style.display='none'},200)">
+                        <div id="policySearchDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:#fff;border:1.5px solid #c4b5fd;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;margin-top:3px;"></div>
+                        <div id="policyValidationMsg" style="display:none;margin-top:4px;font-size:12px;font-weight:600;border-radius:6px;padding:4px 10px;"></div>
                     </div>
                     <div class="form-group" style="margin:0;">
                         <label>Binder Number <span style="font-size:11px;color:#7c3aed;font-weight:600;">(Auto-Generated)</span></label>
@@ -733,6 +737,75 @@
             refreshIcons();
         });
     });
+
+    let _txnSelectedPolicy = null;
+
+    function txnPolicySearch(val) {
+        const dd = document.getElementById('policySearchDropdown');
+        const msg = document.getElementById('policyValidationMsg');
+        _txnSelectedPolicy = null;
+        msg.style.display = 'none';
+
+        if (!val || val.length < 2) { dd.style.display = 'none'; return; }
+
+        const q = val.toLowerCase();
+        const policies = (JSON.parse(localStorage.getItem('binderData')) || [])
+            .filter(e => e.policyNumber && e.policyNumber.toLowerCase().includes(q));
+
+        if (!policies.length) {
+            dd.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:#94a3b8;font-style:italic;">No matching policies found</div>';
+            dd.style.display = 'block';
+            msg.style.display = 'block';
+            msg.style.background = '#fef2f2';
+            msg.style.color = '#dc2626';
+            msg.textContent = '⚠ Policy number not found in the system';
+            return;
+        }
+
+        const seen = new Set();
+        dd.innerHTML = policies.filter(e => {
+            if (seen.has(e.policyNumber)) return false;
+            seen.add(e.policyNumber);
+            return true;
+        }).slice(0, 10).map(e => `
+            <div onclick="txnSelectPolicy('${e.policyNumber.replace(/'/g, "\\'")}')"
+                style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background .1s;"
+                onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background='#fff'">
+                <div style="font-weight:700;font-size:13px;color:#1e293b;">${e.policyNumber}</div>
+                <div style="font-size:12px;color:#64748b;margin-top:2px;">${e.customerName || '—'} &bull; ${e.lineOfBusiness || '—'} &bull; ${e.company || '—'}</div>
+            </div>
+        `).join('');
+        dd.style.display = 'block';
+    }
+
+    function txnSelectPolicy(polNum) {
+        const dd = document.getElementById('policySearchDropdown');
+        const msg = document.getElementById('policyValidationMsg');
+        dd.style.display = 'none';
+
+        document.getElementById('policyNumber').value = polNum;
+
+        const policies = (JSON.parse(localStorage.getItem('binderData')) || []);
+        const match = policies.find(e => e.policyNumber === polNum);
+        if (!match) return;
+
+        _txnSelectedPolicy = match;
+
+        msg.style.display = 'block';
+        msg.style.background = '#ecfdf5';
+        msg.style.color = '#065f46';
+        msg.textContent = '✓ Matched: ' + (match.customerName || '') + ' — ' + (match.lineOfBusiness || '') + ' — ' + (match.company || '');
+
+        if (match.customerName) document.getElementById('customerName').value = match.customerName;
+        if (match.lineOfBusiness) document.getElementById('lineOfBusiness').value = match.lineOfBusiness;
+        if (match.company) {
+            refreshAllCarrierDropdowns();
+            setTimeout(() => { document.getElementById('company').value = match.company; }, 100);
+        }
+        if (match.mga) document.getElementById('mga').value = match.mga;
+        if (match.effDate) document.getElementById('effDate').value = match.effDate;
+        if (match.term) document.getElementById('term').value = match.term;
+    }
 </script>
 </body>
 </html>
