@@ -775,7 +775,7 @@
                 <div id="amsDownloadPanel" style="display:none;" class="reports-panel">
                     <div style="flex:1;padding:24px;overflow-y:auto;">
                         <h2 style="color:var(--navy);margin-bottom:6px;font-size:20px;"><i data-lucide="download" style="width:20px;height:20px;vertical-align:-4px;"></i> AL3 / ACORD Download Processor</h2>
-                        <p style="color:var(--gray-500);font-size:13px;margin-bottom:4px;">Process AL3 &amp; AL1 files from carrier downloads. Supports all ACORD transaction types.</p>
+                        <p style="color:var(--gray-500);font-size:13px;margin-bottom:4px;">Process AL3, PDF, CSV &amp; XML files from Progressive and other carrier downloads. Supports all ACORD transaction types.</p>
                         <p style="color:var(--gray-400);font-size:11px;margin-bottom:20px;">Progressive Agent Code: 24258 &bull; Universal Insurance Brokers &bull; Certified AL3 Download</p>
 
                         <!-- Sub-tabs -->
@@ -789,10 +789,10 @@
                         <div id="al3PanelUpload">
                             <div id="al3DropZone" class="al3-dropzone">
                                 <div class="al3-drop-icon">📥</div>
-                                <div class="al3-drop-title">Drop AL3 / AL1 Files Here</div>
-                                <div class="al3-drop-sub">or click to browse</div>
-                                <div style="font-size:11px;color:var(--gray-400);margin-top:8px;">.al3 &bull; .al1 &bull; .dat &bull; .txt</div>
-                                <input type="file" id="al3FileInput" multiple accept=".al3,.al1,.dat,.txt" style="display:none;" onchange="al3HandleFiles(this.files)">
+                                <div class="al3-drop-title">Drop Download Files Here</div>
+                                <div class="al3-drop-sub">or click to browse — AL3, PDF, CSV, XML &amp; more</div>
+                                <div style="font-size:11px;color:var(--gray-400);margin-top:8px;">.al3 &bull; .al1 &bull; .dat &bull; .txt &bull; .pdf &bull; .csv &bull; .xml &bull; .eft</div>
+                                <input type="file" id="al3FileInput" multiple accept=".al3,.al1,.dat,.txt,.pdf,.csv,.xml,.eft" style="display:none;" onchange="al3HandleFiles(this.files)">
                             </div>
 
                             <div id="al3FileList" style="margin-top:20px;"></div>
@@ -3772,8 +3772,10 @@
                 const card = document.createElement('div');
                 card.className = 'al3-file-card';
                 card.id = 'al3Card' + idx;
+                const fileIcons = { al1:'📝', pdf:'📕', csv:'📊', xml:'📋', eft:'💳' };
+                const fileIcon = fileIcons[ext] || '📄';
                 card.innerHTML = `
-                    <div class="al3-file-icon">${file.name.toLowerCase().endsWith('.al1') ? '📝' : '📄'}</div>
+                    <div class="al3-file-icon">${fileIcon}</div>
                     <div class="al3-file-info" style="flex:1;">
                         <div class="al3-file-name">${_ae(file.name)}</div>
                         <div class="al3-file-meta">${size} &bull; <span id="al3Status${idx}" class="al3-file-status al3-status-pending">Parsing...</span></div>
@@ -3781,10 +3783,67 @@
                     <button onclick="al3DeleteFile('${_ae(file.name)}')" title="Remove file" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:16px;padding:4px 8px;margin-left:auto;">✕</button>`;
                 listEl.appendChild(card);
 
+                const ext = file.name.toLowerCase().split('.').pop();
+
+                if (ext === 'pdf') {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        const base64 = e.target.result.split(',')[1];
+                        const statusEl = document.getElementById('al3Status' + idx);
+                        statusEl.textContent = 'Sending to AI for extraction...';
+                        statusEl.className = 'al3-file-status al3-status-pending';
+                        al3ProcessPdfWithAI(file.name, base64, idx);
+                    };
+                    reader.readAsDataURL(file);
+                    return;
+                }
+
+                if (ext === 'csv') {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        try {
+                            const records = al3ParseCSV(e.target.result, file.name);
+                            _al3Files.push({ name: file.name, records, type: 'CSV' });
+                            const statusEl = document.getElementById('al3Status' + idx);
+                            statusEl.textContent = records.length + ' records (CSV)';
+                            statusEl.className = 'al3-file-status al3-status-parsed';
+                            al3LogSession(file.name, records);
+                            al3RenderParsed();
+                        } catch(err) {
+                            const statusEl = document.getElementById('al3Status' + idx);
+                            statusEl.textContent = 'Error: ' + err.message;
+                            statusEl.className = 'al3-file-status al3-status-error';
+                        }
+                    };
+                    reader.readAsText(file);
+                    return;
+                }
+
+                if (ext === 'xml') {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        try {
+                            const records = al3ParseXML(e.target.result, file.name);
+                            _al3Files.push({ name: file.name, records, type: 'XML' });
+                            const statusEl = document.getElementById('al3Status' + idx);
+                            statusEl.textContent = records.length + ' records (ACORD XML)';
+                            statusEl.className = 'al3-file-status al3-status-parsed';
+                            al3LogSession(file.name, records);
+                            al3RenderParsed();
+                        } catch(err) {
+                            const statusEl = document.getElementById('al3Status' + idx);
+                            statusEl.textContent = 'Error: ' + err.message;
+                            statusEl.className = 'al3-file-status al3-status-error';
+                        }
+                    };
+                    reader.readAsText(file);
+                    return;
+                }
+
                 const reader = new FileReader();
                 reader.onload = e => {
                     try {
-                        const isAL1 = file.name.toLowerCase().endsWith('.al1');
+                        const isAL1 = ext === 'al1';
                         const records = isAL1 ? al1Parse(e.target.result, file.name) : al3Parse(e.target.result);
                         _al3Files.push({ name: file.name, records, type: isAL1 ? 'AL1' : 'AL3' });
                         const statusEl = document.getElementById('al3Status' + idx);
@@ -3981,6 +4040,245 @@
             }
         }
 
+        function al3ParseCSV(text, fileName) {
+            const lines = text.split(/\r?\n/).filter(l => l.trim());
+            if (lines.length < 2) return [];
+            const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+            const records = [];
+
+            const findCol = (...names) => {
+                for (const n of names) {
+                    const idx = headers.findIndex(h => h.includes(n));
+                    if (idx >= 0) return idx;
+                }
+                return -1;
+            };
+
+            const nameCol = findCol('insured', 'name', 'customer', 'policyholder');
+            const polCol = findCol('policy', 'pol #', 'pol_num', 'policy_number', 'policynumber');
+            const effCol = findCol('effective', 'eff_date', 'eff date');
+            const expCol = findCol('expiration', 'exp_date', 'exp date');
+            const premCol = findCol('premium', 'total_premium', 'written_premium', 'written premium');
+            const commCol = findCol('commission', 'comm_amt', 'comm');
+            const carrierCol = findCol('carrier', 'company', 'insurer');
+            const lobCol = findCol('lob', 'line_of_business', 'line of business', 'coverage');
+            const txnCol = findCol('transaction', 'txn', 'type');
+
+            for (let i = 1; i < lines.length; i++) {
+                const vals = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                if (!vals) continue;
+                const clean = vals.map(v => v.replace(/^"|"$/g, '').trim());
+                const get = col => col >= 0 && col < clean.length ? clean[col] : '';
+
+                const name = get(nameCol);
+                const pol = get(polCol);
+                if (!name && !pol) continue;
+
+                records.push({
+                    raw: [lines[i]],
+                    fields: {
+                        insuredName: name,
+                        policyNumber: pol,
+                        effectiveDate: get(effCol),
+                        expirationDate: get(expCol),
+                        premium: get(premCol).replace(/[$,]/g, ''),
+                        commission: get(commCol).replace(/[$,]/g, ''),
+                        companyName: get(carrierCol),
+                        lineOfBusiness: get(lobCol),
+                        transactionCode: get(txnCol) || 'CSV',
+                        transactionType: get(txnCol) || 'CSV Import',
+                        _type: 'CSV',
+                        _file: fileName
+                    },
+                    remarks: [], coverages: [], violations: [], priorDamage: [], priorPolicies: []
+                });
+            }
+            return records;
+        }
+
+        function al3ParseXML(text, fileName) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/xml');
+            const records = [];
+
+            const getText = (parent, ...tags) => {
+                for (const tag of tags) {
+                    const el = parent.getElementsByTagName(tag)[0];
+                    if (el && el.textContent) return el.textContent.trim();
+                }
+                return '';
+            };
+
+            const policyNodes = doc.getElementsByTagName('PersPolicy').length
+                ? doc.getElementsByTagName('PersPolicy')
+                : doc.getElementsByTagName('CommlPolicy').length
+                    ? doc.getElementsByTagName('CommlPolicy')
+                    : doc.getElementsByTagName('Policy').length
+                        ? doc.getElementsByTagName('Policy')
+                        : [];
+
+            if (policyNodes.length === 0) {
+                const acordNodes = doc.getElementsByTagName('ACORD');
+                if (acordNodes.length) {
+                    const insNode = doc.getElementsByTagName('InsuredOrPrincipal')[0] || doc.getElementsByTagName('NameInfo')[0];
+                    const name = insNode ? getText(insNode, 'CommercialName', 'Surname', 'GivenName') : '';
+                    const polNum = getText(doc, 'PolicyNumber', 'ContractNumber');
+                    const prem = getText(doc, 'WrittenAmt', 'CurrentTermAmt', 'Amt');
+                    if (name || polNum) {
+                        records.push({
+                            raw: [text.substring(0, 200)],
+                            fields: {
+                                insuredName: name, policyNumber: polNum, premium: prem.replace(/[$,]/g, ''),
+                                effectiveDate: getText(doc, 'EffectiveDt', 'ContractTerm'),
+                                expirationDate: getText(doc, 'ExpirationDt'),
+                                companyName: getText(doc, 'CarrierName', 'InsurerName'),
+                                lineOfBusiness: getText(doc, 'LOBCd', 'PolicyCd'),
+                                transactionCode: getText(doc, 'TransactionTypeCd') || 'XML',
+                                transactionType: getText(doc, 'TransactionTypeCd') || 'ACORD XML',
+                                _type: 'XML', _file: fileName
+                            },
+                            remarks: [], coverages: [], violations: [], priorDamage: [], priorPolicies: []
+                        });
+                    }
+                }
+            }
+
+            Array.from(policyNodes).forEach(pol => {
+                const root = pol.ownerDocument || doc;
+                const insNode = root.getElementsByTagName('InsuredOrPrincipal')[0] || root.getElementsByTagName('NameInfo')[0];
+                const name = insNode ? getText(insNode, 'CommercialName', 'Surname', 'GivenName') : '';
+
+                records.push({
+                    raw: [pol.outerHTML ? pol.outerHTML.substring(0, 200) : ''],
+                    fields: {
+                        insuredName: name,
+                        policyNumber: getText(pol, 'PolicyNumber', 'ContractNumber'),
+                        effectiveDate: getText(pol, 'EffectiveDt'),
+                        expirationDate: getText(pol, 'ExpirationDt'),
+                        premium: (getText(pol, 'WrittenAmt', 'CurrentTermAmt', 'Amt') || '').replace(/[$,]/g, ''),
+                        companyName: getText(root, 'CarrierName', 'InsurerName'),
+                        lineOfBusiness: getText(pol, 'LOBCd', 'PolicyCd'),
+                        transactionCode: getText(root, 'TransactionTypeCd') || 'XML',
+                        transactionType: getText(root, 'TransactionTypeCd') || 'ACORD XML',
+                        _type: 'XML', _file: fileName
+                    },
+                    remarks: [], coverages: [], violations: [], priorDamage: [], priorPolicies: []
+                });
+            });
+
+            return records;
+        }
+
+        async function al3ProcessPdfWithAI(fileName, base64, cardIdx) {
+            const statusEl = document.getElementById('al3Status' + cardIdx);
+            try {
+                const systemPrompt = `You are an insurance document parser for Universal Insurance Brokers (Agent Code: 24258). Extract ALL policy/transaction records from this PDF.
+
+The PDF may be a dec page, endorsement, cancellation notice, reinstatement, payment confirmation, commission statement, ID card, or other carrier download from Progressive or other carriers.
+
+Return a JSON array wrapped in \`\`\`json fences. Each element represents one policy/transaction found:
+\`\`\`json
+[
+  {
+    "insuredName": "string",
+    "policyNumber": "string",
+    "effectiveDate": "YYYYMMDD or YYYY-MM-DD",
+    "expirationDate": "YYYYMMDD or YYYY-MM-DD",
+    "premium": "number as string",
+    "commission": "number as string",
+    "commissionRate": "number as string (percentage)",
+    "companyName": "carrier name string",
+    "lineOfBusiness": "string",
+    "transactionCode": "NBS|PCH|RWL|XLN|XLC|REI|RWX|RRQ|RWQ|SYN|PRT or best match",
+    "transactionType": "New Business|Policy Change|Renewal|Cancellation|Reinstate|Rewrite|etc",
+    "address": "string",
+    "city": "string",
+    "state": "string",
+    "zip": "string",
+    "remarks": ["array of notable details or endorsement descriptions"]
+  }
+]
+\`\`\`
+
+IMPORTANT:
+- Extract EVERY record/transaction in the PDF, not just the first one
+- For endorsements, use transactionCode "PCH" (Policy Change)
+- For cancellations, use "XLN"
+- For renewals, use "RWL"
+- Convert dates from MM/DD/YYYY to YYYYMMDD format
+- If premium shows as negative (return premium), keep the negative sign
+- Before the JSON, write a 1-line summary of what was found`;
+
+                const payload = {
+                    action: 'claude',
+                    body: {
+                        model: 'claude-sonnet-4-6',
+                        max_tokens: 4096,
+                        system: systemPrompt,
+                        messages: [{
+                            role: 'user',
+                            content: [
+                                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+                                { type: 'text', text: 'Extract all policy/transaction records from this carrier download PDF.' }
+                            ]
+                        }]
+                    }
+                };
+
+                const res = await fetch(DRIVE_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const raw = await res.text();
+                let data;
+                try { data = JSON.parse(raw); } catch(e) { throw new Error('AI service returned invalid response'); }
+
+                if (data.success === false || data.error) throw new Error(data.error?.message || data.error || 'AI service error');
+                if (!data.content || !data.content.length) throw new Error('Empty AI response');
+
+                const textBlock = data.content.find(b => b.type === 'text');
+                const replyText = textBlock ? textBlock.text : '';
+
+                const jsonMatch = replyText.match(/```json\s*([\s\S]*?)```/);
+                if (!jsonMatch) throw new Error('AI could not extract structured data from this PDF');
+
+                let parsed = JSON.parse(jsonMatch[1]);
+                if (!Array.isArray(parsed)) parsed = [parsed];
+
+                const records = parsed.filter(p => p.insuredName || p.policyNumber).map(p => ({
+                    raw: ['PDF: ' + fileName],
+                    fields: {
+                        insuredName: p.insuredName || '',
+                        policyNumber: p.policyNumber || '',
+                        effectiveDate: (p.effectiveDate || '').replace(/-/g, ''),
+                        expirationDate: (p.expirationDate || '').replace(/-/g, ''),
+                        premium: p.premium || '',
+                        commission: p.commission || '',
+                        commissionRate: p.commissionRate || '',
+                        companyName: p.companyName || '',
+                        lineOfBusiness: p.lineOfBusiness || '',
+                        transactionCode: p.transactionCode || 'PDF',
+                        transactionType: p.transactionType || 'PDF Import',
+                        address: p.address || '',
+                        city: p.city || '',
+                        state: p.state || '',
+                        zip: p.zip || '',
+                        _type: 'PDF', _file: fileName
+                    },
+                    remarks: Array.isArray(p.remarks) ? p.remarks : [],
+                    coverages: [], violations: [], priorDamage: [], priorPolicies: []
+                }));
+
+                if (!records.length) throw new Error('No policy records found in PDF');
+
+                _al3Files.push({ name: fileName, records, type: 'PDF' });
+                statusEl.textContent = records.length + ' records (AI-extracted)';
+                statusEl.className = 'al3-file-status al3-status-parsed';
+                al3LogSession(fileName, records);
+                al3RenderParsed();
+            } catch(err) {
+                statusEl.textContent = 'Error: ' + err.message;
+                statusEl.className = 'al3-file-status al3-status-error';
+            }
+        }
+
         function al3FormatDate(d) {
             if (!d || d.length < 8) return d || '';
             if (d.includes('/') || d.includes('-')) return d;
@@ -4051,7 +4349,7 @@
                 </div>`;
 
             const txnBadge = c => {
-                const colors = { NBS:'#48bb78', PCH:'#4299e1', RWL:'#9f7aea', XLN:'#e53e3e', XLC:'#ed8936', REI:'#38b2ac', RWX:'#667eea', RWQ:'#d69e2e', RRQ:'#dd6b20', SYN:'#718096', PRT:'#a0aec0', AL1:'#805ad5' };
+                const colors = { NBS:'#48bb78', PCH:'#4299e1', RWL:'#9f7aea', XLN:'#e53e3e', XLC:'#ed8936', REI:'#38b2ac', RWX:'#667eea', RWQ:'#d69e2e', RRQ:'#dd6b20', SYN:'#718096', PRT:'#a0aec0', AL1:'#805ad5', CSV:'#2b6cb0', XML:'#c05621', PDF:'#c53030' };
                 return `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${colors[c]||'#718096'}20;color:${colors[c]||'#718096'};">${c}</span>`;
             };
 
@@ -4338,8 +4636,9 @@
             _al3Files.forEach(f => {
                 const card = document.createElement('div');
                 card.className = 'al3-file-card';
+                const fIcons = { AL1:'📝', PDF:'📕', CSV:'📊', XML:'📋' };
                 card.innerHTML = `
-                    <div class="al3-file-icon">${f.type === 'AL1' ? '📝' : '📄'}</div>
+                    <div class="al3-file-icon">${fIcons[f.type] || '📄'}</div>
                     <div class="al3-file-info" style="flex:1;">
                         <div class="al3-file-name">${_ae(f.name)}</div>
                         <div class="al3-file-meta"><span class="al3-file-status al3-status-parsed">${f.records.length} records${f.type === 'AL1' ? ' (AL1)' : ''}</span></div>
