@@ -6745,7 +6745,7 @@ function saveProspectNewReferral() {
 // CLAUDE AI CHAT — Routed through Google Apps Script
 // ============================================================
 
-const CLAUDE_MODEL = 'claude-opus-4-8';
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
 let _claudeMessages = [];           // chat history [{role, content}]
 let _claudePendingPdf = null;       // {name, base64} queued for next send
 let _claudeBusy = false;
@@ -7463,6 +7463,46 @@ function claudeInlineGreet() {
     const box = document.getElementById('claudeInlineMessages');
     if (!box || box.children.length > 0) return;
     claudeInlineAddMessage('assistant', `👋 Hi ${currentUser || 'there'}! Ask me anything about your binder data, or upload a PDF policy doc and I'll extract the sales entry for you.`);
+}
+
+async function claudeInlineTest() {
+    claudeInlineAddMessage('assistant', '🔧 Testing connection to Claude AI…');
+    try {
+        const payload = {
+            action: 'claude',
+            body: {
+                model: CLAUDE_MODEL,
+                max_tokens: 30,
+                messages: [{ role: 'user', content: 'Reply with just the word PONG.' }]
+            }
+        };
+        const res = await fetch(DRIVE_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const raw = await res.text();
+        let data;
+        try { data = JSON.parse(raw); } catch(e) {
+            claudeInlineAddMessage('assistant', `❌ Apps Script returned non-JSON:\n${raw.slice(0, 300)}\n\n→ The Apps Script web app may need to be redeployed (Manage Deployments → New version).`);
+            return;
+        }
+        if (data.success === false) {
+            const err = data.error || JSON.stringify(data);
+            if (/UrlFetchApp|permission/i.test(err)) {
+                claudeInlineAddMessage('assistant', `❌ Apps Script needs external URL permission.\n\nFix: Open script.google.com → Run the "handleClaudeRequest" function once → approve permissions → redeploy as New Version.`);
+            } else if (/No key|action/i.test(err)) {
+                claudeInlineAddMessage('assistant', `❌ Apps Script doesn't recognize action="claude".\n\nFix: Make sure your doPost() function checks for action==="claude" and forwards to the Claude API. Then redeploy as New Version.`);
+            } else {
+                claudeInlineAddMessage('assistant', `❌ Apps Script error: ${err}`);
+            }
+            return;
+        }
+        if (data.error) {
+            claudeInlineAddMessage('assistant', `❌ Claude API error (${data.error.type}): ${data.error.message}\n\nCheck that your API key in the Apps Script is valid.`);
+            return;
+        }
+        const txt = data.content?.find(b => b.type === 'text')?.text || '';
+        claudeInlineAddMessage('assistant', `✅ Connection OK — Claude responded: "${txt}"\nModel: ${CLAUDE_MODEL}`);
+    } catch(e) {
+        claudeInlineAddMessage('assistant', `❌ Network error: ${e.message}\n\nThe Apps Script URL may be wrong or your network is blocking it.`);
+    }
 }
 
 function claudeInlineNewConversation() {
