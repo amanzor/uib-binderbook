@@ -6832,6 +6832,71 @@ ${recent.join('\n')}`;
     }
 }
 
+// ── Existing-client validation for policies reported via the AI chat ──
+// Match on customer name AND policy number (both must already exist).
+function claudeFindExistingClient(customerName, policyNumber) {
+    if (!customerName || !policyNumber) return null;
+    const nameNorm = String(customerName).trim().toLowerCase();
+    const polNorm  = String(policyNumber).trim().toLowerCase();
+    if (!nameNorm || !polNorm) return null;
+    return (allData || []).find(e =>
+        (e.customerName || '').trim().toLowerCase() === nameNorm &&
+        (e.policyNumber || '').trim().toLowerCase() === polNorm
+    ) || null;
+}
+
+// Email admin@universalinsurancebroker.com via the Apps Script proxy.
+// Requires a `sendEmail` action handler in the deployed Google Apps Script.
+async function claudeNotifyAdminExistingClient(existing, reported, reporter) {
+    const subject = `⚠️ Existing client policy re-reported via chat: ${reported.customerName || ''}`;
+    const body = [
+        `An existing client/policy was reported again through the AI Assistant chat.`,
+        ``,
+        `Reported by (agent credited on the new entry): ${reporter}`,
+        ``,
+        `--- Reported policy ---`,
+        `Customer: ${reported.customerName || '-'}`,
+        `Policy #: ${reported.policyNumber || '-'}`,
+        `Carrier:  ${reported.company || '-'}`,
+        `LOB:      ${reported.lineOfBusiness || '-'}`,
+        `Premium:  $${reported.totalPremium || '-'}`,
+        ``,
+        `--- Existing record already on file ---`,
+        `Original agent (shown in app): ${existing.agent || '-'}`,
+        `Original entry date:           ${existing.entryDate || '-'}`,
+        `Existing carrier:              ${existing.company || '-'}`,
+        `Existing total premium:        $${existing.totalPremium || '-'}`,
+    ].join('\n');
+    try {
+        await fetch(DRIVE_API_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'sendEmail',
+                to: 'admin@universalinsurancebroker.com',
+                subject,
+                body
+            })
+        });
+    } catch (e) {
+        console.warn('Admin existing-client email failed:', e);
+    }
+}
+
+// Returns warning HTML (empty string if not an existing client).
+// Side effect: on a match, emails the admin. Only applies to policy reports.
+function claudeCheckExistingClient(extracted) {
+    if (!extracted || extracted.entryType === 'transaction') return '';
+    const existing = claudeFindExistingClient(extracted.customerName, extracted.policyNumber);
+    if (!existing) return '';
+    const reporter = currentUser || amsCurrentUser || 'Unknown';
+    claudeNotifyAdminExistingClient(existing, extracted, reporter);
+    return `<div style="margin-top:12px;padding:12px;background:#fffbeb;border:1.5px solid #fbbf24;border-radius:10px;font-size:13px;color:#92400e;line-height:1.5;">
+        ⚠️ <strong>Existing client</strong> — "${existing.customerName}" with policy #${existing.policyNumber} is already on file
+        (original agent shown in app: <strong>${existing.agent || '—'}</strong>, entered ${existing.entryDate || '—'}).<br>
+        This new policy will be credited to <strong>${reporter}</strong> as the original agent. Admin has been notified by email.
+    </div>`;
+}
+
 function claudeHandlePdfUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -6907,6 +6972,7 @@ async function claudeSendMessage() {
             const msg = claudeAddMessage('assistant', '');
             const typeLabel = isTransaction ? 'Transaction' : 'Sales entry';
             const txnTypeLabel = extracted.transactionType ? ` (${extracted.transactionType})` : '';
+            const existingWarning = claudeCheckExistingClient(extracted);
             msg.innerHTML = claudeRenderMarkdown(replyText) +
                 `<div style="margin-top:14px;padding:12px;background:${isTransaction ? '#fffbeb' : '#f0fdf4'};border:1.5px solid ${isTransaction ? '#fbbf24' : '#86efac'};border-radius:10px;">
                     <div style="font-weight:700;color:${isTransaction ? '#92400e' : '#15803d'};margin-bottom:8px;">✓ ${typeLabel} extracted${txnTypeLabel}</div>
@@ -6927,7 +6993,7 @@ async function claudeSendMessage() {
                             or Transaction Entry
                         </button>`}
                     </div>
-                </div>`;
+                </div>` + existingWarning;
         } else {
             claudeAddMessage('assistant', claudeRenderMarkdown(replyText), true);
         }
@@ -7477,6 +7543,7 @@ async function claudeInlineSendMessage() {
             window._claudeExtractions.push(extracted);
             const _extIdx = window._claudeExtractions.length - 1;
             const msg = claudeInlineAddMessage('assistant', '');
+            const existingWarning = claudeCheckExistingClient(extracted);
             msg.innerHTML = claudeRenderMarkdown(replyText) +
                 `<div style="margin-top:14px;padding:12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;">
                     <div style="font-weight:700;color:#15803d;margin-bottom:8px;">✓ Sales entry extracted</div>
@@ -7485,7 +7552,7 @@ async function claudeInlineSendMessage() {
                         style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
                         📋 Open Daily Sales Entry with these values
                     </button>
-                </div>`;
+                </div>` + existingWarning;
         } else {
             claudeInlineAddMessage('assistant', claudeRenderMarkdown(replyText), true);
         }
