@@ -546,13 +546,78 @@ function amsRenderPolicies(key) {
             : '—';
         const prem   = p.totalPremium != null ? `$${parseFloat(p.totalPremium).toFixed(2)}` : '—';
         const canEdit = amsCurrentRole === 'admin' || p.agent === amsCurrentUser;
-        
-        // Determine policy status
+
         const status = amsGetPolicyStatus(p);
         const statusColor = amsGetStatusColor(status);
         const statusBg = amsGetStatusBackground(status);
 
-        return `<tr>
+        const txnHistory = p.transactionHistory || [];
+        const hasCarrierData = txnHistory.length > 0 || p.al3SourceFile || p.al3TxnCode;
+        const txnCount = txnHistory.length;
+
+        const txnBtnHtml = hasCarrierData
+            ? `<button onclick="event.stopPropagation();amsTxnToggle(${p.id})" title="View carrier file events"
+                style="padding:3px 8px;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                📋 ${txnCount} event${txnCount !== 1 ? 's' : ''}
+               </button>`
+            : '';
+
+        const expandRow = hasCarrierData ? `
+        <tr id="txn-detail-${p.id}" style="display:none;background:#f8faff;">
+            <td colspan="12" style="padding:0;">
+                <div style="padding:14px 20px 16px 28px;border-top:1px solid #e0e7ff;">
+                    <div style="font-size:11px;font-weight:700;color:#4338ca;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">
+                        📋 Carrier File Events
+                    </div>
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                        <thead>
+                            <tr style="background:#e0e7ff;">
+                                <th style="padding:6px 10px;text-align:left;color:#3730a3;font-weight:600;">Date</th>
+                                <th style="padding:6px 10px;text-align:left;color:#3730a3;font-weight:600;">Event</th>
+                                <th style="padding:6px 10px;text-align:left;color:#3730a3;font-weight:600;">Code</th>
+                                <th style="padding:6px 10px;text-align:left;color:#3730a3;font-weight:600;">Eff. Date</th>
+                                <th style="padding:6px 10px;text-align:right;color:#3730a3;font-weight:600;">Premium</th>
+                                <th style="padding:6px 10px;text-align:left;color:#3730a3;font-weight:600;">Status Change</th>
+                                <th style="padding:6px 10px;text-align:left;color:#3730a3;font-weight:600;">Source File</th>
+                                <th style="padding:6px 10px;text-align:left;color:#3730a3;font-weight:600;">Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${txnHistory.map((t, idx) => {
+                                const isOdd = idx % 2 === 0;
+                                const bg = isOdd ? '#fff' : '#f0f4ff';
+                                const statusChange = (t.statusBefore && t.statusAfter)
+                                    ? `${amsEscHtml(t.statusBefore)} → <strong>${amsEscHtml(t.statusAfter)}</strong>`
+                                    : (t.premiumBefore != null && t.premium != null)
+                                        ? `$${parseFloat(t.premiumBefore).toFixed(2)} → <strong>$${parseFloat(t.premium).toFixed(2)}</strong>`
+                                        : '—';
+                                const premStr = t.premium != null ? `$${parseFloat(t.premium).toFixed(2)}` : '—';
+                                const effStr = t.effectiveDate
+                                    ? (t.effectiveDate.length === 8
+                                        ? t.effectiveDate.replace(/(\d{4})(\d{2})(\d{2})/, '$2/$3/$1')
+                                        : t.effectiveDate)
+                                    : '—';
+                                const codeColor = { NBS:'#16a34a', RWL:'#2563eb', PCH:'#d97706', XLN:'#dc2626', XLC:'#dc2626', REI:'#7c3aed', RIX:'#7c3aed' }[t.txnCode] || '#374151';
+                                return `<tr style="background:${bg};">
+                                    <td style="padding:6px 10px;white-space:nowrap;">${amsEscHtml(t.txnDate || '—')}</td>
+                                    <td style="padding:6px 10px;font-weight:600;">${amsEscHtml(t.txnLabel || t.txnCode || '—')}</td>
+                                    <td style="padding:6px 10px;"><span style="background:${codeColor};color:#fff;border-radius:3px;padding:2px 6px;font-size:10px;font-family:monospace;">${amsEscHtml(t.txnCode || '—')}</span></td>
+                                    <td style="padding:6px 10px;white-space:nowrap;">${effStr}</td>
+                                    <td style="padding:6px 10px;text-align:right;font-weight:600;">${premStr}</td>
+                                    <td style="padding:6px 10px;">${statusChange}</td>
+                                    <td style="padding:6px 10px;font-size:11px;color:#6b7280;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${amsEscHtml(t.sourceFile || '')}">${amsEscHtml(t.sourceFile || '—')}</td>
+                                    <td style="padding:6px 10px;font-size:11px;color:#6b7280;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${amsEscHtml(t.remarks || '')}">${amsEscHtml(t.remarks || '—')}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            </td>
+        </tr>` : '';
+
+        return `<tr style="cursor:${hasCarrierData ? 'pointer' : 'default'};" ${hasCarrierData ? `onclick="amsTxnToggle(${p.id})"` : ''}>
             <td style="white-space:nowrap;">${dateStr}</td>
             <td>${amsEscHtml(p.agent || '—')}</td>
             <td><span class="tag tag-blue">${amsEscHtml(p.policyType || '—')}</span></td>
@@ -568,21 +633,29 @@ function amsRenderPolicies(key) {
                     ${amsEscHtml(p.policyStatus || status)}
                 </span>
             </td>
-            <td style="white-space:nowrap;">
-                ${canEdit
-                    ? `<div class="policy-actions" style="display:flex;gap:4px;">
-                           <button class="btn-secondary btn-sm" onclick="amsEditPolicy(${p.id})" title="Edit policy">
+            <td style="white-space:nowrap;" onclick="event.stopPropagation()">
+                <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                    ${txnBtnHtml}
+                    ${canEdit
+                        ? `<button class="btn-secondary btn-sm" onclick="amsEditPolicy(${p.id})" title="Edit policy">
                                <i data-lucide="pencil"></i>
                            </button>
                            <button class="btn-secondary btn-sm" onclick="amsOpenPolicyActionMenu(event, ${p.id})" title="More actions">
                                <i data-lucide="more-vertical"></i>
-                           </button>
-                       </div>`
-                    : '<span style="font-size:11px;color:var(--gray-300);">—</span>'}
+                           </button>`
+                        : '<span style="font-size:11px;color:var(--gray-300);">—</span>'}
+                </div>
             </td>
-        </tr>`;
+        </tr>${expandRow}`;
     }).join('');
     lucide.createIcons();
+}
+
+function amsTxnToggle(id) {
+    const el = document.getElementById('txn-detail-' + id);
+    if (!el) return;
+    const isOpen = el.style.display !== 'none';
+    el.style.display = isOpen ? 'none' : 'table-row';
 }
 
 // ── Render notes ─────────────────────────────────────────────

@@ -4698,11 +4698,29 @@ IMPORTANT:
                 const polNum = (r.policyNumber || '').trim();
                 const txn = r.transactionCode || '';
 
+                // Helper: push transaction event to history array on a binder record
+                const _pushTxnEvent = (pol, entry) => {
+                    if (!pol.transactionHistory) pol.transactionHistory = [];
+                    pol.transactionHistory.push(entry);
+                };
+
                 // Handle cancellations - update existing record status
                 if ((txn === 'XLN' || txn === 'XLC') && polNum && existingByPol[polNum.toLowerCase()] !== undefined) {
                     const existIdx = existingByPol[polNum.toLowerCase()];
-                    binder[existIdx].status = 'Cancelled';
-                    binder[existIdx].al3LastTxn = txn;
+                    const ex = binder[existIdx];
+                    _pushTxnEvent(ex, {
+                        txnDate: dateISO, txnCode: txn,
+                        txnLabel: AL3_TXN_CODES[txn] || txn,
+                        sourceFile: r._file || '',
+                        effectiveDate: r.effectiveDate || '',
+                        premium: parseFloat(r.premium) || null,
+                        statusBefore: ex.status || 'Active',
+                        statusAfter: 'Cancelled',
+                        remarks: (r._remarks || []).join('; '),
+                        mergedAt: ts
+                    });
+                    ex.status = 'Cancelled';
+                    ex.al3LastTxn = txn;
                     updated++;
                     return;
                 }
@@ -4710,8 +4728,20 @@ IMPORTANT:
                 // Handle reinstatements
                 if ((txn === 'REI' || txn === 'RIX') && polNum && existingByPol[polNum.toLowerCase()] !== undefined) {
                     const existIdx = existingByPol[polNum.toLowerCase()];
-                    binder[existIdx].status = 'Active';
-                    binder[existIdx].al3LastTxn = txn;
+                    const ex = binder[existIdx];
+                    _pushTxnEvent(ex, {
+                        txnDate: dateISO, txnCode: txn,
+                        txnLabel: AL3_TXN_CODES[txn] || txn,
+                        sourceFile: r._file || '',
+                        effectiveDate: r.effectiveDate || '',
+                        premium: parseFloat(r.premium) || null,
+                        statusBefore: ex.status || 'Cancelled',
+                        statusAfter: 'Active',
+                        remarks: (r._remarks || []).join('; '),
+                        mergedAt: ts
+                    });
+                    ex.status = 'Active';
+                    ex.al3LastTxn = txn;
                     updated++;
                     return;
                 }
@@ -4719,10 +4749,20 @@ IMPORTANT:
                 // Handle policy changes - update premium
                 if (txn === 'PCH' && polNum && existingByPol[polNum.toLowerCase()] !== undefined) {
                     const existIdx = existingByPol[polNum.toLowerCase()];
+                    const ex = binder[existIdx];
                     const premVal = parseFloat(r.premium) || 0;
-                    if (premVal) binder[existIdx].basePremium = premVal;
-                    if (premVal) binder[existIdx].totalPremium = premVal;
-                    binder[existIdx].al3LastTxn = txn;
+                    _pushTxnEvent(ex, {
+                        txnDate: dateISO, txnCode: 'PCH',
+                        txnLabel: 'Policy Change (Endorsement)',
+                        sourceFile: r._file || '',
+                        effectiveDate: r.effectiveDate || '',
+                        premium: premVal || null,
+                        premiumBefore: ex.basePremium || null,
+                        remarks: (r._remarks || []).join('; '),
+                        mergedAt: ts
+                    });
+                    if (premVal) { ex.basePremium = premVal; ex.totalPremium = premVal; }
+                    ex.al3LastTxn = 'PCH';
                     updated++;
                     return;
                 }
@@ -4778,7 +4818,19 @@ IMPORTANT:
                     al3TxnCode: txn,
                     al3PriorPolicy: r.priorPolicyNumber || '',
                     al3Remarks: (r._remarks || []).join('; '),
-                    al3CoverageCount: (r._coverages || []).length
+                    al3CoverageCount: (r._coverages || []).length,
+                    transactionHistory: [{
+                        txnDate: dateISO,
+                        txnCode: txn || 'NBS',
+                        txnLabel: txn ? (AL3_TXN_CODES[txn] || txn) : 'New Business',
+                        sourceFile: r._file || '',
+                        effectiveDate: effDate,
+                        expirationDate: expDate,
+                        premium: premVal || null,
+                        remarks: (r._remarks || []).join('; '),
+                        coverageCount: (r._coverages || []).length,
+                        mergedAt: ts
+                    }]
                 };
 
                 binder.push(record);
