@@ -1334,6 +1334,8 @@
                                             <option value="Rewrite">Rewrite</option>
                                             <option value="Renew A-B">Renew A-B</option>
                                             <option value="Renewal">Renewal</option>
+                                            <option value="Endorsement">Endorsement</option>
+                                            <option value="Miscellaneous">Miscellaneous</option>
                                         </select>
                                     </div>
                                     <div class="form-group" style="margin:0;">
@@ -1705,6 +1707,8 @@
                                 <option value="Rewrite">Rewrite</option>
                                 <option value="Renew A-B">Renew A-B</option>
                                 <option value="Renewal">Renewal</option>
+                                <option value="Endorsement">Endorsement</option>
+                                <option value="Miscellaneous">Miscellaneous</option>
                             </select>
                         </div>
                         <button class="btn-primary btn-sm" onclick="filterAgentData()">Filter</button>
@@ -1785,6 +1789,8 @@
                             <option value="Rewrite">Rewrite</option>
                             <option value="Renew A-B">Renew A-B</option>
                             <option value="Renewal">Renewal</option>
+                            <option value="Endorsement">Endorsement</option>
+                            <option value="Miscellaneous">Miscellaneous</option>
                         </select>
                         <!-- View toggle + export -->
                         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
@@ -2378,6 +2384,9 @@
                     </button>
                     <button class="btn-success" onclick="importBinderMay26Data()" title="Import Binder Book May 26 entries (40 policies — Uri, Lazaro, Amanda, Randy)">
                         <i data-lucide="upload"></i> Import Binder May 26
+                    </button>
+                    <button class="btn-warning" onclick="importLRCQ1Transactions()" title="Import 6 Q1 LRC transactions for Lazaro (Rewrites, Endorsements, Miscellaneous)">
+                        <i data-lucide="upload"></i> Import LRC Q1 (Lazaro)
                     </button>
                     <button class="btn-purple" onclick="recalculateAllBinderCommissions()" title="Recalculate Agency & Agent Commission for every entry using carrier rules">
                         <i data-lucide="refresh-cw"></i> Recalculate All Commissions

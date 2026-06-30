@@ -8255,3 +8255,159 @@ function mergeVehicles(existing, incoming) {
         SYNC_KEYS.push('amsClientData');
     }
 })();
+
+// ============================================================
+// IMPORT LRC Q1 TRANSACTIONS (Lazaro)
+// ============================================================
+function importLRCQ1Transactions() {
+    const entries = [
+        {
+            customerName: 'Hevi Tile Corp',
+            policyType: 'Endorsement',
+            lineOfBusiness: "Workers' Comp",
+            company: 'American Builders',
+            agencyFee: 0,
+            agencyCommission: 1694.00,
+            basePremium: 12100.00,
+            totalPremium: 12100.00,
+            paymentMethod: 'EFT',
+            policyNumber: 'WCV 0661400 01',
+            entryDate: '2026-01-01',
+            effDate: '2026-01-01',
+            term: ''
+        },
+        {
+            customerName: 'Hevi Tile Corp',
+            policyType: 'Endorsement',
+            lineOfBusiness: "Workers' Comp",
+            company: 'American Builders',
+            agencyFee: 0,
+            agencyCommission: 1170.00,
+            basePremium: 11700.00,
+            totalPremium: 11700.00,
+            paymentMethod: 'EFT',
+            policyNumber: 'WCV 0661400 02',
+            entryDate: '2026-01-01',
+            effDate: '2026-01-01',
+            term: ''
+        },
+        {
+            customerName: 'NEXTRONIC INNOVATIONS CORP',
+            policyType: 'Miscellaneous',
+            lineOfBusiness: 'WC Exempt',
+            company: '',
+            agencyFee: 100.00,
+            agencyCommission: 0,
+            basePremium: 0,
+            totalPremium: 0,
+            paymentMethod: '',
+            policyNumber: '',
+            entryDate: '2026-01-01',
+            effDate: '2026-01-01',
+            term: ''
+        },
+        {
+            customerName: 'Blu Sleep Products LLC',
+            policyType: 'Rewrite',
+            lineOfBusiness: 'Business PP',
+            company: 'Northfield',
+            agencyFee: 500.00,
+            agencyCommission: 148.50,
+            basePremium: 1485.00,
+            totalPremium: 1485.00,
+            paymentMethod: 'EFT',
+            policyNumber: 'WS697698',
+            entryDate: '2026-01-29',
+            effDate: '2026-01-29',
+            term: '12'
+        },
+        {
+            customerName: 'Blu Sleep Products LLC',
+            policyType: 'Rewrite',
+            lineOfBusiness: 'General Liability',
+            company: 'Burlington',
+            agencyFee: 500.00,
+            agencyCommission: 152.60,
+            basePremium: 2526.00,
+            totalPremium: 2526.00,
+            paymentMethod: 'EFT',
+            policyNumber: '630B015991',
+            entryDate: '2026-01-29',
+            effDate: '2026-01-29',
+            term: '12'
+        },
+        {
+            customerName: 'J.R.B Concrete Cutting & Core Drilling LLC',
+            policyType: 'Rewrite',
+            lineOfBusiness: 'General Liability',
+            company: 'Security National Ins Co',
+            agencyFee: 300.00,
+            agencyCommission: 570.00,
+            basePremium: 5700.00,
+            totalPremium: 5700.00,
+            paymentMethod: 'EFT',
+            policyNumber: 'SES1833362300',
+            entryDate: '2026-01-27',
+            effDate: '2026-01-27',
+            term: '12'
+        }
+    ];
+
+    const stored = JSON.parse(localStorage.getItem('binderData')) || [];
+    let added = 0, skipped = 0;
+
+    entries.forEach(e => {
+        const isDupe = stored.some(d =>
+            d.agent === 'Lazaro' &&
+            d.customerName === e.customerName &&
+            d.policyNumber === e.policyNumber &&
+            d.company === e.company &&
+            d.entryDate === e.entryDate
+        );
+        if (isDupe) { skipped++; return; }
+
+        const commBase = e.agencyFee + e.agencyCommission;
+        stored.push({
+            id: Date.now() + added,
+            agent: 'Lazaro',
+            customerName: e.customerName,
+            contactName: '',
+            source: '',
+            referredBy: '',
+            policyType: e.policyType,
+            lineOfBusiness: e.lineOfBusiness,
+            company: e.company,
+            mga: '',
+            down: 0,
+            agencyFee: e.agencyFee,
+            basePremium: e.basePremium,
+            agencyCommission: e.agencyCommission,
+            totalPremium: e.totalPremium,
+            paymentType: 'Gross Paid',
+            paymentMethod: e.paymentMethod,
+            paymentMethod2: '',
+            policyNumber: e.policyNumber,
+            binderNumber: '',
+            entryDate: e.entryDate,
+            entryDateDisplay: e.entryDate,
+            effDate: e.effDate,
+            term: e.term,
+            location: 'Hialeah Office',
+            drivers: [],
+            vehicles: [],
+            secondAgent: '',
+            agentCommissionShare: parseFloat((commBase * 0.5).toFixed(2)),
+            secondAgentCommission: 0,
+            timestamp: new Date().toISOString()
+        });
+        added++;
+    });
+
+    localStorage.setItem('binderData', JSON.stringify(stored));
+    if (typeof allData !== 'undefined') allData = stored;
+    if (typeof loadAdminData === 'function') loadAdminData();
+    if (typeof apdInit === 'function') apdInit();
+    if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
+
+    alert('Import complete! Added ' + added + ' entries for Lazaro. Skipped ' + skipped + ' duplicates.');
+}
