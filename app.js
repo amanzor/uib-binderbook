@@ -8262,30 +8262,6 @@ function mergeVehicles(existing, incoming) {
 })();
 
 // ============================================================
-// MERGE AGENT — reassign all entries from one agent name to another
-// ============================================================
-function mergeAgentEntries(fromName, toName) {
-    let data = JSON.parse(localStorage.getItem('binderData')) || [];
-    let count = 0;
-    data = data.map(entry => {
-        if (entry.agent === fromName) { count++; return { ...entry, agent: toName }; }
-        return entry;
-    });
-    localStorage.setItem('binderData', JSON.stringify(data));
-    allData = data;
-    if (typeof loadAdminData === 'function') loadAdminData();
-    if (typeof loadAgentData === 'function') loadAgentData();
-    if (typeof apdInit === 'function') apdInit();
-    if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
-    alert('Done! Moved ' + count + ' entries from "' + fromName + '" → "' + toName + '".');
-}
-
-function mergeLazaroAgents() {
-    if (!confirm('Move ALL "Lazaro Reigoza" entries to "Lazaro Reigoza Cruz"?\n\nThis cannot be undone.')) return;
-    mergeAgentEntries('Lazaro Reigoza', 'Lazaro Reigoza Cruz');
-}
-
-// ============================================================
 // FIX CASE — normalize all name fields to title case
 // ============================================================
 function fixAllEntriesCase() {
