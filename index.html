@@ -1692,61 +1692,6 @@
                 </div>
                 <!-- /Claude AI Assistant -->
 
-                <div>
-                    <h3 style="color: #333; margin: 30px 0 20px 0; font-size: 1.3em;">📊 Your Submissions</h3>
-                    <div class="filter-section" style="flex-wrap:wrap;gap:10px;">
-                        <div class="filter-group">
-                            <label>Filter by Month:</label>
-                            <input type="month" id="agentFilter">
-                        </div>
-                        <div class="filter-group">
-                            <label>Filter by Type:</label>
-                            <select id="agentTypeFilter" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;">
-                                <option value="">All Types</option>
-                                <option value="New">New</option>
-                                <option value="Rewrite">Rewrite</option>
-                                <option value="Renew A-B">Renew A-B</option>
-                                <option value="Renewal">Renewal</option>
-                                <option value="Endorsement">Endorsement</option>
-                                <option value="Miscellaneous">Miscellaneous</option>
-                            </select>
-                        </div>
-                        <button class="btn-primary btn-sm" onclick="filterAgentData()">Filter</button>
-                        <button class="btn-secondary btn-sm" onclick="resetAgentFilter()">Reset</button>
-                        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-                            <input type="text" id="agentSubmissionSearch" placeholder="Search by customer, carrier, policy #, binder #..." oninput="searchAgentSubmissions()" style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;width:320px;font-family:inherit;">
-                            <button class="btn-secondary btn-sm" onclick="document.getElementById('agentSubmissionSearch').value='';searchAgentSubmissions();" style="white-space:nowrap;">✕ Clear</button>
-                        </div>
-                    </div>
-                    <div id="bulkDeleteBar" style="display:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;padding:10px 20px;border-radius:10px;margin-bottom:10px;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;">
-                        <span style="font-weight:700;font-size:14px;"><span id="bulkSelectedCount">0</span> selected</span>
-                        <div style="display:flex;gap:8px;">
-                            <button onclick="bulkDeleteSelected()" style="background:#fff;color:#dc2626;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">🗑️ Delete Selected</button>
-                            <button onclick="bulkClearSelection()" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">✕ Cancel</button>
-                        </div>
-                    </div>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width:36px;text-align:center;"><input type="checkbox" id="agentSelectAll" onchange="toggleSelectAllAgent(this)" title="Select all"></th>
-                                    <th>Date</th>
-                                    <th>Customer</th>
-                                    <th>Policy Type</th>
-                                    <th>Line of Business</th>
-                                    <th>Company</th>
-                                    <th>Policy #</th>
-                                    <th>Total Premium</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="agentTable">
-                                <tr><td colspan="9" class="no-data">No entries yet</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
                 <!-- ════════════════════════════════════════════════════
                      INLINE PRODUCTION DASHBOARD (agent view)
                      ════════════════════════════════════════════════════ -->
@@ -1813,6 +1758,61 @@
                     <div id="apd_body" style="padding:20px;background:#fff;"></div>
 
                 </div><!-- end inline production dashboard -->
+
+                <div style="margin-top:36px;">
+                    <h3 style="color: #333; margin: 30px 0 20px 0; font-size: 1.3em;">📊 Your Submissions</h3>
+                    <div class="filter-section" style="flex-wrap:wrap;gap:10px;">
+                        <div class="filter-group">
+                            <label>Filter by Month:</label>
+                            <input type="month" id="agentFilter">
+                        </div>
+                        <div class="filter-group">
+                            <label>Filter by Type:</label>
+                            <select id="agentTypeFilter" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;">
+                                <option value="">All Types</option>
+                                <option value="New">New</option>
+                                <option value="Rewrite">Rewrite</option>
+                                <option value="Renew A-B">Renew A-B</option>
+                                <option value="Renewal">Renewal</option>
+                                <option value="Endorsement">Endorsement</option>
+                                <option value="Miscellaneous">Miscellaneous</option>
+                            </select>
+                        </div>
+                        <button class="btn-primary btn-sm" onclick="filterAgentData()">Filter</button>
+                        <button class="btn-secondary btn-sm" onclick="resetAgentFilter()">Reset</button>
+                        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                            <input type="text" id="agentSubmissionSearch" placeholder="Search by customer, carrier, policy #, binder #..." oninput="searchAgentSubmissions()" style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;width:320px;font-family:inherit;">
+                            <button class="btn-secondary btn-sm" onclick="document.getElementById('agentSubmissionSearch').value='';searchAgentSubmissions();" style="white-space:nowrap;">✕ Clear</button>
+                        </div>
+                    </div>
+                    <div id="bulkDeleteBar" style="display:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;padding:10px 20px;border-radius:10px;margin-bottom:10px;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;">
+                        <span style="font-weight:700;font-size:14px;"><span id="bulkSelectedCount">0</span> selected</span>
+                        <div style="display:flex;gap:8px;">
+                            <button onclick="bulkDeleteSelected()" style="background:#fff;color:#dc2626;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">🗑️ Delete Selected</button>
+                            <button onclick="bulkClearSelection()" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">✕ Cancel</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:36px;text-align:center;"><input type="checkbox" id="agentSelectAll" onchange="toggleSelectAllAgent(this)" title="Select all"></th>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Policy Type</th>
+                                    <th>Line of Business</th>
+                                    <th>Company</th>
+                                    <th>Policy #</th>
+                                    <th>Total Premium</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="agentTable">
+                                <tr><td colspan="9" class="no-data">No entries yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
                 <div class="footer-buttons">
                     <button class="btn-secondary" onclick="exportAgentData()">📥 Export My Data (CSV)</button>
