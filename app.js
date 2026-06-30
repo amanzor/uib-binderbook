@@ -896,14 +896,19 @@ document.getElementById('editForm')?.addEventListener('submit', (e) => {
     updateEntry();
 });
 
+function toTitleCase(str) {
+    if (!str) return str;
+    return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function saveEntry() {
     const entry = {
         id: Date.now(),
         agent: currentUser,
-        customerName: document.getElementById('customerName').value,
-        contactName: document.getElementById('contactName').value,
+        customerName: toTitleCase(document.getElementById('customerName').value),
+        contactName: toTitleCase(document.getElementById('contactName').value),
         source: document.getElementById('source').value,
-        referredBy: document.getElementById('referredBy').value,
+        referredBy: toTitleCase(document.getElementById('referredBy').value),
         policyType: document.getElementById('policyType').value,
         lineOfBusiness: document.getElementById('lineOfBusiness').value,
         company: document.getElementById('company').value,
@@ -2446,13 +2451,13 @@ function closeModal() {
 function updateEntry() {
     const entry = allData.find(d => d.id === editingId);
     if (!entry) return;
-    entry.customerName = document.getElementById('editCustomerName').value;
+    entry.customerName = toTitleCase(document.getElementById('editCustomerName').value);
     entry.source = document.getElementById('editSource').value;
-    entry.referredBy = document.getElementById('editReferredBy').value;
+    entry.referredBy = toTitleCase(document.getElementById('editReferredBy').value);
     entry.policyType = document.getElementById('editPolicyType').value;
     entry.lineOfBusiness = document.getElementById('editLineOfBusiness').value;
-    entry.company = document.getElementById('editCompany').value;
-    entry.mga = document.getElementById('editMga').value;
+    entry.company = toTitleCase(document.getElementById('editCompany').value);
+    entry.mga = toTitleCase(document.getElementById('editMga').value);
     entry.down = parseFloat(document.getElementById('editDown').value) || 0;
     entry.agencyFee = parseFloat(document.getElementById('editAgencyFee').value) || 0;
     entry.basePremium = parseFloat(document.getElementById('editBasePremium').value) || 0;
@@ -8255,6 +8260,26 @@ function mergeVehicles(existing, incoming) {
         SYNC_KEYS.push('amsClientData');
     }
 })();
+
+// ============================================================
+// FIX CASE — normalize all name fields to title case
+// ============================================================
+function fixAllEntriesCase() {
+    const fields = ['customerName', 'contactName', 'company', 'mga', 'referredBy'];
+    let data = JSON.parse(localStorage.getItem('binderData')) || [];
+    data = data.map(entry => {
+        const updated = { ...entry };
+        fields.forEach(f => { if (updated[f]) updated[f] = toTitleCase(updated[f]); });
+        return updated;
+    });
+    localStorage.setItem('binderData', JSON.stringify(data));
+    allData = data;
+    if (typeof loadAdminData === 'function') loadAdminData();
+    if (typeof loadAgentData === 'function') loadAgentData();
+    if (typeof apdInit === 'function') apdInit();
+    if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
+    alert('Done! All ' + data.length + ' entries have been converted to title case.');
+}
 
 // ============================================================
 // IMPORT LRC Q1 TRANSACTIONS (Lazaro)
