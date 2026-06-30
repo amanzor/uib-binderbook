@@ -825,19 +825,30 @@
                             <div id="al3StatsBar" style="display:none;margin-top:12px;display:none;gap:8px;flex-wrap:wrap;"></div>
 
                             <!-- Import action bar -->
-                            <div id="al3ImportBar" style="display:none;margin-top:16px;padding:14px 20px;background:linear-gradient(135deg,var(--navy),#1a365d);border-radius:10px;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-                                <div style="display:flex;align-items:center;gap:12px;">
-                                    <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔄</div>
-                                    <div>
-                                        <div style="color:#fff;font-weight:700;font-size:14px;" id="al3ImportTitle">0 Records Ready</div>
-                                        <div style="color:rgba(255,255,255,.6);font-size:11px;" id="al3ImportSub">Merge parsed AL3 data into AMS</div>
+                            <div id="al3ImportBar" style="display:none;margin-top:16px;border-radius:12px;overflow:hidden;">
+                                <!-- Merge info bar -->
+                                <div style="background:linear-gradient(135deg,var(--navy),#1a365d);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                                    <div style="display:flex;align-items:center;gap:12px;">
+                                        <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">🔄</div>
+                                        <div>
+                                            <div style="color:#fff;font-weight:700;font-size:14px;" id="al3ImportTitle">0 Records Ready to Merge</div>
+                                            <div style="color:rgba(255,255,255,.6);font-size:11px;" id="al3ImportSub">Ready to merge with your existing AMS policies</div>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex;gap:8px;align-items:center;">
+                                        <span id="al3ImportStatus" style="color:rgba(255,255,255,.7);font-size:11px;"></span>
+                                        <button id="al3ImportBtn" onclick="al3ImportToAMS()" style="padding:10px 24px;background:linear-gradient(135deg,#38a169,#48bb78);color:#fff;border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;box-shadow:0 2px 8px rgba(0,0,0,.3);">
+                                            🔀 Merge into AMS
+                                        </button>
                                     </div>
                                 </div>
-                                <div style="display:flex;gap:8px;align-items:center;">
-                                    <span id="al3ImportStatus" style="color:rgba(255,255,255,.7);font-size:11px;"></span>
-                                    <button id="al3ImportBtn" onclick="al3ImportToAMS()" style="padding:8px 20px;background:#48bb78;color:#fff;border:none;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;">
-                                        Import to AMS
-                                    </button>
+                                <!-- Merge behavior explanation -->
+                                <div style="background:#1a2744;padding:10px 20px;display:flex;gap:20px;flex-wrap:wrap;">
+                                    <span style="font-size:11px;color:#86efac;">✓ <strong>New policies</strong> added</span>
+                                    <span style="font-size:11px;color:#93c5fd;">✓ <strong>Cancellations</strong> update status</span>
+                                    <span style="font-size:11px;color:#fbbf24;">✓ <strong>Policy changes</strong> update premium</span>
+                                    <span style="font-size:11px;color:#f9a8d4;">✓ <strong>Reinstatements</strong> reactivate policy</span>
+                                    <span style="font-size:11px;color:#94a3b8;">✓ <strong>Duplicates</strong> skipped automatically</span>
                                 </div>
                             </div>
 
@@ -4395,12 +4406,12 @@ IMPORTANT:
 
             const bar = document.getElementById('al3ImportBar');
             bar.style.display = 'flex';
-            document.getElementById('al3ImportTitle').textContent = allRecords.length + ' Records Ready';
+            document.getElementById('al3ImportTitle').textContent = allRecords.length + ' Records Ready to Merge';
             document.getElementById('al3ImportStatus').textContent = '';
             const btn = document.getElementById('al3ImportBtn');
             btn.disabled = false;
-            btn.textContent = 'Import to AMS';
-            btn.style.background = '#48bb78';
+            btn.textContent = '🔀 Merge into AMS';
+            btn.style.background = 'linear-gradient(135deg,#38a169,#48bb78)';
         }
 
         function al3ShowRecordDetail(idx) {
@@ -4655,7 +4666,7 @@ IMPORTANT:
             const btn = document.getElementById('al3ImportBtn');
             const statusEl = document.getElementById('al3ImportStatus');
             btn.disabled = true;
-            btn.textContent = 'Importing...';
+            btn.textContent = '⏳ Merging...';
             btn.style.background = '#718096';
             statusEl.textContent = 'Processing...';
 
@@ -4801,15 +4812,15 @@ IMPORTANT:
             amsSave('amsClientData', contacts);
             amsBuildClientIndex();
 
-            btn.textContent = 'Imported!';
+            btn.textContent = '✓ Merged!';
             btn.style.background = '#38a169';
             statusEl.textContent = added + ' added, ' + updated + ' updated, ' + clientsAdded + ' new clients, ' + skipped + ' skipped';
-            document.getElementById('al3ImportTitle').textContent = 'Import Complete';
-            document.getElementById('al3ImportSub').textContent = 'Data merged into AMS successfully';
+            document.getElementById('al3ImportTitle').textContent = 'Merge Complete';
+            document.getElementById('al3ImportSub').textContent = 'Records merged into AMS successfully';
 
             setTimeout(() => {
-                btn.textContent = 'Import to AMS';
-                btn.style.background = '#48bb78';
+                btn.textContent = '🔀 Merge into AMS';
+                btn.style.background = 'linear-gradient(135deg,#38a169,#48bb78)';
                 btn.disabled = false;
             }, 5000);
         }
