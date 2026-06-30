@@ -4740,7 +4740,7 @@ function _renderCommDetailTable(filtered) {
         const typeIcon  = e.paymentType === 'Gross Paid' ? '🔥' : '📅';
         html += `<tr>
             <td style="white-space:nowrap;font-size:12px;">${dateDisplay}</td>
-            <td style="font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.customerName||''}">${e.customerName || '-'}</td>
+            <td style="font-weight:600;" title="${e.customerName||''}">${e.customerName || '-'}</td>
             <td style="font-size:12px;">${e.company || '-'}</td>
             <td style="font-size:12px;">${e.lineOfBusiness || '-'}</td>
             <td style="font-size:12px;">${e.policyType || '-'}</td>
