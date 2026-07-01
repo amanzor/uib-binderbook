@@ -790,9 +790,9 @@
                             <div id="al3DropZone" class="al3-dropzone">
                                 <div class="al3-drop-icon">📥</div>
                                 <div class="al3-drop-title">Drop Download Files Here</div>
-                                <div class="al3-drop-sub">or click to browse — AL3, PDF, CSV, XML &amp; more</div>
-                                <div style="font-size:11px;color:var(--gray-400);margin-top:8px;">.al3 &bull; .al1 &bull; .dat &bull; .txt &bull; .pdf &bull; .csv &bull; .xml &bull; .eft</div>
-                                <input type="file" id="al3FileInput" multiple accept=".al3,.al1,.dat,.txt,.pdf,.csv,.xml,.eft" style="display:none;" onchange="al3HandleFiles(this.files)">
+                                <div class="al3-drop-sub">or click to browse — AL3, PDF, CSV, XML &amp; any carrier file</div>
+                                <div style="font-size:11px;color:var(--gray-400);margin-top:8px;">.al3 &bull; .al1 &bull; .dat &bull; .txt &bull; .pdf &bull; .csv &bull; .xml &bull; .eft &bull; Progressive/IVANS downloads (any extension)</div>
+                                <input type="file" id="al3FileInput" multiple style="display:none;" onchange="al3HandleFiles(this.files)">
                             </div>
 
                             <div id="al3FileList" style="margin-top:20px;"></div>
@@ -3776,6 +3776,8 @@
             outputEl.innerHTML = '';
 
             Array.from(files).forEach((file, idx) => {
+                const ext = file.name.toLowerCase().split('.').pop();
+
                 const size = file.size < 1024 ? file.size + ' B'
                     : file.size < 1048576 ? (file.size/1024).toFixed(1) + ' KB'
                     : (file.size/1048576).toFixed(2) + ' MB';
@@ -3793,8 +3795,6 @@
                     </div>
                     <button onclick="al3DeleteFile('${_ae(file.name)}')" title="Remove file" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:16px;padding:4px 8px;margin-left:auto;">✕</button>`;
                 listEl.appendChild(card);
-
-                const ext = file.name.toLowerCase().split('.').pop();
 
                 if (ext === 'pdf') {
                     const reader = new FileReader();
