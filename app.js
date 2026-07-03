@@ -6746,6 +6746,9 @@ function saveProspectNewReferral() {
 // ============================================================
 
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
+// AI now runs on Supabase (reliable) instead of the Google Apps Script.
+const CLAUDE_PROXY_URL = 'https://jgjmobktucyimupelfxd.supabase.co/functions/v1/claude';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
 let _claudeMessages = [];           // chat history [{role, content}]
 let _claudePendingPdf = null;       // {name, base64} queued for next send
 let _claudeBusy = false;
@@ -7100,46 +7103,41 @@ Before the JSON, give a brief 2-3 sentence summary of what you found (document t
 
 async function claudeCallAPI(systemPrompt, messages) {
     const payload = {
-        action: 'claude',
-        body: {
-            model: CLAUDE_MODEL,
-            max_tokens: 4096,
-            system: systemPrompt,
-            messages: messages.map(m => ({
-                role: m.role,
-                content: typeof m.content === 'string' ? m.content : m.content
-            }))
-        }
+        model: CLAUDE_MODEL,
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: messages.map(m => ({
+            role: m.role,
+            content: typeof m.content === 'string' ? m.content : m.content
+        }))
     };
 
-    const res = await fetch(DRIVE_API_URL, {
+    const res = await fetch(CLAUDE_PROXY_URL, {
         method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+        },
         body: JSON.stringify(payload)
     });
 
-    // Read as text first so we can see what GAS actually returned
+    // Read as text first so we can see exactly what came back
     const raw = await res.text();
     let data;
     try { data = JSON.parse(raw); }
-    catch (e) { throw new Error(`Apps Script returned non-JSON: ${raw.slice(0, 200)}`); }
+    catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`); }
 
-    // GAS error envelope (action not handled, key missing, permission error, etc.)
+    // Proxy / config error envelope
     if (data.success === false) {
-        const errStr = String(data.error || JSON.stringify(data));
-        if (/UrlFetchApp|external_request|permission to call/i.test(errStr)) {
-            throw new Error(`Apps Script needs permission to make external HTTPS calls.\n\nFIX (one-time, ~30 sec):\n1. Open your Apps Script (script.google.com)\n2. From the function dropdown at the top, select "handleClaudeRequest"\n3. Click ▶ Run\n4. Google will show "Authorization required" → click Review permissions\n5. Pick your Google account → Advanced → "Go to project (unsafe)" → Allow\n6. The function will run (you can ignore any "data is undefined" error)\n7. Deploy → Manage deployments → ✏️ → New version → Deploy\n8. Reload BinderBook and try again.`);
-        }
-        if (/No key provided/i.test(errStr)) {
-            throw new Error(`Apps Script doesn't recognize action="claude". → The doPost function is missing the Claude check. Re-add the 3 lines and redeploy as "New version".`);
-        }
-        throw new Error(`Apps Script error: ${errStr}`);
+        throw new Error(`AI proxy error: ${String(data.error || JSON.stringify(data))}`);
     }
     // Claude API error envelope
     if (data.error) {
         const t = data.error.type || '';
         const m = data.error.message || JSON.stringify(data.error);
         if (t === 'authentication_error') {
-            throw new Error(`Claude API: invalid API key. Paste your real sk-ant-... key into handleClaudeRequest in the Apps Script.`);
+            throw new Error(`Claude API: invalid API key. Set the ANTHROPIC_API_KEY secret in your Supabase Edge Functions.`);
         }
         throw new Error(`Claude API ${t}: ${m}`);
     }
@@ -7155,21 +7153,22 @@ async function claudeCallAPI(systemPrompt, messages) {
 // the full chain: browser → Apps Script → Claude API → browser.
 window.claudeTest = async function() {
     console.group('🔍 Claude AI Connection Test');
-    console.log('Apps Script URL:', DRIVE_API_URL);
+    console.log('Claude proxy URL:', CLAUDE_PROXY_URL);
     console.log('Model:', CLAUDE_MODEL);
     console.log('Sending minimal test message…');
 
     const payload = {
-        action: 'claude',
-        body: {
-            model: CLAUDE_MODEL,
-            max_tokens: 50,
-            messages: [{ role: 'user', content: 'Reply with just the word PONG and nothing else.' }]
-        }
+        model: CLAUDE_MODEL,
+        max_tokens: 50,
+        messages: [{ role: 'user', content: 'Reply with just the word PONG and nothing else.' }]
     };
 
     try {
-        const res = await fetch(DRIVE_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const res = await fetch(CLAUDE_PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+            body: JSON.stringify(payload)
+        });
         console.log('HTTP status:', res.status);
         const raw = await res.text();
         console.log('Raw response (first 500 chars):', raw.slice(0, 500));
