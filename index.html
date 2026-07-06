@@ -1074,7 +1074,7 @@
             <div id="prospectsSection" class="section">
                 <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <button class="btn-secondary btn-sm" onclick="showSection('loginSection')"><i data-lucide="arrow-left"></i> Back</button>
+                        <button class="btn-secondary btn-sm" onclick="showSection((currentRole==='admin')?'adminSection':'agentSection')"><i data-lucide="arrow-left"></i> Back</button>
                         <strong><i data-lucide="users"></i> All Prospects</strong>
                     </div>
                     <button class="btn-success btn-sm" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
@@ -1240,6 +1240,7 @@
                     <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
                     <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
                     <button class="btn-success btn-sm" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
+                    <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
                     <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
                     <button class="btn-purple btn-sm" onclick="openDailyVerificationModal()"><i data-lucide="file-check"></i> Verification Log</button>
                     <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
@@ -2427,6 +2428,7 @@
                     <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
                     <button class="btn-success" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
+                    <button class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" onclick="showProspectsSection()"><i data-lucide="target"></i> Prospects</button>
                     <button class="btn-warning" onclick="importJorgeCastroData()" title="Import all Jorge Castro entries from the Doral commission spreadsheet">
                         <i data-lucide="upload"></i> Import Jorge Castro
                     </button>
