@@ -1080,6 +1080,51 @@
                     <button class="btn-success btn-sm" onclick="openNewProspectModal()"><i data-lucide="user-plus"></i> New Prospect</button>
                 </div>
 
+                <!-- ════════════════════════════════════════════════════
+                     PROSPECTS DASHBOARD
+                     ════════════════════════════════════════════════════ -->
+                <div style="margin-top:18px;border:1px solid var(--gray-200);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);">
+                    <!-- Header -->
+                    <div style="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%);color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <i data-lucide="target" style="width:20px;height:20px;"></i>
+                            <div>
+                                <h3 style="margin:0;font-size:1.02rem;font-weight:800;letter-spacing:-0.2px;">Prospects Dashboard</h3>
+                                <p style="margin:0;font-size:11px;opacity:0.75;" id="pdash_sub">Loading…</p>
+                            </div>
+                        </div>
+                        <select id="pdash_agentFilter" onchange="renderProspectsDashboard()" style="padding:6px 10px;border:none;border-radius:6px;font-size:13px;background:rgba(255,255,255,.15);color:#fff;min-width:150px;">
+                            <option value="" style="color:#111;">All Agents</option>
+                        </select>
+                    </div>
+
+                    <!-- Stat cards -->
+                    <div id="pdash_statsRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:16px 20px;background:#fff;border-bottom:1px solid var(--gray-200);"></div>
+
+                    <!-- Follow-up alerts -->
+                    <div id="pdash_followups" style="padding:0 20px;background:#fff;"></div>
+
+                    <!-- Pipeline + breakdowns -->
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;padding:18px 20px;background:#fff;">
+                        <div>
+                            <h4 style="margin:0 0 12px 0;font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px;">Pipeline by Status</h4>
+                            <div id="pdash_pipeline"></div>
+                        </div>
+                        <div>
+                            <h4 style="margin:0 0 12px 0;font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px;">By Agent</h4>
+                            <div id="pdash_byAgent"></div>
+                        </div>
+                        <div>
+                            <h4 style="margin:0 0 12px 0;font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px;">By Source</h4>
+                            <div id="pdash_bySource"></div>
+                        </div>
+                        <div>
+                            <h4 style="margin:0 0 12px 0;font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px;">By Line of Business</h4>
+                            <div id="pdash_byLOB"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Filters -->
                 <div style="display:flex; gap:10px; flex-wrap:wrap; margin:16px 0;">
                     <input type="text" id="prospectSearch" placeholder="Search name, phone, email…"

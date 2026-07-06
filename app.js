@@ -1408,6 +1408,7 @@ function saveProspect(e) {
 
     // Refresh list if prospects section is open
     if (document.getElementById('prospectsSection')?.classList.contains('active')) {
+        renderProspectsDashboard();
         renderProspectsTable();
     }
 }
@@ -1415,9 +1416,132 @@ function saveProspect(e) {
 // ── Prospects List Section ─────────────────────────────────────
 function showProspectsSection() {
     showSection('prospectsSection');
+    renderProspectsDashboard();
     renderProspectsTable();
     refreshIcons();
     if (window.UIBMotion) UIBMotion.animateSection(document.getElementById('prospectsSection'));
+}
+
+function renderProspectsDashboard() {
+    const all = JSON.parse(localStorage.getItem('prospectData')) || [];
+
+    // Populate agent filter (once) from data + master agents
+    const agentSel = document.getElementById('pdash_agentFilter');
+    if (agentSel) {
+        const current = agentSel.value;
+        const agents = [...new Set(all.map(p => p.agent).filter(Boolean))].sort();
+        agentSel.innerHTML = '<option value="" style="color:#111;">All Agents</option>' +
+            agents.map(a => `<option value="${a}" style="color:#111;"${a === current ? ' selected' : ''}>${a}</option>`).join('');
+    }
+    const agentF = agentSel?.value || '';
+
+    const prospects = agentF ? all.filter(p => (p.agent || '') === agentF) : all;
+    const total = prospects.length;
+
+    const STATUSES = ['Open', 'Contacted', 'Quoted', 'Closed', 'Lost'];
+    const statusColors = {
+        Open:'#3b82f6', Contacted:'#eab308', Quoted:'#8b5cf6', Closed:'#16a34a', Lost:'#ef4444'
+    };
+    const byStatus = { Open:0, Contacted:0, Quoted:0, Closed:0, Lost:0 };
+    prospects.forEach(p => { const s = p.status || 'Open'; byStatus[s] = (byStatus[s] || 0) + 1; });
+
+    const won     = byStatus.Closed;
+    const lost    = byStatus.Lost;
+    const active  = total - won - lost;
+    const decided = won + lost;
+    const convRate = decided > 0 ? Math.round((won / decided) * 100) : 0;
+
+    // Follow-up buckets (only for prospects still in play)
+    const today = getEasternDateString();
+    const weekEnd = (() => { const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })();
+    let overdue = 0, dueToday = 0, dueWeek = 0;
+    prospects.forEach(p => {
+        if (!p.followUpDate || p.status === 'Closed' || p.status === 'Lost') return;
+        if (p.followUpDate < today) overdue++;
+        else if (p.followUpDate === today) dueToday++;
+        else if (p.followUpDate <= weekEnd) dueWeek++;
+    });
+
+    // Sub line
+    const sub = document.getElementById('pdash_sub');
+    if (sub) sub.textContent = `${total} prospect${total !== 1 ? 's' : ''}${agentF ? ' · ' + agentF : ''} · ${active} active`;
+
+    // Stat cards
+    const card = (label, value, bg, border, color) =>
+        `<div style="background:${bg};border:1px solid ${border};border-radius:10px;padding:12px 14px;">
+            <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">${label}</div>
+            <div style="font-size:22px;font-weight:800;color:#0f172a;">${value}</div>
+        </div>`;
+    const statsRow = document.getElementById('pdash_statsRow');
+    if (statsRow) statsRow.innerHTML =
+        card('Total Prospects', total, '#eff6ff', '#bfdbfe', '#1e40af') +
+        card('Active', active, '#f5f3ff', '#ddd6fe', '#6d28d9') +
+        card('Won (Closed)', won, '#f0fdf4', '#bbf7d0', '#166534') +
+        card('Lost', lost, '#fef2f2', '#fecaca', '#991b1b') +
+        card('Conversion Rate', convRate + '%', '#fff7ed', '#fed7aa', '#9a3412') +
+        card('Follow-ups Overdue', overdue, overdue > 0 ? '#fef2f2' : '#f8fafc', overdue > 0 ? '#fecaca' : '#e2e8f0', overdue > 0 ? '#991b1b' : '#64748b');
+
+    // Follow-up alert banner
+    const fu = document.getElementById('pdash_followups');
+    if (fu) {
+        if (overdue + dueToday + dueWeek > 0) {
+            const chip = (n, txt, bg, col) => n > 0
+                ? `<span style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:${col};padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;">${n} ${txt}</span>`
+                : '';
+            fu.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 0;border-bottom:1px solid var(--gray-200);">
+                <span style="font-size:12px;font-weight:700;color:#334155;">📞 Follow-ups:</span>
+                ${chip(overdue, 'overdue', '#fee2e2', '#991b1b')}
+                ${chip(dueToday, 'due today', '#fef9c3', '#854d0e')}
+                ${chip(dueWeek, 'this week', '#dbeafe', '#1e40af')}
+            </div>`;
+        } else {
+            fu.innerHTML = '';
+        }
+    }
+
+    // Horizontal bar helper
+    const barBlock = (rows, colorFn) => {
+        if (!rows.length) return '<div style="font-size:13px;color:#94a3b8;font-style:italic;">No data</div>';
+        const max = Math.max(...rows.map(r => r.count), 1);
+        return rows.map(r => {
+            const pct = Math.round((r.count / max) * 100);
+            const c = colorFn ? colorFn(r.label) : '#1d4ed8';
+            return `<div class="prod-bar-row" style="margin-bottom:8px;">
+                <div class="prod-bar-label" style="width:110px;">${r.label}</div>
+                <div class="prod-bar-track" style="height:26px;">
+                    <div class="prod-bar-fill" style="width:${Math.max(pct, 4)}%;background:${c};">
+                        <span style="font-size:12px;font-weight:700;color:#fff;">${r.count}</span>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    };
+
+    // Pipeline by status (fixed order)
+    const pipeline = document.getElementById('pdash_pipeline');
+    if (pipeline) pipeline.innerHTML = barBlock(
+        STATUSES.map(s => ({ label: s, count: byStatus[s] })),
+        (lbl) => statusColors[lbl] || '#1d4ed8'
+    );
+
+    // Group helper
+    const groupCounts = (field) => {
+        const g = {};
+        prospects.forEach(p => { const k = (p[field] || '').trim() || '—'; g[k] = (g[k] || 0) + 1; });
+        return Object.entries(g).map(([label, count]) => ({ label, count }))
+            .sort((a, b) => b.count - a.count).slice(0, 8);
+    };
+
+    const byAgent = document.getElementById('pdash_byAgent');
+    if (byAgent) byAgent.innerHTML = barBlock(groupCounts('agent'), () => '#0d9488');
+
+    const bySource = document.getElementById('pdash_bySource');
+    if (bySource) bySource.innerHTML = barBlock(groupCounts('source'), () => '#7c3aed');
+
+    const byLOB = document.getElementById('pdash_byLOB');
+    if (byLOB) byLOB.innerHTML = barBlock(groupCounts('lob'), () => '#d97706');
+
+    if (typeof refreshIcons === 'function') refreshIcons();
 }
 
 function renderProspectsTable() {
