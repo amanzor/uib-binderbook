@@ -2455,6 +2455,36 @@
                         </div>
                     </div>
 
+                    <!-- Agent Breakdown -->
+                    <div style="margin-bottom:22px;">
+                        <h4 style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:10px;"><i data-lucide="users"></i> Commission by Agent <span style="font-weight:400;font-size:11.5px;color:var(--gray-400);">(true reporting agent from the Binder Book — not the carrier's producer-of-record)</span></h4>
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                                <thead>
+                                    <tr style="background:var(--gray-50);border-bottom:2px solid var(--gray-200);">
+                                        <th style="padding:9px 12px;text-align:left;font-weight:600;color:var(--gray-600);">Agent</th>
+                                        <th style="padding:9px 12px;text-align:center;font-weight:600;color:var(--gray-600);">Transactions</th>
+                                        <th style="padding:9px 12px;text-align:right;font-weight:600;color:var(--gray-600);">Commission</th>
+                                        <th style="padding:9px 12px;font-weight:600;color:var(--gray-600);">Share</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="csAgentBreakdownBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Per-Agent Commission Statement (mirrors carrier commission statement format, grouped by agent) -->
+                    <div style="margin-bottom:22px;border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;">
+                        <div style="background:linear-gradient(135deg,var(--navy),#1a365d);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <i data-lucide="file-text"></i>
+                                <strong style="font-size:14px;">Agent Commission Statement</strong>
+                            </div>
+                            <button class="btn-secondary btn-sm" onclick="exportCSAgentReportCSV()"><i data-lucide="download"></i> Export CSV</button>
+                        </div>
+                        <div id="csAgentReportBody" style="padding:14px 16px;background:#fff;max-height:520px;overflow-y:auto;"></div>
+                    </div>
+
                     <!-- Filters + Entry Table -->
                     <div>
                         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
@@ -2481,6 +2511,7 @@
                                 <thead>
                                     <tr style="background:var(--gray-50);border-bottom:2px solid var(--gray-200);">
                                         <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Client Name</th>
+                                        <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Policy #</th>
                                         <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Type</th>
                                         <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Carrier</th>
                                         <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">LOB</th>
@@ -2491,7 +2522,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="csEntriesBody">
-                                    <tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:32px;">Select a month above to view entries.</td></tr>
+                                    <tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:32px;">Select a month above to view entries.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -3459,7 +3490,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260707m"></script>
+    <script src="app.js?v=20260707n"></script>
     <script src="supabase.js?v=20260701b"></script>
 </body>
 </html>
