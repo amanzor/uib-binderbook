@@ -702,7 +702,42 @@
             <h3 style="margin:0;color:#065f46;font-size:16px;">📁 Client Files</h3>
             <button type="button" class="btn-danger btn-sm" onclick="binderCloseFileModal()">✕ Close</button>
         </div>
-        <div id="binderFileModalBody"></div>
+        <div id="binderFileModalBody">
+            <div style="font-size:13px;color:#374151;margin-bottom:14px;padding:10px 12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;">
+                <strong>Client:</strong> <span id="binderFileClientNameText" style="color:#065f46;font-weight:700;">—</span>
+                <span style="margin-left:10px;font-size:11px;color:#6b7280;font-style:italic;">Files shared with AMS</span>
+            </div>
+            <div style="margin-bottom:16px;">
+                <h4 style="color:#374151;margin:0 0 8px 0;font-size:13px;font-weight:700;">📋 Files</h4>
+                <div id="binderFileList" style="min-height:60px;border:1px solid #e5e7eb;border-radius:8px;padding:6px;background:#fafafa;">
+                    <div style="color:#9ca3af;font-style:italic;text-align:center;padding:16px;font-size:13px;">Loading…</div>
+                </div>
+            </div>
+            <div style="background:#f8fafc;border:1.5px dashed #a7f3d0;border-radius:10px;padding:14px;">
+                <h4 style="color:#065f46;margin:0 0 12px 0;font-size:13px;font-weight:700;">⬆️ Add Files</h4>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Category</label>
+                        <select id="binderFileCategory" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option value="Policy">Policy Document</option>
+                            <option value="Quote">Quote</option>
+                            <option value="ID">ID / Identification</option>
+                            <option value="Claims">Claims</option>
+                            <option value="Correspondence">Correspondence</option>
+                            <option value="Other" selected>Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Select Files</label>
+                        <input type="file" id="binderFileInput" multiple style="width:100%;font-size:13px;padding:6px;border:1px solid #d1d5db;border-radius:6px;background:#fff;">
+                    </div>
+                    <button type="button" id="binderUploadBtn" onclick="binderDoUpload()" class="btn-success" style="align-self:flex-start;padding:8px 20px;font-size:13px;">
+                        ⬆️ Upload Files
+                    </button>
+                    <div id="binderUploadStatus" style="display:none;font-size:13px;color:#059669;font-weight:600;"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -716,7 +751,7 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js"></script>
+<script src="app.js?v=20260707b"></script>
 <script src="motion.js"></script>
 <script>
     // Auth check — redirect to main app if not logged in

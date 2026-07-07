@@ -2199,7 +2199,7 @@ function renderAgentTable(entries) {
             <td>$${entry.totalPremium.toFixed(2)}</td>
             <td style="white-space:nowrap;">
                 <button class="btn-primary btn-sm" onclick="openEditModal(${entry.id})" style="margin-right:2px;"><i data-lucide="pencil"></i> Edit</button>
-                <button class="btn-success btn-sm" onclick="binderOpenFileModal(${entry.id}, ${JSON.stringify(entry.customerName)})" data-binder-file-btn="${entry.id}" title="Manage Files" style="margin-right:2px;background:#059669;"><i data-lucide="folder-open"></i></button>
+                <button class="btn-success btn-sm" onclick="binderOpenFileModal(${entry.id}, this.dataset.customer)" data-customer="${String(entry.customerName || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" data-binder-file-btn="${entry.id}" title="Manage Files" style="margin-right:2px;background:#059669;"><i data-lucide="folder-open"></i></button>
                 <button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})"><i data-lucide="trash-2"></i> Delete</button>
             </td>
         </tr>
@@ -2461,7 +2461,7 @@ function renderAdminTable(entries) {
             <td>$${entry.totalPremium.toFixed(2)}</td>
             <td style="white-space:nowrap;">
                 <button class="btn-primary btn-sm" onclick="openEditModal(${entry.id})" style="margin-right:2px;"><i data-lucide="pencil"></i> Edit</button>
-                <button class="btn-success btn-sm" onclick="binderOpenFileModal(${entry.id}, ${JSON.stringify(entry.customerName)})" data-binder-file-btn="${entry.id}" title="Manage Files" style="margin-right:2px;background:#059669;"><i data-lucide="folder-open"></i></button>
+                <button class="btn-success btn-sm" onclick="binderOpenFileModal(${entry.id}, this.dataset.customer)" data-customer="${String(entry.customerName || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" data-binder-file-btn="${entry.id}" title="Manage Files" style="margin-right:2px;background:#059669;"><i data-lucide="folder-open"></i></button>
                 <button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})"><i data-lucide="trash-2"></i> Delete</button>
             </td>
         </tr>`;
