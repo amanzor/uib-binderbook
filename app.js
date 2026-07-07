@@ -1606,6 +1606,10 @@ function renderProspectsTable() {
 }
 
 // ── Verification Logs Section ──────────────────────────────────
+// Values are stored as "Yes"/"No" (matches the New Log form and the
+// downloaded PDF form). Always compare case-insensitively.
+function _vlIsYes(val) { return String(val || '').toLowerCase() === 'yes'; }
+
 function showVerificationLogsSection() {
     showSection('verificationLogsSection');
     renderVerificationLogsDashboard();
@@ -1638,7 +1642,7 @@ function renderVerificationLogsDashboard() {
 
     const yesRate = (field) => {
         if (!total) return 0;
-        const yes = logs.filter(l => l[field] === 'yes').length;
+        const yes = logs.filter(l => _vlIsYes(l[field])).length;
         return Math.round((yes / total) * 100);
     };
     const ackRate  = yesRate('acknowledged');
@@ -1746,11 +1750,11 @@ function renderVerificationLogsTable() {
     const noStyle  = 'background:#fef2f2;color:#991b1b;';
 
     tbody.innerHTML = filtered.map(l => {
-        const ackStyle  = l.acknowledged   === 'yes' ? yesStyle : noStyle;
-        const permStyle = l.permissionToFollowUp === 'yes' ? yesStyle : noStyle;
-        const confStyle = l.agentConfirmed === 'yes' ? yesStyle : noStyle;
+        const ackStyle  = _vlIsYes(l.acknowledged)   ? yesStyle : noStyle;
+        const permStyle = _vlIsYes(l.permissionToFollowUp) ? yesStyle : noStyle;
+        const confStyle = _vlIsYes(l.agentConfirmed) ? yesStyle : noStyle;
         const badge = (val, style) =>
-            `<span style="padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;${style}">${val === 'yes' ? 'Yes' : 'No'}</span>`;
+            `<span style="padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;${style}">${_vlIsYes(val) ? 'Yes' : 'No'}</span>`;
         return `<tr>
             <td>${l.date || '—'}</td>
             <td>${l.agent || '—'}</td>
@@ -1796,7 +1800,7 @@ function openEditVerificationPermissionsModal(id) {
     document.getElementById('evp_date').textContent = entry.date || '—';
 
     const setRadio = (name, val) => {
-        const el = document.querySelector(`input[name="${name}"][value="${val === 'yes' ? 'yes' : 'no'}"]`);
+        const el = document.querySelector(`input[name="${name}"][value="${_vlIsYes(val) ? 'Yes' : 'No'}"]`);
         if (el) el.checked = true;
     };
     setRadio('evp_ack',  entry.acknowledged);
@@ -1819,9 +1823,9 @@ function saveEditVerificationPermissions() {
     const entry = logs.find(l => l.id === _editingVerificationLogId);
     if (!entry) return;
 
-    entry.acknowledged          = document.querySelector('input[name="evp_ack"]:checked')?.value  || 'no';
-    entry.permissionToFollowUp  = document.querySelector('input[name="evp_perm"]:checked')?.value || 'no';
-    entry.agentConfirmed        = document.querySelector('input[name="evp_conf"]:checked')?.value || 'no';
+    entry.acknowledged          = document.querySelector('input[name="evp_ack"]:checked')?.value  || 'No';
+    entry.permissionToFollowUp  = document.querySelector('input[name="evp_perm"]:checked')?.value || 'No';
+    entry.agentConfirmed        = document.querySelector('input[name="evp_conf"]:checked')?.value || 'No';
     entry.editedAt = getEasternTimestamp();
 
     localStorage.setItem('verificationLogs', JSON.stringify(logs));
