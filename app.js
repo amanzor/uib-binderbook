@@ -7592,39 +7592,38 @@ async function claudeInlineTest() {
     claudeInlineAddMessage('assistant', '🔧 Testing connection to Claude AI…');
     try {
         const payload = {
-            action: 'claude',
-            body: {
-                model: CLAUDE_MODEL,
-                max_tokens: 30,
-                messages: [{ role: 'user', content: 'Reply with just the word PONG.' }]
-            }
+            model: CLAUDE_MODEL,
+            max_tokens: 30,
+            messages: [{ role: 'user', content: 'Reply with just the word PONG.' }]
         };
-        const res = await fetch(DRIVE_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const res = await fetch(CLAUDE_PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+            body: JSON.stringify(payload)
+        });
         const raw = await res.text();
         let data;
         try { data = JSON.parse(raw); } catch(e) {
-            claudeInlineAddMessage('assistant', `❌ Apps Script returned non-JSON:\n${raw.slice(0, 300)}\n\n→ The Apps Script web app may need to be redeployed (Manage Deployments → New version).`);
+            claudeInlineAddMessage('assistant', `❌ AI proxy returned non-JSON (HTTP ${res.status}):\n${raw.slice(0, 300)}`);
             return;
         }
-        if (data.success === false) {
-            const err = data.error || JSON.stringify(data);
-            if (/UrlFetchApp|permission/i.test(err)) {
-                claudeInlineAddMessage('assistant', `❌ Apps Script needs external URL permission.\n\nFix: Open script.google.com → Run the "handleClaudeRequest" function once → approve permissions → redeploy as New Version.`);
-            } else if (/No key|action/i.test(err)) {
-                claudeInlineAddMessage('assistant', `❌ Apps Script doesn't recognize action="claude".\n\nFix: Make sure your doPost() function checks for action==="claude" and forwards to the Claude API. Then redeploy as New Version.`);
-            } else {
-                claudeInlineAddMessage('assistant', `❌ Apps Script error: ${err}`);
-            }
+        if (res.status === 404 || data.code === 'NOT_FOUND') {
+            claudeInlineAddMessage('assistant', `❌ The "claude" function is not deployed on Supabase yet.\n\nFix: Supabase Dashboard → Edge Functions → Deploy new function → name it "claude" → paste the proxy code → Deploy, then add the ANTHROPIC_API_KEY secret.`);
             return;
         }
         if (data.error) {
-            claudeInlineAddMessage('assistant', `❌ Claude API error (${data.error.type}): ${data.error.message}\n\nCheck that your API key in the Apps Script is valid.`);
+            const t = data.error.type || '';
+            if (t === 'authentication_error') {
+                claudeInlineAddMessage('assistant', `❌ Claude API key invalid or missing.\n\nFix: Supabase Dashboard → Edge Functions → Secrets → set ANTHROPIC_API_KEY to your sk-ant-... key.`);
+            } else {
+                claudeInlineAddMessage('assistant', `❌ Claude API error (${t}): ${data.error.message || JSON.stringify(data.error)}`);
+            }
             return;
         }
         const txt = data.content?.find(b => b.type === 'text')?.text || '';
-        claudeInlineAddMessage('assistant', `✅ Connection OK — Claude responded: "${txt}"\nModel: ${CLAUDE_MODEL}`);
+        claudeInlineAddMessage('assistant', `✅ Connection OK — Claude responded: "${txt}"\nModel: ${CLAUDE_MODEL} · via Supabase`);
     } catch(e) {
-        claudeInlineAddMessage('assistant', `❌ Network error: ${e.message}\n\nThe Apps Script URL may be wrong or your network is blocking it.`);
+        claudeInlineAddMessage('assistant', `❌ Network error: ${e.message}\n\nCheck your internet connection.`);
     }
 }
 

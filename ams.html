@@ -4222,22 +4222,25 @@ IMPORTANT:
 - Before the JSON, write a 1-line summary of what was found`;
 
                 const payload = {
-                    action: 'claude',
-                    body: {
-                        model: 'claude-sonnet-4-6',
-                        max_tokens: 4096,
-                        system: systemPrompt,
-                        messages: [{
-                            role: 'user',
-                            content: [
-                                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-                                { type: 'text', text: 'Extract all policy/transaction records from this carrier download PDF.' }
-                            ]
-                        }]
-                    }
+                    model: 'claude-sonnet-4-6',
+                    max_tokens: 4096,
+                    system: systemPrompt,
+                    messages: [{
+                        role: 'user',
+                        content: [
+                            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+                            { type: 'text', text: 'Extract all policy/transaction records from this carrier download PDF.' }
+                        ]
+                    }]
                 };
 
-                const res = await fetch(DRIVE_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const AI_PROXY = 'https://jgjmobktucyimupelfxd.supabase.co/functions/v1/claude';
+                const AI_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
+                const res = await fetch(AI_PROXY, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'apikey': AI_ANON, 'Authorization': 'Bearer ' + AI_ANON },
+                    body: JSON.stringify(payload)
+                });
                 const raw = await res.text();
                 let data;
                 try { data = JSON.parse(raw); } catch(e) { throw new Error('AI service returned invalid response'); }
