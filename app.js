@@ -1760,7 +1760,12 @@ function renderVerificationLogsTable() {
             <td>${badge(l.permissionToFollowUp, permStyle)}</td>
             <td>${badge(l.agentConfirmed, confStyle)}</td>
             <td style="font-size:12px;color:var(--gray-500);">${l.timestamp || '—'}</td>
-            <td><button class="btn-sm btn-secondary" onclick="redownloadVerificationLog('${l.id}')"><i data-lucide="download"></i> Download</button></td>
+            <td style="white-space:nowrap;">
+                <div style="display:flex;gap:4px;">
+                    <button class="btn-sm btn-purple" onclick="openEditVerificationPermissionsModal('${l.id}')" title="Edit permissions"><i data-lucide="pencil"></i> Edit</button>
+                    <button class="btn-sm btn-secondary" onclick="redownloadVerificationLog('${l.id}')" title="Download"><i data-lucide="download"></i></button>
+                </div>
+            </td>
         </tr>`;
     }).join('');
 
@@ -1775,6 +1780,54 @@ function redownloadVerificationLog(id) {
     const logs  = JSON.parse(localStorage.getItem('verificationLogs')) || [];
     const entry = logs.find(l => l.id === id);
     if (entry) downloadVerificationForm(entry);
+}
+
+// ── Edit Verification Log permissions ──────────────────────────
+let _editingVerificationLogId = null;
+
+function openEditVerificationPermissionsModal(id) {
+    const logs  = JSON.parse(localStorage.getItem('verificationLogs')) || [];
+    const entry = logs.find(l => l.id === id);
+    if (!entry) return;
+    _editingVerificationLogId = id;
+
+    document.getElementById('evp_customerName').textContent = entry.customerName || '—';
+    document.getElementById('evp_dealer').textContent = entry.dealer || '—';
+    document.getElementById('evp_date').textContent = entry.date || '—';
+
+    const setRadio = (name, val) => {
+        const el = document.querySelector(`input[name="${name}"][value="${val === 'yes' ? 'yes' : 'no'}"]`);
+        if (el) el.checked = true;
+    };
+    setRadio('evp_ack',  entry.acknowledged);
+    setRadio('evp_perm', entry.permissionToFollowUp);
+    setRadio('evp_conf', entry.agentConfirmed);
+
+    const m = document.getElementById('editVerificationPermissionsModal');
+    m.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+}
+
+function closeEditVerificationPermissionsModal() {
+    document.getElementById('editVerificationPermissionsModal').classList.remove('active');
+    _editingVerificationLogId = null;
+}
+
+function saveEditVerificationPermissions() {
+    if (!_editingVerificationLogId) return;
+    const logs = JSON.parse(localStorage.getItem('verificationLogs')) || [];
+    const entry = logs.find(l => l.id === _editingVerificationLogId);
+    if (!entry) return;
+
+    entry.acknowledged          = document.querySelector('input[name="evp_ack"]:checked')?.value  || 'no';
+    entry.permissionToFollowUp  = document.querySelector('input[name="evp_perm"]:checked')?.value || 'no';
+    entry.agentConfirmed        = document.querySelector('input[name="evp_conf"]:checked')?.value || 'no';
+    entry.editedAt = getEasternTimestamp();
+
+    localStorage.setItem('verificationLogs', JSON.stringify(logs));
+    closeEditVerificationPermissionsModal();
+    renderVerificationLogsDashboard();
+    renderVerificationLogsTable();
 }
 
 // ── Daily Sales Entry Modal ────────────────────────────────────

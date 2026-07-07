@@ -1070,6 +1070,51 @@
                 </div>
             </div>
 
+            <!-- Edit Verification Log Permissions Modal -->
+            <div id="editVerificationPermissionsModal" class="modal">
+                <div class="modal-content" style="max-width:420px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                        <h3 style="margin:0;font-size:16px;"><i data-lucide="pencil"></i> Edit Permissions</h3>
+                        <button type="button" class="btn-danger btn-sm" onclick="closeEditVerificationPermissionsModal()">✕</button>
+                    </div>
+
+                    <div style="background:#f8fafc; border:1px solid var(--gray-200); border-radius:8px; padding:10px 14px; margin-bottom:18px; font-size:13px;">
+                        <div><strong>Customer:</strong> <span id="evp_customerName">—</span></div>
+                        <div><strong>Dealer:</strong> <span id="evp_dealer">—</span></div>
+                        <div><strong>Date:</strong> <span id="evp_date">—</span></div>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:16px; margin-bottom:20px;">
+                        <div>
+                            <label style="font-size:13px; font-weight:700; color:#374151; display:block; margin-bottom:6px;">Acknowledged</label>
+                            <div style="display:flex; gap:16px;">
+                                <label style="font-size:13px;"><input type="radio" name="evp_ack" value="yes"> Yes</label>
+                                <label style="font-size:13px;"><input type="radio" name="evp_ack" value="no"> No</label>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size:13px; font-weight:700; color:#374151; display:block; margin-bottom:6px;">Permission to Follow Up</label>
+                            <div style="display:flex; gap:16px;">
+                                <label style="font-size:13px;"><input type="radio" name="evp_perm" value="yes"> Yes</label>
+                                <label style="font-size:13px;"><input type="radio" name="evp_perm" value="no"> No</label>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size:13px; font-weight:700; color:#374151; display:block; margin-bottom:6px;">Agent Confirmed</label>
+                            <div style="display:flex; gap:16px;">
+                                <label style="font-size:13px;"><input type="radio" name="evp_conf" value="yes"> Yes</label>
+                                <label style="font-size:13px;"><input type="radio" name="evp_conf" value="no"> No</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-success" onclick="saveEditVerificationPermissions()">💾 Save Changes</button>
+                        <button type="button" class="btn-secondary" onclick="closeEditVerificationPermissionsModal()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Prospects Section -->
             <div id="prospectsSection" class="section">
                 <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
@@ -1267,7 +1312,7 @@
                                 <th>Permission to Follow Up</th>
                                 <th>Agent Confirmed</th>
                                 <th>Timestamp</th>
-                                <th>Download</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="vlTableBody">
@@ -3413,7 +3458,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260707g"></script>
+    <script src="app.js?v=20260707h"></script>
     <script src="supabase.js?v=20260701b"></script>
 </body>
 </html>
