@@ -6516,6 +6516,88 @@ function binderCloseFileModal() {
     document.getElementById('binderFileModal').classList.remove('active');
 }
 
+// ── Supabase Storage (cloud files) ────────────────────────────
+
+const FILES_BUCKET = 'client-files';
+let _binderCloudFiles = {};   // docId → {path, name} cache for click handlers
+
+function _binderStoragePath(clientKey, fileName) {
+    const safeKey  = String(clientKey).replace(/[^\w\- ]/g, '_');
+    const safeName = String(fileName).replace(/[^\w.\- ()]/g, '_');
+    return safeKey + '/' + Date.now() + '_' + safeName;
+}
+
+function _binderStorageUrl(path) {
+    return `${SUPABASE_URL}/storage/v1/object/${FILES_BUCKET}/` + path.split('/').map(encodeURIComponent).join('/');
+}
+
+async function binderCloudUpload(file, clientKey, category) {
+    const path = _binderStoragePath(clientKey, file.name);
+    const res = await fetch(_binderStorageUrl(path), {
+        method: 'POST',
+        headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+            'Content-Type': file.type || 'application/octet-stream',
+            'x-upsert': 'true'
+        },
+        body: file
+    });
+    if (!res.ok) {
+        const t = await res.text();
+        throw new Error('Cloud upload failed (HTTP ' + res.status + '): ' + t.slice(0, 120));
+    }
+    await fetch(`${SUPABASE_URL}/rest/v1/documents`, {
+        method: 'POST',
+        headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'return=minimal' }),
+        body: JSON.stringify([{
+            client_key: clientKey,
+            file_name: file.name,
+            category: category,
+            storage_path: path,
+            size_bytes: file.size,
+            uploaded_by: currentUser || 'Agent'
+        }])
+    });
+}
+
+async function binderCloudList(clientKey) {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?select=id,file_name,category,storage_path,size_bytes,uploaded_at,uploaded_by&client_key=eq.${encodeURIComponent(clientKey)}&order=uploaded_at.desc`, { headers: _SB_HEADERS });
+        if (!res.ok) return [];
+        return await res.json();
+    } catch (e) { return []; }
+}
+
+async function binderCloudDownload(docId) {
+    const f = _binderCloudFiles[docId];
+    if (!f) return;
+    const res = await fetch(_binderStorageUrl(f.path), {
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    if (!res.ok) { alert('Download failed (HTTP ' + res.status + ')'); return; }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = f.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function binderCloudDelete(docId) {
+    const f = _binderCloudFiles[docId];
+    if (!f) return;
+    if (!confirm('Delete this file from the cloud? This cannot be undone.')) return;
+    await fetch(_binderStorageUrl(f.path), {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    await fetch(`${SUPABASE_URL}/rest/v1/documents?id=eq.${encodeURIComponent(docId)}`, { method: 'DELETE', headers: _SB_HEADERS });
+    await binderLoadFileList();
+    if (_binderFileModalEntryId) binderUpdateFileBadge(_binderFileModalEntryId, _binderFileModalClientKey);
+}
+
 // ── File list rendering ───────────────────────────────────────
 
 async function binderLoadFileList() {
@@ -6523,20 +6605,41 @@ async function binderLoadFileList() {
     const container = document.getElementById('binderFileList');
     container.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:16px;">Loading files…</div>';
     if (!binderDB) await binderInitDB();
-    const files = await binderDBGetFiles(_binderFileModalClientKey);
-    if (files.length === 0) {
+    const [cloudFiles, localFiles] = await Promise.all([
+        binderCloudList(_binderFileModalClientKey),
+        binderDBGetFiles(_binderFileModalClientKey)
+    ]);
+    if (cloudFiles.length === 0 && localFiles.length === 0) {
         container.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:16px;">No files uploaded for this client yet.</div>';
         return;
     }
-    container.innerHTML = files.map(f => `
+    _binderCloudFiles = {};
+    cloudFiles.forEach(f => { _binderCloudFiles[f.id] = { path: f.storage_path, name: f.file_name }; });
+
+    const cloudRows = cloudFiles.map(f => `
         <div style="display:flex;align-items:center;gap:6px;padding:8px 6px;border-bottom:1px solid #e5e7eb;font-size:13px;">
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.name)}">📄 ${escHtml(f.name)}</span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.file_name)}">☁️ ${escHtml(f.file_name)}</span>
+            <span style="color:#6b7280;font-size:12px;white-space:nowrap;padding:2px 6px;background:#f3f4f6;border-radius:4px;">${escHtml(f.category || 'Other')}</span>
+            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploaded_at).toLocaleDateString()}</span>
+            <button class="btn-primary btn-sm" onclick="binderCloudDownload('${escHtml(f.id)}')" style="padding:3px 8px;font-size:11px;" title="Download">⬇️</button>
+            <button class="btn-danger btn-sm" onclick="binderCloudDelete('${escHtml(f.id)}')" style="padding:3px 8px;font-size:11px;" title="Delete">🗑️</button>
+        </div>
+    `).join('');
+
+    const localRows = localFiles.map(f => `
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 6px;border-bottom:1px solid #e5e7eb;font-size:13px;">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.name)}">💾 ${escHtml(f.name)}</span>
             <span style="color:#6b7280;font-size:12px;white-space:nowrap;padding:2px 6px;background:#f3f4f6;border-radius:4px;">${escHtml(f.category || 'Other')}</span>
             <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploadedAt).toLocaleDateString()}</span>
             <button class="btn-primary btn-sm" onclick="binderDownloadFile(${f.id})" style="padding:3px 8px;font-size:11px;" title="Download">⬇️</button>
             <button class="btn-danger btn-sm" onclick="binderDeleteFile(${f.id})" style="padding:3px 8px;font-size:11px;" title="Delete">🗑️</button>
         </div>
     `).join('');
+
+    const legend = localFiles.length
+        ? '<div style="font-size:11px;color:#9ca3af;padding:4px 6px;">☁️ cloud — available on all devices &nbsp;·&nbsp; 💾 this computer only</div>'
+        : '';
+    container.innerHTML = cloudRows + localRows + legend;
 }
 
 function binderShowPendingFiles() {
@@ -6577,25 +6680,32 @@ async function binderDoUpload() {
     uploadBtn.textContent = 'Uploading…';
     statusDiv.style.display = 'none';
 
-    let uploaded = 0;
+    let uploaded = 0, localOnly = 0;
     for (const file of files) {
         try {
-            const buffer = await file.arrayBuffer();
-            await binderDBAddFile({
-                clientKey:  _binderFileModalClientKey,
-                name:       file.name,
-                path:       '',
-                fullPath:   file.name,
-                type:       file.type || 'application/octet-stream',
-                size:       file.size,
-                category:   category,
-                uploadedAt: new Date().toISOString(),
-                uploadedBy: currentUser || 'Agent',
-                data:       buffer
-            });
+            // Cloud first — Supabase Storage, available on every device
+            await binderCloudUpload(file, _binderFileModalClientKey, category);
             uploaded++;
-        } catch (err) {
-            console.warn('Failed to upload:', file.name, err);
+        } catch (cloudErr) {
+            console.warn('Cloud upload failed, saving locally:', file.name, cloudErr);
+            try {
+                const buffer = await file.arrayBuffer();
+                await binderDBAddFile({
+                    clientKey:  _binderFileModalClientKey,
+                    name:       file.name,
+                    path:       '',
+                    fullPath:   file.name,
+                    type:       file.type || 'application/octet-stream',
+                    size:       file.size,
+                    category:   category,
+                    uploadedAt: new Date().toISOString(),
+                    uploadedBy: currentUser || 'Agent',
+                    data:       buffer
+                });
+                localOnly++;
+            } catch (err) {
+                console.warn('Failed to upload:', file.name, err);
+            }
         }
     }
 
@@ -6603,7 +6713,9 @@ async function binderDoUpload() {
     uploadBtn.innerHTML    = '<i data-lucide="upload"></i> Upload Files';
     fileInput.value        = '';
     statusDiv.style.display = 'block';
-    statusDiv.textContent  = `✅ ${uploaded} file${uploaded !== 1 ? 's' : ''} uploaded successfully!`;
+    statusDiv.textContent  = localOnly > 0
+        ? `✅ ${uploaded} saved to cloud, ⚠️ ${localOnly} saved to this computer only (cloud unreachable)`
+        : `✅ ${uploaded} file${uploaded !== 1 ? 's' : ''} uploaded to the cloud!`;
     refreshIcons();
     await binderLoadFileList();
     if (_binderFileModalEntryId) binderUpdateFileBadge(_binderFileModalEntryId, _binderFileModalClientKey);
@@ -6659,21 +6771,27 @@ async function binderSavePendingFiles(customerName, entryId) {
     const clientKey = binderClientKey(customerName);
     for (const pf of _pendingEntryFiles) {
         try {
-            const buffer = await pf.file.arrayBuffer();
-            await binderDBAddFile({
-                clientKey,
-                name:       pf.name,
-                path:       '',
-                fullPath:   pf.name,
-                type:       pf.file.type || 'application/octet-stream',
-                size:       pf.size,
-                category:   pf.category,
-                uploadedAt: new Date().toISOString(),
-                uploadedBy: currentUser || 'Agent',
-                data:       buffer
-            });
-        } catch (err) {
-            console.warn('Failed to save pending file:', pf.name, err);
+            // Cloud first — Supabase Storage, available on every device
+            await binderCloudUpload(pf.file, clientKey, pf.category);
+        } catch (cloudErr) {
+            console.warn('Cloud upload failed, saving locally:', pf.name, cloudErr);
+            try {
+                const buffer = await pf.file.arrayBuffer();
+                await binderDBAddFile({
+                    clientKey,
+                    name:       pf.name,
+                    path:       '',
+                    fullPath:   pf.name,
+                    type:       pf.file.type || 'application/octet-stream',
+                    size:       pf.size,
+                    category:   pf.category,
+                    uploadedAt: new Date().toISOString(),
+                    uploadedBy: currentUser || 'Agent',
+                    data:       buffer
+                });
+            } catch (err) {
+                console.warn('Failed to save pending file:', pf.name, err);
+            }
         }
     }
     _pendingEntryFiles = [];
@@ -6713,11 +6831,13 @@ async function binderDeleteFile(fileId) {
 // ── Update file-count badge on table row button ───────────────
 
 async function binderUpdateFileBadge(entryId, clientKey) {
-    if (!binderDB) return;
-    const files = await binderDBGetFiles(clientKey);
+    const [cloudFiles, localFiles] = await Promise.all([
+        binderCloudList(clientKey),
+        binderDB ? binderDBGetFiles(clientKey) : Promise.resolve([])
+    ]);
     const btn   = document.querySelector(`[data-binder-file-btn="${entryId}"]`);
     if (!btn) return;
-    const count = files.length;
+    const count = cloudFiles.length + localFiles.length;
     btn.innerHTML = count > 0
         ? `<i data-lucide="folder-open"></i> <span style="font-size:11px;font-weight:700;">${count}</span>`
         : '<i data-lucide="folder-open"></i>';
