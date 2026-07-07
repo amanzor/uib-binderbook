@@ -7410,7 +7410,7 @@ async function claudeSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeAddMessage('assistant', `❌ Error: ${err.message}\n\nMake sure the Google Apps Script has been updated with the Claude proxy.`);
+        claudeAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
     } finally {
         _claudeBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
@@ -8004,7 +8004,7 @@ async function claudeInlineSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeInlineAddMessage('assistant', `❌ Error: ${err.message}\n\nMake sure the Google Apps Script has been updated with the Claude proxy.`);
+        claudeInlineAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
     } finally {
         _claudeInlineBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
@@ -8359,7 +8359,7 @@ async function claudeAdminSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeAdminAddMessage('assistant', `❌ Error: ${err.message}\n\nMake sure the Google Apps Script has been updated with the Claude proxy.`);
+        claudeAdminAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
     } finally {
         _claudeAdminBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Process'; }
