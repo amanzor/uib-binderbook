@@ -4786,8 +4786,24 @@ function getAgentCommissionShares(agentName) {
 let _commDetailSortField = 'date';
 let _commDetailSortDir   = 'desc';
 
+// "My Commissions" is always scoped to the current calendar month and to
+// new business only (policyType starting with "New" — excludes Renewal,
+// Renew A-B, Rewrite, Policy Change, etc). Baked in here since this is the
+// only place in the app that reads agent policy entries for this feature —
+// screen view, CSV export, and PDF export all go through this one function.
+function _currentMonthYearET() {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: _ET, month: 'long', year: 'numeric' }).formatToParts(new Date());
+    return { month: p.find(x => x.type === 'month').value, year: p.find(x => x.type === 'year').value };
+}
+
 function _getAgentPolicyEntries(agent) {
-    return allData.filter(d => d.agent === agent);
+    const { month, year } = _currentMonthYearET();
+    const currentMonthLabel = `${month} ${year}`;
+    return allData.filter(d =>
+        d.agent === agent &&
+        /^new/i.test((d.policyType || '').trim()) &&
+        _entryMonth(d) === currentMonthLabel
+    );
 }
 
 function _entryMonth(e) {
@@ -4798,29 +4814,24 @@ function _entryMonth(e) {
 
 function loadAgentCommissionData() {
     const agent = currentUser;
+    // Already scoped to the current month + new business only (see _getAgentPolicyEntries).
     const entries = _getAgentPolicyEntries(agent);
     const commissions = loadCommissionData();
     const agentData = commissions[agent] || { monthlyPaidCommissionCarriers:{}, grossPaidCarriers:{} };
     const monthlyPaidCarriers = agentData.monthlyPaidCommissionCarriers || {};
     const grossPaidCarriers   = agentData.grossPaidCarriers || {};
 
-    // ── Populate dynamic filter dropdowns ──
-    const allYears = new Set(), allCarriers = new Set(), allLOBs = new Set();
+    // Fixed to the current month — this view no longer lets the agent pick a different period.
+    const { month: fMonth, year: fYear } = _currentMonthYearET();
+    const periodLabel = document.getElementById('commPeriodLabel');
+    if (periodLabel) periodLabel.textContent = `📅 ${fMonth} ${fYear} · New Business Only`;
+
+    // ── Populate dynamic filter dropdowns (Carrier / LOB only) ──
+    const allCarriers = new Set(), allLOBs = new Set();
     entries.forEach(e => {
-        const m = _entryMonth(e);
-        const parts = m.split(' ');
-        if (parts.length === 2) allYears.add(parts[1]);
         if (e.company) allCarriers.add(e.company);
         if (e.lineOfBusiness) allLOBs.add(e.lineOfBusiness);
     });
-    // Also gather years from carrier-level commission data
-    const _addCarrierYears = (carriers) => {
-        Object.values(carriers).forEach(months => {
-            Object.keys(months).forEach(m => { const p = m.split(' '); if (p.length === 2) allYears.add(p[1]); });
-        });
-    };
-    _addCarrierYears(monthlyPaidCarriers);
-    _addCarrierYears(grossPaidCarriers);
 
     const _populateSelect = (id, items, sorter) => {
         const sel = document.getElementById(id);
@@ -4831,27 +4842,21 @@ function loadAgentCommissionData() {
         sel.innerHTML = `<option value="">${firstOpt}</option>` +
             sorted.map(v => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v}</option>`).join('');
     };
-    _populateSelect('commFilterYear',    allYears,    (a,b) => b-a);
     _populateSelect('commFilterCarrier',  allCarriers);
     _populateSelect('commFilterLOB',      allLOBs);
 
     // ── Read active filters ──
-    const fMonth   = document.getElementById('commFilterMonth')?.value   || '';
-    const fYear    = document.getElementById('commFilterYear')?.value    || '';
     const fCarrier = document.getElementById('commFilterCarrier')?.value || '';
     const fLOB     = document.getElementById('commFilterLOB')?.value     || '';
 
+    // Still used to scope the Summary tab's carrier-level ledger (commissionData),
+    // which is a separate data source without a policyType to filter on.
     const monthMatches = (monthKey) => {
-        if (!fMonth && !fYear) return true;
         const [mName, mYear] = monthKey.split(' ');
-        if (fMonth && mName !== fMonth) return false;
-        if (fYear  && mYear !== fYear)  return false;
-        return true;
+        return mName === fMonth && mYear === fYear;
     };
 
     const entryMatches = (e) => {
-        const m = _entryMonth(e);
-        if (!monthMatches(m)) return false;
         if (fCarrier && e.company !== fCarrier) return false;
         if (fLOB && e.lineOfBusiness !== fLOB) return false;
         return true;
@@ -4917,7 +4922,7 @@ function loadAgentCommissionData() {
     const $m = (v) => v ? `$${parseFloat(v).toFixed(2)}` : '-';
 
     if (!hasCarrierData && !hasShareData) {
-        summaryTbody.innerHTML = '<tr><td colspan="10" class="no-data">No commission data for the selected period</td></tr>';
+        summaryTbody.innerHTML = '<tr><td colspan="10" class="no-data">No commission data for this month yet</td></tr>';
     } else {
         let html = '';
         let gtPremium = 0, gtFee = 0, gtAgencyComm = 0, gtAgentShare = 0, gtPolicies = 0;
@@ -5014,7 +5019,7 @@ function _renderCommDetailTable(filtered) {
     if (!detailTbody) return;
 
     if (sorted.length === 0) {
-        detailTbody.innerHTML = '<tr><td colspan="12" class="no-data">No policies found for selected filters</td></tr>';
+        detailTbody.innerHTML = '<tr><td colspan="12" class="no-data">No new business sold yet this month</td></tr>';
         return;
     }
 
@@ -5098,7 +5103,8 @@ function switchCommTab(tab) {
 }
 
 function clearCommissionFilters() {
-    ['commFilterMonth','commFilterYear','commFilterCarrier','commFilterLOB'].forEach(id => {
+    // Month/Year are no longer user-selectable — this view is always the current month.
+    ['commFilterCarrier','commFilterLOB'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
@@ -5112,9 +5118,11 @@ function clearCommissionFilters() {
 function exportAgentCommissions() {
     const agent = currentUser;
     const entries = _getAgentPolicyEntries(agent);
+    const { month, year } = _currentMonthYearET();
 
     let csvLines = [
         `Commission Statement - ${agent}`,
+        `Period: ${month} ${year} — New Business Only`,
         `Generated: ${getEasternDateTimeDisplay()}`,
         '',
         'Date,Customer,Carrier,LOB,Policy Type,Binder #,Base Premium,Agency Commission,Agency Fee,Agent Share (50%),Commission Type'
@@ -5154,6 +5162,7 @@ function exportAgentCommissionsPDF() {
     const entries = _getAgentPolicyEntries(agent);
     const sorted = [...entries].sort((a,b) => (a.entryDate||'').localeCompare(b.entryDate||''));
     const fmt = (v) => v ? `$${parseFloat(v).toFixed(2)}` : '-';
+    const { month, year } = _currentMonthYearET();
 
     let totalAgencyComm = 0, totalAgentShare = 0, totalPremium = 0, totalFee = 0;
     sorted.forEach(e => {
@@ -5194,7 +5203,7 @@ function exportAgentCommissionsPDF() {
     <script>window.onload = () => window.print();<\/script>
     </head><body>
     <h2>Commission Statement — ${agent}</h2>
-    <div class="meta">Generated: ${getEasternDateTimeDisplay()} &middot; ${sorted.length} policies</div>
+    <div class="meta">${month} ${year} &middot; New Business Only &middot; Generated: ${getEasternDateTimeDisplay()} &middot; ${sorted.length} policies</div>
     <div class="summary">
         <div class="sbox"><div class="lbl">Total Commissions</div><div class="val">${fmt(totalAgencyComm + totalAgentShare)}</div></div>
         <div class="sbox"><div class="lbl">Agency Commission</div><div class="val">${fmt(totalAgencyComm)}</div></div>

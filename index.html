@@ -3089,24 +3089,15 @@
 
             <div style="max-width:1000px;width:100%;margin:0 auto;padding:24px 20px 60px;flex:1;">
 
+                <!-- Fixed period banner — this view is always the current month, new business only -->
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:12px 18px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);border-radius:12px;color:#fff;">
+                    <i data-lucide="calendar-check" style="width:18px;height:18px;"></i>
+                    <strong id="commPeriodLabel" style="font-size:14px;">📅 Loading…</strong>
+                    <span style="font-size:12px;opacity:.75;">This statement always shows the current month's new business — see Commission Statements (admin) for other periods or transaction types.</span>
+                </div>
+
                 <!-- Filters -->
                 <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px;padding:14px 18px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
-                    <div style="display:flex;flex-direction:column;gap:5px;min-width:130px;">
-                        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Month</label>
-                        <select id="commFilterMonth" onchange="loadAgentCommissionData()" style="padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;">
-                            <option value="">All Months</option>
-                            <option value="January">January</option><option value="February">February</option><option value="March">March</option>
-                            <option value="April">April</option><option value="May">May</option><option value="June">June</option>
-                            <option value="July">July</option><option value="August">August</option><option value="September">September</option>
-                            <option value="October">October</option><option value="November">November</option><option value="December">December</option>
-                        </select>
-                    </div>
-                    <div style="display:flex;flex-direction:column;gap:5px;min-width:100px;">
-                        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Year</label>
-                        <select id="commFilterYear" onchange="loadAgentCommissionData()" style="padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;">
-                            <option value="">All Years</option>
-                        </select>
-                    </div>
                     <div style="display:flex;flex-direction:column;gap:5px;min-width:130px;">
                         <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Carrier</label>
                         <select id="commFilterCarrier" onchange="loadAgentCommissionData()" style="padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;">
@@ -3490,7 +3481,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260707o"></script>
+    <script src="app.js?v=20260707p"></script>
     <script src="supabase.js?v=20260701b"></script>
 </body>
 </html>
