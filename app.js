@@ -77,12 +77,16 @@ function startAutoSync() {
         const freshCarriers = JSON.parse(localStorage.getItem('carrierMasterData'));
         if (freshData) allData = freshData;
         if (freshCarriers) { carrierMasterData = freshCarriers; refreshAllCarrierDropdowns(); }
+        initializeCommissionStatements(); // keep the in-memory copy current too
 
         // Refresh whichever view is currently active
         if (currentRole === 'admin') {
             loadAdminDashboard();
         } else if (currentRole === 'agent') {
             loadAgentData();
+        }
+        if (document.getElementById('commissionStatementsSection')?.classList.contains('active')) {
+            loadCommissionStatementsList();
         }
 
         // Flash the sync indicator briefly
@@ -5231,6 +5235,11 @@ function saveCommissionStatements() {
 
 // ── Navigation ────────────────────────────────────────────────
 function showCommissionStatements() {
+    // Re-read from localStorage every time the section opens — the in-memory
+    // copy is only set once at page load, before the background cloud sync
+    // finishes, so without this a fresh statement synced from Supabase would
+    // never show up until a perfectly-timed full page reload.
+    initializeCommissionStatements();
     showSection('commissionStatementsSection');
     loadCommissionStatementsList();
     if (window.UIBMotion) UIBMotion.animateStatCards();
