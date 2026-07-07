@@ -5751,82 +5751,160 @@ function renderCSAgentBreakdown(monthKey) {
     }).join('');
 }
 
-// ── Per-agent commission statement — mirrors the "Detail by Carrier"
-// PDF format the agency already uses, just grouped by agent instead of
-// carrier, with Policy # added on every line. ──
+// ── Per-agent commission statement — click an agent in the nav list,
+// see their detail grouped by CARRIER (each carrier its own table +
+// subtotal), mirroring the "Detail by Carrier" PDF format the agency
+// already uses, with Policy # added on every line. ──
+let csSelectedAgentKey = null;
+
+function _csAgentLabel(key) {
+    return key === '__UNASSIGNED__' ? '⚠️ Unassigned / Needs Review' : key;
+}
+
+// Split one agent's entries into per-carrier sub-groups.
+function _csGroupByCarrier(entries) {
+    const groups = {};
+    entries.forEach(e => {
+        const c = e.carrier || 'Unknown Carrier';
+        if (!groups[c]) groups[c] = { carrier: c, entries: [], total: 0 };
+        groups[c].entries.push(e);
+        groups[c].total += e.commission;
+    });
+    return Object.values(groups).sort((a, b) => b.total - a.total);
+}
+
 function renderCSAgentReport(monthKey) {
+    const stmt = commissionStatements[monthKey];
+    if (!stmt) return;
+    const groups = _csGroupByAgent(stmt);
+    if (!csSelectedAgentKey || !groups.some(g => g.agent === csSelectedAgentKey)) {
+        csSelectedAgentKey = groups.length ? groups[0].agent : null;
+    }
+    renderCSAgentNav(monthKey);
+    renderCSAgentDetail(monthKey);
+}
+
+function renderCSAgentNav(monthKey) {
+    const stmt = commissionStatements[monthKey];
+    const nav = document.getElementById('csAgentNavList');
+    if (!stmt || !nav) return;
+    const groups = _csGroupByAgent(stmt);
+
+    nav.innerHTML = groups.map(g => {
+        const isUnassigned = g.agent === '__UNASSIGNED__';
+        const active = g.agent === csSelectedAgentKey;
+        return `<button onclick="csSelectAgentInReport('${g.agent.replace(/'/g, "\\'")}')"
+            style="display:block;width:100%;text-align:left;padding:11px 14px;border:none;border-left:3px solid ${active ? (isUnassigned ? '#f59e0b' : 'var(--primary)') : 'transparent'};
+                   background:${active ? '#fff' : 'transparent'};cursor:pointer;border-bottom:1px solid var(--gray-100);">
+            <div style="font-size:12.5px;font-weight:${active ? '700' : '600'};color:${isUnassigned ? '#92400e' : 'var(--navy)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                ${isUnassigned ? '⚠️ Unassigned' : g.agent}
+            </div>
+            <div style="font-size:11px;color:${g.total>=0?'#059669':'#dc2626'};font-weight:700;margin-top:2px;">
+                $${g.total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
+                <span style="color:var(--gray-400);font-weight:400;"> · ${g.entries.length}</span>
+            </div>
+        </button>`;
+    }).join('');
+}
+
+function csSelectAgentInReport(agentKey) {
+    csSelectedAgentKey = agentKey;
+    renderCSAgentNav(csCurrentMonthKey);
+    renderCSAgentDetail(csCurrentMonthKey);
+}
+
+function renderCSAgentDetail(monthKey) {
     const stmt = commissionStatements[monthKey];
     const container = document.getElementById('csAgentReportBody');
     if (!stmt || !container) return;
     const groups = _csGroupByAgent(stmt);
-    const grand = stmt.entries.reduce((s, e) => s + e.commission, 0);
+    const selected = groups.find(g => g.agent === csSelectedAgentKey);
+    if (!selected) {
+        container.innerHTML = '<div style="color:var(--gray-400);padding:20px;text-align:center;">Select an agent from the list.</div>';
+        return;
+    }
+    const isUnassigned = selected.agent === '__UNASSIGNED__';
+    const label = _csAgentLabel(selected.agent);
+    const carrierGroups = _csGroupByCarrier(selected.entries);
 
-    const rowsHtml = (g) => g.entries.map(e => {
+    const rowsHtml = (entries) => entries.map(e => {
         const posNeg = e.commission >= 0 ? 'Positive' : 'Negative';
         const color = e.commission >= 0 ? '#059669' : '#dc2626';
         return `<tr style="border-bottom:1px solid var(--gray-100);">
             <td style="padding:6px 10px;font-size:12.5px;">${e.clientName}</td>
             <td style="padding:6px 10px;font-size:12px;font-family:monospace;color:var(--gray-600);">${e.policyNumber || '—'}</td>
+            <td style="padding:6px 10px;font-size:11.5px;color:var(--gray-500);">${e.transaction || '—'}</td>
             <td style="padding:6px 10px;font-size:12.5px;text-align:right;color:${color};font-weight:600;">$${e.commission.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
             <td style="padding:6px 10px;font-size:11.5px;color:${color};">${posNeg}</td>
         </tr>`;
     }).join('');
 
-    container.innerHTML = groups.map(g => {
-        const isUnassigned = g.agent === '__UNASSIGNED__';
-        const label = isUnassigned ? '⚠️ Unassigned / Needs Agent Review' : g.agent;
-        return `
-        <div style="margin-bottom:18px;">
-            <div style="background:${isUnassigned?'#fffbeb':'var(--gray-50)'};padding:7px 12px;font-weight:700;font-size:13px;color:${isUnassigned?'#92400e':'var(--navy)'};border-radius:6px 6px 0 0;border:1px solid var(--gray-200);border-bottom:none;">
-                ${label}
+    const header = `
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--gray-200);">
+            <h3 style="margin:0;font-size:15px;color:${isUnassigned?'#92400e':'var(--navy)'};">${label}</h3>
+            <span style="font-size:11.5px;color:var(--gray-400);">${carrierGroups.length} carrier${carrierGroups.length!==1?'s':''} · ${selected.entries.length} transactions</span>
+        </div>`;
+
+    const carrierBlocks = carrierGroups.map(cg => `
+        <div style="margin-bottom:16px;">
+            <div style="background:var(--gray-50);padding:6px 12px;font-weight:700;font-size:12.5px;color:#0369a1;border-radius:6px 6px 0 0;border:1px solid var(--gray-200);border-bottom:none;">
+                ${cg.carrier} <span style="font-weight:400;color:var(--gray-400);">(${cg.entries.length})</span>
             </div>
             <table style="width:100%;border-collapse:collapse;border:1px solid var(--gray-200);">
                 <thead>
                     <tr style="background:#fff;border-bottom:1px solid var(--gray-200);">
                         <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Insured Name</th>
                         <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Policy #</th>
+                        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Transaction</th>
                         <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:var(--gray-500);">Commission</th>
                         <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Pos/Neg</th>
                     </tr>
                 </thead>
-                <tbody>${rowsHtml(g)}</tbody>
+                <tbody>${rowsHtml(cg.entries)}</tbody>
                 <tfoot>
                     <tr style="background:var(--gray-50);border-top:2px solid var(--gray-200);">
-                        <td colspan="2" style="padding:7px 10px;font-weight:700;font-size:12.5px;">${label} Total</td>
-                        <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:12.5px;color:${g.total>=0?'#059669':'#dc2626'};">$${g.total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                        <td colspan="3" style="padding:7px 10px;font-weight:700;font-size:12px;">${cg.carrier} Total</td>
+                        <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:12px;color:${cg.total>=0?'#059669':'#dc2626'};">$${cg.total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                         <td></td>
                     </tr>
                 </tfoot>
             </table>
+        </div>`).join('');
+
+    const footer = `
+        <div style="background:${isUnassigned?'#92400e':'var(--navy)'};color:#fff;padding:10px 14px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-top:4px;">
+            <span>${label} — TOTAL (all carriers)</span>
+            <span>$${selected.total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
         </div>`;
-    }).join('') + `
-        <div style="background:var(--navy);color:#fff;padding:10px 14px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-weight:700;">
-            <span>GRAND TOTAL</span>
-            <span>$${grand.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
-        </div>`;
+
+    container.innerHTML = header + carrierBlocks + footer;
+    refreshIcons();
 }
 
 function exportCSAgentReportCSV() {
     const stmt = commissionStatements[csCurrentMonthKey];
-    if (!stmt) return;
+    if (!stmt || !csSelectedAgentKey) return;
     const groups = _csGroupByAgent(stmt);
-    const rows = [['Agent', 'Insured Name', 'Policy Number', 'Commission', 'Pos/Neg']];
-    groups.forEach(g => {
-        const label = g.agent === '__UNASSIGNED__' ? 'Unassigned / Needs Review' : g.agent;
-        g.entries.forEach(e => {
-            rows.push([label, e.clientName, e.policyNumber || '', e.commission.toFixed(2), e.commission >= 0 ? 'Positive' : 'Negative']);
+    const selected = groups.find(g => g.agent === csSelectedAgentKey);
+    if (!selected) return;
+    const label = _csAgentLabel(selected.agent);
+
+    const rows = [['Agent', 'Carrier', 'Insured Name', 'Policy Number', 'Transaction', 'Commission', 'Pos/Neg']];
+    const carrierGroups = _csGroupByCarrier(selected.entries);
+    carrierGroups.forEach(cg => {
+        cg.entries.forEach(e => {
+            rows.push([label, cg.carrier, e.clientName, e.policyNumber || '', e.transaction || '', e.commission.toFixed(2), e.commission >= 0 ? 'Positive' : 'Negative']);
         });
-        rows.push([label + ' Total', '', '', g.total.toFixed(2), '']);
+        rows.push([label, cg.carrier + ' Total', '', '', '', cg.total.toFixed(2), '']);
     });
-    const grand = stmt.entries.reduce((s, e) => s + e.commission, 0);
-    rows.push(['GRAND TOTAL', '', '', grand.toFixed(2), '']);
+    rows.push([label, 'GRAND TOTAL (all carriers)', '', '', '', selected.total.toFixed(2), '']);
 
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Agent_Commission_Statement_${csCurrentMonthKey.replace(/\s+/g, '_')}.csv`;
+    a.download = `${label.replace(/[^\w]+/g, '_')}_Commission_${csCurrentMonthKey.replace(/\s+/g, '_')}.csv`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
