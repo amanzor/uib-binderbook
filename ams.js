@@ -62,6 +62,112 @@ function amsDBDeleteFile(id) {
     });
 }
 
+// ── Supabase Storage — cloud files (shared with Binder Book) ──
+const AMS_SB_URL    = 'https://jgjmobktucyimupelfxd.supabase.co';
+const AMS_SB_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
+const AMS_SB_BUCKET = 'client-files';
+const AMS_SB_HEADERS = {
+    'apikey': AMS_SB_KEY,
+    'Authorization': 'Bearer ' + AMS_SB_KEY,
+    'Content-Type': 'application/json'
+};
+
+function _amsStorageUrl(path) {
+    return `${AMS_SB_URL}/storage/v1/object/${AMS_SB_BUCKET}/` + path.split('/').map(encodeURIComponent).join('/');
+}
+
+async function amsCloudUpload(file, clientKey, category, relPath) {
+    const safeKey  = String(clientKey).replace(/[^\w\- ]/g, '_');
+    const safeName = String(file.name).replace(/[^\w.\- ()]/g, '_');
+    const path = safeKey + '/' + Date.now() + '_' + safeName;
+    const res = await fetch(_amsStorageUrl(path), {
+        method: 'POST',
+        headers: {
+            'apikey': AMS_SB_KEY,
+            'Authorization': 'Bearer ' + AMS_SB_KEY,
+            'Content-Type': file.type || 'application/octet-stream',
+            'x-upsert': 'true'
+        },
+        body: file
+    });
+    if (!res.ok) {
+        const t = await res.text();
+        throw new Error('Cloud upload failed (HTTP ' + res.status + '): ' + t.slice(0, 120));
+    }
+    const meta = await fetch(`${AMS_SB_URL}/rest/v1/documents`, {
+        method: 'POST',
+        headers: Object.assign({}, AMS_SB_HEADERS, { 'Prefer': 'return=minimal' }),
+        body: JSON.stringify([{
+            client_key: clientKey,
+            file_name: file.name,
+            category: category,
+            storage_path: path,
+            size_bytes: file.size,
+            mime_type: file.type || 'application/octet-stream',
+            uploaded_by: amsCurrentUser || 'AMS'
+        }])
+    });
+    if (!meta.ok) {
+        const t = await meta.text();
+        throw new Error('Cloud metadata save failed (HTTP ' + meta.status + '): ' + t.slice(0, 120));
+    }
+}
+
+async function amsCloudList(clientKey) {
+    try {
+        const res = await fetch(`${AMS_SB_URL}/rest/v1/documents?select=id,file_name,category,storage_path,size_bytes,mime_type,uploaded_at,uploaded_by&client_key=eq.${encodeURIComponent(clientKey)}&order=uploaded_at.desc`, { headers: AMS_SB_HEADERS });
+        if (!res.ok) return [];
+        const rows = await res.json();
+        // Shape cloud rows like local file records so the grid/preview reuse works
+        return rows.map(r => ({
+            id:          'cloud:' + r.id,
+            cloud:       true,
+            docId:       r.id,
+            storagePath: r.storage_path,
+            clientKey:   clientKey,
+            name:        r.file_name,
+            path:        '',
+            fullPath:    r.file_name,
+            type:        r.mime_type || '',
+            size:        r.size_bytes || 0,
+            category:    r.category || 'Other',
+            uploadedAt:  r.uploaded_at,
+            uploadedBy:  r.uploaded_by || ''
+        }));
+    } catch (e) { return []; }
+}
+
+async function amsCloudFetchBytes(storagePath) {
+    const res = await fetch(_amsStorageUrl(storagePath), {
+        headers: { 'apikey': AMS_SB_KEY, 'Authorization': 'Bearer ' + AMS_SB_KEY }
+    });
+    if (!res.ok) { alert('Could not fetch file from cloud (HTTP ' + res.status + ')'); return null; }
+    return await res.arrayBuffer();
+}
+
+async function amsCloudDeleteFile(docId, storagePath) {
+    if (!confirm('Delete this file from the cloud? This cannot be undone.')) return;
+    await fetch(_amsStorageUrl(storagePath), {
+        method: 'DELETE',
+        headers: { 'apikey': AMS_SB_KEY, 'Authorization': 'Bearer ' + AMS_SB_KEY }
+    });
+    await fetch(`${AMS_SB_URL}/rest/v1/documents?id=eq.${encodeURIComponent(docId)}`, { method: 'DELETE', headers: AMS_SB_HEADERS });
+    amsRenderFileGrid();
+    amsUpdateDocBadge();
+    amsFlashBanner('File deleted');
+}
+
+async function amsCloudDownloadFile(docId, storagePath, fileName, mimeType) {
+    const bytes = await amsCloudFetchBytes(storagePath);
+    if (!bytes) return;
+    const blob = new Blob([bytes], { type: mimeType || 'application/octet-stream' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url; a.download = fileName;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
+
 // ── Shared constants (mirrors app.js) ───────────────────────
 const AMS_LOBS = [
     "BOP","Boat","Builders Risk","Business Owner","Classic Collectors",
@@ -1053,26 +1159,33 @@ async function amsUploadFiles(fileList) {
     const statEl   = document.getElementById('amsUploadStatus');
     if (progWrap) progWrap.style.display = 'block';
 
-    let done = 0;
+    let done = 0, localOnly = 0;
     const total = fileList.length;
     for (const { file, path } of fileList) {
         if (statEl) statEl.textContent = `Uploading ${done + 1} of ${total}: ${file.name}`;
         try {
-            const data = await file.arrayBuffer();
-            await amsDBAddFile({
-                clientKey:  amsActiveKey,
-                name:       file.name,
-                path:       path || '',
-                fullPath:   path ? `${path}/${file.name}` : file.name,
-                type:       file.type || 'application/octet-stream',
-                size:       file.size,
-                category,
-                uploadedAt: new Date().toISOString(),
-                uploadedBy: amsCurrentUser,
-                data
-            });
-        } catch (err) {
-            console.warn('Upload failed for', file.name, err);
+            // Cloud first — Supabase Storage, shared with the Binder Book
+            await amsCloudUpload(file, amsActiveKey, category, path);
+        } catch (cloudErr) {
+            console.warn('Cloud upload failed, saving locally:', file.name, cloudErr);
+            try {
+                const data = await file.arrayBuffer();
+                await amsDBAddFile({
+                    clientKey:  amsActiveKey,
+                    name:       file.name,
+                    path:       path || '',
+                    fullPath:   path ? `${path}/${file.name}` : file.name,
+                    type:       file.type || 'application/octet-stream',
+                    size:       file.size,
+                    category,
+                    uploadedAt: new Date().toISOString(),
+                    uploadedBy: amsCurrentUser,
+                    data
+                });
+                localOnly++;
+            } catch (err) {
+                console.warn('Upload failed for', file.name, err);
+            }
         }
         done++;
         if (progBar) progBar.style.width = `${Math.round((done / total) * 100)}%`;
@@ -1083,7 +1196,9 @@ async function amsUploadFiles(fileList) {
 
     amsRenderFileGrid();
     amsUpdateDocBadge();
-    amsFlashBanner(`${total} file${total > 1 ? 's' : ''} uploaded ✓`);
+    amsFlashBanner(localOnly > 0
+        ? `${total - localOnly} to cloud, ${localOnly} saved locally (cloud unreachable)`
+        : `${total} file${total > 1 ? 's' : ''} uploaded to cloud ✓`);
 }
 
 // ── Render file grid ──────────────────────────────────────────
@@ -1093,7 +1208,11 @@ async function amsRenderFileGrid() {
     grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--gray-400);font-size:13px;">Loading files…</div>';
 
     const catFilter = document.getElementById('docCategorySelect')?.value || '';
-    let files = await amsDBGetFilesForClient(amsActiveKey);
+    const [cloudFiles, localFiles] = await Promise.all([
+        amsCloudList(amsActiveKey),
+        amsDBGetFilesForClient(amsActiveKey)
+    ]);
+    let files = [...cloudFiles, ...localFiles];
     if (catFilter) files = files.filter(f => f.category === catFilter);
     files.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
     _amsCurrentFileList = files;
@@ -1109,7 +1228,7 @@ async function amsRenderFileGrid() {
         const size     = amsFormatSize(f.size);
         const date     = new Date(f.uploadedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
         const canPrev  = amsCanPreview(f.type, f.name);
-        const isImage  = f.type.startsWith('image/');
+        const isImage  = !f.cloud && (f.type || '').startsWith('image/');
 
         let thumbHtml;
         if (isImage) {
@@ -1121,17 +1240,24 @@ async function amsRenderFileGrid() {
             thumbHtml = `<div class="fc-type-icon" style="color:${color};">${icon}</div>`;
         }
 
+        const delBtn = f.cloud
+            ? `<button class="fc-del" onclick="event.stopPropagation(); amsCloudDeleteFile('${amsEscHtml(f.docId)}', '${amsEscHtml(f.storagePath)}')" title="Delete">✕</button>`
+            : `<button class="fc-del" onclick="event.stopPropagation(); amsDeleteFileById(${f.id})" title="Delete">✕</button>`;
+        const dlBtn = f.cloud
+            ? `<button class="btn-secondary btn-sm" style="font-size:10px;padding:3px 8px;" onclick="event.stopPropagation();amsCloudDownloadFile('${amsEscHtml(f.docId)}', '${amsEscHtml(f.storagePath)}', '${amsEscHtml(f.name)}', '${amsEscHtml(f.type)}')"><i data-lucide="download" style="width:10px;height:10px;"></i></button>`
+            : `<button class="btn-secondary btn-sm" style="font-size:10px;padding:3px 8px;" onclick="event.stopPropagation();amsDownloadFile(${f.id})"><i data-lucide="download" style="width:10px;height:10px;"></i></button>`;
+
         return `
         <div class="file-card" onclick="amsPreviewFile(${idx})" title="${amsEscHtml(f.fullPath || f.name)}">
-            <button class="fc-del" onclick="event.stopPropagation(); amsDeleteFileById(${f.id})" title="Delete">✕</button>
+            ${delBtn}
             <div class="fc-thumb">${thumbHtml}</div>
             ${f.path ? `<div class="fc-path">${amsEscHtml(f.path)}/</div>` : ''}
-            <div class="fc-name">${amsEscHtml(f.name)}</div>
+            <div class="fc-name">${f.cloud ? '☁️ ' : '💾 '}${amsEscHtml(f.name)}</div>
             <div class="fc-meta">${size} · ${date}</div>
             <div style="font-size:9px;color:var(--gray-300);margin-bottom:5px;">${amsEscHtml(f.category || '')}</div>
             <div class="fc-actions">
                 ${canPrev ? `<button class="btn-primary btn-sm" style="font-size:10px;padding:3px 8px;" onclick="event.stopPropagation();amsPreviewFile(${idx})"><i data-lucide="eye" style="width:10px;height:10px;"></i> View</button>` : ''}
-                <button class="btn-secondary btn-sm" style="font-size:10px;padding:3px 8px;" onclick="event.stopPropagation();amsDownloadFile(${f.id})"><i data-lucide="download" style="width:10px;height:10px;"></i></button>
+                ${dlBtn}
             </div>
         </div>`;
     }));
@@ -1170,8 +1296,15 @@ async function amsPreviewFile(listIdx) {
 }
 
 async function _amsRenderPreview(rec) {
-    // Fetch fresh record with data
-    const full = await amsDBGetFile(rec.id);
+    // Fetch fresh record with data — from cloud storage or local IndexedDB
+    let full;
+    if (rec.cloud) {
+        const bytes = await amsCloudFetchBytes(rec.storagePath);
+        if (!bytes) return;
+        full = Object.assign({}, rec, { data: bytes });
+    } else {
+        full = await amsDBGetFile(rec.id);
+    }
     if (!full) return;
 
     // Revoke previous blob URL
@@ -1248,17 +1381,23 @@ function amsClosePreview() {
 
 async function amsDownloadCurrent() {
     const rec = _amsCurrentFileList[_amsPreviewIdx];
-    if (rec) await amsDownloadFile(rec.id);
+    if (!rec) return;
+    if (rec.cloud) await amsCloudDownloadFile(rec.docId, rec.storagePath, rec.name, rec.type);
+    else await amsDownloadFile(rec.id);
 }
 
 // ── Badge: show file count on Documents tab ───────────────────
 async function amsUpdateDocBadge() {
     if (!amsActiveKey) return;
-    const files  = await amsDBGetFilesForClient(amsActiveKey);
-    const badge  = document.getElementById('docTabBadge');
+    const [cloudFiles, localFiles] = await Promise.all([
+        amsCloudList(amsActiveKey),
+        amsDBGetFilesForClient(amsActiveKey)
+    ]);
+    const count = cloudFiles.length + localFiles.length;
+    const badge = document.getElementById('docTabBadge');
     if (!badge) return;
-    if (files.length > 0) {
-        badge.textContent = files.length;
+    if (count > 0) {
+        badge.textContent = count;
         badge.style.display = 'inline';
     } else {
         badge.style.display = 'none';

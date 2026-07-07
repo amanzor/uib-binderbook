@@ -6556,6 +6556,7 @@ async function binderCloudUpload(file, clientKey, category) {
             category: category,
             storage_path: path,
             size_bytes: file.size,
+            mime_type: file.type || 'application/octet-stream',
             uploaded_by: currentUser || 'Agent'
         }])
     });
