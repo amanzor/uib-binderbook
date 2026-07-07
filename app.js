@@ -5631,6 +5631,16 @@ function renderCSMonthDetail(monthKey) {
         csTxnFilt.appendChild(o);
     });
 
+    const csAgentFilt = document.getElementById('csAgentFilter');
+    if (csAgentFilt) {
+        const cur = csAgentFilt.value;
+        const agents = [...new Set(stmt.entries.map(e => e.agentMatch).filter(Boolean))].sort();
+        const hasUnassigned = stmt.entries.some(e => !e.agentMatch);
+        csAgentFilt.innerHTML = '<option value="">All Agents</option>' +
+            agents.map(a => `<option value="${a}"${a === cur ? ' selected' : ''}>${a}</option>`).join('') +
+            (hasUnassigned ? `<option value="__UNASSIGNED__"${cur === '__UNASSIGNED__' ? ' selected' : ''}>⚠️ Unassigned / Needs Review</option>` : '');
+    }
+
     renderCSEntries(monthKey);
     if (window.UIBMotion) UIBMotion.animateStatCards();
     refreshIcons();
@@ -5642,13 +5652,13 @@ function renderCSEntries(monthKey) {
 
     const filterCarrier = document.getElementById('csCarrierFilter')?.value  || '';
     const filterTxn     = document.getElementById('csTxnFilter')?.value      || '';
-    const filterAgent   = document.getElementById('csAgentMatchFilter')?.value || '';
+    const filterAgent   = document.getElementById('csAgentFilter')?.value    || '';
 
     let rows = stmt.entries;
     if (filterCarrier) rows = rows.filter(r => r.carrier === filterCarrier);
     if (filterTxn)     rows = rows.filter(r => r.transaction === filterTxn);
-    if (filterAgent === 'matched')   rows = rows.filter(r =>  r.agentMatch);
-    if (filterAgent === 'unmatched') rows = rows.filter(r => !r.agentMatch);
+    if (filterAgent === '__UNASSIGNED__') rows = rows.filter(r => !r.agentMatch);
+    else if (filterAgent)                 rows = rows.filter(r => r.agentMatch === filterAgent);
 
     const tbody = document.getElementById('csEntriesBody');
     if (!rows.length) {
@@ -5819,7 +5829,7 @@ function exportCSAgentReportCSV() {
 }
 
 function resetCSFilters() {
-    ['csCarrierFilter','csTxnFilter','csAgentMatchFilter'].forEach(id => {
+    ['csCarrierFilter','csTxnFilter','csAgentFilter'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
