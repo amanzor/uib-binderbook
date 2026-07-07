@@ -5576,9 +5576,10 @@ function renderCSMonthDetail(monthKey) {
     document.getElementById('csDetail').style.display = 'block';
 
     const matchedCount = stmt.entries.filter(e => e.agentMatch).length;
-    const newCount     = stmt.entries.filter(e => /new/i.test(e.transaction)).length;
-    const renewalCount = stmt.entries.filter(e => /renewal|renew/i.test(e.transaction)).length;
-    const adjCount     = stmt.entries.length - newCount - renewalCount;
+    const newCount     = stmt.entries.filter(e => /^new/i.test((e.transaction||'').trim())).length;
+    const renewalCount = stmt.entries.filter(e => /renew/i.test(e.transaction)).length;
+    const adjEntries   = stmt.entries.filter(_csIsAdjustment);
+    const adjCount     = adjEntries.length;
 
     document.getElementById('csGrossTotal').textContent    = '$' + stmt.grossTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
     document.getElementById('csPolicyCount').textContent   = stmt.entryCount;
@@ -5586,6 +5587,7 @@ function renderCSMonthDetail(monthKey) {
     document.getElementById('csMatchedCount').textContent  = matchedCount;
     document.getElementById('csNewCount').textContent      = newCount;
     document.getElementById('csRenewalCount').textContent  = renewalCount;
+    document.getElementById('csAdjCount').textContent      = adjCount;
 
     // Carrier breakdown
     const breakdownBody = document.getElementById('csCarrierBreakdownBody');
@@ -5615,6 +5617,7 @@ function renderCSMonthDetail(monthKey) {
     // Agent breakdown + per-agent statement (true binder agent, not the carrier's producer)
     renderCSAgentBreakdown(monthKey);
     renderCSAgentReport(monthKey);
+    renderCSAdjustments(monthKey);
 
     // Reset filters
     const csCarrFilter = document.getElementById('csCarrierFilter');
@@ -5824,6 +5827,73 @@ function exportCSAgentReportCSV() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `Agent_Commission_Statement_${csCurrentMonthKey.replace(/\s+/g, '_')}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+// ── Policy Adjustments — everything that is NOT new business, renewal, or
+// rewrite (endorsements, credit endorsements, cancellations, reinstatements,
+// abbreviated Excel-import codes like "End"/"Canc", etc). ──
+function _csIsAdjustment(e) {
+    const t = (e.transaction || '').trim().toLowerCase();
+    if (!t) return false;
+    if (/^new/.test(t)) return false;      // "New", "New Business"
+    if (/renew/.test(t)) return false;     // "Renewal", "Renew A-B", "Renewal Quote"
+    if (/rewrite/.test(t)) return false;   // "Rewrite"
+    return true;                           // Endorsement, Credit Endorsement, Cancel Pro Rate,
+                                            // Reinstatement, "End", "Canc", Policy Change, etc.
+}
+
+function renderCSAdjustments(monthKey) {
+    const stmt = commissionStatements[monthKey];
+    const tbody = document.getElementById('csAdjustmentsBody');
+    if (!stmt || !tbody) return;
+
+    const rows = stmt.entries.filter(_csIsAdjustment);
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:24px;">No adjustments in this statement.</td></tr>';
+        document.getElementById('csAdjustmentsTotal').textContent = '$0.00';
+        return;
+    }
+
+    tbody.innerHTML = rows.map((e, i) => {
+        const bg = i % 2 === 0 ? '' : 'background:#f9fafb;';
+        const commColor = e.commission >= 0 ? '#059669' : '#dc2626';
+        const agentBadge = e.agentMatch
+            ? `<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;">${e.agentMatch}</span>`
+            : `<span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;">⚠️ Unassigned</span>`;
+        return `<tr style="${bg}border-bottom:1px solid var(--gray-100);">
+            <td style="padding:8px 10px;font-size:13px;">${e.clientName}</td>
+            <td style="padding:8px 10px;font-size:12px;font-family:monospace;color:var(--gray-600);">${e.policyNumber || '—'}</td>
+            <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#c2410c;">${e.transaction}</td>
+            <td style="padding:8px 10px;font-size:12px;">${e.carrier}</td>
+            <td style="padding:8px 10px;text-align:right;font-weight:700;color:${commColor};">$${e.commission.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+            <td style="padding:8px 10px;">${agentBadge}</td>
+        </tr>`;
+    }).join('');
+
+    const total = rows.reduce((s, e) => s + e.commission, 0);
+    const totalEl = document.getElementById('csAdjustmentsTotal');
+    totalEl.textContent = `$${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    totalEl.style.color = total >= 0 ? '#059669' : '#dc2626';
+    refreshIcons();
+}
+
+function exportCSAdjustmentsCSV() {
+    const stmt = commissionStatements[csCurrentMonthKey];
+    if (!stmt) return;
+    const rows = stmt.entries.filter(_csIsAdjustment);
+    const csvRows = [['Client Name', 'Policy Number', 'Transaction Type', 'Carrier', 'Commission', 'Agent']];
+    rows.forEach(e => csvRows.push([e.clientName, e.policyNumber || '', e.transaction, e.carrier, e.commission.toFixed(2), e.agentMatch || 'Unassigned']));
+    const total = rows.reduce((s, e) => s + e.commission, 0);
+    csvRows.push(['Adjustments Total', '', '', '', total.toFixed(2), '']);
+
+    const csv = csvRows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Policy_Adjustments_${csCurrentMonthKey.replace(/\s+/g, '_')}.csv`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 }

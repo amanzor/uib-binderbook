@@ -2431,6 +2431,10 @@
                             <div class="label">Renewals</div>
                             <div class="number" id="csRenewalCount">0</div>
                         </div>
+                        <div class="stat-card" style="border-left:4px solid #f97316;">
+                            <div class="label">Adjustments</div>
+                            <div class="number" id="csAdjCount">0</div>
+                        </div>
                         <div class="stat-card" style="border-left:4px solid #ec4899;">
                             <div class="label">Agent Matches</div>
                             <div class="number" id="csMatchedCount">0</div>
@@ -2483,6 +2487,45 @@
                             <button class="btn-secondary btn-sm" onclick="exportCSAgentReportCSV()"><i data-lucide="download"></i> Export CSV</button>
                         </div>
                         <div id="csAgentReportBody" style="padding:14px 16px;background:#fff;max-height:520px;overflow-y:auto;"></div>
+                    </div>
+
+                    <!-- Policy Adjustments — everything that is NOT new business, renewal, or rewrite
+                         (endorsements, credit endorsements, cancellations, reinstatements, etc.) -->
+                    <div style="margin-bottom:22px;border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;">
+                        <div style="background:linear-gradient(135deg,#9a3412,#f97316);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <i data-lucide="repeat"></i>
+                                <div>
+                                    <strong style="font-size:14px;">Policy Adjustments</strong>
+                                    <div style="font-size:11px;opacity:.8;">Endorsements, credit endorsements, cancellations, reinstatements — everything except new business, renewals &amp; rewrites</div>
+                                </div>
+                            </div>
+                            <button class="btn-secondary btn-sm" onclick="exportCSAdjustmentsCSV()"><i data-lucide="download"></i> Export CSV</button>
+                        </div>
+                        <div style="overflow-x:auto;background:#fff;max-height:480px;overflow-y:auto;">
+                            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                                <thead style="position:sticky;top:0;">
+                                    <tr style="background:var(--gray-50);border-bottom:2px solid var(--gray-200);">
+                                        <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Client Name</th>
+                                        <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Policy #</th>
+                                        <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Transaction Type</th>
+                                        <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Carrier</th>
+                                        <th style="padding:9px 10px;text-align:right;font-weight:600;color:var(--gray-600);">Commission</th>
+                                        <th style="padding:9px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Agent</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="csAdjustmentsBody">
+                                    <tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:24px;">No adjustments in this statement.</td></tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr style="background:var(--gray-50);border-top:2px solid var(--gray-200);">
+                                        <td colspan="4" style="padding:9px 10px;font-weight:700;">Adjustments Total</td>
+                                        <td id="csAdjustmentsTotal" style="padding:9px 10px;text-align:right;font-weight:700;">$0.00</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
                     </div>
 
                     <!-- Filters + Entry Table -->
@@ -3479,7 +3522,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260707q"></script>
+    <script src="app.js?v=20260707r"></script>
     <script src="supabase.js?v=20260701b"></script>
 </body>
 </html>
