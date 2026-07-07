@@ -1233,6 +1233,7 @@ function saveVerificationLog(e) {
 
     // Refresh list if logs section is open
     if (document.getElementById('verificationLogsSection')?.classList.contains('active')) {
+        renderVerificationLogsDashboard();
         renderVerificationLogsTable();
     }
 }
@@ -1607,9 +1608,115 @@ function renderProspectsTable() {
 // ── Verification Logs Section ──────────────────────────────────
 function showVerificationLogsSection() {
     showSection('verificationLogsSection');
+    renderVerificationLogsDashboard();
     renderVerificationLogsTable();
     refreshIcons();
     if (window.UIBMotion) UIBMotion.animateSection(document.getElementById('verificationLogsSection'));
+}
+
+function renderVerificationLogsDashboard() {
+    const all = JSON.parse(localStorage.getItem('verificationLogs')) || [];
+
+    // Populate agent filter (once) from data + master agents
+    const agentSel = document.getElementById('vldash_agentFilter');
+    if (agentSel) {
+        const current = agentSel.value;
+        const agents = [...new Set(all.map(l => l.agent).filter(Boolean))].sort();
+        agentSel.innerHTML = '<option value="" style="color:#111;">All Agents</option>' +
+            agents.map(a => `<option value="${a}" style="color:#111;"${a === current ? ' selected' : ''}>${a}</option>`).join('');
+    }
+    const agentF = agentSel?.value || '';
+
+    const logs = agentF ? all.filter(l => (l.agent || '') === agentF) : all;
+    const total = logs.length;
+
+    const today   = getEasternDateString();
+    const weekAgo = (() => { const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); })();
+
+    const todayCount = logs.filter(l => l.date === today).length;
+    const weekCount  = logs.filter(l => l.date >= weekAgo && l.date <= today).length;
+
+    const yesRate = (field) => {
+        if (!total) return 0;
+        const yes = logs.filter(l => l[field] === 'yes').length;
+        return Math.round((yes / total) * 100);
+    };
+    const ackRate  = yesRate('acknowledged');
+    const permRate = yesRate('permissionToFollowUp');
+    const confRate = yesRate('agentConfirmed');
+
+    // Sub line
+    const sub = document.getElementById('vldash_sub');
+    if (sub) sub.textContent = `${total} log${total !== 1 ? 's' : ''}${agentF ? ' · ' + agentF : ''} · ${weekCount} this week`;
+
+    // Stat cards
+    const card = (label, value, bg, border, color) =>
+        `<div style="background:${bg};border:1px solid ${border};border-radius:10px;padding:12px 14px;">
+            <div style="font-size:10px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">${label}</div>
+            <div style="font-size:22px;font-weight:800;color:#0f172a;">${value}</div>
+        </div>`;
+    const statsRow = document.getElementById('vldash_statsRow');
+    if (statsRow) statsRow.innerHTML =
+        card('Total Logs', total, '#f5f3ff', '#ddd6fe', '#6d28d9') +
+        card('Today', todayCount, '#eff6ff', '#bfdbfe', '#1e40af') +
+        card('This Week', weekCount, '#f0fdf4', '#bbf7d0', '#166534') +
+        card('Acknowledged', ackRate + '%', ackRate === 100 ? '#f0fdf4' : '#fff7ed', ackRate === 100 ? '#bbf7d0' : '#fed7aa', ackRate === 100 ? '#166534' : '#9a3412') +
+        card('Permission to Follow Up', permRate + '%', permRate === 100 ? '#f0fdf4' : '#fff7ed', permRate === 100 ? '#bbf7d0' : '#fed7aa', permRate === 100 ? '#166534' : '#9a3412') +
+        card('Agent Confirmed', confRate + '%', confRate === 100 ? '#f0fdf4' : '#fff7ed', confRate === 100 ? '#bbf7d0' : '#fed7aa', confRate === 100 ? '#166534' : '#9a3412');
+
+    // Horizontal bar helper (same style as Prospects Dashboard)
+    const barBlock = (rows, colorFn) => {
+        if (!rows.length) return '<div style="font-size:13px;color:#94a3b8;font-style:italic;">No data</div>';
+        const max = Math.max(...rows.map(r => r.count), 1);
+        return rows.map(r => {
+            const pct = Math.round((r.count / max) * 100);
+            const c = colorFn ? colorFn(r.label) : '#7c3aed';
+            return `<div class="prod-bar-row" style="margin-bottom:8px;">
+                <div class="prod-bar-label" style="width:110px;">${r.label}</div>
+                <div class="prod-bar-track" style="height:26px;">
+                    <div class="prod-bar-fill" style="width:${Math.max(pct, 4)}%;background:${c};">
+                        <span style="font-size:12px;font-weight:700;color:#fff;">${r.count}</span>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    };
+
+    // Compliance rates as bars (out of 100%)
+    const compliance = document.getElementById('vldash_compliance');
+    if (compliance) compliance.innerHTML = barBlock([
+        { label: 'Acknowledged', count: ackRate },
+        { label: 'Permission', count: permRate },
+        { label: 'Confirmed', count: confRate }
+    ], (lbl) => ({ 'Acknowledged':'#3b82f6', 'Permission':'#8b5cf6', 'Confirmed':'#16a34a' }[lbl] || '#7c3aed'));
+
+    // Last 7 days trend
+    const trendDays = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(today + 'T00:00:00');
+        d.setDate(d.getDate() - i);
+        const iso = d.toISOString().slice(0, 10);
+        const label = d.toLocaleDateString('en-US', { weekday: 'short' });
+        trendDays.push({ label, count: logs.filter(l => l.date === iso).length });
+    }
+    const trend = document.getElementById('vldash_trend');
+    if (trend) trend.innerHTML = barBlock(trendDays, () => '#6d28d9');
+
+    // Group helper
+    const groupCounts = (field) => {
+        const g = {};
+        logs.forEach(l => { const k = (l[field] || '').trim() || '—'; g[k] = (g[k] || 0) + 1; });
+        return Object.entries(g).map(([label, count]) => ({ label, count }))
+            .sort((a, b) => b.count - a.count).slice(0, 8);
+    };
+
+    const byAgent = document.getElementById('vldash_byAgent');
+    if (byAgent) byAgent.innerHTML = barBlock(groupCounts('agent'), () => '#0d9488');
+
+    const byDealer = document.getElementById('vldash_byDealer');
+    if (byDealer) byDealer.innerHTML = barBlock(groupCounts('dealer'), () => '#d97706');
+
+    if (typeof refreshIcons === 'function') refreshIcons();
 }
 
 function renderVerificationLogsTable() {
