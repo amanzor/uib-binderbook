@@ -1,28 +1,40 @@
 // ============================================================
-// GOOGLE DRIVE SYNC
+// SUPABASE CLOUD SYNC  (primary data store — replaced Google Drive)
 // ============================================================
+const SUPABASE_URL = "https://jgjmobktucyimupelfxd.supabase.co";
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
+// Old Apps Script URL — kept ONLY for email notifications (sendEmail action).
 const DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
 const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'agentCredentials', 'prospectData', 'verificationLogs', 'commissionStatements'];
 
+const _SB_HEADERS = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+    'Content-Type': 'application/json'
+};
+
+// Same names/contracts as the old Drive functions — every caller keeps working.
 async function driveGet(key) {
     try {
-        const res = await fetch(`${DRIVE_API_URL}?key=${key}`);
-        const json = await res.json();
-        return json.success && json.data !== null ? json.data : null;
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=value&key=eq.${encodeURIComponent(key)}`, { headers: _SB_HEADERS });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const rows = await res.json();
+        return rows.length && rows[0].value !== null ? rows[0].value : null;
     } catch (e) {
-        console.warn(`Drive read failed for ${key}:`, e);
+        console.warn(`Cloud read failed for ${key}:`, e);
         return null;
     }
 }
 
 async function driveSet(key, value) {
     try {
-        await fetch(DRIVE_API_URL, {
+        await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
             method: 'POST',
-            body: JSON.stringify({ key, value })
+            headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+            body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
         });
     } catch (e) {
-        console.warn(`Drive write failed for ${key}:`, e);
+        console.warn(`Cloud write failed for ${key}:`, e);
     }
 }
 
@@ -274,35 +286,23 @@ const SHEET_HEADERS = [
     'entryDate','effDate','term','timestamp','status'
 ];
 
+// Loads binder data from Supabase (formerly from a Google Sheet).
+// Only overwrites local data when the cloud actually has records.
 async function loadFromSheet() {
     try {
-        const res = await fetch(`${SCRIPT_URL}?action=getAll`);
-        const data = await res.json();
+        const data = await driveGet('binderData');
         if (Array.isArray(data) && data.length > 0) {
             allData = data;
             localStorage.setItem('binderData', JSON.stringify(allData));
-        } else if (Array.isArray(data) && data.length === 0 && allData.length > 0) {
-            // Sheet is empty but we have local data — migrate it up
-            for (const entry of allData) {
-                syncToSheet('save', { entry });
-            }
         }
     } catch (e) {
-        console.warn('Google Sheets load failed, using local data:', e);
+        console.warn('Cloud load failed, using local data:', e);
     }
 }
 
-async function syncToSheet(action, payload) {
-    try {
-        await fetch(SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action, ...payload })
-        });
-    } catch (e) {
-        console.warn('Google Sheets sync failed:', e);
-    }
-}
+// No-op: saves now flow to Supabase automatically via driveSet /
+// the cloud auto-sync layer. Kept so existing callers don't break.
+async function syncToSheet(action, payload) { /* retired Google Sheets sync */ }
 
 const AGENTS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano', 'Uriel Rendon', 'Jorge Castro', 'Lazaro Reigoza'];
 
@@ -6870,9 +6870,8 @@ function saveProspectNewReferral() {
 // ============================================================
 
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
-// AI now runs on Supabase (reliable) instead of the Google Apps Script.
-const CLAUDE_PROXY_URL = 'https://jgjmobktucyimupelfxd.supabase.co/functions/v1/claude';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
+// AI runs on Supabase (SUPABASE_ANON_KEY is defined at the top of this file).
+const CLAUDE_PROXY_URL = SUPABASE_URL + '/functions/v1/claude';
 let _claudeMessages = [];           // chat history [{role, content}]
 let _claudePendingPdf = null;       // {name, base64} queued for next send
 let _claudeBusy = false;
