@@ -999,6 +999,7 @@ function saveEntry() {
         lineOfBusiness: gid('lineOfBusiness').value,
         company: gid('company').value,
         mga: gid('mga').value,
+        premiumFinance: gid('premiumFinance')?.value || '',
         down: parseFloat(gid('down').value) || 0,
         agencyFee: parseFloat(gid('agencyFee').value) || 0,
         basePremium: parseFloat(gid('basePremium').value),
@@ -2846,6 +2847,8 @@ function openEditModal(id) {
     document.getElementById('editLineOfBusiness').value = entry.lineOfBusiness || '';
     document.getElementById('editCompany').value = entry.company || '';
     document.getElementById('editMga').value = entry.mga || '';
+    const editPremFin = document.getElementById('editPremiumFinance');
+    if (editPremFin) editPremFin.value = entry.premiumFinance || '';
     document.getElementById('editDown').value = entry.down || '';
     document.getElementById('editAgencyFee').value = entry.agencyFee || '';
     document.getElementById('editBasePremium').value = entry.basePremium || '';
@@ -2878,6 +2881,7 @@ function updateEntry() {
     entry.lineOfBusiness = document.getElementById('editLineOfBusiness').value;
     entry.company = toTitleCase(document.getElementById('editCompany').value);
     entry.mga = toTitleCase(document.getElementById('editMga').value);
+    entry.premiumFinance = document.getElementById('editPremiumFinance')?.value || '';
     entry.down = parseFloat(document.getElementById('editDown').value) || 0;
     entry.agencyFee = parseFloat(document.getElementById('editAgencyFee').value) || 0;
     entry.basePremium = parseFloat(document.getElementById('editBasePremium').value) || 0;
