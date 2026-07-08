@@ -3219,13 +3219,106 @@ function loadCarrierList() {
 function openAddCarrierModal(targetSelectId) {
     // Remember which dropdown should auto-select the new carrier after save
     _carrierFormAutoSelect = targetSelectId || null;
+
+    // The Daily Sales / Transaction entry pages ship a simplified carrier
+    // modal (#addCarrierModal, a single default-rate input); the admin page
+    // ships the full #addEditCarrierModal (per-LOB commission-rules table).
+    // Open whichever one this page actually has.
+    const fullModal = document.getElementById('addEditCarrierModal');
+    if (!fullModal) {
+        openSimpleAddCarrierModal();
+        return;
+    }
+
     document.getElementById('carrierFormTitle').textContent = 'Add New Carrier';
     document.getElementById('carrierForm').reset();
     document.getElementById('commissionRulesTable').innerHTML = '<tr><td colspan="5" class="no-data" style="text-align: center;">No commission rules yet. Click "Add Rule" to add one.</td></tr>';
-    const m = document.getElementById('addEditCarrierModal');
-    m.classList.add('active');
-    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    fullModal.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(fullModal);
     document.getElementById('carrierName').focus();
+}
+
+// ── Simplified quick-add carrier modal (entry pages) ─────────────────────
+// Lets an agent add a missing carrier mid-entry without leaving the form.
+// The admin "Carrier Management" page handles detailed per-LOB rates.
+function openSimpleAddCarrierModal() {
+    const modal = document.getElementById('addCarrierModal');
+    if (!modal) return;
+    const form = document.getElementById('carrierForm');
+    if (form) form.reset();
+
+    // Populate the rate box with a single default-rate input (applies to all
+    // lines of business, matching the app's DEFAULT_COMMISSION_RULES shape).
+    const box = document.getElementById('carrierLobRates');
+    if (box) {
+        box.innerHTML =
+            '<input type="number" id="carrierDefaultRate" step="0.1" min="0" value="10" ' +
+            'style="width:100%;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;box-sizing:border-box;">' +
+            '<div style="font-size:11px;color:#64748b;margin-top:4px;">Applies to all lines of business for New &amp; Renewal. ' +
+            'You can fine-tune per-LOB rates later in Carrier Management.</div>';
+    }
+
+    modal.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(modal);
+    const nameEl = document.getElementById('carrierName');
+    if (nameEl) setTimeout(() => nameEl.focus(), 100);
+}
+
+function closeAddCarrierModal() {
+    const modal = document.getElementById('addCarrierModal');
+    if (modal) modal.classList.remove('active');
+}
+
+// Save handler wired to the simplified entry-page modal's form onsubmit.
+function saveCarrier(event) {
+    if (event) event.preventDefault();
+    const carrierName = (document.getElementById('carrierName')?.value || '').trim();
+    if (!carrierName) {
+        alert('Carrier name is required');
+        return;
+    }
+
+    const carriers = JSON.parse(localStorage.getItem('carrierMasterData')) || {};
+
+    // Case-insensitive duplicate guard — if it already exists, just select it.
+    const existingKey = Object.keys(carriers).find(k => k.toLowerCase() === carrierName.toLowerCase());
+    if (existingKey) {
+        closeAddCarrierModal();
+        refreshAllCarrierDropdowns();
+        if (_carrierFormAutoSelect) {
+            const sel = document.getElementById(_carrierFormAutoSelect);
+            if (sel) sel.value = existingKey;
+            _carrierFormAutoSelect = null;
+        }
+        alert(`Carrier "${existingKey}" already exists — selected it for you.`);
+        return;
+    }
+
+    const rate = parseFloat(document.getElementById('carrierDefaultRate')?.value);
+    const rateVal = isNaN(rate) ? 10 : rate;
+    carriers[carrierName] = {
+        carrierName:  carrierName,
+        phoneNumbers: ['', '', ''],
+        emails:       { underwriting: '', general: '', miscellaneous: '' },
+        commissionRules: [
+            { lineOfBusiness: ALL_LOBS, paymentType: 'Monthly Paid', newRate: rateVal, renewRate: rateVal },
+            { lineOfBusiness: ALL_LOBS, paymentType: 'Gross Paid',   newRate: rateVal, renewRate: rateVal }
+        ]
+    };
+
+    localStorage.setItem('carrierMasterData', JSON.stringify(carriers));
+    carrierMasterData = carriers;
+    if (typeof driveSet === 'function') driveSet('carrierMasterData', carriers);
+
+    closeAddCarrierModal();
+    refreshAllCarrierDropdowns();
+
+    // Auto-select the new carrier in the dropdown that opened this modal
+    if (_carrierFormAutoSelect) {
+        const sel = document.getElementById(_carrierFormAutoSelect);
+        if (sel) sel.value = carrierName;
+        _carrierFormAutoSelect = null;
+    }
 }
 
 function closeAddEditCarrierModal() {
@@ -3324,9 +3417,13 @@ function removeCommissionRuleRow(button) {
     }
 }
 
-// Form Submission for Carrier
+// Form Submission for Carrier (admin "Carrier Management" modal only).
+// The entry pages share the #carrierForm id but use the simplified modal,
+// which is handled by saveCarrier() via its inline onsubmit — so bail out
+// here when the full commission-rules table isn't on the page.
 document.getElementById('carrierForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (!document.getElementById('commissionRulesTable')) return;
 
     const carrierName = document.getElementById('carrierName').value.trim();
     if (!carrierName) {
