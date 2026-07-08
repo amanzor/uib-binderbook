@@ -817,9 +817,9 @@ function showAgentSection(agent) {
 // the agent has manually edited it themselves.
 let _lastAutoCarrierIssueDate = '';
 
-function carrierPaymentDateCollectedChanged() {
-    const dateCollected = document.getElementById('carrierPaymentDateCollected')?.value;
-    const issueInput = document.getElementById('carrierPaymentIssueDate');
+function carrierPaymentDateCollectedChanged(suffix = '') {
+    const dateCollected = document.getElementById('carrierPaymentDateCollected' + suffix)?.value;
+    const issueInput = document.getElementById('carrierPaymentIssueDate' + suffix);
     if (!dateCollected || !issueInput) return;
     if (!issueInput.value || issueInput.value === _lastAutoCarrierIssueDate) {
         const d = new Date(dateCollected + 'T12:00:00');
