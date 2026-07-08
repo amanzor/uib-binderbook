@@ -835,6 +835,16 @@ function carrierPaymentIssueDateEdited() {
     _lastAutoCarrierIssueDate = '__manual__';
 }
 
+// Live-format a phone input as (XXX) XXX-XXXX while the agent types.
+function formatPhoneInput(el) {
+    const digits = el.value.replace(/\D/g, '').slice(0, 10);
+    let formatted = digits;
+    if (digits.length > 6)      formatted = `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+    else if (digits.length > 3) formatted = `(${digits.slice(0,3)}) ${digits.slice(3)}`;
+    else if (digits.length > 0) formatted = `(${digits}`;
+    el.value = formatted;
+}
+
 // New Transaction Entry — Personal Lines vs Commercial Lines toggle.
 // Commercial Lines is a fully independent copy of every field (own ids,
 // suffixed "Com") so the two can be filled out separately. _selectedLineType
