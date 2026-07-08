@@ -983,6 +983,8 @@ function saveEntry() {
         contactName: toTitleCase(gid('contactName').value),
         source: gid('source').value,
         referredBy: toTitleCase(gid('referredBy').value),
+        customerPhone: gid('customerPhone')?.value || '',
+        customerEmail: gid('customerEmail')?.value || '',
         policyType: gid('policyType').value,
         lineOfBusiness: gid('lineOfBusiness').value,
         company: gid('company').value,
