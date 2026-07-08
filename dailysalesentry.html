@@ -319,7 +319,21 @@
         <div id="clientLookupResults" style="margin-top:8px;"></div>
     </div>
 
+    <!-- Line of Business Type -->
+    <div style="display:flex;gap:10px;margin-bottom:18px;">
+        <button type="button" id="lineTypeBtnPersonal" onclick="selectLineType('personal')"
+            style="flex:1;padding:14px;border-radius:10px;border:2px solid #93c5fd;background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#1e40af;font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;">
+            &#128100; Personal Lines
+        </button>
+        <button type="button" id="lineTypeBtnCommercial" onclick="selectLineType('commercial')"
+            style="flex:1;padding:14px;border-radius:10px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;">
+            &#127970; Commercial Lines
+        </button>
+    </div>
+
     <form id="agentForm">
+
+        <div id="personalLinesFields">
 
         <!-- Customer Information -->
         <div style="margin:0 0 14px 0;">
@@ -626,6 +640,341 @@
             </div>
         </div>
 
+        </div><!-- /personalLinesFields -->
+
+        <div id="commercialLinesFields" style="display:none;">
+
+        <!-- Customer Information -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #bfdbfe;">
+                    <span style="font-size:15px;font-weight:700;color:#1e40af;">&#128100; Customer Information</span>
+                    <span style="font-size:12px;color:#1d4ed8;font-style:italic;">— who the policy is for and how they got here</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                    <div class="form-group" style="margin:0;position:relative;">
+                        <label>Customer Name *</label>
+                        <input type="text" id="customerNameCom" required autocomplete="off"
+                            oninput="customerNameAutocomplete(this.value,'Com')"
+                            onblur="setTimeout(()=>customerNameDropdownHide('Com'),200)"
+                            onkeydown="customerNameDropdownKeyNav(event,'Com')">
+                        <div id="customerNameDropdownCom" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:#fff;border:1.5px solid #bae6fd;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);max-height:280px;overflow-y:auto;margin-top:3px;"></div>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Contact Name</label>
+                        <input type="text" id="contactNameCom" placeholder="Optional">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Source <span style="font-size:11px;color:#1d4ed8;font-weight:500;">(optional)</span></label>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <select id="sourceCom" onchange="sourceDropdownChanged(this)" style="flex:1;"></select>
+                            <button type="button" onclick="openAddSourceModal('Com')" title="Add new source"
+                                style="flex-shrink:0;padding:7px 10px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:6px;font-size:16px;font-weight:700;cursor:pointer;line-height:1;">&#65291;</button>
+                        </div>
+                        <div id="newSourceRowCom" style="display:none;margin-top:6px;">
+                            <input type="text" id="newSourceInputCom" placeholder="Type new source name…"
+                                style="width:100%;padding:7px 10px;border:1px solid #93c5fd;border-radius:6px;font-size:13px;"
+                                onkeydown="if(event.key==='Enter'){event.preventDefault();saveNewSource('Com');}">
+                            <div style="display:flex;gap:6px;margin-top:5px;">
+                                <button type="button" onclick="saveNewSource('Com')" class="btn-primary btn-sm" style="flex:1;">&#10003; Save Source</button>
+                                <button type="button" onclick="cancelNewSource('Com')" class="btn-secondary btn-sm" style="flex:1;">&#10005; Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Referred By <span style="font-size:11px;color:#1d4ed8;font-weight:500;">(optional)</span></label>
+                        <input type="text" id="referredByCom" placeholder="Name of referrer (optional)">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Phone Number <span style="font-size:11px;color:#1d4ed8;font-weight:500;">(optional)</span></label>
+                        <input type="tel" id="customerPhoneCom" placeholder="(305) 555-1234" maxlength="14" oninput="formatPhoneInput(this)">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Email Address <span style="font-size:11px;color:#1d4ed8;font-weight:500;">(optional)</span></label>
+                        <input type="email" id="customerEmailCom" placeholder="name@example.com">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Policy Information -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1.5px solid #c4b5fd;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #ddd6fe;">
+                    <span style="font-size:15px;font-weight:700;color:#5b21b6;">&#128196; Policy Information</span>
+                    <span style="font-size:12px;color:#7c3aed;font-style:italic;">— policy type, carrier, dates, and term</span>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Transaction Type *</label>
+                        <select id="policyTypeCom" required>
+                            <option value="">Select Type</option>
+                            <option value="Endorsement">Endorsement</option>
+                            <option value="Payment">Payment</option>
+                            <option value="WC Exemptions">WC Exemptions</option>
+                            <option value="Miscellaneous">Miscellaneous</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Line of Business *</label>
+                        <select id="lineOfBusinessCom" required>
+                            <option value="">Select Line</option>
+                            <option value="BOP">BOP</option>
+                            <option value="Boat">Boat</option>
+                            <option value="Builders Risk">Builders Risk</option>
+                            <option value="Business Owner">Business Owner</option>
+                            <option value="Classic Collectors">Classic Collectors</option>
+                            <option value="Commercial Auto">Commercial Auto</option>
+                            <option value="Commercial Property">Commercial Property</option>
+                            <option value="Excess Liability">Excess Liability</option>
+                            <option value="Flood">Flood</option>
+                            <option value="Garage Keepers">Garage Keepers</option>
+                            <option value="General Liability">General Liability</option>
+                            <option value="Home Owners DP1">Home Owners DP1</option>
+                            <option value="Home Owners DP2">Home Owners DP2</option>
+                            <option value="Home Owners DP3">Home Owners DP3</option>
+                            <option value="Home Owners H3">Home Owners H3</option>
+                            <option value="Home Owners H4">Home Owners H4</option>
+                            <option value="Home Owners H6">Home Owners H6</option>
+                            <option value="Home Owners H8">Home Owners H8</option>
+                            <option value="Inland Marine">Inland Marine</option>
+                            <option value="Motorcycle/ATV">Motorcycle/ATV</option>
+                            <option value="Non-Trucking Liability">Non-Trucking Liability</option>
+                            <option value="Personal Auto">Personal Auto</option>
+                            <option value="Pollution Liability">Pollution Liability</option>
+                            <option value="Professional Liability">Professional Liability</option>
+                            <option value="Surety Bond">Surety Bond</option>
+                            <option value="Trucking">Trucking</option>
+                            <option value="Umbrella">Umbrella</option>
+                            <option value="Workers Comp">Workers Comp</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>Insurance Company *</span>
+                            <button type="button" class="btn-success btn-sm" onclick="openAddCarrierModal('companyCom')" style="padding:2px 8px;font-size:11px;"><i data-lucide="plus-circle"></i> Add</button>
+                        </label>
+                        <select id="companyCom" required>
+                            <option value="">Select Company</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>MGA / Premium Finance</label>
+                        <select id="mgaCom">
+                            <option value="">Select MGA (Optional)</option>
+                            <option value="5Star">5Star</option>
+                            <option value="ACI-Ascendant">ACI-Ascendant</option>
+                            <option value="All Risk">All Risk</option>
+                            <option value="Appalachian">Appalachian</option>
+                            <option value="Bass Underwriters">Bass Underwriters</option>
+                            <option value="FastComp">FastComp</option>
+                            <option value="Hiscox-London">Hiscox-London</option>
+                            <option value="Hull&amp;Co">Hull&amp;Co</option>
+                            <option value="London Underwriters">London Underwriters</option>
+                            <option value="MJ Kelly">MJ Kelly</option>
+                            <option value="Phyladelphia">Phyladelphia</option>
+                            <option value="SCU">SCU</option>
+                            <option value="Security Underwriters">Security Underwriters</option>
+                            <option value="Shelly Middle Brooks">Shelly Middle Brooks</option>
+                            <option value="Surety One">Surety One</option>
+                            <option value="Tapco">Tapco</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+                    <div class="form-group" style="margin:0;position:relative;">
+                        <label>Policy Number * <span style="font-size:11px;color:#7c3aed;font-weight:500;">(must match existing policy)</span></label>
+                        <input type="text" id="policyNumberCom" required autocomplete="off"
+                            oninput="txnPolicySearch(this.value,'Com')"
+                            onblur="setTimeout(()=>{document.getElementById('policySearchDropdownCom').style.display='none'},200)">
+                        <div id="policySearchDropdownCom" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:#fff;border:1.5px solid #c4b5fd;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;margin-top:3px;"></div>
+                        <div id="policyValidationMsgCom" style="display:none;margin-top:4px;font-size:12px;font-weight:600;border-radius:6px;padding:4px 10px;"></div>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Binder Number <span style="font-size:11px;color:#7c3aed;font-weight:600;">(Auto-Generated)</span></label>
+                        <input type="text" id="binderNumberCom" readonly style="background-color:#f0f0f0;cursor:not-allowed;">
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Entry Date &amp; Time <span style="font-size:11px;color:var(--gray-400);font-weight:400;">(auto)</span></label>
+                        <input type="text" id="entryDateDisplayCom" readonly
+                            style="background:#f0f0f0;cursor:not-allowed;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;width:100%;box-sizing:border-box;color:var(--gray-700);"
+                            placeholder="Opening form…">
+                        <input type="hidden" id="entryDateCom">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Effective Date *</label>
+                        <input type="date" id="effDateCom" required>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Term (Months) *</label>
+                        <select id="termCom" required>
+                            <option value="">Select Term</option>
+                            <option value="6">6 Months</option>
+                            <option value="12">12 Months</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Financial Information -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #bbf7d0;">
+                    <span style="font-size:15px;font-weight:700;color:#166534;">&#128176; Financial Information</span>
+                    <span style="font-size:12px;color:#15803d;font-style:italic;">— premiums, fees, payment, and commissions</span>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Down Payment ($)</label>
+                        <input type="number" id="downCom" step="0.01" min="0">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Agency Fee ($)</label>
+                        <input type="number" id="agencyFeeCom" step="0.01" min="0">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Base Premium ($) *</label>
+                        <input type="number" id="basePremiumCom" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Total Premium ($) *</label>
+                        <input type="number" id="totalPremiumCom" step="0.01" min="0" required>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Payment Method *</label>
+                        <select id="paymentMethodCom" required>
+                            <option value="">Select Method</option>
+                            <option value="CC-Agency">CC-Agency</option>
+                            <option value="CC-Client">CC-Client</option>
+                            <option value="CC-Company">CC-Company</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Check">Check</option>
+                            <option value="ACH to Agency">ACH to Agency</option>
+                            <option value="Direct Billing">Direct Billing</option>
+                            <option value="EFT">EFT</option>
+                            <option value="Escrow">Escrow</option>
+                            <option value="Money Order">Money Order</option>
+                            <option value="Premium Finance">Premium Finance</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Second Payment Method</label>
+                        <select id="paymentMethod2Com">
+                            <option value="">Select Method (Optional)</option>
+                            <option value="CC-Agency">CC-Agency</option>
+                            <option value="CC-Client">CC-Client</option>
+                            <option value="CC-Company">CC-Company</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Check">Check</option>
+                            <option value="ACH to Agency">ACH to Agency</option>
+                            <option value="Direct Billing">Direct Billing</option>
+                            <option value="EFT">EFT</option>
+                            <option value="Escrow">Escrow</option>
+                            <option value="Money Order">Money Order</option>
+                            <option value="Premium Finance">Premium Finance</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Agency Commission ($)
+                            <span style="font-size:11px;color:#059669;font-weight:600;display:block;margin-top:2px;">&#128274; Carrier Rate × Base Premium</span>
+                        </label>
+                        <input type="number" id="agencyCommissionCom" step="0.01" min="0" readonly
+                            style="background-color:#fff;cursor:not-allowed;font-weight:700;color:#166534;border-color:#bbf7d0;">
+                        <div id="commissionBreakdownCom" style="display:none;margin-top:5px;padding:6px 10px;background:#dcfce7;border-radius:6px;font-size:12px;color:#166534;font-weight:600;"></div>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Agent Commission ($)
+                            <span style="font-size:11px;color:#059669;font-weight:600;display:block;margin-top:2px;">&#128274; (Fee + Commission) × 50%</span>
+                        </label>
+                        <input type="number" id="agentCommissionCom" step="0.01" min="0" readonly
+                            style="background-color:#fff;cursor:not-allowed;font-weight:700;color:#166534;border-color:#bbf7d0;">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Commission Type *</label>
+                        <select id="paymentTypeCom" required>
+                            <option value="">Select Commission Type</option>
+                            <option value="Monthly Paid">&#128197; Monthly Paid</option>
+                            <option value="Gross Paid">&#128293; Gross Paid</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payments to Carriers -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1.5px solid #a5b4fc;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #c7d2fe;">
+                    <span style="font-size:15px;font-weight:700;color:#3730a3;">&#128179; Payments to Carriers</span>
+                    <span style="font-size:12px;color:#4338ca;font-style:italic;">— amount owed to the carrier and when it's due</span>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Total Amount to Be Paid ($)</label>
+                        <input type="number" id="carrierPaymentTotalCom" step="0.01" min="0">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Date Collected</label>
+                        <input type="date" id="carrierPaymentDateCollectedCom" onchange="carrierPaymentDateCollectedChanged('Com')">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Payment Issue Date
+                            <span style="font-size:11px;color:#4338ca;font-weight:600;display:block;margin-top:2px;">&#128274; Defaults to Date Collected + 20 days</span>
+                        </label>
+                        <input type="date" id="carrierPaymentIssueDateCom" onchange="carrierPaymentIssueDateEdited('Com')">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drivers -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:1.5px solid #5eead4;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #99f6e4;gap:10px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-size:15px;font-weight:700;color:#115e59;">&#128664; Driver(s) Information</span>
+                        <span style="font-size:11px;background:#ccfbf1;color:#134e4a;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">Optional</span>
+                        <span style="font-size:12px;color:#0d9488;font-style:italic;">— skip if not applicable</span>
+                    </div>
+                    <button type="button" onclick="addDriverRow(undefined,'Com')" style="background:linear-gradient(135deg,#0d9488,#0f766e);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Driver</button>
+                </div>
+                <div id="driversContainerCom"></div>
+                <div id="driversEmptyStateCom" style="text-align:center;padding:14px 8px;font-size:13px;color:#475569;font-style:italic;">No drivers added. Click <strong style="color:#0d9488;">+ Add Driver</strong> if you need to capture driver details.</div>
+            </div>
+        </div>
+
+        <!-- Vehicles -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #fed7aa;gap:10px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-size:15px;font-weight:700;color:#9a3412;">&#128663; Vehicle(s) Information</span>
+                        <span style="font-size:11px;background:#ffedd5;color:#7c2d12;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">Optional</span>
+                        <span style="font-size:12px;color:#c2410c;font-style:italic;">— skip if not applicable</span>
+                    </div>
+                    <button type="button" onclick="addVehicleRow(undefined,'Com')" style="background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Vehicle</button>
+                </div>
+                <div id="vehiclesContainerCom"></div>
+                <div id="vehiclesEmptyStateCom" style="text-align:center;padding:14px 8px;font-size:13px;color:#475569;font-style:italic;">No vehicles added. Click <strong style="color:#c2410c;">+ Add Vehicle</strong> if you need to capture vehicle details.</div>
+            </div>
+        </div>
+
+        </div><!-- /commercialLinesFields -->
+
         <!-- File Attachment -->
         <div style="margin:0 0 16px 0;padding:12px 14px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
             <span style="font-size:13px;color:#374151;font-weight:600;">📁 Attach Documents</span>
@@ -778,19 +1127,96 @@
 
         refreshAllCarrierDropdowns();
         populateSourceDropdown('source', '');
+        populateSourceDropdown('sourceCom', '');
         populate2ndAgentDropdown('secondAgent', '');
         resetDriversVehicles();
+        resetDriversVehicles('Com');
         setTodayDate();
+        setTodayDate('Com');
         generateBinderNumber();
+        generateBinderNumber('Com');
 
         // After data loads, re-generate binder number
         syncFromDrive().then(() => {
             allData = JSON.parse(localStorage.getItem('binderData')) || [];
             generateBinderNumber();
+            generateBinderNumber('Com');
             refreshIcons();
         });
     });
 
+</script>
+<script>
+    // Live policy-number search/validation for the Commercial Lines section
+    // (mirrors transactionentry.html's txnPolicySearch/txnSelectPolicy).
+    let _txnSelectedPolicy = null;
+
+    function txnPolicySearch(val, suffix = '') {
+        const dd = document.getElementById('policySearchDropdown' + suffix);
+        const msg = document.getElementById('policyValidationMsg' + suffix);
+        _txnSelectedPolicy = null;
+        msg.style.display = 'none';
+
+        if (!val || val.length < 2) { dd.style.display = 'none'; return; }
+
+        const q = val.toLowerCase();
+        const policies = (JSON.parse(localStorage.getItem('binderData')) || [])
+            .filter(e => e.policyNumber && e.policyNumber.toLowerCase().includes(q));
+
+        if (!policies.length) {
+            dd.innerHTML = '<div style="padding:12px 14px;font-size:13px;color:#94a3b8;font-style:italic;">No matching policies found</div>';
+            dd.style.display = 'block';
+            msg.style.display = 'block';
+            msg.style.background = '#fef2f2';
+            msg.style.color = '#dc2626';
+            msg.textContent = '⚠ Policy number not found in the system';
+            return;
+        }
+
+        const seen = new Set();
+        dd.innerHTML = policies.filter(e => {
+            if (seen.has(e.policyNumber)) return false;
+            seen.add(e.policyNumber);
+            return true;
+        }).slice(0, 10).map(e => `
+            <div onclick="txnSelectPolicy('${e.policyNumber.replace(/'/g, "\\'")}','${suffix}')"
+                style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background .1s;"
+                onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background='#fff'">
+                <div style="font-weight:700;font-size:13px;color:#1e293b;">${e.policyNumber}</div>
+                <div style="font-size:12px;color:#64748b;margin-top:2px;">${e.customerName || '—'} &bull; ${e.lineOfBusiness || '—'} &bull; ${e.company || '—'}</div>
+            </div>
+        `).join('');
+        dd.style.display = 'block';
+    }
+
+    function txnSelectPolicy(polNum, suffix = '') {
+        const dd = document.getElementById('policySearchDropdown' + suffix);
+        const msg = document.getElementById('policyValidationMsg' + suffix);
+        dd.style.display = 'none';
+
+        document.getElementById('policyNumber' + suffix).value = polNum;
+
+        const policies = (JSON.parse(localStorage.getItem('binderData')) || []);
+        const match = policies.find(e => e.policyNumber === polNum);
+        if (!match) return;
+
+        _txnSelectedPolicy = match;
+
+        msg.style.display = 'block';
+        msg.style.background = '#ecfdf5';
+        msg.style.color = '#065f46';
+        msg.textContent = '✓ Matched: ' + (match.customerName || '') + ' — ' + (match.lineOfBusiness || '') + ' — ' + (match.company || '');
+
+        if (match.customerName) document.getElementById('customerName' + suffix).value = match.customerName;
+        if (match.lineOfBusiness) document.getElementById('lineOfBusiness' + suffix).value = match.lineOfBusiness;
+        if (match.company) {
+            refreshAllCarrierDropdowns();
+            setTimeout(() => { document.getElementById('company' + suffix).value = match.company; }, 100);
+        }
+        if (match.mga) document.getElementById('mga' + suffix).value = match.mga;
+        if (match.effDate) document.getElementById('effDate' + suffix).value = match.effDate;
+        if (match.term) document.getElementById('term' + suffix).value = match.term;
+    }
 </script>
 </body>
 </html>

@@ -1138,10 +1138,14 @@ function saveEntry() {
         const locSel2 = document.getElementById('salesLocationSelect');
         if (locSel2) locSel2.value = autoLoc;
         setTodayDate();
+        setTodayDate('Com');
         generateBinderNumber();
+        generateBinderNumber('Com');
         refreshAllCarrierDropdowns();
         populateSourceDropdown('source', '');
+        populateSourceDropdown('sourceCom', '');
         resetDriversVehicles();
+        resetDriversVehicles('Com');
     } else {
         closeDailySalesModal();
         setTodayDate();
