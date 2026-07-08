@@ -606,12 +606,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Agency Commission = Carrier Rate % × Base Premium (auto, readonly)
     // Agent Commission  = (Agency Fee + Agency Commission) × 50% (auto, readonly)
+    // Wired for both Personal (no suffix) and Commercial ("Com" suffix) —
+    // the Commercial fields simply don't exist on pages without them.
     ['basePremium', 'company', 'lineOfBusiness', 'paymentType', 'policyType'].forEach(id => {
-        document.getElementById(id)?.addEventListener('input',  autoCalculateCommission);
-        document.getElementById(id)?.addEventListener('change', autoCalculateCommission);
+        document.getElementById(id)?.addEventListener('input',  () => autoCalculateCommission());
+        document.getElementById(id)?.addEventListener('change', () => autoCalculateCommission());
+        document.getElementById(id + 'Com')?.addEventListener('input',  () => autoCalculateCommission('Com'));
+        document.getElementById(id + 'Com')?.addEventListener('change', () => autoCalculateCommission('Com'));
     });
-    document.getElementById('agencyFee')?.addEventListener('input',  calculateAgentCommission);
-    document.getElementById('agencyFee')?.addEventListener('change', calculateAgentCommission);
+    document.getElementById('agencyFee')?.addEventListener('input',  () => calculateAgentCommission());
+    document.getElementById('agencyFee')?.addEventListener('change', () => calculateAgentCommission());
+    document.getElementById('agencyFeeCom')?.addEventListener('input',  () => calculateAgentCommission('Com'));
+    document.getElementById('agencyFeeCom')?.addEventListener('change', () => calculateAgentCommission('Com'));
 
     refreshIcons();
 
@@ -649,25 +655,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     })();
 });
 
-function calculateAgentCommission() {
-    const fee        = parseFloat(document.getElementById('agencyFee')?.value) || 0;
-    const commission = parseFloat(document.getElementById('agencyCommission')?.value) || 0;
+function calculateAgentCommission(suffix = '') {
+    const fee        = parseFloat(document.getElementById('agencyFee' + suffix)?.value) || 0;
+    const commission = parseFloat(document.getElementById('agencyCommission' + suffix)?.value) || 0;
     const total      = fee + commission;
-    const hasSecond  = !!(document.getElementById('secondAgent')?.value);
+    const hasSecond  = !!(document.getElementById('secondAgent' + suffix)?.value);
 
     const agentRate   = hasSecond ? 0.25 : 0.50;
     const agentShare  = parseFloat((total * agentRate).toFixed(2));
 
-    const agentField = document.getElementById('agentCommission');
+    const agentField = document.getElementById('agentCommission' + suffix);
     if (agentField) agentField.value = agentShare > 0 ? agentShare : '';
 
-    const label = document.getElementById('agentCommissionLabel');
+    const label = document.getElementById('agentCommissionLabel' + suffix);
     if (label) label.textContent = hasSecond
         ? '🔒 (Fee + Commission) × 25%'
         : '🔒 (Fee + Commission) × 50%';
 
-    const secondField = document.getElementById('secondAgentCommission');
-    const secondGroup = document.getElementById('secondAgentCommissionGroup');
+    const secondField = document.getElementById('secondAgentCommission' + suffix);
+    const secondGroup = document.getElementById('secondAgentCommissionGroup' + suffix);
     if (hasSecond) {
         const secondShare = parseFloat((total * 0.25).toFixed(2));
         if (secondField) secondField.value = secondShare > 0 ? secondShare : '';
@@ -689,19 +695,19 @@ function populate2ndAgentDropdown(selectId, selectedValue) {
         agents.map(a => `<option value="${a}"${a === selectedValue ? ' selected' : ''}>${a}</option>`).join('');
 }
 
-function autoCalculateCommission() {
-    const basePremium = parseFloat(document.getElementById('basePremium')?.value) || 0;
-    const carrier     = document.getElementById('company')?.value;
-    const lob         = document.getElementById('lineOfBusiness')?.value;
-    const paymentType = document.getElementById('paymentType')?.value;
-    const policyType  = document.getElementById('policyType')?.value;
-    const breakdown   = document.getElementById('commissionBreakdown');
-    const commField   = document.getElementById('agencyCommission');
+function autoCalculateCommission(suffix = '') {
+    const basePremium = parseFloat(document.getElementById('basePremium' + suffix)?.value) || 0;
+    const carrier     = document.getElementById('company' + suffix)?.value;
+    const lob         = document.getElementById('lineOfBusiness' + suffix)?.value;
+    const paymentType = document.getElementById('paymentType' + suffix)?.value;
+    const policyType  = document.getElementById('policyType' + suffix)?.value;
+    const breakdown   = document.getElementById('commissionBreakdown' + suffix);
+    const commField   = document.getElementById('agencyCommission' + suffix);
 
     if (basePremium <= 0 || !carrier || !lob || !paymentType) {
         if (commField) commField.value = '';
         if (breakdown) { breakdown.style.display = 'none'; breakdown.textContent = ''; }
-        calculateAgentCommission();
+        calculateAgentCommission(suffix);
         return;
     }
 
@@ -725,7 +731,7 @@ function autoCalculateCommission() {
         }
     }
 
-    calculateAgentCommission();
+    calculateAgentCommission(suffix);
 }
 
 function getInitials(name) {
@@ -806,21 +812,79 @@ function showAgentSection(agent) {
     generateBinderNumber();
 }
 
-function setTodayDate() {
+// Payments to Carriers — Payment Issue Date defaults to Date Collected + 20
+// days. Track the last value we auto-computed so we don't clobber it once
+// the agent has manually edited it themselves.
+let _lastAutoCarrierIssueDate = '';
+
+function carrierPaymentDateCollectedChanged() {
+    const dateCollected = document.getElementById('carrierPaymentDateCollected')?.value;
+    const issueInput = document.getElementById('carrierPaymentIssueDate');
+    if (!dateCollected || !issueInput) return;
+    if (!issueInput.value || issueInput.value === _lastAutoCarrierIssueDate) {
+        const d = new Date(dateCollected + 'T12:00:00');
+        d.setDate(d.getDate() + 20);
+        const iso = d.toISOString().slice(0, 10);
+        issueInput.value = iso;
+        _lastAutoCarrierIssueDate = iso;
+    }
+}
+
+function carrierPaymentIssueDateEdited() {
+    // Once the agent types their own date, stop auto-overwriting it.
+    _lastAutoCarrierIssueDate = '__manual__';
+}
+
+// New Transaction Entry — Personal Lines vs Commercial Lines toggle.
+// Commercial Lines is a fully independent copy of every field (own ids,
+// suffixed "Com") so the two can be filled out separately. _selectedLineType
+// tracks which section is showing/active; saveEntry() reads from that
+// section's ids and stores the choice on the entry as lineType.
+let _selectedLineType = 'personal';
+
+function selectLineType(type) {
+    const personalBtn      = document.getElementById('lineTypeBtnPersonal');
+    const commercialBtn    = document.getElementById('lineTypeBtnCommercial');
+    const personalFields   = document.getElementById('personalLinesFields');
+    const commercialFields = document.getElementById('commercialLinesFields');
+    if (!personalBtn || !commercialBtn) return;
+
+    const isPersonal = type === 'personal';
+    _selectedLineType = type;
+
+    if (personalFields)   personalFields.style.display   = isPersonal ? '' : 'none';
+    if (commercialFields) commercialFields.style.display = isPersonal ? 'none' : '';
+
+    personalBtn.style.background = isPersonal ? 'linear-gradient(135deg,#eff6ff,#dbeafe)' : '#fff';
+    personalBtn.style.borderColor = isPersonal ? '#93c5fd' : '#e2e8f0';
+    personalBtn.style.color = isPersonal ? '#1e40af' : '#64748b';
+
+    commercialBtn.style.background = isPersonal ? '#fff' : 'linear-gradient(135deg,#fff7ed,#ffedd5)';
+    commercialBtn.style.borderColor = isPersonal ? '#e2e8f0' : '#fdba74';
+    commercialBtn.style.color = isPersonal ? '#64748b' : '#9a3412';
+}
+
+// Returns the id suffix for whichever Line of Business section is
+// currently active ('Com' for Commercial, '' for Personal).
+function _lineTypeSuffix() {
+    return (typeof _selectedLineType !== 'undefined' && _selectedLineType === 'commercial') ? 'Com' : '';
+}
+
+function setTodayDate(suffix = '') {
     // Capture the exact moment the form is opened in Eastern Time
     const dateStr    = getEasternDateString();      // YYYY-MM-DD — for filtering/grouping
     const displayStr = getEasternDateTimeDisplay();  // "05/22/2026  2:30 PM ET" — shown to agent
 
     // Hidden field keeps YYYY-MM-DD so all month/year filtering still works
-    const hidden = document.getElementById('entryDate');
+    const hidden = document.getElementById('entryDate' + suffix);
     if (hidden) hidden.value = dateStr;
 
     // Visible read-only field shows full date + time so agent sees exact open timestamp
-    const display = document.getElementById('entryDateDisplay');
+    const display = document.getElementById('entryDateDisplay' + suffix);
     if (display) display.value = displayStr;
 }
 
-function generateBinderNumber() {
+function generateBinderNumber(suffix = '') {
     if (!currentUser) return;
 
     const year = getEasternYear();
@@ -835,7 +899,7 @@ function generateBinderNumber() {
     const count = agentEntries.length + 1;
     const binderNumber = `${agentInitials}-${year}-${String(count).padStart(3, '0')}`;
 
-    const binderField = document.getElementById('binderNumber');
+    const binderField = document.getElementById('binderNumber' + suffix);
     if (binderField) {
         binderField.value = binderNumber;
     }
@@ -906,35 +970,45 @@ function toTitleCase(str) {
 }
 
 function saveEntry() {
+    // Personal Lines and Commercial Lines are two fully independent sets of
+    // fields (Commercial's ids all carry a "Com" suffix) — read from
+    // whichever one is currently selected/visible.
+    const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : '';
+    const gid = id => document.getElementById(id + sfx);
+
     const entry = {
         id: Date.now(),
         agent: currentUser,
-        customerName: toTitleCase(document.getElementById('customerName').value),
-        contactName: toTitleCase(document.getElementById('contactName').value),
-        source: document.getElementById('source').value,
-        referredBy: toTitleCase(document.getElementById('referredBy').value),
-        policyType: document.getElementById('policyType').value,
-        lineOfBusiness: document.getElementById('lineOfBusiness').value,
-        company: document.getElementById('company').value,
-        mga: document.getElementById('mga').value,
-        down: parseFloat(document.getElementById('down').value) || 0,
-        agencyFee: parseFloat(document.getElementById('agencyFee').value) || 0,
-        basePremium: parseFloat(document.getElementById('basePremium').value),
-        agencyCommission: parseFloat(document.getElementById('agencyCommission').value) || 0,
-        totalPremium: parseFloat(document.getElementById('totalPremium').value),
-        paymentType: document.getElementById('paymentType').value,
-        paymentMethod2: document.getElementById('paymentMethod2').value,
-        policyNumber: document.getElementById('policyNumber').value,
-        binderNumber: document.getElementById('binderNumber').value,
-        entryDate: document.getElementById('entryDate').value,
-        entryDateDisplay: document.getElementById('entryDateDisplay')?.value || '',
-        effDate: document.getElementById('effDate').value,
-        term: document.getElementById('term').value,
+        customerName: toTitleCase(gid('customerName').value),
+        contactName: toTitleCase(gid('contactName').value),
+        source: gid('source').value,
+        referredBy: toTitleCase(gid('referredBy').value),
+        policyType: gid('policyType').value,
+        lineOfBusiness: gid('lineOfBusiness').value,
+        company: gid('company').value,
+        mga: gid('mga').value,
+        down: parseFloat(gid('down').value) || 0,
+        agencyFee: parseFloat(gid('agencyFee').value) || 0,
+        basePremium: parseFloat(gid('basePremium').value),
+        agencyCommission: parseFloat(gid('agencyCommission').value) || 0,
+        totalPremium: parseFloat(gid('totalPremium').value),
+        paymentType: gid('paymentType').value,
+        paymentMethod2: gid('paymentMethod2').value,
+        policyNumber: gid('policyNumber').value,
+        binderNumber: gid('binderNumber').value,
+        entryDate: gid('entryDate').value,
+        entryDateDisplay: gid('entryDateDisplay')?.value || '',
+        effDate: gid('effDate').value,
+        term: gid('term').value,
         location: document.getElementById('salesLocationSelect')?.value || _selectedSalesLocation || '',
-        drivers: collectDriverRows(),
-        vehicles: collectVehicleRows(),
+        lineType: typeof _selectedLineType !== 'undefined' ? _selectedLineType : 'personal',
+        carrierPaymentTotal: parseFloat(gid('carrierPaymentTotal')?.value) || 0,
+        carrierPaymentDateCollected: gid('carrierPaymentDateCollected')?.value || '',
+        carrierPaymentIssueDate: gid('carrierPaymentIssueDate')?.value || '',
+        drivers: collectDriverRows(sfx),
+        vehicles: collectVehicleRows(sfx),
         timestamp: getEasternTimestamp(),
-        secondAgent: document.getElementById('secondAgent')?.value || ''
+        secondAgent: gid('secondAgent')?.value || ''
     };
     const hasSecond = !!entry.secondAgent;
     const commBase  = entry.agencyFee + entry.agencyCommission;
@@ -1024,18 +1098,23 @@ function saveEntry() {
 
     showSuccess();
     document.getElementById('agentForm').reset();
-    document.getElementById('agentCommission').value = '';
-    document.getElementById('secondAgentCommission').value = '';
-    const secondGroup = document.getElementById('secondAgentCommissionGroup');
-    if (secondGroup) secondGroup.style.display = 'none';
-    const agentCommLabel = document.getElementById('agentCommissionLabel');
-    if (agentCommLabel) agentCommLabel.textContent = '🔒 (Fee + Commission) × 50%';
-    populate2ndAgentDropdown('secondAgent', '');
-    // Hide auto-calc breakdown labels
-    const rateLabel = document.getElementById('commissionRateLabel');
-    const breakdownEl = document.getElementById('commissionBreakdown');
-    if (rateLabel) { rateLabel.style.display = 'none'; rateLabel.textContent = ''; }
-    if (breakdownEl) { breakdownEl.style.display = 'none'; breakdownEl.textContent = ''; }
+    if (typeof selectLineType === 'function' && document.getElementById('lineTypeBtnPersonal')) selectLineType('personal');
+    ['', 'Com'].forEach(sfx => {
+        const agentCommEl = document.getElementById('agentCommission' + sfx);
+        if (agentCommEl) agentCommEl.value = '';
+        const secondCommEl = document.getElementById('secondAgentCommission' + sfx);
+        if (secondCommEl) secondCommEl.value = '';
+        const secondGroup = document.getElementById('secondAgentCommissionGroup' + sfx);
+        if (secondGroup) secondGroup.style.display = 'none';
+        const agentCommLabel = document.getElementById('agentCommissionLabel' + sfx);
+        if (agentCommLabel) agentCommLabel.textContent = '🔒 (Fee + Commission) × 50%';
+        populate2ndAgentDropdown('secondAgent' + sfx, '');
+        // Hide auto-calc breakdown labels
+        const rateLabel = document.getElementById('commissionRateLabel' + sfx);
+        const breakdownEl = document.getElementById('commissionBreakdown' + sfx);
+        if (rateLabel) { rateLabel.style.display = 'none'; rateLabel.textContent = ''; }
+        if (breakdownEl) { breakdownEl.style.display = 'none'; breakdownEl.textContent = ''; }
+    });
 
     // Detect standalone daily sales entry page vs main app modal
     const isStandalonePage = window.location.pathname.includes('dailysalesentry');
@@ -1906,7 +1985,10 @@ function populateSourceDropdown(selectId, selectedValue) {
 function sourceDropdownChanged(sel) {
     if (sel.value === '__add_new__') {
         sel.value = '';
-        openAddSourceModal();
+        // Derive suffix from the select's own id (e.g. "sourceCom" -> "Com")
+        // so the same handler works for both Personal and Commercial Lines.
+        const suffix = sel.id.startsWith('source') ? sel.id.slice('source'.length) : '';
+        openAddSourceModal(suffix);
     }
 }
 
@@ -1978,20 +2060,20 @@ function populateEditReferralDropdown(selectedValue) {
         customs.map(r => `<option value="${r}"${r === selectedValue ? ' selected' : ''}>${r}</option>`).join('');
 }
 
-function openAddSourceModal() {
-    const row = document.getElementById('newSourceRow');
-    const inp = document.getElementById('newSourceInput');
+function openAddSourceModal(suffix = '') {
+    const row = document.getElementById('newSourceRow' + suffix);
+    const inp = document.getElementById('newSourceInput' + suffix);
     if (row) { row.style.display = 'block'; }
     if (inp) { inp.value = ''; inp.focus(); }
 }
 
-function cancelNewSource() {
-    const row = document.getElementById('newSourceRow');
+function cancelNewSource(suffix = '') {
+    const row = document.getElementById('newSourceRow' + suffix);
     if (row) row.style.display = 'none';
 }
 
-function saveNewSource() {
-    const inp = document.getElementById('newSourceInput');
+function saveNewSource(suffix = '') {
+    const inp = document.getElementById('newSourceInput' + suffix);
     const val = (inp?.value || '').trim();
     if (!val) { inp?.focus(); return; }
 
@@ -1999,17 +2081,17 @@ function saveNewSource() {
     const all = [...DEFAULT_SOURCES, ...customs];
     if (all.map(s => s.toLowerCase()).includes(val.toLowerCase())) {
         // Already exists — just select it
-        populateSourceDropdown('source', val);
-        document.getElementById('source').value = val;
-        cancelNewSource();
+        populateSourceDropdown('source' + suffix, val);
+        document.getElementById('source' + suffix).value = val;
+        cancelNewSource(suffix);
         return;
     }
 
     customs.push(val);
     saveCustomSources(customs);
-    populateSourceDropdown('source', val);
-    document.getElementById('source').value = val;
-    cancelNewSource();
+    populateSourceDropdown('source' + suffix, val);
+    document.getElementById('source' + suffix).value = val;
+    cancelNewSource(suffix);
 }
 
 // ── Client Lookup Search ──────────────────────────────────────────────────────
@@ -2197,8 +2279,8 @@ function agentGlobalSearchClear() {
 
 let _cnDropdownIndex = -1;
 
-function customerNameAutocomplete(query) {
-    const dd = document.getElementById('customerNameDropdown');
+function customerNameAutocomplete(query, suffix = '') {
+    const dd = document.getElementById('customerNameDropdown' + suffix);
     if (!dd) return;
     const q = query.trim().toLowerCase();
     if (q.length < 2) { dd.style.display = 'none'; return; }
@@ -2246,8 +2328,8 @@ function customerNameAutocomplete(query) {
         if (src.ams)     badges.push(`<span style="background:#dcfce7;color:#166534;font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;">🏢 AMS</span>`);
         const sub = [lob, agent].filter(Boolean).join(' · ');
         return `<div class="cn-dd-item" data-name="${name.replace(/"/g,'&quot;')}" data-index="${i}"
-            onclick="customerNameSelect('${name.replace(/'/g,"\\'")}') "
-            onmouseenter="customerNameDropdownHighlight(${i})"
+            onclick="customerNameSelect('${name.replace(/'/g,"\\'")}','${suffix}') "
+            onmouseenter="customerNameDropdownHighlight(${i},'${suffix}')"
             style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:10px;">
             <div style="min-width:0;">
                 <div style="font-size:14px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
@@ -2260,45 +2342,45 @@ function customerNameAutocomplete(query) {
     dd.style.display = 'block';
 }
 
-function customerNameSelect(name) {
-    const inp = document.getElementById('customerName');
+function customerNameSelect(name, suffix = '') {
+    const inp = document.getElementById('customerName' + suffix);
     if (inp) { inp.value = name; inp.dispatchEvent(new Event('input')); }
-    customerNameDropdownHide();
+    customerNameDropdownHide(suffix);
     // Also sync the existing lookup bar
     const lu = document.getElementById('clientLookupInput');
     if (lu) { lu.value = name; clientLookupSearch(name); }
 }
 
-function customerNameDropdownHide() {
-    const dd = document.getElementById('customerNameDropdown');
+function customerNameDropdownHide(suffix = '') {
+    const dd = document.getElementById('customerNameDropdown' + suffix);
     if (dd) dd.style.display = 'none';
     _cnDropdownIndex = -1;
 }
 
-function customerNameDropdownHighlight(index) {
+function customerNameDropdownHighlight(index, suffix = '') {
     _cnDropdownIndex = index;
-    document.querySelectorAll('.cn-dd-item').forEach((el, i) => {
+    document.querySelectorAll('#customerNameDropdown' + suffix + ' .cn-dd-item').forEach((el, i) => {
         el.style.background = i === index ? '#eff6ff' : '';
     });
 }
 
-function customerNameDropdownKeyNav(e) {
-    const items = document.querySelectorAll('.cn-dd-item');
+function customerNameDropdownKeyNav(e, suffix = '') {
+    const items = document.querySelectorAll('#customerNameDropdown' + suffix + ' .cn-dd-item');
     if (!items.length) return;
     if (e.key === 'ArrowDown') {
         e.preventDefault();
         _cnDropdownIndex = Math.min(_cnDropdownIndex + 1, items.length - 1);
-        customerNameDropdownHighlight(_cnDropdownIndex);
+        customerNameDropdownHighlight(_cnDropdownIndex, suffix);
     } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         _cnDropdownIndex = Math.max(_cnDropdownIndex - 1, 0);
-        customerNameDropdownHighlight(_cnDropdownIndex);
+        customerNameDropdownHighlight(_cnDropdownIndex, suffix);
     } else if (e.key === 'Enter' && _cnDropdownIndex >= 0) {
         e.preventDefault();
         const name = items[_cnDropdownIndex]?.dataset?.name;
-        if (name) customerNameSelect(name);
+        if (name) customerNameSelect(name, suffix);
     } else if (e.key === 'Escape') {
-        customerNameDropdownHide();
+        customerNameDropdownHide(suffix);
     }
 }
 
@@ -2323,8 +2405,24 @@ function showSuccess() {
 }
 
 // Agent Data Display
+
+// Default the "Your Submissions" table to a single month at a time —
+// the most recent month that has entries for the logged-in agent, or
+// the current calendar month if they have none yet.
+function _agentDefaultMonth() {
+    const entries = allData.filter(d => d.agent === currentUser && d.entryDate);
+    if (!entries.length) {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+    const latest = entries.reduce((max, e) => e.entryDate > max ? e.entryDate : max, entries[0].entryDate);
+    return latest.slice(0, 7);
+}
+
 function loadAgentData() {
-    const month = document.getElementById('agentFilter')?.value || '';
+    const monthInput = document.getElementById('agentFilter');
+    if (monthInput && !monthInput.value) monthInput.value = _agentDefaultMonth();
+    const month = monthInput?.value || '';
     const query = (document.getElementById('agentSubmissionSearch')?.value || '').trim().toLowerCase();
 
     let entries = allData.filter(d => d.agent === currentUser);
@@ -2414,7 +2512,9 @@ function bulkClearSelection() {
 }
 
 function filterAgentData() {
-    const month = document.getElementById('agentFilter').value;
+    const monthInput = document.getElementById('agentFilter');
+    if (monthInput && !monthInput.value) monthInput.value = _agentDefaultMonth();
+    const month = monthInput.value;
     const type = document.getElementById('agentTypeFilter')?.value || '';
 
     let agentEntries = allData.filter(d => d.agent === currentUser);
@@ -2424,7 +2524,7 @@ function filterAgentData() {
 }
 
 function resetAgentFilter() {
-    document.getElementById('agentFilter').value = '';
+    document.getElementById('agentFilter').value = _agentDefaultMonth();
     const typeFilter = document.getElementById('agentTypeFilter');
     if (typeFilter) typeFilter.value = '';
     const search = document.getElementById('agentSubmissionSearch');
@@ -2480,13 +2580,25 @@ function loadAdminDashboard() {
     }
 
     populateAgentFilter();
+    _adminDefaultMonth();
     renderAdminStats();
     renderCharts();
-    renderAdminTable(allData);
+    renderAdminTable(getFilteredData());
+}
+
+// Default the admin "All Entries" table to the current calendar month
+// (agents stay unfiltered — "All Agents") so it doesn't dump every
+// entry ever recorded onto the page.
+function _adminDefaultMonth() {
+    const monthInput = document.getElementById('monthFilter');
+    if (monthInput && !monthInput.value) {
+        const now = new Date();
+        monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
 }
 
 function populateAgentFilter() {
-    const select = document.getElementById('agentFilter');
+    const select = document.getElementById('adminAgentFilter');
     if (!select) return;
 
     // Get agents from master list
@@ -2646,8 +2758,8 @@ function filterAdminData() {
 }
 
 function resetAdminFilter() {
-    document.getElementById('agentFilter').value  = '';
-    document.getElementById('monthFilter').value  = '';
+    document.getElementById('adminAgentFilter').value = '';
+    document.getElementById('monthFilter').value       = '';
     const sb = document.getElementById('adminSortBy');
     const sd = document.getElementById('adminSortDir');
     if (sb) sb.value = 'entryDate';
@@ -2660,7 +2772,7 @@ function resetAdminFilter() {
 }
 
 function getFilteredData() {
-    const agent   = document.getElementById('agentFilter')?.value  || '';
+    const agent   = document.getElementById('adminAgentFilter')?.value || '';
     const month   = document.getElementById('monthFilter')?.value  || '';
     const sortBy  = document.getElementById('adminSortBy')?.value  || 'entryDate';
     const sortDir = document.getElementById('adminSortDir')?.value || 'desc';
@@ -2951,6 +3063,7 @@ function refreshAllCarrierDropdowns() {
     const carriers = Object.keys(carrierMasterData || {}).sort();
     const targets = [
         { id: 'company',         placeholder: 'Select Company' },
+        { id: 'companyCom',      placeholder: 'Select Company' },
         { id: 'editCompany',     placeholder: 'Select Company' },
         { id: 'uicManualCarrier', placeholder: '— Select Carrier —' },
     ];
@@ -8821,8 +8934,8 @@ function claudeAdminApplyStatement(stmt) {
 let _driverRowCounter = 0;
 let _vehicleRowCounter = 0;
 
-function addDriverRow(prefill) {
-    const container = document.getElementById('driversContainer');
+function addDriverRow(prefill, suffix = '') {
+    const container = document.getElementById('driversContainer' + suffix);
     if (!container) return;
     _driverRowCounter++;
     const rid = `drv_${_driverRowCounter}`;
@@ -8847,7 +8960,7 @@ function addDriverRow(prefill) {
             <label style="font-size:11px;font-weight:700;color:#115e59;display:block;margin-bottom:3px;text-transform:uppercase;">DL #</label>
             <input type="text" class="drv-dl" placeholder="License #" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;">
         </div>
-        <button type="button" onclick="this.closest('.driver-row').remove(); updateDriversEmptyState();" title="Remove driver"
+        <button type="button" onclick="this.closest('.driver-row').remove(); updateDriversEmptyState('${suffix}');" title="Remove driver"
             style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:7px 10px;cursor:pointer;font-weight:700;font-size:14px;height:32px;">✕</button>
     `;
     container.appendChild(div);
@@ -8857,12 +8970,12 @@ function addDriverRow(prefill) {
         if (prefill.dob)       div.querySelector('.drv-dob').value       = prefill.dob;
         if (prefill.dl)        div.querySelector('.drv-dl').value        = prefill.dl;
     }
-    updateDriversEmptyState();
+    updateDriversEmptyState(suffix);
     div.querySelector('.drv-firstName')?.focus();
 }
 
-function addVehicleRow(prefill) {
-    const container = document.getElementById('vehiclesContainer');
+function addVehicleRow(prefill, suffix = '') {
+    const container = document.getElementById('vehiclesContainer' + suffix);
     if (!container) return;
     _vehicleRowCounter++;
     const rid = `veh_${_vehicleRowCounter}`;
@@ -8887,7 +9000,7 @@ function addVehicleRow(prefill) {
             <label style="font-size:11px;font-weight:700;color:#9a3412;display:block;margin-bottom:3px;text-transform:uppercase;">VIN</label>
             <input type="text" class="veh-vin" placeholder="17-character VIN" maxlength="17" style="width:100%;padding:7px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:monospace;text-transform:uppercase;box-sizing:border-box;">
         </div>
-        <button type="button" onclick="this.closest('.vehicle-row').remove(); updateVehiclesEmptyState();" title="Remove vehicle"
+        <button type="button" onclick="this.closest('.vehicle-row').remove(); updateVehiclesEmptyState('${suffix}');" title="Remove vehicle"
             style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:7px 10px;cursor:pointer;font-weight:700;font-size:14px;height:32px;">✕</button>
     `;
     container.appendChild(div);
@@ -8897,12 +9010,12 @@ function addVehicleRow(prefill) {
         if (prefill.model) div.querySelector('.veh-model').value = prefill.model;
         if (prefill.vin)   div.querySelector('.veh-vin').value   = prefill.vin;
     }
-    updateVehiclesEmptyState();
+    updateVehiclesEmptyState(suffix);
     div.querySelector('.veh-year')?.focus();
 }
 
-function collectDriverRows() {
-    const rows = document.querySelectorAll('#driversContainer .driver-row');
+function collectDriverRows(suffix = '') {
+    const rows = document.querySelectorAll('#driversContainer' + suffix + ' .driver-row');
     const drivers = [];
     rows.forEach(r => {
         const driver = {
@@ -8918,8 +9031,8 @@ function collectDriverRows() {
     return drivers;
 }
 
-function collectVehicleRows() {
-    const rows = document.querySelectorAll('#vehiclesContainer .vehicle-row');
+function collectVehicleRows(suffix = '') {
+    const rows = document.querySelectorAll('#vehiclesContainer' + suffix + ' .vehicle-row');
     const vehicles = [];
     rows.forEach(r => {
         const vehicle = {
@@ -8935,28 +9048,28 @@ function collectVehicleRows() {
     return vehicles;
 }
 
-function resetDriversVehicles() {
-    const dc = document.getElementById('driversContainer');
-    const vc = document.getElementById('vehiclesContainer');
+function resetDriversVehicles(suffix = '') {
+    const dc = document.getElementById('driversContainer' + suffix);
+    const vc = document.getElementById('vehiclesContainer' + suffix);
     if (dc) dc.innerHTML = '';
     if (vc) vc.innerHTML = '';
     _driverRowCounter = 0;
     _vehicleRowCounter = 0;
     // Both sections start empty — they're optional, agent adds rows only if needed
-    updateDriversEmptyState();
-    updateVehiclesEmptyState();
+    updateDriversEmptyState(suffix);
+    updateVehiclesEmptyState(suffix);
 }
 
-function updateDriversEmptyState() {
-    const dc = document.getElementById('driversContainer');
-    const ds = document.getElementById('driversEmptyState');
+function updateDriversEmptyState(suffix = '') {
+    const dc = document.getElementById('driversContainer' + suffix);
+    const ds = document.getElementById('driversEmptyState' + suffix);
     if (!dc || !ds) return;
     ds.style.display = dc.children.length === 0 ? 'block' : 'none';
 }
 
-function updateVehiclesEmptyState() {
-    const vc = document.getElementById('vehiclesContainer');
-    const vs = document.getElementById('vehiclesEmptyState');
+function updateVehiclesEmptyState(suffix = '') {
+    const vc = document.getElementById('vehiclesContainer' + suffix);
+    const vs = document.getElementById('vehiclesEmptyState' + suffix);
     if (!vc || !vs) return;
     vs.style.display = vc.children.length === 0 ? 'block' : 'none';
 }
