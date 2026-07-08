@@ -7817,6 +7817,7 @@ async function claudeSendMessage() {
         // Check if reply contains a sales entry extraction JSON
         const extracted = pdfWasAttached ? claudeTryParseEntry(replyText) : null;
         if (extracted) {
+            extracted.lineType = claudeInferLineType(extracted);
             if (!window._claudeExtractions) window._claudeExtractions = [];
             window._claudeExtractions.push(extracted);
             const _extIdx = window._claudeExtractions.length - 1;
@@ -7824,10 +7825,13 @@ async function claudeSendMessage() {
             const msg = claudeAddMessage('assistant', '');
             const typeLabel = isTransaction ? 'Transaction' : 'Sales entry';
             const txnTypeLabel = extracted.transactionType ? ` (${extracted.transactionType})` : '';
+            const lineBadge = extracted.lineType === 'commercial'
+                ? '<span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ffedd5;border:1px solid #fdba74;color:#9a3412;font-size:11px;font-weight:700;">🏢 Commercial Lines</span>'
+                : '<span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;font-size:11px;font-weight:700;">🧍 Personal Lines</span>';
             const existingWarning = claudeCheckExistingClient(extracted);
             msg.innerHTML = claudeRenderMarkdown(replyText) +
                 `<div style="margin-top:14px;padding:12px;background:${isTransaction ? '#fffbeb' : '#f0fdf4'};border:1.5px solid ${isTransaction ? '#fbbf24' : '#86efac'};border-radius:10px;">
-                    <div style="font-weight:700;color:${isTransaction ? '#92400e' : '#15803d'};margin-bottom:8px;">✓ ${typeLabel} extracted${txnTypeLabel}</div>
+                    <div style="font-weight:700;color:${isTransaction ? '#92400e' : '#15803d'};margin-bottom:8px;">✓ ${typeLabel} extracted${txnTypeLabel}${lineBadge}</div>
                     <div style="font-size:12px;color:#166534;margin-bottom:10px;">PDF: ${pdfFileName}</div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         ${isTransaction ? `<button onclick="claudePrefillTransaction(window._claudeExtractions[${_extIdx}])"
@@ -7883,6 +7887,13 @@ IMPORTANT — Detect the document type:
 - If the PDF is an ENDORSEMENT, PAYMENT, WC EXEMPTION, or other TRANSACTION document (not a new/renewal policy), set "entryType": "transaction" and set "transactionType" to one of: "Endorsement", "Payment", "WC Exemptions", or "Miscellaneous".
 - If the PDF is a new policy, renewal, rewrite, or binder, set "entryType": "policy" and set "policyType" normally.
 
+IMPORTANT — Detect Personal vs Commercial Lines (both entry forms are split into these two sections):
+- Set "lineType": "personal" or "commercial" on EVERY extraction.
+- COMMERCIAL lines of business: BOP, Builders Risk, Business Owner, Commercial Auto, Commercial Property, Garage Keepers, General Liability, Inland Marine, Non-Trucking Liability, Pollution Liability, Professional Liability, Surety Bond, Trucking, Workers Comp.
+- PERSONAL lines of business: Personal Auto, Home Owners (DP1/DP2/DP3/H3/H4/H6/H8), Boat, Motorcycle/ATV, Classic Collectors.
+- AMBIGUOUS lines (Flood, Umbrella, Excess Liability): decide from the named insured and the document itself — a business entity (LLC, Inc, Corp, DBA, company name), commercial address, FEIN, or business-use classifications → "commercial"; an individual person insuring their home, car, or personal property → "personal".
+- Other strong commercial signals: certificate holders, additional insureds that are businesses, workers comp class codes, commercial vehicle schedules (box trucks, semis), garaging at a business location.
+
 Respond with a JSON object wrapped in \`\`\`json fences. The JSON must be the LAST thing in your response.
 
 Full JSON shape (omit any field you can't find — don't make values up):
@@ -7890,6 +7901,7 @@ Full JSON shape (omit any field you can't find — don't make values up):
 {
   "entryType": "policy|transaction",
   "transactionType": "Endorsement|Payment|WC Exemptions|Miscellaneous (only when entryType=transaction)",
+  "lineType": "personal|commercial (ALWAYS set this — see Personal vs Commercial rules above)",
 
   "customerName": "string (primary insured / business name)",
   "contactName": "string (if separate contact listed)",
@@ -7945,7 +7957,7 @@ EXTRACTION TIPS:
 - PAYMENT documents show a policy number, payment amount, payment method, and date.
 - WC EXEMPTION documents show officer/member names and exemption details.
 
-Before the JSON, give a brief 2-3 sentence summary of what you found (document type, carrier, policy number, premium/amount). The current agent (${currentUser || amsCurrentUser}) will be auto-assigned to the entry.`;
+Before the JSON, give a brief 2-3 sentence summary of what you found (document type, PERSONAL or COMMERCIAL lines, carrier, policy number, premium/amount). The current agent (${currentUser || amsCurrentUser}) will be auto-assigned to the entry.`;
     }
     return base;
 }
@@ -8070,6 +8082,43 @@ function claudeTryParseEntry(text) {
     return null;
 }
 
+// ── Personal vs Commercial Lines classification ──────────────────────────
+// Both the Daily Sales Entry and Transaction Entry forms are split into a
+// Personal Lines section (unsuffixed ids) and a Commercial Lines section
+// ("Com"-suffixed ids). The AI sets lineType in its extraction JSON; this
+// is the fallback when it doesn't, so prefill always lands in a section.
+const CLAUDE_COMMERCIAL_LOBS = [
+    'BOP', 'Builders Risk', 'Business Owner', 'Commercial Auto',
+    'Commercial Property', 'Garage Keepers', 'General Liability',
+    'Inland Marine', 'Non-Trucking Liability', 'Pollution Liability',
+    'Professional Liability', 'Surety Bond', 'Trucking', 'Workers Comp'
+];
+const CLAUDE_PERSONAL_LOBS = [
+    'Boat', 'Classic Collectors', 'Home Owners DP1', 'Home Owners DP2',
+    'Home Owners DP3', 'Home Owners H3', 'Home Owners H4', 'Home Owners H6',
+    'Home Owners H8', 'Motorcycle/ATV', 'Personal Auto'
+];
+
+function claudeInferLineType(extracted) {
+    if (!extracted) return 'personal';
+    const declared = String(extracted.lineType || '').toLowerCase().trim();
+    if (declared === 'personal' || declared === 'commercial') return declared;
+
+    const lob = String(extracted.lineOfBusiness || '').toLowerCase().trim();
+    if (lob) {
+        if (CLAUDE_COMMERCIAL_LOBS.some(l => l.toLowerCase() === lob)) return 'commercial';
+        if (CLAUDE_PERSONAL_LOBS.some(l => l.toLowerCase() === lob)) return 'personal';
+    }
+
+    // Ambiguous LOB (Flood, Umbrella, Excess Liability, …) or none extracted —
+    // fall back to the insured's name: business entities read as commercial.
+    const name = String(extracted.customerName || '');
+    if (/\b(llc|l\.l\.c|inc|inc\.|corp|corp\.|corporation|company|co\.|enterprises?|services?|group|holdings?|dba|d\/b\/a|trucking|transport|logistics|construction|contractors?|restaurant|realty|properties)\b/i.test(name)) {
+        return 'commercial';
+    }
+    return 'personal';
+}
+
 // Ensure a carrier exists in carrierMasterData; create with default rules if missing
 function claudeEnsureCarrier(name) {
     if (!name) return false;
@@ -8110,101 +8159,125 @@ function claudeEnsureSource(name) {
 
 function claudePrefillEntry(extracted) {
     claudeClosePanel();
-    openDailySalesModal();
-    setTimeout(() => {
-        const setVal = (id, val) => {
-            const el = document.getElementById(id);
-            if (el && val !== undefined && val !== null && val !== '') el.value = val;
-        };
+    extracted.lineType = claudeInferLineType(extracted);
+    sessionStorage.setItem('uibCurrentUser', currentUser || '');
+    sessionStorage.setItem('uibPendingSalesEntry', JSON.stringify(extracted));
+    window.location.href = './dailysalesentry';
+}
 
-        // Auto-assign location based on agent
-        const autoLocation = (currentUser === 'Jorge Castro') ? 'Franchise' : 'Hialeah Office';
-        const locSel = document.getElementById('salesLocationSelect');
-        if (locSel && !locSel.value) {
-            locSel.value = autoLocation;
-            _selectedSalesLocation = autoLocation;
+// Runs on dailysalesentry.html after the page initializes: picks the
+// Personal or Commercial Lines section from the extraction's lineType,
+// then fills that section's ("Com"-suffixed when commercial) fields.
+function salesCheckPendingPrefill() {
+    const raw = sessionStorage.getItem('uibPendingSalesEntry');
+    if (!raw) return;
+    sessionStorage.removeItem('uibPendingSalesEntry');
+    let extracted;
+    try { extracted = JSON.parse(raw); } catch (e) { return; }
+
+    const lineType = claudeInferLineType(extracted);
+    if (typeof selectLineType === 'function') selectLineType(lineType);
+    const sfx = lineType === 'commercial' ? 'Com' : '';
+
+    const setVal = (id, val) => {
+        const el = document.getElementById(id + sfx);
+        if (el && val !== undefined && val !== null && val !== '') el.value = val;
+    };
+    // For <select>s: only apply values that exist as options, and take the
+    // first candidate that matches (the two sections offer different types).
+    const setSelect = (id, ...candidates) => {
+        const el = document.getElementById(id + sfx);
+        if (!el) return;
+        for (const val of candidates) {
+            if (val === undefined || val === null || val === '') continue;
+            if ([...el.options].some(o => o.value === val)) { el.value = val; return; }
         }
-        const autoAdded = []; // track what we created so we can tell the user
+    };
 
-        // Auto-add carrier to master list if missing, then prep the dropdown
-        if (extracted.company) {
-            const before = Object.keys(carrierMasterData || {}).find(k => k.toLowerCase() === extracted.company.toLowerCase());
-            const canonical = claudeEnsureCarrier(extracted.company);
-            if (canonical && !before) autoAdded.push(`new carrier "${canonical}"`);
-            extracted.company = canonical || extracted.company;
-        }
+    const autoAdded = []; // track what we created so we can tell the user
 
-        // Auto-add source to custom sources if missing
-        if (extracted.source) {
-            const beforeS = [...DEFAULT_SOURCES, ...getCustomSources()].find(s => s.toLowerCase() === extracted.source.toLowerCase());
-            const canonicalSource = claudeEnsureSource(extracted.source);
-            if (canonicalSource && !beforeS) autoAdded.push(`new source "${canonicalSource}"`);
-            extracted.source = canonicalSource || extracted.source;
-        }
+    // Auto-add carrier to master list if missing, then prep the dropdown
+    if (extracted.company) {
+        const before = Object.keys(carrierMasterData || {}).find(k => k.toLowerCase() === extracted.company.toLowerCase());
+        const canonical = claudeEnsureCarrier(extracted.company);
+        if (canonical && !before) autoAdded.push(`new carrier "${canonical}"`);
+        extracted.company = canonical || extracted.company;
+        refreshAllCarrierDropdowns();
+    }
 
-        // Customer + source
-        setVal('customerName',  extracted.customerName);
-        setVal('contactName',   extracted.contactName);
-        setVal('source',        extracted.source);
-        setVal('referredBy',    extracted.referredBy);
+    // Auto-add source to custom sources if missing
+    if (extracted.source) {
+        const beforeS = [...DEFAULT_SOURCES, ...getCustomSources()].find(s => s.toLowerCase() === extracted.source.toLowerCase());
+        const canonicalSource = claudeEnsureSource(extracted.source);
+        if (canonicalSource && !beforeS) autoAdded.push(`new source "${canonicalSource}"`);
+        extracted.source = canonicalSource || extracted.source;
+        populateSourceDropdown('source' + sfx, extracted.source);
+    }
 
-        // Policy
-        setVal('policyType',    extracted.policyType);
-        setVal('lineOfBusiness',extracted.lineOfBusiness);
-        setVal('company',       extracted.company);
-        setVal('mga',           extracted.mga);
-        setVal('policyNumber',  extracted.policyNumber);
-        // Note: binderNumber is auto-generated, don't override
-        setVal('effDate',       extracted.effDate);
-        setVal('term',          extracted.term);
+    // Customer + source
+    setVal('customerName',  extracted.customerName);
+    setVal('contactName',   extracted.contactName);
+    setVal('referredBy',    extracted.referredBy);
 
-        // Financial
-        setVal('down',             extracted.down);
-        setVal('agencyFee',        extracted.agencyFee);
-        setVal('basePremium',      extracted.basePremium);
-        setVal('totalPremium',     extracted.totalPremium);
-        setVal('paymentMethod',    extracted.paymentMethod);
-        setVal('paymentMethod2',   extracted.paymentMethod2);
-        setVal('paymentType',      extracted.paymentType);
+    // Policy — the Commercial section's type dropdown offers different
+    // options than Personal, so fall through policyType → transactionType.
+    setSelect('policyType', extracted.policyType, extracted.transactionType);
+    setSelect('lineOfBusiness', extracted.lineOfBusiness);
+    setVal('company',       extracted.company);
+    setSelect('mga',        extracted.mga);
+    setVal('policyNumber',  extracted.policyNumber);
+    // Note: binderNumber is auto-generated, don't override
+    setVal('effDate',       extracted.effDate);
+    setSelect('term',       extracted.term !== undefined && extracted.term !== null ? String(extracted.term) : '');
 
-        // Drivers — clear and repopulate from extraction
-        if (Array.isArray(extracted.drivers) && extracted.drivers.length > 0) {
-            const dc = document.getElementById('driversContainer');
-            if (dc) dc.innerHTML = '';
-            _driverRowCounter = 0;
-            extracted.drivers.forEach(d => addDriverRow(d));
-            if (typeof updateDriversEmptyState === 'function') updateDriversEmptyState();
-        }
+    // Financial
+    setVal('down',             extracted.down);
+    setVal('agencyFee',        extracted.agencyFee);
+    setVal('basePremium',      extracted.basePremium);
+    setVal('totalPremium',     extracted.totalPremium);
+    setSelect('paymentMethod',  extracted.paymentMethod);
+    setSelect('paymentMethod2', extracted.paymentMethod2);
+    setSelect('paymentType',    extracted.paymentType);
 
-        // Vehicles — clear and repopulate from extraction
-        if (Array.isArray(extracted.vehicles) && extracted.vehicles.length > 0) {
-            const vc = document.getElementById('vehiclesContainer');
-            if (vc) vc.innerHTML = '';
-            _vehicleRowCounter = 0;
-            extracted.vehicles.forEach(v => addVehicleRow(v));
-            if (typeof updateVehiclesEmptyState === 'function') updateVehiclesEmptyState();
-        }
+    // Drivers — clear and repopulate from extraction
+    if (Array.isArray(extracted.drivers) && extracted.drivers.length > 0) {
+        const dc = document.getElementById('driversContainer' + sfx);
+        if (dc) dc.innerHTML = '';
+        _driverRowCounter = 0;
+        extracted.drivers.forEach(d => addDriverRow(d, sfx));
+        if (typeof updateDriversEmptyState === 'function') updateDriversEmptyState(sfx);
+    }
 
-        if (typeof autoCalculateCommission === 'function') autoCalculateCommission();
+    // Vehicles — clear and repopulate from extraction
+    if (Array.isArray(extracted.vehicles) && extracted.vehicles.length > 0) {
+        const vc = document.getElementById('vehiclesContainer' + sfx);
+        if (vc) vc.innerHTML = '';
+        _vehicleRowCounter = 0;
+        extracted.vehicles.forEach(v => addVehicleRow(v, sfx));
+        if (typeof updateVehiclesEmptyState === 'function') updateVehiclesEmptyState(sfx);
+    }
 
-        // Validate required fields — auto-save if all present
-        setTimeout(() => claudeMaybeAutoSubmit(extracted, autoAdded), 300);
-    }, 250);
+    if (typeof autoCalculateCommission === 'function') autoCalculateCommission(sfx);
+
+    // Validate required fields and tell the agent what's still missing
+    setTimeout(() => claudeMaybeAutoSubmit(extracted, autoAdded, sfx), 300);
 }
 
 function claudePrefillTransaction(extracted) {
     claudeClosePanel();
+    extracted.lineType = claudeInferLineType(extracted);
     sessionStorage.setItem('uibCurrentUser', currentUser || '');
     sessionStorage.setItem('uibPendingTransaction', JSON.stringify(extracted));
     window.location.href = './transactionentry';
 }
 
-function claudeMaybeAutoSubmit(extracted, autoAdded) {
+function claudeMaybeAutoSubmit(extracted, autoAdded, sfx = '') {
     // The fields the form requires to save (matches the HTML `required` attrs)
     // Note: Source and Referred By are now optional.
+    // sfx = '' validates the Personal Lines section, 'Com' the Commercial one.
     const requiredFields = [
         { id: 'customerName',   label: 'Customer Name' },
-        { id: 'policyType',     label: 'Policy Type' },
+        { id: 'policyType',     label: sfx ? 'Type' : 'Policy Type' },
         { id: 'lineOfBusiness', label: 'Line of Business' },
         { id: 'company',        label: 'Insurance Company' },
         { id: 'basePremium',    label: 'Base Premium' },
@@ -8213,8 +8286,8 @@ function claudeMaybeAutoSubmit(extracted, autoAdded) {
         { id: 'effDate',        label: 'Effective Date' },
         { id: 'term',           label: 'Term' },
         { id: 'paymentType',    label: 'Commission Type' }
-    ];
-    // Location is also required by the entry's design
+    ].map(f => ({ id: f.id + sfx, label: f.label }));
+    // Location is also required by the entry's design (shared, unsuffixed)
     const locSel = document.getElementById('salesLocationSelect');
     const hasLocation = locSel && locSel.value;
 
@@ -8228,12 +8301,13 @@ function claudeMaybeAutoSubmit(extracted, autoAdded) {
     }
 
     const counts = {
-        drivers:  document.querySelectorAll('#driversContainer .driver-row').length,
-        vehicles: document.querySelectorAll('#vehiclesContainer .vehicle-row').length
+        drivers:  document.querySelectorAll(`#driversContainer${sfx} .driver-row`).length,
+        vehicles: document.querySelectorAll(`#vehiclesContainer${sfx} .vehicle-row`).length
     };
 
+    const sectionLabel = sfx ? '🏢 Commercial Lines' : '🧍 Personal Lines';
     if (missing.length === 0) {
-        claudeShowToast(`✓ Prefilled from PDF · ${counts.drivers} driver${counts.drivers !== 1 ? 's' : ''} · ${counts.vehicles} vehicle${counts.vehicles !== 1 ? 's' : ''}${autoAdded.length ? ' · auto-added ' + autoAdded.join(', ') : ''}\nPlease review the entry and click Save Policy Entry.`, 'success');
+        claudeShowToast(`✓ Prefilled ${sectionLabel} from PDF · ${counts.drivers} driver${counts.drivers !== 1 ? 's' : ''} · ${counts.vehicles} vehicle${counts.vehicles !== 1 ? 's' : ''}${autoAdded.length ? ' · auto-added ' + autoAdded.join(', ') : ''}\nPlease review the entry and click Save Policy Entry.`, 'success');
     } else {
         const missingLabels = missing.map(f => f.label).join(', ');
         // Highlight the first missing field
@@ -8249,7 +8323,7 @@ function claudeMaybeAutoSubmit(extracted, autoAdded) {
                 firstMissing.style.borderColor = '';
             }, 4000);
         }
-        claudeShowToast(`✓ Prefilled what I could from PDF${autoAdded.length ? ' (auto-added ' + autoAdded.join(', ') + ')' : ''}.\nPlease fill in: ${missingLabels}\nThen click Save Policy Entry.`, 'info');
+        claudeShowToast(`✓ Prefilled ${sectionLabel} from PDF${autoAdded.length ? ' (auto-added ' + autoAdded.join(', ') + ')' : ''}.\nPlease fill in: ${missingLabels}\nThen click Save Policy Entry.`, 'info');
     }
 }
 
@@ -8426,19 +8500,38 @@ async function claudeInlineSendMessage() {
 
         const extracted = pdfWasAttached ? claudeTryParseEntry(replyText) : null;
         if (extracted) {
+            extracted.lineType = claudeInferLineType(extracted);
             if (!window._claudeExtractions) window._claudeExtractions = [];
             window._claudeExtractions.push(extracted);
             const _extIdx = window._claudeExtractions.length - 1;
+            const isTransaction = extracted.entryType === 'transaction';
             const msg = claudeInlineAddMessage('assistant', '');
+            const typeLabel = isTransaction ? 'Transaction' : 'Sales entry';
+            const txnTypeLabel = extracted.transactionType ? ` (${extracted.transactionType})` : '';
+            const lineBadge = extracted.lineType === 'commercial'
+                ? '<span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ffedd5;border:1px solid #fdba74;color:#9a3412;font-size:11px;font-weight:700;">🏢 Commercial Lines</span>'
+                : '<span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dbeafe;border:1px solid #93c5fd;color:#1e40af;font-size:11px;font-weight:700;">🧍 Personal Lines</span>';
             const existingWarning = claudeCheckExistingClient(extracted);
             msg.innerHTML = claudeRenderMarkdown(replyText) +
-                `<div style="margin-top:14px;padding:12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;">
-                    <div style="font-weight:700;color:#15803d;margin-bottom:8px;">✓ Sales entry extracted</div>
+                `<div style="margin-top:14px;padding:12px;background:${isTransaction ? '#fffbeb' : '#f0fdf4'};border:1.5px solid ${isTransaction ? '#fbbf24' : '#86efac'};border-radius:10px;">
+                    <div style="font-weight:700;color:${isTransaction ? '#92400e' : '#15803d'};margin-bottom:8px;">✓ ${typeLabel} extracted${txnTypeLabel}${lineBadge}</div>
                     <div style="font-size:12px;color:#166534;margin-bottom:10px;">PDF: ${pdfFileName}</div>
-                    <button onclick="claudePrefillEntry(window._claudeExtractions[${_extIdx}])"
-                        style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
-                        📋 Open Daily Sales Entry with these values
-                    </button>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        ${isTransaction ? `<button onclick="claudePrefillTransaction(window._claudeExtractions[${_extIdx}])"
+                            style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
+                            📋 Open New Transaction Entry with these values
+                        </button>` : `<button onclick="claudePrefillEntry(window._claudeExtractions[${_extIdx}])"
+                            style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
+                            📋 Open Daily Sales Entry with these values
+                        </button>`}
+                        ${isTransaction ? `<button onclick="claudePrefillEntry(window._claudeExtractions[${_extIdx}])"
+                            style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px;">
+                            or Daily Sales Entry
+                        </button>` : `<button onclick="claudePrefillTransaction(window._claudeExtractions[${_extIdx}])"
+                            style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px;">
+                            or Transaction Entry
+                        </button>`}
+                    </div>
                 </div>` + existingWarning;
         } else {
             claudeInlineAddMessage('assistant', claudeRenderMarkdown(replyText), true);

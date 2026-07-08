@@ -1112,7 +1112,7 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js?v=20260707d"></script>
+<script src="app.js?v=20260708b"></script>
 <script src="motion.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -1199,8 +1199,17 @@
         sessionStorage.removeItem('uibPendingTransaction');
         try {
             const ext = JSON.parse(raw);
+
+            // Personal vs Commercial Lines — switch to the section the AI
+            // detected and fill that section's ("Com"-suffixed) fields.
+            const lineType = (typeof claudeInferLineType === 'function')
+                ? claudeInferLineType(ext)
+                : (String(ext.lineType || '').toLowerCase() === 'commercial' ? 'commercial' : 'personal');
+            if (typeof selectLineType === 'function') selectLineType(lineType);
+            const sfx = lineType === 'commercial' ? 'Com' : '';
+
             const setVal = (id, val) => {
-                const el = document.getElementById(id);
+                const el = document.getElementById(id + sfx);
                 if (el && val !== undefined && val !== null && val !== '') el.value = val;
             };
             setVal('customerName', ext.customerName);
@@ -1224,12 +1233,12 @@
                 setTimeout(() => setVal('company', ext.company), 100);
             }
             if (ext.source) {
-                populateSourceDropdown('source', ext.source);
+                populateSourceDropdown('source' + sfx, ext.source);
             }
             if (ext.policyNumber) {
-                txnSelectPolicy(ext.policyNumber);
+                txnSelectPolicy(ext.policyNumber, sfx);
             }
-            if (typeof autoCalculateCommission === 'function') setTimeout(() => autoCalculateCommission(), 200);
+            if (typeof autoCalculateCommission === 'function') setTimeout(() => autoCalculateCommission(sfx), 200);
         } catch (e) { /* ignore parse errors */ }
     }
 
