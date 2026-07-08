@@ -1100,7 +1100,7 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js?v=20260707d"></script>
+<script src="app.js?v=20260708b"></script>
 <script src="motion.js"></script>
 <script>
     // Auth check — redirect to main app if not logged in
@@ -1135,6 +1135,10 @@
         setTodayDate('Com');
         generateBinderNumber();
         generateBinderNumber('Com');
+
+        // If the AI chat sent us here with an extracted PDF, pick the
+        // Personal/Commercial section it detected and prefill it.
+        if (typeof salesCheckPendingPrefill === 'function') salesCheckPendingPrefill();
 
         // After data loads, re-generate binder number
         syncFromDrive().then(() => {

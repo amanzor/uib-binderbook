@@ -19,7 +19,7 @@
     // Ephemeral / device-only keys we never sync.
     const SKIP = new Set([
         'uibCloudLastBackup', 'uibCloudAuto', 'uibPendingTransaction',
-        'uibCurrentUser', 'uibCloudRestoredThisSession'
+        'uibPendingSalesEntry', 'uibCurrentUser', 'uibCloudRestoredThisSession'
     ]);
 
     // The keys that actually hold your business data (auto-load checks these).
