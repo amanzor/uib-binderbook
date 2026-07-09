@@ -298,7 +298,8 @@
             <option value="">— Select Location —</option>
             <option value="Lehigh Acres Office">&#128205; Lehigh Acres Office</option>
             <option value="Hialeah Office">&#128205; Hialeah Office</option>
-            <option value="Franchise">&#127978; Franchise</option>
+            <option value="Boca Raton">&#128205; Boca Raton</option>
+            <option value="Homestead Location">&#127978; Homestead Location</option>
         </select>
     </div>
 
@@ -1096,7 +1097,7 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js?v=20260708d"></script>
+<script src="app.js?v=20260708e"></script>
 <script src="motion.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -1112,7 +1113,7 @@
         const userDisplay = document.getElementById('userDisplay');
         if (userDisplay) userDisplay.textContent = `👤 ${currentUser}`;
 
-        const autoLocation = (currentUser === 'Jorge Castro') ? 'Franchise' : 'Hialeah Office';
+        const autoLocation = getAgentDefaultLocation(currentUser);
         _selectedSalesLocation = autoLocation;
         const locSel = document.getElementById('salesLocationSelect');
         if (locSel) locSel.value = autoLocation;
@@ -1127,8 +1128,13 @@
         generateBinderNumber();
         generateBinderNumber('Com');
 
+        // Default to Personal Lines and disable the hidden section's inputs
+        // so its required fields don't block form submission.
+        if (typeof selectLineType === 'function') selectLineType('personal');
+
         syncFromDrive().then(() => {
             allData = JSON.parse(localStorage.getItem('binderData')) || [];
+            if (typeof migrateLocationNames === 'function') migrateLocationNames();
             generateBinderNumber();
             generateBinderNumber('Com');
             refreshIcons();

@@ -310,6 +310,35 @@ async function syncToSheet(action, payload) { /* retired Google Sheets sync */ }
 
 const AGENTS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano', 'Uriel Rendon', 'Jorge Castro', 'Lazaro Reigoza'];
 
+// Office location auto-assigned per agent when an entry form is opened.
+// Agents not listed here default to Hialeah Office.
+const AGENT_DEFAULT_LOCATION = {
+    'Jorge Castro': 'Homestead Location',
+    'Uriel Rendon': 'Boca Raton'
+};
+function getAgentDefaultLocation(agent) {
+    return AGENT_DEFAULT_LOCATION[agent] || 'Hialeah Office';
+}
+
+// One-time rename migration: the "Franchise" office is now "Homestead
+// Location". Idempotent — only rewrites entries still on the old name, and
+// persists through the localStorage.setItem override so the cloud copy is
+// updated too. Safe to call on every load.
+function migrateLocationNames() {
+    try {
+        const data = JSON.parse(localStorage.getItem('binderData')) || [];
+        let changed = 0;
+        data.forEach(e => {
+            if (e && e.location === 'Franchise') { e.location = 'Homestead Location'; changed++; }
+        });
+        if (changed > 0) {
+            localStorage.setItem('binderData', JSON.stringify(data));
+            allData = data;
+        }
+        return changed;
+    } catch (e) { return 0; }
+}
+
 function getAllAgents() {
     const fromCreds  = Object.keys(JSON.parse(localStorage.getItem('agentCredentials') || '{}'));
     const fromMaster = Object.keys(JSON.parse(localStorage.getItem('agentMasterData')  || '{}'));
@@ -650,7 +679,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (loginBtn) { loginBtn.disabled = false; loginBtn.innerHTML = btnOrigHTML; refreshIcons(); }
 
         // Continue syncing all other data in background
-        syncFromDrive().then(() => refreshIcons());
+        syncFromDrive().then(() => { migrateLocationNames(); refreshIcons(); });
         startAutoSync();
     })();
 });
@@ -865,6 +894,12 @@ function selectLineType(type) {
     if (personalFields)   personalFields.style.display   = isPersonal ? '' : 'none';
     if (commercialFields) commercialFields.style.display = isPersonal ? 'none' : '';
 
+    // Disable the hidden section's inputs so its (empty) required fields don't
+    // block the form from submitting — native validation and form submission
+    // both skip disabled controls. The visible section is re-enabled.
+    _setSectionControlsDisabled(personalFields,   !isPersonal);
+    _setSectionControlsDisabled(commercialFields,  isPersonal);
+
     personalBtn.style.background = isPersonal ? 'linear-gradient(135deg,#eff6ff,#dbeafe)' : '#fff';
     personalBtn.style.borderColor = isPersonal ? '#93c5fd' : '#e2e8f0';
     personalBtn.style.color = isPersonal ? '#1e40af' : '#64748b';
@@ -872,6 +907,13 @@ function selectLineType(type) {
     commercialBtn.style.background = isPersonal ? '#fff' : 'linear-gradient(135deg,#fff7ed,#ffedd5)';
     commercialBtn.style.borderColor = isPersonal ? '#e2e8f0' : '#fdba74';
     commercialBtn.style.color = isPersonal ? '#64748b' : '#9a3412';
+}
+
+// Enable/disable every form control inside a Line-of-Business section.
+// Used to keep the hidden section out of native form validation.
+function _setSectionControlsDisabled(container, disabled) {
+    if (!container) return;
+    container.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = disabled; });
 }
 
 // Returns the id suffix for whichever Line of Business section is
@@ -1133,7 +1175,7 @@ function saveEntry() {
 
     if (isStandalonePage) {
         // Re-assign location for next entry
-        const autoLoc = (currentUser === 'Jorge Castro') ? 'Franchise' : 'Hialeah Office';
+        const autoLoc = getAgentDefaultLocation(currentUser);
         _selectedSalesLocation = autoLoc;
         const locSel2 = document.getElementById('salesLocationSelect');
         if (locSel2) locSel2.value = autoLoc;
@@ -8378,7 +8420,9 @@ function claudeMaybeAutoSubmit(extracted, autoAdded, sfx = '') {
         { id: 'paymentMethod',  label: 'Payment Method' },
         { id: 'effDate',        label: 'Effective Date' },
         { id: 'term',           label: 'Term' },
-        { id: 'paymentType',    label: 'Commission Type' }
+        { id: 'paymentType',    label: 'Commission Type' },
+        { id: 'customerPhone',  label: 'Phone Number' },
+        { id: 'customerEmail',  label: 'Email Address' }
     ].map(f => ({ id: f.id + sfx, label: f.label }));
     // Location is also required by the entry's design (shared, unsuffixed)
     const locSel = document.getElementById('salesLocationSelect');
