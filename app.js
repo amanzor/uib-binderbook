@@ -310,6 +310,35 @@ async function syncToSheet(action, payload) { /* retired Google Sheets sync */ }
 
 const AGENTS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano', 'Uriel Rendon', 'Jorge Castro', 'Lazaro Reigoza'];
 
+// Office location auto-assigned per agent when an entry form is opened.
+// Agents not listed here default to Hialeah Office.
+const AGENT_DEFAULT_LOCATION = {
+    'Jorge Castro': 'Homestead Location',
+    'Uriel Rendon': 'Boca Raton'
+};
+function getAgentDefaultLocation(agent) {
+    return AGENT_DEFAULT_LOCATION[agent] || 'Hialeah Office';
+}
+
+// One-time rename migration: the "Franchise" office is now "Homestead
+// Location". Idempotent — only rewrites entries still on the old name, and
+// persists through the localStorage.setItem override so the cloud copy is
+// updated too. Safe to call on every load.
+function migrateLocationNames() {
+    try {
+        const data = JSON.parse(localStorage.getItem('binderData')) || [];
+        let changed = 0;
+        data.forEach(e => {
+            if (e && e.location === 'Franchise') { e.location = 'Homestead Location'; changed++; }
+        });
+        if (changed > 0) {
+            localStorage.setItem('binderData', JSON.stringify(data));
+            allData = data;
+        }
+        return changed;
+    } catch (e) { return 0; }
+}
+
 function getAllAgents() {
     const fromCreds  = Object.keys(JSON.parse(localStorage.getItem('agentCredentials') || '{}'));
     const fromMaster = Object.keys(JSON.parse(localStorage.getItem('agentMasterData')  || '{}'));
@@ -650,7 +679,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (loginBtn) { loginBtn.disabled = false; loginBtn.innerHTML = btnOrigHTML; refreshIcons(); }
 
         // Continue syncing all other data in background
-        syncFromDrive().then(() => refreshIcons());
+        syncFromDrive().then(() => { migrateLocationNames(); refreshIcons(); });
         startAutoSync();
     })();
 });
@@ -865,6 +894,12 @@ function selectLineType(type) {
     if (personalFields)   personalFields.style.display   = isPersonal ? '' : 'none';
     if (commercialFields) commercialFields.style.display = isPersonal ? 'none' : '';
 
+    // Disable the hidden section's inputs so its (empty) required fields don't
+    // block the form from submitting — native validation and form submission
+    // both skip disabled controls. The visible section is re-enabled.
+    _setSectionControlsDisabled(personalFields,   !isPersonal);
+    _setSectionControlsDisabled(commercialFields,  isPersonal);
+
     personalBtn.style.background = isPersonal ? 'linear-gradient(135deg,#eff6ff,#dbeafe)' : '#fff';
     personalBtn.style.borderColor = isPersonal ? '#93c5fd' : '#e2e8f0';
     personalBtn.style.color = isPersonal ? '#1e40af' : '#64748b';
@@ -872,6 +907,13 @@ function selectLineType(type) {
     commercialBtn.style.background = isPersonal ? '#fff' : 'linear-gradient(135deg,#fff7ed,#ffedd5)';
     commercialBtn.style.borderColor = isPersonal ? '#e2e8f0' : '#fdba74';
     commercialBtn.style.color = isPersonal ? '#64748b' : '#9a3412';
+}
+
+// Enable/disable every form control inside a Line-of-Business section.
+// Used to keep the hidden section out of native form validation.
+function _setSectionControlsDisabled(container, disabled) {
+    if (!container) return;
+    container.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = disabled; });
 }
 
 // Returns the id suffix for whichever Line of Business section is
@@ -1134,7 +1176,7 @@ function saveEntry() {
 
     if (isStandalonePage) {
         // Re-assign location for next entry
-        const autoLoc = (currentUser === 'Jorge Castro') ? 'Franchise' : 'Hialeah Office';
+        const autoLoc = getAgentDefaultLocation(currentUser);
         _selectedSalesLocation = autoLoc;
         const locSel2 = document.getElementById('salesLocationSelect');
         if (locSel2) locSel2.value = autoLoc;
@@ -3223,13 +3265,106 @@ function loadCarrierList() {
 function openAddCarrierModal(targetSelectId) {
     // Remember which dropdown should auto-select the new carrier after save
     _carrierFormAutoSelect = targetSelectId || null;
+
+    // The Daily Sales / Transaction entry pages ship a simplified carrier
+    // modal (#addCarrierModal, a single default-rate input); the admin page
+    // ships the full #addEditCarrierModal (per-LOB commission-rules table).
+    // Open whichever one this page actually has.
+    const fullModal = document.getElementById('addEditCarrierModal');
+    if (!fullModal) {
+        openSimpleAddCarrierModal();
+        return;
+    }
+
     document.getElementById('carrierFormTitle').textContent = 'Add New Carrier';
     document.getElementById('carrierForm').reset();
     document.getElementById('commissionRulesTable').innerHTML = '<tr><td colspan="5" class="no-data" style="text-align: center;">No commission rules yet. Click "Add Rule" to add one.</td></tr>';
-    const m = document.getElementById('addEditCarrierModal');
-    m.classList.add('active');
-    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    fullModal.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(fullModal);
     document.getElementById('carrierName').focus();
+}
+
+// ── Simplified quick-add carrier modal (entry pages) ─────────────────────
+// Lets an agent add a missing carrier mid-entry without leaving the form.
+// The admin "Carrier Management" page handles detailed per-LOB rates.
+function openSimpleAddCarrierModal() {
+    const modal = document.getElementById('addCarrierModal');
+    if (!modal) return;
+    const form = document.getElementById('carrierForm');
+    if (form) form.reset();
+
+    // Populate the rate box with a single default-rate input (applies to all
+    // lines of business, matching the app's DEFAULT_COMMISSION_RULES shape).
+    const box = document.getElementById('carrierLobRates');
+    if (box) {
+        box.innerHTML =
+            '<input type="number" id="carrierDefaultRate" step="0.1" min="0" value="10" ' +
+            'style="width:100%;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;box-sizing:border-box;">' +
+            '<div style="font-size:11px;color:#64748b;margin-top:4px;">Applies to all lines of business for New &amp; Renewal. ' +
+            'You can fine-tune per-LOB rates later in Carrier Management.</div>';
+    }
+
+    modal.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(modal);
+    const nameEl = document.getElementById('carrierName');
+    if (nameEl) setTimeout(() => nameEl.focus(), 100);
+}
+
+function closeAddCarrierModal() {
+    const modal = document.getElementById('addCarrierModal');
+    if (modal) modal.classList.remove('active');
+}
+
+// Save handler wired to the simplified entry-page modal's form onsubmit.
+function saveCarrier(event) {
+    if (event) event.preventDefault();
+    const carrierName = (document.getElementById('carrierName')?.value || '').trim();
+    if (!carrierName) {
+        alert('Carrier name is required');
+        return;
+    }
+
+    const carriers = JSON.parse(localStorage.getItem('carrierMasterData')) || {};
+
+    // Case-insensitive duplicate guard — if it already exists, just select it.
+    const existingKey = Object.keys(carriers).find(k => k.toLowerCase() === carrierName.toLowerCase());
+    if (existingKey) {
+        closeAddCarrierModal();
+        refreshAllCarrierDropdowns();
+        if (_carrierFormAutoSelect) {
+            const sel = document.getElementById(_carrierFormAutoSelect);
+            if (sel) sel.value = existingKey;
+            _carrierFormAutoSelect = null;
+        }
+        alert(`Carrier "${existingKey}" already exists — selected it for you.`);
+        return;
+    }
+
+    const rate = parseFloat(document.getElementById('carrierDefaultRate')?.value);
+    const rateVal = isNaN(rate) ? 10 : rate;
+    carriers[carrierName] = {
+        carrierName:  carrierName,
+        phoneNumbers: ['', '', ''],
+        emails:       { underwriting: '', general: '', miscellaneous: '' },
+        commissionRules: [
+            { lineOfBusiness: ALL_LOBS, paymentType: 'Monthly Paid', newRate: rateVal, renewRate: rateVal },
+            { lineOfBusiness: ALL_LOBS, paymentType: 'Gross Paid',   newRate: rateVal, renewRate: rateVal }
+        ]
+    };
+
+    localStorage.setItem('carrierMasterData', JSON.stringify(carriers));
+    carrierMasterData = carriers;
+    if (typeof driveSet === 'function') driveSet('carrierMasterData', carriers);
+
+    closeAddCarrierModal();
+    refreshAllCarrierDropdowns();
+
+    // Auto-select the new carrier in the dropdown that opened this modal
+    if (_carrierFormAutoSelect) {
+        const sel = document.getElementById(_carrierFormAutoSelect);
+        if (sel) sel.value = carrierName;
+        _carrierFormAutoSelect = null;
+    }
 }
 
 function closeAddEditCarrierModal() {
@@ -3328,9 +3463,13 @@ function removeCommissionRuleRow(button) {
     }
 }
 
-// Form Submission for Carrier
+// Form Submission for Carrier (admin "Carrier Management" modal only).
+// The entry pages share the #carrierForm id but use the simplified modal,
+// which is handled by saveCarrier() via its inline onsubmit — so bail out
+// here when the full commission-rules table isn't on the page.
 document.getElementById('carrierForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (!document.getElementById('commissionRulesTable')) return;
 
     const carrierName = document.getElementById('carrierName').value.trim();
     if (!carrierName) {
@@ -8285,7 +8424,9 @@ function claudeMaybeAutoSubmit(extracted, autoAdded, sfx = '') {
         { id: 'paymentMethod',  label: 'Payment Method' },
         { id: 'effDate',        label: 'Effective Date' },
         { id: 'term',           label: 'Term' },
-        { id: 'paymentType',    label: 'Commission Type' }
+        { id: 'paymentType',    label: 'Commission Type' },
+        { id: 'customerPhone',  label: 'Phone Number' },
+        { id: 'customerEmail',  label: 'Email Address' }
     ].map(f => ({ id: f.id + sfx, label: f.label }));
     // Location is also required by the entry's design (shared, unsuffixed)
     const locSel = document.getElementById('salesLocationSelect');
