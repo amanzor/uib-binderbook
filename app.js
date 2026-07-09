@@ -1011,6 +1011,44 @@ document.getElementById('agentForm')?.addEventListener('submit', (e) => {
     saveEntry();
 });
 
+// When the Save button is pressed but a required field is empty, the browser
+// silently blocks submission (only a small native bubble on the first field),
+// which reads as "the Save button doesn't work." Surface a clear message that
+// names the missing field(s) and jumps to the first one.
+(function wireAgentFormValidationFeedback() {
+    const form = document.getElementById('agentForm');
+    if (!form) return;
+    const labelFor = el => {
+        const fg = el.closest('.form-group');
+        const lbl = fg ? fg.querySelector('label') : null;
+        return ((lbl && lbl.textContent) || el.getAttribute('placeholder') || el.id || 'a field')
+            .replace(/\*/g, '').replace(/\s+/g, ' ').trim();
+    };
+    form.addEventListener('invalid', (e) => {
+        // Suppress the default per-field bubble; we show one combined message.
+        e.preventDefault();
+        // The 'invalid' event fires once per invalid control — act only once.
+        if (form._invalidHandling) return;
+        form._invalidHandling = true;
+        setTimeout(() => { form._invalidHandling = false; }, 50);
+
+        const invalids = [...form.querySelectorAll(':invalid')].filter(el => el.offsetParent !== null);
+        const first = invalids[0];
+        if (!first) return;
+        const names = [...new Set(invalids.map(labelFor))];
+        if (typeof claudeShowToast === 'function') {
+            claudeShowToast('⚠ Please fill in required field' + (names.length > 1 ? 's' : '') +
+                ': ' + names.join(', '), 'warn');
+        }
+        first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        try { first.focus({ preventScroll: true }); } catch (_) { first.focus(); }
+        first.style.transition = 'box-shadow .3s, border-color .3s';
+        first.style.boxShadow = '0 0 0 3px rgba(220,38,38,.28)';
+        first.style.borderColor = '#dc2626';
+        setTimeout(() => { first.style.boxShadow = ''; first.style.borderColor = ''; }, 4000);
+    }, true);
+})();
+
 document.getElementById('editForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
     updateEntry();
