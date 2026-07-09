@@ -1238,5 +1238,85 @@
         if (match.term) document.getElementById('term' + suffix).value = match.term;
     }
 </script>
+<script>
+    // ── Add Carrier modal (page-local) ────────────────────────────────
+    // index.html has a richer Add/Edit Carrier modal wired through app.js.
+    // These entry pages ship a lighter modal shell (#addCarrierModal with a
+    // carrier name + per-LOB rate list), whose openAddCarrierModal / save /
+    // close handlers were never defined here — so the "+ Add" carrier button
+    // silently threw (app.js's openAddCarrierModal referenced elements that
+    // only exist on index.html). Define matching handlers here; because this
+    // runs after app.js, it takes precedence for this page.
+    let _entryCarrierTarget = null;
+
+    function openAddCarrierModal(targetSelectId) {
+        _entryCarrierTarget = targetSelectId || null;
+        const nameInput = document.getElementById('carrierName');
+        if (nameInput) nameInput.value = '';
+        const wrap = document.getElementById('carrierLobRates');
+        if (wrap && Array.isArray(ALL_LOBS)) {
+            wrap.innerHTML = ALL_LOBS.map(lob => `
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="flex:1;font-size:13px;color:#374151;">${lob}</span>
+                    <input type="number" step="0.1" min="0" placeholder="10"
+                        data-lob="${lob}" class="carrier-lob-rate"
+                        style="width:90px;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;text-align:center;">
+                    <span style="font-size:12px;color:#6b7280;">%</span>
+                </div>`).join('');
+        }
+        const m = document.getElementById('addCarrierModal');
+        if (m) {
+            m.classList.add('active');
+            if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+        }
+        if (nameInput) nameInput.focus();
+    }
+
+    function closeAddCarrierModal() {
+        const m = document.getElementById('addCarrierModal');
+        if (m) m.classList.remove('active');
+        _entryCarrierTarget = null;
+    }
+
+    function saveCarrier(event) {
+        if (event) event.preventDefault();
+        const name = (document.getElementById('carrierName')?.value || '').trim();
+        if (!name) { alert('Carrier name is required'); return; }
+
+        const carriers = JSON.parse(localStorage.getItem('carrierMasterData')) || {};
+        const existing = Object.keys(carriers).find(k => k.toLowerCase() === name.toLowerCase());
+        if (existing) { alert(`"${existing}" already exists in the carrier list.`); return; }
+
+        // Build commission rules from any per-LOB rates the user entered.
+        const rules = [];
+        document.querySelectorAll('#carrierLobRates .carrier-lob-rate').forEach(input => {
+            const rate = parseFloat(input.value);
+            if (isNaN(rate)) return;
+            const lob = input.getAttribute('data-lob');
+            rules.push({ lineOfBusiness: [lob], paymentType: 'Monthly Paid', newRate: rate, renewRate: rate });
+            rules.push({ lineOfBusiness: [lob], paymentType: 'Gross Paid',   newRate: rate, renewRate: rate });
+        });
+
+        carriers[name] = {
+            carrierName:   name,
+            phoneNumbers:  ['', '', ''],
+            emails:        { underwriting: '', general: '', miscellaneous: '' },
+            commissionRules: rules.length ? rules : JSON.parse(JSON.stringify(DEFAULT_COMMISSION_RULES))
+        };
+
+        localStorage.setItem('carrierMasterData', JSON.stringify(carriers));
+        carrierMasterData = carriers;
+        if (typeof driveSet === 'function') driveSet('carrierMasterData', carriers);
+        refreshAllCarrierDropdowns();
+
+        // Auto-select the new carrier in the dropdown that opened the modal.
+        if (_entryCarrierTarget) {
+            const sel = document.getElementById(_entryCarrierTarget);
+            if (sel) sel.value = name;
+        }
+        closeAddCarrierModal();
+        alert(`Carrier "${name}" added successfully!`);
+    }
+</script>
 </body>
 </html>
