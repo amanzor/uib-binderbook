@@ -661,6 +661,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeAgentButtons();
     if (window.UIBMotion) UIBMotion.animateAgentCards();
 
+    // If the agent is returning from a standalone entry page (or navigated
+    // within this session), skip the login screen and restore their dashboard.
+    if (typeof restoreSessionFromStorage === 'function') restoreSessionFromStorage();
+
     (async () => {
         const loginBtn = document.getElementById('loginSignInBtn');
         const btnOrigHTML = loginBtn ? loginBtn.innerHTML : '';
@@ -989,8 +993,66 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
 function logout() {
     currentUser = null;
     currentRole = null;
+    // Clear the session marker so we don't auto-restore straight back in.
+    try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('loginSection');
     initializeAgentButtons();
+}
+
+// When the agent returns to the main app after saving on the standalone entry
+// page, the browser may restore this page from the back/forward cache — in that
+// case scripts don't re-run, so the dashboard/session wouldn't refresh. Force a
+// clean reload on a bfcache restore so init + session restore run normally.
+window.addEventListener('pageshow', (e) => {
+    if (e.persisted && document.getElementById('agentTable')) {
+        window.location.reload();
+    }
+});
+
+// If the agent already authenticated earlier this browser session (e.g. before
+// going to the standalone Daily Sales / Transaction entry page), land them back
+// on their dashboard instead of the login screen. sessionStorage is per-session
+// and is already trusted by the entry pages, so no re-login is required. Returns
+// true if a session was restored. Only runs on the main app (index.html).
+function restoreSessionFromStorage() {
+    // Guard: only run on the main app. The standalone entry pages load app.js
+    // too and ship EMPTY stub #loginSection/#agentSection divs, so check for a
+    // real dashboard element (#agentTable) that only exists on index.html.
+    if (!document.getElementById('loginSection') || !document.getElementById('agentTable')) return false;
+
+    let savedUser = null;
+    try { savedUser = sessionStorage.getItem('uibCurrentUser'); } catch (e) { return false; }
+    if (!savedUser) return false;
+
+    if (savedUser === 'Admin') {
+        currentUser = 'Admin';
+        currentRole = 'admin';
+        showSection('adminSection');
+        if (typeof loadFromSheet === 'function') {
+            loadFromSheet().then(() => loadAdminDashboard());
+        } else if (typeof loadAdminDashboard === 'function') {
+            loadAdminDashboard();
+        }
+        return true;
+    }
+
+    // Only restore a recognized agent.
+    const agents = (typeof getAllAgents === 'function') ? getAllAgents() : (typeof AGENTS !== 'undefined' ? AGENTS : []);
+    if (!agents.includes(savedUser)) return false;
+
+    showAgentSection(savedUser);
+    if (typeof loadFromSheet === 'function') {
+        loadFromSheet().then(() => {
+            loadAgentData();
+            populateAgentFilter();
+            generateBinderNumber();
+        });
+    } else {
+        loadAgentData();
+        populateAgentFilter();
+        generateBinderNumber();
+    }
+    return true;
 }
 
 // UI Navigation
@@ -1213,25 +1275,19 @@ function saveEntry() {
     const isStandalonePage = window.location.pathname.includes('dailysalesentry');
 
     if (isStandalonePage) {
-        // Re-assign location for next entry
-        const autoLoc = getAgentDefaultLocation(currentUser);
-        _selectedSalesLocation = autoLoc;
-        const locSel2 = document.getElementById('salesLocationSelect');
-        if (locSel2) locSel2.value = autoLoc;
-        setTodayDate();
-        setTodayDate('Com');
-        generateBinderNumber();
-        generateBinderNumber('Com');
-        refreshAllCarrierDropdowns();
-        populateSourceDropdown('source', '');
-        populateSourceDropdown('sourceCom', '');
-        resetDriversVehicles();
-        resetDriversVehicles('Com');
-    } else {
-        closeDailySalesModal();
-        setTodayDate();
-        loadAgentData();
+        // Push this entry to the cloud, then return the agent to the main
+        // dashboard. uibCurrentUser stays in sessionStorage so the main screen
+        // restores their session without asking them to log in again. The short
+        // delay lets the "saved" confirmation show before navigating.
+        if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
+        try { sessionStorage.setItem('uibCurrentUser', currentUser || ''); } catch (e) {}
+        setTimeout(() => { window.location.href = './'; }, 1200);
+        return;
     }
+
+    closeDailySalesModal();
+    setTodayDate();
+    loadAgentData();
 
     if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
 }
