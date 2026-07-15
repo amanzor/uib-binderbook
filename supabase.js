@@ -68,7 +68,16 @@
         }
         let done = 0;
         for (const k of keys) {
-            await cloudSet(k, localStorage.getItem(k));
+            const v = localStorage.getItem(k);
+            // Merge-managed keys go through driveSet so a manual "Back up
+            // now" can't overwrite other agents' recent entries either.
+            if (typeof driveSet === 'function' && typeof SYNC_KEYS !== 'undefined' &&
+                (SYNC_KEYS.includes(k) || k === 'binderDeletedIds')) {
+                try { await driveSet(k, JSON.parse(v)); }
+                catch (e) { await cloudSet(k, v); }
+            } else {
+                await cloudSet(k, v);
+            }
             done++;
             if (onProgress) onProgress(done, keys.length, k);
         }
@@ -135,6 +144,14 @@
     function queueDirty(key) {
         if (!autoEnabled || suppressAuto) return;
         if (SKIP.has(key) || key.indexOf('uibDirty_') === 0) return; // device-local sync bookkeeping
+        // Keys owned by app.js's merge-sync layer must NOT be pushed raw
+        // from here: this layer writes the same app_store table without
+        // merging, so a device with a stale copy overwrote entries other
+        // agents had just saved (this is how transactions kept vanishing).
+        // On pages without app.js (ams.html) SYNC_KEYS is undefined and this
+        // layer still backs everything up.
+        if (typeof SYNC_KEYS !== 'undefined' &&
+            (SYNC_KEYS.includes(key) || key === 'binderDeletedIds')) return;
         dirty.add(key);
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(flushDirty, DEBOUNCE_MS);

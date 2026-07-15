@@ -33,10 +33,98 @@ async function driveGet(key) {
 let _driveSeq = 0;
 function _dirtyKey(key) { return 'uibDirty_' + key; }
 
+// ── Merge-based sync for binder entries ──────────────────────────────
+// binderData used to sync as one whole-array blob: every save pushed the
+// device's entire local copy and every pull replaced local with cloud.
+// The entry pages only sync at page load, so an agent spending minutes on
+// a form pushed a stale array on Save — wiping every entry anyone else
+// (typically a transaction) had saved in the meantime. Entries now MERGE
+// by id on both push and pull, and intentional deletions travel as
+// tombstones in 'binderDeletedIds' so they don't resurrect.
+const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
+function _binderTombstones() {
+    try { return JSON.parse(localStorage.getItem('binderDeletedIds')) || []; }
+    catch (e) { return []; }
+}
+
+function _mergeTombstones(a, b) {
+    const now = Date.now();
+    const byId = new Map();
+    [].concat(a || [], b || []).forEach(t => {
+        if (t && t.id != null && now - (t.ts || 0) < TOMBSTONE_RETENTION_MS) {
+            const prev = byId.get(t.id);
+            if (!prev || (t.ts || 0) > (prev.ts || 0)) byId.set(t.id, t);
+        }
+    });
+    return [...byId.values()];
+}
+
+// Record intentional deletions so a merge doesn't bring the entries back.
+function binderMarkDeleted(ids) {
+    const now = Date.now();
+    const list = _binderTombstones();
+    const have = new Set(list.map(t => t.id));
+    (Array.isArray(ids) ? ids : [ids]).forEach(id => {
+        if (id != null && !have.has(id)) list.push({ id, ts: now });
+    });
+    const pruned = list.filter(t => now - (t.ts || 0) < TOMBSTONE_RETENTION_MS);
+    _origSetItem('binderDeletedIds', JSON.stringify(pruned));
+    driveSet('binderDeletedIds', pruned);
+}
+
+// Entries always get id = Date.now() at save; very old imports may lack
+// one, so fall back to a stable content signature for those.
+function _entryMergeKey(e) {
+    return e.id != null ? 'i' + e.id
+        : 's' + [e.customerName, e.policyNumber, e.entryDate, e.timestamp].join('|');
+}
+
+// Union of both arrays keyed by entry id. For the same id, the copy with
+// the newer updatedAt wins (edits stamp it); on a tie, local wins.
+// Tombstoned ids are dropped from the result.
+function mergeBinderData(localArr, cloudArr, tombstones) {
+    const dead = new Set((tombstones || _binderTombstones()).map(t => t.id));
+    const byKey = new Map();
+    const put = e => {
+        if (!e || typeof e !== 'object') return;
+        if (e.id != null && dead.has(e.id)) return;
+        const k = _entryMergeKey(e);
+        const prev = byKey.get(k);
+        if (!prev || (e.updatedAt || 0) >= (prev.updatedAt || 0)) byKey.set(k, e);
+    };
+    (Array.isArray(cloudArr) ? cloudArr : []).forEach(put);
+    (Array.isArray(localArr) ? localArr : []).forEach(put);
+    return [...byKey.values()].sort((x, y) => (x.id || 0) - (y.id || 0));
+}
+
+// Pull cloud tombstones, union with local, persist locally. Returns the
+// merged list so callers can pass it straight into mergeBinderData.
+async function _syncTombstones() {
+    const cloud = await driveGet('binderDeletedIds');
+    const merged = _mergeTombstones(_binderTombstones(), Array.isArray(cloud) ? cloud : []);
+    _origSetItem('binderDeletedIds', JSON.stringify(merged));
+    return merged;
+}
+
 async function driveSet(key, value) {
     const seq = (++_driveSeq) + '.' + Date.now();
     try { _origSetItem(_dirtyKey(key), seq); } catch (e) {}
     try {
+        // Never overwrite the cloud's entries or tombstones with a plain
+        // blob — merge first, so a stale page can't delete other agents'
+        // recent saves.
+        if (key === 'binderData') {
+            const tombs = await _syncTombstones().catch(() => _binderTombstones());
+            const cloudData = await driveGet('binderData');
+            value = mergeBinderData(Array.isArray(value) ? value : [], cloudData, tombs);
+            _origSetItem('binderData', JSON.stringify(value));
+            if (typeof allData !== 'undefined' && Array.isArray(allData)) allData = value;
+        } else if (key === 'binderDeletedIds') {
+            const cloud = await driveGet('binderDeletedIds');
+            value = _mergeTombstones(Array.isArray(value) ? value : [], Array.isArray(cloud) ? cloud : []);
+            _origSetItem('binderDeletedIds', JSON.stringify(value));
+        }
         const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
             method: 'POST',
             headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
@@ -58,8 +146,29 @@ const DRIVE_PULL_SKIP = new Set([]);
 async function syncFromDrive() {
     const banner = document.getElementById('syncBanner');
     if (banner) banner.style.display = 'flex';
+    // Tombstones first, so the entry merge below knows about deletions
+    // made on other devices.
+    let tombs;
+    try { tombs = await _syncTombstones(); } catch (e) { tombs = _binderTombstones(); }
     for (const key of SYNC_KEYS) {
         if (DRIVE_PULL_SKIP.has(key)) continue; // preserve local credentials
+
+        // Entries merge with the cloud copy instead of replacing local.
+        // If the merge recovered entries the cloud lost (another device
+        // pushed a stale array before this deploy) — or local has changes
+        // the cloud never confirmed — push the merged copy back up.
+        if (key === 'binderData') {
+            const cloud = await driveGet('binderData');
+            let local = [];
+            try { local = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
+            const merged = mergeBinderData(local, cloud, tombs);
+            _origSetItem('binderData', JSON.stringify(merged));
+            const cloudStr = JSON.stringify(Array.isArray(cloud) ? cloud : []);
+            if (localStorage.getItem(_dirtyKey('binderData')) !== null || cloudStr !== JSON.stringify(merged)) {
+                await driveSet('binderData', merged);
+            }
+            continue;
+        }
 
         // This key has local changes the cloud never confirmed (interrupted
         // save, dropped connection). Pulling now would overwrite — i.e.
@@ -322,27 +431,23 @@ const SHEET_HEADERS = [
 // Only overwrites local data when the cloud actually has records.
 async function loadFromSheet() {
     try {
-        // Local changes the cloud never confirmed? Push them up instead of
-        // pulling the stale cloud copy over local work — same rule as
-        // syncFromDrive(). Without this, logging back in after an interrupted
-        // save deleted the just-saved entry.
-        if (localStorage.getItem(_dirtyKey('binderData')) !== null) {
-            const localRaw = localStorage.getItem('binderData');
-            if (localRaw !== null) {
-                const localData = JSON.parse(localRaw);
-                allData = localData;
-                await driveSet('binderData', localData);
-                return;
-            }
-            localStorage.removeItem(_dirtyKey('binderData'));
-        }
-        const data = await driveGet('binderData');
-        if (Array.isArray(data) && data.length > 0) {
-            allData = data;
-            localStorage.setItem('binderData', JSON.stringify(allData));
+        // Merge the cloud copy with local instead of replacing either side —
+        // local entries the cloud never confirmed survive, and cloud entries
+        // saved by other agents arrive, without one overwriting the other.
+        const tombs = await _syncTombstones().catch(() => _binderTombstones());
+        const cloud = await driveGet('binderData');
+        let local = [];
+        try { local = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
+        const merged = mergeBinderData(local, cloud, tombs);
+        allData = merged;
+        _origSetItem('binderData', JSON.stringify(merged));
+        const cloudStr = JSON.stringify(Array.isArray(cloud) ? cloud : []);
+        if (localStorage.getItem(_dirtyKey('binderData')) !== null || cloudStr !== JSON.stringify(merged)) {
+            await driveSet('binderData', merged);
         }
     } catch (e) {
         console.warn('Cloud load failed, using local data:', e);
+        try { allData = JSON.parse(localStorage.getItem('binderData')) || []; } catch (_) {}
     }
 }
 
@@ -1317,8 +1422,12 @@ function saveEntry() {
         if (breakdownEl) { breakdownEl.style.display = 'none'; breakdownEl.textContent = ''; }
     });
 
-    // Detect standalone daily sales entry page vs main app modal
-    const isStandalonePage = window.location.pathname.includes('dailysalesentry');
+    // Detect standalone entry pages (daily sales / transaction) vs main app
+    // modal. Both standalone pages must wait for persistence and return to
+    // the dashboard — falling through to the modal branch re-renders
+    // dashboard tables that don't exist on those pages and throws.
+    const isStandalonePage = window.location.pathname.includes('dailysalesentry')
+        || window.location.pathname.includes('transactionentry');
 
     if (isStandalonePage) {
         // Finish persisting BEFORE leaving the page: navigating away aborts
@@ -2709,6 +2818,7 @@ function bulkDeleteSelected() {
     if (ids.length === 0) return;
     if (!confirm(`Are you sure you want to delete ${ids.length} selected entr${ids.length === 1 ? 'y' : 'ies'}? This cannot be undone.`)) return;
 
+    binderMarkDeleted(ids);
     allData = allData.filter(d => !ids.includes(d.id));
     localStorage.setItem('binderData', JSON.stringify(allData));
     loadAgentData();
@@ -3094,6 +3204,7 @@ function updateEntry() {
     const _commBase  = entry.agencyFee + entry.agencyCommission;
     entry.agentCommissionShare  = parseFloat((_commBase * (_hasSecond ? 0.25 : 0.50)).toFixed(2));
     entry.secondAgentCommission = _hasSecond ? parseFloat((_commBase * 0.25).toFixed(2)) : 0;
+    entry.updatedAt = Date.now(); // newer revision wins the cross-device merge
     localStorage.setItem('binderData', JSON.stringify(allData));
     // Re-sync to AMS so any contact/source/agent changes propagate
     if (typeof syncEntryToAMS === 'function') syncEntryToAMS(entry);
@@ -3103,6 +3214,7 @@ function updateEntry() {
 
 function deleteEntry(id) {
     if (confirm('Are you sure you want to delete this entry?')) {
+        binderMarkDeleted(id);
         allData = allData.filter(d => d.id !== id);
         localStorage.setItem('binderData', JSON.stringify(allData));
         if (currentRole === 'agent') {
@@ -3179,6 +3291,7 @@ function formatDate(dateStr) {
 function clearAllData() {
     if (confirm('⚠️ This will permanently delete ALL data! Are you sure?')) {
         if (confirm('Are you REALLY sure? This cannot be undone!')) {
+            binderMarkDeleted(allData.map(e => e.id));
             allData = [];
             localStorage.setItem('binderData', JSON.stringify(allData));
             loadAdminDashboard();
@@ -3928,7 +4041,7 @@ function setAgentPaymentType(agentName, paymentType) {
         const rate     = getCommissionRate(e.company, e.lineOfBusiness, paymentType, e.policyType || 'New');
         const agencyComm  = rate > 0 ? parseFloat((premium * (rate / 100)).toFixed(2)) : (e.agencyCommission || 0);
         const agentShare  = parseFloat(((agencyFee + agencyComm) * 0.5).toFixed(2));
-        return { ...e, paymentType, agencyCommission: agencyComm, agentCommissionShare: agentShare };
+        return { ...e, paymentType, agencyCommission: agencyComm, agentCommissionShare: agentShare, updatedAt: Date.now() };
     });
 
     localStorage.setItem('binderData', JSON.stringify(allData));
@@ -3970,7 +4083,7 @@ async function recalculateAllBinderCommissions() {
         const agencyComm  = parseFloat((premium * (rate / 100)).toFixed(2));
         const agentShare  = parseFloat(((agencyFee + agencyComm) * 0.5).toFixed(2));
         updated++;
-        return { ...e, agencyCommission: agencyComm, agentCommissionShare: agentShare };
+        return { ...e, agencyCommission: agencyComm, agentCommissionShare: agentShare, updatedAt: Date.now() };
     });
 
     allData = newData;
@@ -4066,7 +4179,7 @@ function clearAllCommissions() {
         if (confirm('Are you REALLY sure? This cannot be undone!')) {
             commissionData = {};
             localStorage.setItem('commissionData', JSON.stringify({}));
-            allData = allData.map(e => ({ ...e, agentCommissionShare: 0 }));
+            allData = allData.map(e => ({ ...e, agentCommissionShare: 0, updatedAt: Date.now() }));
             localStorage.setItem('binderData', JSON.stringify(allData));
             // Also wipe Google Drive so old data doesn't sync back
             driveSet('commissionData', {});
@@ -4237,7 +4350,7 @@ function deleteAgentShareByMonth(agent, month) {
     if (!confirm(`Delete agent commission share for ${agent} — ${month}?`)) return;
     allData = allData.map(e => {
         const entryMonth = new Date(e.entryDate + 'T12:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-        if (e.agent === agent && entryMonth === month) return { ...e, agentCommissionShare: 0 };
+        if (e.agent === agent && entryMonth === month) return { ...e, agentCommissionShare: 0, updatedAt: Date.now() };
         return e;
     });
     localStorage.setItem('binderData', JSON.stringify(allData));
@@ -9641,7 +9754,7 @@ function fixAllEntriesCase() {
     const fields = ['customerName', 'contactName', 'company', 'mga', 'referredBy'];
     let data = JSON.parse(localStorage.getItem('binderData')) || [];
     data = data.map(entry => {
-        const updated = { ...entry };
+        const updated = { ...entry, updatedAt: Date.now() };
         fields.forEach(f => { if (updated[f]) updated[f] = toTitleCase(updated[f]); });
         return updated;
     });
