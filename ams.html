@@ -640,6 +640,9 @@
                     <button class="sidebar-nav-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
                         <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
                     </button>
+                    <button class="sidebar-nav-btn" id="sidebarNavCommissions" onclick="amsSidebarNav('commissions')">
+                        <i data-lucide="coins" style="width:15px;height:15px;"></i> Commissions
+                    </button>
                     <button class="sidebar-nav-btn" id="sidebarNavDownload" onclick="amsSidebarNav('download')">
                         <i data-lucide="download" style="width:15px;height:15px;"></i> Download
                     </button>
@@ -767,6 +770,27 @@
                             <div style="font-size:48px;margin-bottom:16px;">💼</div>
                             <h3 style="color:var(--gray-500);margin-bottom:8px;">Select an Accounting Report</h3>
                             <p>Choose a section from the tabs above.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Commissions panel (statements synced from Supabase) -->
+                <div id="amsCommissionsPanel" style="display:none;" class="reports-panel">
+                    <div style="flex:1;padding:24px;overflow-y:auto;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+                            <h2 style="color:var(--navy);font-size:20px;">
+                                <i data-lucide="coins" style="width:20px;height:20px;vertical-align:-4px;"></i> Commission Statements
+                            </h2>
+                            <button class="btn-secondary btn-sm" onclick="amsRenderCommissions(true)">
+                                <i data-lucide="refresh-cw" style="width:13px;height:13px;"></i> Refresh from Cloud
+                            </button>
+                        </div>
+                        <p style="color:var(--gray-500);font-size:13px;margin-bottom:18px;" id="amsCommSubtitle">
+                            Carrier commission statements stored in Supabase — uploaded or AI-processed in Binder Book.
+                        </p>
+                        <div id="amsCommTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;"></div>
+                        <div id="amsCommContent">
+                            <div class="rpt-no-data" style="margin-top:40px;">Loading…</div>
                         </div>
                     </div>
                 </div>
@@ -1686,7 +1710,7 @@
         }
 
         function amsSidebarNav(section) {
-            const sections = ['dashboard','search','reports','accounting','download','realtime'];
+            const sections = ['dashboard','search','reports','accounting','commissions','download','realtime'];
             sections.forEach(s => {
                 const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
                 if (btn) btn.classList.toggle('active', s === section);
@@ -1697,6 +1721,7 @@
             const dashPanel     = document.getElementById('amsDashboardPanel');
             const reportsPanel  = document.getElementById('amsReportsPanel');
             const acctPanel     = document.getElementById('amsAccountingPanel');
+            const commPanel     = document.getElementById('amsCommissionsPanel');
             const dlPanel       = document.getElementById('amsDownloadPanel');
             const rtPanel       = document.getElementById('amsRealtimePanel');
             const welcome       = document.getElementById('amsWelcome');
@@ -1707,6 +1732,7 @@
             dashPanel.style.display    = 'none';
             reportsPanel.style.display = 'none';
             acctPanel.style.display    = 'none';
+            commPanel.style.display    = 'none';
             dlPanel.style.display      = 'none';
             rtPanel.style.display      = 'none';
             welcome.style.display      = 'none';
@@ -1726,6 +1752,10 @@
             } else if (section === 'accounting') {
                 acctPanel.style.display = 'flex';
                 if (!_activeAcct) amsShowAccounting('overview');
+            } else if (section === 'commissions') {
+                commPanel.style.display = 'flex';
+                amsRenderCommissions();
+                lucide.createIcons();
             } else if (section === 'download') {
                 dlPanel.style.display = 'flex';
                 lucide.createIcons();
@@ -1733,6 +1763,175 @@
                 rtPanel.style.display = 'flex';
                 lucide.createIcons();
             }
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  COMMISSIONS — statements stored in Supabase (app_store key
+        //  "commissionStatements", written by Binder Book uploads and
+        //  the admin AI Commission Processor).
+        // ══════════════════════════════════════════════════════════
+        let _amsCommStatements = {};
+        let _amsCommActiveKey  = null;
+
+        async function amsFetchCommissionStatements() {
+            try {
+                const res = await fetch(`${AMS_SB_URL}/rest/v1/app_store?select=value&key=eq.commissionStatements`, { headers: AMS_SB_HEADERS });
+                if (res.ok) {
+                    const rows = await res.json();
+                    if (rows.length && rows[0].value && typeof rows[0].value === 'object') {
+                        _amsCommStatements = rows[0].value;
+                        localStorage.setItem('commissionStatements', JSON.stringify(_amsCommStatements));
+                        return true;
+                    }
+                }
+            } catch (e) { console.warn('Supabase commission fetch failed:', e); }
+            // Offline fallback — last synced copy
+            _amsCommStatements = JSON.parse(localStorage.getItem('commissionStatements') || '{}');
+            return false;
+        }
+
+        async function amsRenderCommissions() {
+            const tabsEl = document.getElementById('amsCommTabs');
+            const bodyEl = document.getElementById('amsCommContent');
+            bodyEl.innerHTML = '<div class="rpt-no-data" style="margin-top:40px;">⏳ Loading commission statements from Supabase…</div>';
+            tabsEl.innerHTML = '';
+
+            const fromCloud = await amsFetchCommissionStatements();
+            const sub = document.getElementById('amsCommSubtitle');
+            if (sub) sub.innerHTML = fromCloud
+                ? 'Carrier commission statements stored in Supabase — uploaded or AI-processed in Binder Book. <span style="color:var(--green,#059669);font-weight:600;">● Live from cloud</span>'
+                : 'Carrier commission statements — <span style="color:#b45309;font-weight:600;">⚠ showing last synced local copy (cloud unreachable)</span>';
+
+            const keys = Object.keys(_amsCommStatements);
+            if (!keys.length) {
+                bodyEl.innerHTML = `<div class="rpt-no-data" style="margin-top:60px;">
+                    <div style="font-size:48px;margin-bottom:16px;">🪙</div>
+                    <h3 style="color:var(--gray-500);margin-bottom:8px;">No Commission Statements Yet</h3>
+                    <p>Upload a statement or process one with the AI Commission Processor in the Binder Book admin dashboard.<br>It will appear here automatically.</p>
+                </div>`;
+                return;
+            }
+
+            // Newest first (fall back to key order when uploadedAt is missing)
+            keys.sort((a, b) => new Date(_amsCommStatements[b].uploadedAt || 0) - new Date(_amsCommStatements[a].uploadedAt || 0));
+            if (!_amsCommActiveKey || !_amsCommStatements[_amsCommActiveKey]) _amsCommActiveKey = keys[0];
+
+            tabsEl.innerHTML = keys.map(k => {
+                const stmt   = _amsCommStatements[k];
+                const active = k === _amsCommActiveKey;
+                const gross  = parseFloat(stmt.grossTotal) || 0;
+                const isAI   = stmt.source === 'claude-ai';
+                return `<button onclick="amsCommSelect(decodeURIComponent('${encodeURIComponent(k)}'))"
+                    style="padding:8px 14px;border:1px solid ${active ? 'var(--blue)' : 'var(--gray-200)'};
+                           border-radius:var(--radius-sm);background:${active ? 'var(--blue)' : '#fff'};
+                           color:${active ? '#fff' : 'var(--gray-600)'};font-size:13px;font-weight:${active ? '700' : '400'};
+                           cursor:pointer;line-height:1.4;text-align:center;">
+                    ${isAI ? '🤖 ' : '📄 '}${amsEscHtml(k)}
+                    <span style="display:block;font-size:11px;opacity:.85;">$${gross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </button>`;
+            }).join('');
+
+            amsRenderCommissionDetail(_amsCommActiveKey);
+        }
+
+        function amsCommSelect(key) {
+            _amsCommActiveKey = key;
+            amsRenderCommissions();
+        }
+
+        function amsRenderCommissionDetail(key) {
+            const bodyEl = document.getElementById('amsCommContent');
+            const stmt   = _amsCommStatements[key];
+            if (!stmt) { bodyEl.innerHTML = '<div class="rpt-no-data">Statement not found.</div>'; return; }
+
+            const isAdmin  = amsCurrentRole === 'admin';
+            let entries    = Array.isArray(stmt.entries) ? stmt.entries : [];
+            // Agents only see their own commission rows
+            if (!isAdmin) entries = entries.filter(e => (e.agentMatch || '') === amsCurrentUser);
+
+            // Normalize both entry shapes (Excel upload vs AI processor)
+            const norm = entries.map(e => ({
+                name:       e.customerName || e.clientName || '—',
+                policy:     e.policyNumber || '—',
+                carrier:    e.carrier || stmt.carrier || '—',
+                lob:        e.lob || '',
+                premium:    parseFloat(e.premium != null ? e.premium : (e.writtenPremium != null ? e.writtenPremium : e.basePremium)) || 0,
+                commission: parseFloat(e.commission) || 0,
+                agent:      e.agentMatch || null,
+                confidence: e.matchConfidence || null,
+                notes:      e.notes || ''
+            }));
+
+            const totalComm = norm.reduce((s, e) => s + e.commission, 0);
+            const matched   = norm.filter(e => e.agent).length;
+
+            // KPI row
+            let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px;">
+                ${_commKpi(isAdmin ? 'Gross Commission' : 'Your Commission', '$' + totalComm.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'var(--green,#059669)')}
+                ${_commKpi('Transactions', norm.length.toLocaleString(), 'var(--blue)')}
+                ${isAdmin ? _commKpi('Matched to Agents', `${matched} / ${norm.length}`, '#7c3aed') : ''}
+                ${_commKpi('Uploaded', stmt.uploadedAt ? new Date(stmt.uploadedAt).toLocaleDateString('en-US') : '—', 'var(--gray-500,#6b7280)')}
+            </div>`;
+
+            // Per-agent breakdown (admin only)
+            if (isAdmin) {
+                const agentTotals = {};
+                norm.forEach(e => {
+                    const a = e.agent || '— Unmatched —';
+                    if (!agentTotals[a]) agentTotals[a] = { count: 0, total: 0 };
+                    agentTotals[a].count++;
+                    agentTotals[a].total += e.commission;
+                });
+                const rows = Object.entries(agentTotals).sort((a, b) => b[1].total - a[1].total);
+                if (rows.length) {
+                    html += `<h3 style="color:var(--navy);font-size:15px;margin-bottom:10px;">Per-Agent Breakdown</h3>
+                    <div class="policies-table-wrap" style="margin-bottom:24px;">
+                        <table class="policies-table" style="min-width:400px;">
+                            <thead><tr><th>Agent</th><th style="text-align:center;">Transactions</th><th style="text-align:right;">Commission</th></tr></thead>
+                            <tbody>${rows.map(([a, t]) => `<tr>
+                                <td style="font-weight:${a.startsWith('—') ? '400' : '600'};color:${a.startsWith('—') ? 'var(--gray-400)' : 'var(--gray-700)'};">${amsEscHtml(a)}</td>
+                                <td style="text-align:center;">${t.count}</td>
+                                <td style="text-align:right;font-weight:700;color:var(--green,#059669);">$${t.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            </tr>`).join('')}</tbody>
+                        </table>
+                    </div>`;
+                }
+            }
+
+            // Transactions table
+            const confColors = { high: '#16a34a', medium: '#ca8a04', low: '#ea580c', none: '#dc2626' };
+            html += `<h3 style="color:var(--navy);font-size:15px;margin-bottom:10px;">${isAdmin ? 'All Transactions' : 'Your Transactions'}</h3>`;
+            if (!norm.length) {
+                html += `<div class="rpt-no-data">No transactions ${isAdmin ? 'in this statement' : 'matched to you in this statement'}.</div>`;
+            } else {
+                html += `<div class="policies-table-wrap">
+                    <table class="policies-table">
+                        <thead><tr>
+                            <th>Customer</th><th>Policy #</th><th>Carrier</th>
+                            <th style="text-align:right;">Premium</th><th style="text-align:right;">Commission</th>
+                            ${isAdmin ? '<th>Agent</th><th style="text-align:center;">Match</th>' : ''}
+                        </tr></thead>
+                        <tbody>${norm.map(e => `<tr>
+                            <td>${amsEscHtml(e.name)}</td>
+                            <td style="font-family:monospace;">${amsEscHtml(e.policy)}</td>
+                            <td>${amsEscHtml(e.carrier)}</td>
+                            <td style="text-align:right;">$${e.premium.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td style="text-align:right;font-weight:700;color:var(--green,#059669);">$${e.commission.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            ${isAdmin ? `<td style="color:${e.agent ? 'var(--blue)' : 'var(--gray-400)'};font-weight:${e.agent ? '600' : '400'};">${amsEscHtml(e.agent || '— unmatched —')}</td>
+                            <td style="text-align:center;">${e.confidence ? `<span style="background:${confColors[e.confidence] || '#6b7280'};color:#fff;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;">${amsEscHtml(e.confidence)}</span>` : '—'}</td>` : ''}
+                        </tr>`).join('')}</tbody>
+                    </table>
+                </div>`;
+            }
+
+            bodyEl.innerHTML = html;
+        }
+
+        function _commKpi(label, value, color) {
+            return `<div style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius-md,10px);padding:14px 16px;box-shadow:var(--shadow-sm,0 1px 2px rgba(0,0,0,.05));">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--gray-400);margin-bottom:4px;">${label}</div>
+                <div style="font-size:20px;font-weight:800;color:${color};">${value}</div>
+            </div>`;
         }
 
         // ── Palette for agents/carriers ───────────────────────────

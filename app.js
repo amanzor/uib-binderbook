@@ -8386,13 +8386,14 @@ Before the JSON, give a brief 2-3 sentence summary of what you found (document t
     return base;
 }
 
-async function claudeCallAPI(systemPrompt, messages) {
+// Default 8192: big commercial policies (20+ drivers/vehicles) can overflow a
+// 4096-token response, truncating the extraction JSON mid-output so no
+// "extracted" card ever appears. Callers with even larger outputs (the admin
+// commission processor) pass a higher limit explicitly.
+async function claudeCallAPI(systemPrompt, messages, maxTokens = 8192) {
     const payload = {
         model: CLAUDE_MODEL,
-        // 8192: big commercial policies (20+ drivers/vehicles) can overflow a
-        // 4096-token response, truncating the extraction JSON mid-output so no
-        // "extracted" card ever appears. Well within claude-sonnet-4-6 limits.
-        max_tokens: 8192,
+        max_tokens: maxTokens,
         system: systemPrompt,
         messages: messages.map(m => ({
             role: m.role,
@@ -8434,7 +8435,7 @@ async function claudeCallAPI(systemPrompt, messages) {
     }
 
     const textBlock = data.content.find(b => b.type === 'text');
-    return { text: textBlock ? textBlock.text : '', raw: data };
+    return { text: textBlock ? textBlock.text : '', stopReason: data.stop_reason || null, raw: data };
 }
 
 // Diagnostic test — run `claudeTest()` in the browser console to verify
@@ -9316,7 +9317,10 @@ async function claudeAdminSendMessage() {
 
     try {
         const systemPrompt = claudeAdminBuildSystemPrompt(pdfsAttached);
-        const reply = await claudeCallAPI(systemPrompt, _claudeAdminMessages);
+        // Commission statements can have 100+ transactions — the JSON output alone
+        // easily exceeds the old 4096-token cap, which truncated the response and
+        // silently broke the "Save as Commission Statement" flow.
+        const reply = await claudeCallAPI(systemPrompt, _claudeAdminMessages, pdfsAttached ? 16000 : 4096);
 
         loadingDiv.remove();
         const replyText = reply.text || '(no response)';
@@ -9330,6 +9334,14 @@ async function claudeAdminSendMessage() {
         } else {
             claudeAdminAddMessage('assistant', claudeRenderMarkdown(replyText), true);
         }
+
+        if (reply.stopReason === 'max_tokens') {
+            claudeAdminAddMessage('assistant',
+                '⚠️ The response was cut off because the statement is very large. ' +
+                (statements.length > 0
+                    ? 'The results above may be missing transactions from the end of the statement — please verify the totals against the PDF, or upload the statement in smaller batches (one carrier / fewer pages at a time).'
+                    : 'Please upload the statement in smaller batches (one carrier / fewer pages at a time) and try again.'));
+        }
     } catch (err) {
         loadingDiv.remove();
         claudeAdminAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
@@ -9341,15 +9353,44 @@ async function claudeAdminSendMessage() {
 
 function claudeAdminParseAllStatements(text) {
     const results = [];
-    const re = /```json\s*([\s\S]*?)```/g;
+    // Tolerate a missing closing ``` fence (happens when the response is truncated)
+    const re = /```json\s*([\s\S]*?)(?:```|$)/g;
     let m;
     while ((m = re.exec(text)) !== null) {
+        const block = m[1].trim();
+        if (!block) continue;
         try {
-            const obj = JSON.parse(m[1]);
+            const obj = JSON.parse(block);
             if (obj && Array.isArray(obj.transactions)) results.push(obj);
-        } catch (e) { /* skip malformed block */ }
+        } catch (e) {
+            const repaired = claudeAdminRepairTruncatedJson(block);
+            if (repaired && Array.isArray(repaired.transactions)) {
+                repaired._truncated = true; // flag so the UI can warn the admin
+                results.push(repaired);
+            }
+        }
     }
     return results;
+}
+
+// Salvage a JSON block that was cut off mid-output: trim back to the last
+// complete object and try progressively closing the open brackets.
+function claudeAdminRepairTruncatedJson(str) {
+    const suffixes = [']}', '}]}', ']}}', '}', ''];
+    let cut = str.lastIndexOf('}');
+    let attempts = 0;
+    while (cut > 0 && attempts < 60) {
+        const base = str.slice(0, cut + 1);
+        for (const suffix of suffixes) {
+            attempts++;
+            try {
+                const obj = JSON.parse(base + suffix);
+                if (obj && typeof obj === 'object') return obj;
+            } catch (e) { /* keep trying */ }
+        }
+        cut = str.lastIndexOf('}', cut - 1);
+    }
+    return null;
 }
 
 function claudeAdminRenderStatements(statements, pdfNames) {
@@ -9365,6 +9406,7 @@ function claudeAdminRenderStatements(statements, pdfNames) {
                 <div>
                     <div style="font-weight:700;color:#6d28d9;font-size:15px;">${stmt.carrier || 'Unknown carrier'} — ${stmt.statementMonth || stmt.statementDate || ''}</div>
                     <div style="font-size:12px;color:#6b7280;">${(stmt.transactions || []).length} transactions · ${matched} matched · ${unmatched} unmatched · Gross: $${(stmt.totalGrossCommission || 0).toFixed(2)}</div>
+                    ${stmt._truncated ? '<div style="font-size:12px;color:#b45309;font-weight:700;">⚠️ Response was cut off — this list may be incomplete. Verify against the PDF before saving.</div>' : ''}
                 </div>
                 <button onclick='claudeAdminApplyStatement(${JSON.stringify(stmt).replace(/'/g, "&#39;")})'
                     style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
@@ -9427,7 +9469,7 @@ function claudeAdminRenderStatements(statements, pdfNames) {
     return html;
 }
 
-function claudeAdminApplyStatement(stmt) {
+async function claudeAdminApplyStatement(stmt) {
     if (!stmt || !Array.isArray(stmt.transactions)) {
         alert('Invalid statement data.');
         return;
@@ -9455,6 +9497,19 @@ function claudeAdminApplyStatement(stmt) {
     carrierTotals[carrier] = stmt.totalGrossCommission ||
         entries.reduce((s, e) => s + e.commission, 0);
 
+    // Fall back to computing per-agent totals from the transactions when the
+    // AI response omits (or truncates away) the agentTotals block.
+    let agentTotals = stmt.agentTotals;
+    if (!agentTotals || Object.keys(agentTotals).length === 0) {
+        agentTotals = {};
+        entries.forEach(e => {
+            if (!e.agentMatch) return;
+            if (!agentTotals[e.agentMatch]) agentTotals[e.agentMatch] = { transactionCount: 0, totalCommission: 0 };
+            agentTotals[e.agentMatch].transactionCount++;
+            agentTotals[e.agentMatch].totalCommission = parseFloat((agentTotals[e.agentMatch].totalCommission + e.commission).toFixed(2));
+        });
+    }
+
     if (typeof commissionStatements === 'undefined' || commissionStatements === null) {
         window.commissionStatements = JSON.parse(localStorage.getItem('commissionStatements')) || {};
     }
@@ -9469,14 +9524,35 @@ function claudeAdminApplyStatement(stmt) {
         carrierTotals,
         grossTotal: carrierTotals[carrier],
         entryCount: entries.length,
-        agentTotals: stmt.agentTotals || {}
+        agentTotals
     };
 
     localStorage.setItem('commissionStatements', JSON.stringify(commissionStatements));
-    if (typeof driveSet === 'function') driveSet('commissionStatements', commissionStatements);
 
-    alert(`✓ Saved commission statement: ${key}\n\nView it under "Commission Statements" in the admin dashboard.`);
+    // Persist to Supabase and VERIFY the write succeeded (driveSet swallows errors).
+    const cloudOk = await claudeAdminSaveStatementsToSupabase();
+
+    if (cloudOk) {
+        alert(`✓ Saved commission statement: ${key}\n\n✓ Stored in Supabase — it is now visible in the admin "Commission Statements" section and in the AMS "Commissions" section.`);
+    } else {
+        alert(`⚠️ Saved commission statement locally: ${key}\n\nBut the Supabase cloud save FAILED — check your internet connection. The statement will retry syncing automatically, or click "Save as Commission Statement" again.`);
+    }
     if (typeof loadCommissionStatementsList === 'function') loadCommissionStatementsList();
+}
+
+// Direct, verified write of the full commissionStatements object to Supabase.
+async function claudeAdminSaveStatementsToSupabase() {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+            method: 'POST',
+            headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+            body: JSON.stringify([{ key: 'commissionStatements', value: commissionStatements, updated_at: new Date().toISOString() }])
+        });
+        return res.ok;
+    } catch (e) {
+        console.warn('Supabase commissionStatements save failed:', e);
+        return false;
+    }
 }
 
 // ============================================================
