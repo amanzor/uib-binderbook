@@ -5737,7 +5737,7 @@ function handleCSFileSelect(event) {
             document.getElementById('csStep1').style.display = 'none';
             document.getElementById('csStep2').style.display = 'block';
             document.getElementById('csPreviewArea').style.display = 'none';
-            statusEl.innerHTML = `✅ <strong>${file.name}</strong> loaded — ${csCurrentWorkbook.SheetNames.length} sheets found.`;
+            statusEl.innerHTML = `✅ <strong>${_claudeEsc(file.name)}</strong> loaded — ${csCurrentWorkbook.SheetNames.length} sheets found.`;
         } catch (err) {
             statusEl.innerHTML = '❌ Could not read file: ' + err.message;
         }
@@ -7893,6 +7893,12 @@ let _claudeMessages = [];           // chat history [{role, content}]
 let _claudePendingPdf = null;       // {name, base64} queued for next send
 let _claudeBusy = false;
 
+// ams.js (which declares amsCurrentUser/amsCurrentRole) is only loaded on
+// ams.html, never alongside app.js — referencing those identifiers directly
+// throws a ReferenceError whenever currentUser is empty. Guarded accessors:
+function _amsUser() { return (typeof amsCurrentUser !== 'undefined') ? amsCurrentUser : null; }
+function _amsRole() { return (typeof amsCurrentRole !== 'undefined') ? amsCurrentRole : null; }
+
 function claudeShowBubble() {
     const btn = document.getElementById('claudeBubbleBtn');
     if (btn) btn.style.display = 'flex';
@@ -7962,7 +7968,7 @@ function claudeBuildBinderContext() {
         const byAgent = Object.entries(totals)
             .map(([a, t]) => `${a}: ${t.count} entries, $${t.premium.toFixed(0)} premium`)
             .join('\n');
-        return `Current user: ${currentUser || amsCurrentUser || 'Unknown'} (role: ${currentRole || amsCurrentRole || 'agent'})
+        return `Current user: ${currentUser || _amsUser() || 'Unknown'} (role: ${currentRole || _amsRole() || 'agent'})
 Total entries in BinderBook: ${data.length}
 
 By agent (lifetime):
@@ -8031,29 +8037,43 @@ function claudeCheckExistingClient(extracted) {
     if (!extracted || extracted.entryType === 'transaction') return '';
     const existing = claudeFindExistingClient(extracted.customerName, extracted.policyNumber);
     if (!existing) return '';
-    const reporter = currentUser || amsCurrentUser || 'Unknown';
+    const reporter = currentUser || _amsUser() || 'Unknown';
     claudeNotifyAdminExistingClient(existing, extracted, reporter);
     return `<div style="margin-top:12px;padding:12px;background:#fffbeb;border:1.5px solid #fbbf24;border-radius:10px;font-size:13px;color:#92400e;line-height:1.5;">
-        ⚠️ <strong>Existing client</strong> — "${existing.customerName}" with policy #${existing.policyNumber} is already on file
-        (original agent shown in app: <strong>${existing.agent || '—'}</strong>, entered ${existing.entryDate || '—'}).<br>
-        This new policy will be credited to <strong>${reporter}</strong> as the original agent. Admin has been notified by email.
+        ⚠️ <strong>Existing client</strong> — "${_claudeEsc(existing.customerName)}" with policy #${_claudeEsc(existing.policyNumber)} is already on file
+        (original agent shown in app: <strong>${_claudeEsc(existing.agent) || '—'}</strong>, entered ${_claudeEsc(existing.entryDate) || '—'}).<br>
+        This new policy will be credited to <strong>${_claudeEsc(reporter)}</strong> as the original agent. Admin has been notified by email.
     </div>`;
+}
+
+// The PDF is sent base64-encoded (≈ +33% size) through the Supabase edge
+// function to the AI. Oversized scans fail there with a cryptic proxy error —
+// reject up front with a clear message instead.
+const CLAUDE_PDF_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+
+function claudeCheckPdfFile(file) {
+    if (file.type !== 'application/pdf') {
+        alert('Please upload a PDF file.');
+        return false;
+    }
+    if (file.size > CLAUDE_PDF_MAX_BYTES) {
+        alert(`"${file.name}" is ${(file.size / 1048576).toFixed(1)} MB — too large for AI extraction (max 10 MB).\n\nTry a smaller scan: export the policy pages only, or re-scan at a lower resolution.`);
+        return false;
+    }
+    return true;
 }
 
 function claudeHandlePdfUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
-    if (file.type !== 'application/pdf') {
-        alert('Please upload a PDF file.');
-        return;
-    }
+    if (!claudeCheckPdfFile(file)) return;
     const reader = new FileReader();
     reader.onload = (e) => {
         const base64 = e.target.result.split(',')[1]; // strip data:application/pdf;base64,
         _claudePendingPdf = { name: file.name, base64 };
         const preview = document.getElementById('claudeFilePreview');
         preview.style.display = 'block';
-        preview.innerHTML = `📎 <strong>${file.name}</strong> attached — type "extract sales entry" or any question, then Send.`;
+        preview.innerHTML = `📎 <strong>${_claudeEsc(file.name)}</strong> attached — type "extract sales entry" or any question, then Send.`;
         document.getElementById('claudeChatInput').focus();
     };
     reader.readAsDataURL(file);
@@ -8123,7 +8143,7 @@ async function claudeSendMessage() {
             msg.innerHTML = claudeRenderMarkdown(replyText) +
                 `<div style="margin-top:14px;padding:12px;background:${isTransaction ? '#fffbeb' : '#f0fdf4'};border:1.5px solid ${isTransaction ? '#fbbf24' : '#86efac'};border-radius:10px;">
                     <div style="font-weight:700;color:${isTransaction ? '#92400e' : '#15803d'};margin-bottom:8px;">✓ ${typeLabel} extracted${txnTypeLabel}${lineBadge}</div>
-                    <div style="font-size:12px;color:#166534;margin-bottom:10px;">PDF: ${pdfFileName}</div>
+                    <div style="font-size:12px;color:#166534;margin-bottom:10px;">PDF: ${_claudeEsc(pdfFileName)}</div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         ${isTransaction ? `<button onclick="claudePrefillTransaction(window._claudeExtractions[${_extIdx}])"
                             style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
@@ -8248,7 +8268,7 @@ EXTRACTION TIPS:
 - PAYMENT documents show a policy number, payment amount, payment method, and date.
 - WC EXEMPTION documents show officer/member names and exemption details.
 
-Before the JSON, give a brief 2-3 sentence summary of what you found (document type, PERSONAL or COMMERCIAL lines, carrier, policy number, premium/amount). The current agent (${currentUser || amsCurrentUser}) will be auto-assigned to the entry.`;
+Before the JSON, give a brief 2-3 sentence summary of what you found (document type, PERSONAL or COMMERCIAL lines, carrier, policy number, premium/amount). The current agent (${currentUser || _amsUser() || 'the logged-in agent'}) will be auto-assigned to the entry.`;
     }
     return base;
 }
@@ -8256,7 +8276,10 @@ Before the JSON, give a brief 2-3 sentence summary of what you found (document t
 async function claudeCallAPI(systemPrompt, messages) {
     const payload = {
         model: CLAUDE_MODEL,
-        max_tokens: 4096,
+        // 8192: big commercial policies (20+ drivers/vehicles) can overflow a
+        // 4096-token response, truncating the extraction JSON mid-output so no
+        // "extracted" card ever appears. Well within claude-sonnet-4-6 limits.
+        max_tokens: 8192,
         system: systemPrompt,
         messages: messages.map(m => ({
             role: m.role,
@@ -8368,7 +8391,10 @@ function claudeTryParseEntry(text) {
     if (!match) return null;
     try {
         const obj = JSON.parse(match[1]);
-        if (obj.customerName || obj.policyNumber || obj.totalPremium) return obj;
+        // Accept anything that looks like an extraction — including sparse
+        // transaction docs (e.g. a payment receipt) that may lack a customer
+        // name or premium but still carry entryType/transactionType.
+        if (obj.customerName || obj.policyNumber || obj.totalPremium || obj.entryType || obj.transactionType) return obj;
     } catch (e) { /* ignore */ }
     return null;
 }
@@ -8634,6 +8660,15 @@ function claudeShowToast(text, kind) {
     setTimeout(() => msg.remove(), 6000);
 }
 
+// Escape untrusted text (PDF filenames, extracted customer/policy values)
+// before interpolating into innerHTML — a filename like "Smith&Co<1>.pdf"
+// would otherwise break or inject markup into the chat cards.
+function _claudeEsc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function claudeRenderMarkdown(text) {
     // Minimal markdown: bold, italic, code, line breaks, lists
     let html = text
@@ -8649,7 +8684,7 @@ function claudeRenderMarkdown(text) {
 
 // Show bubble whenever an agent or admin section is active
 function claudeUpdateBubbleVisibility() {
-    const shouldShow = !!(currentUser || amsCurrentUser) &&
+    const shouldShow = !!(currentUser || _amsUser()) &&
         !document.getElementById('loginSection')?.classList?.contains('active');
     if (shouldShow) claudeShowBubble();
     else claudeHideBubble();
@@ -8732,17 +8767,14 @@ function claudeInlineNewConversation() {
 function claudeInlineHandlePdfUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
-    if (file.type !== 'application/pdf') {
-        alert('Please upload a PDF file.');
-        return;
-    }
+    if (!claudeCheckPdfFile(file)) return;
     const reader = new FileReader();
     reader.onload = (e) => {
         const base64 = e.target.result.split(',')[1];
         _claudeInlinePendingPdf = { name: file.name, base64 };
         const preview = document.getElementById('claudeInlineFilePreview');
         preview.style.display = 'block';
-        preview.innerHTML = `📎 <strong>${file.name}</strong> attached — click Send to extract the sales entry.`;
+        preview.innerHTML = `📎 <strong>${_claudeEsc(file.name)}</strong> attached — click Send to extract the sales entry.`;
         document.getElementById('claudeInlineInput').focus();
     };
     reader.readAsDataURL(file);
@@ -8808,7 +8840,7 @@ async function claudeInlineSendMessage() {
             msg.innerHTML = claudeRenderMarkdown(replyText) +
                 `<div style="margin-top:14px;padding:12px;background:${isTransaction ? '#fffbeb' : '#f0fdf4'};border:1.5px solid ${isTransaction ? '#fbbf24' : '#86efac'};border-radius:10px;">
                     <div style="font-weight:700;color:${isTransaction ? '#92400e' : '#15803d'};margin-bottom:8px;">✓ ${typeLabel} extracted${txnTypeLabel}${lineBadge}</div>
-                    <div style="font-size:12px;color:#166534;margin-bottom:10px;">PDF: ${pdfFileName}</div>
+                    <div style="font-size:12px;color:#166534;margin-bottom:10px;">PDF: ${_claudeEsc(pdfFileName)}</div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         ${isTransaction ? `<button onclick="claudePrefillTransaction(window._claudeExtractions[${_extIdx}])"
                             style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
@@ -8917,13 +8949,14 @@ function claudeAttachDropZone(zone, mode) {
         if (mode === 'agent') {
             // Agent inline supports only one PDF at a time — take the first
             const file = pdfs[0];
+            if (!claudeCheckPdfFile(file)) return;
             const reader = new FileReader();
             reader.onload = (ev) => {
                 const base64 = ev.target.result.split(',')[1];
                 _claudeInlinePendingPdf = { name: file.name, base64 };
                 const preview = document.getElementById('claudeInlineFilePreview');
                 preview.style.display = 'block';
-                preview.innerHTML = `📎 <strong>${file.name}</strong> attached — click Send to extract the sales entry.` +
+                preview.innerHTML = `📎 <strong>${_claudeEsc(file.name)}</strong> attached — click Send to extract the sales entry.` +
                     (pdfs.length > 1 ? ` <em>(${pdfs.length - 1} other PDF${pdfs.length > 2 ? 's' : ''} ignored — only one at a time here)</em>` : '');
                 document.getElementById('claudeInlineInput')?.focus();
             };
