@@ -91,6 +91,9 @@
         try {
             let done = 0;
             for (const row of rows) {
+                // Rolling cloud snapshots live only in the cloud — copying
+                // them into localStorage would blow the browser quota.
+                if (row.key && row.key.indexOf('backupSnapshot_') === 0) { done++; continue; }
                 const val = (typeof row.value === 'string') ? row.value : JSON.stringify(row.value);
                 _setItem(row.key, val);
                 done++;

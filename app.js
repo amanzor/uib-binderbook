@@ -830,7 +830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (loginBtn) { loginBtn.disabled = false; loginBtn.innerHTML = btnOrigHTML; refreshIcons(); }
 
         // Continue syncing all other data in background
-        syncFromDrive().then(() => { migrateLocationNames(); refreshIcons(); });
+        syncFromDrive().then(() => { migrateLocationNames(); refreshIcons(); runDailyCloudBackup(); });
         startAutoSync();
     })();
 });
@@ -1176,7 +1176,7 @@ function restoreSessionFromStorage() {
         currentRole = 'admin';
         showSection('adminSection');
         if (typeof loadFromSheet === 'function') {
-            loadFromSheet().then(() => loadAdminDashboard());
+            loadFromSheet().then(() => { loadAdminDashboard(); runDailyCloudBackup(); });
         } else if (typeof loadAdminDashboard === 'function') {
             loadAdminDashboard();
         }
@@ -1193,6 +1193,7 @@ function restoreSessionFromStorage() {
             loadAgentData();
             populateAgentFilter();
             generateBinderNumber();
+            runDailyCloudBackup();
         });
     } else {
         loadAgentData();
@@ -9997,4 +9998,135 @@ function importLRCQ1Transactions() {
     if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
 
     alert('Import complete! Added ' + added + ' entries for Lazaro. Skipped ' + skipped + ' duplicates.');
+}
+
+// ============================================================
+// AUTOMATIC CLOUD BACKUPS  — rolling snapshots in app_store
+// ------------------------------------------------------------
+// The live sync keeps only the CURRENT copy of the data, so an
+// overwrite used to be unrecoverable. Once per day the first
+// dashboard to open writes a full snapshot into a rotating slot:
+//   backupSnapshot_Sun … backupSnapshot_Sat  (last 7 days)
+//   backupSnapshot_M01 … backupSnapshot_M12  (one per month, last 12)
+// Admin → "Cloud Backups" lists the slots and can restore one.
+// A restore MERGES the snapshot into today's data (union by entry
+// id, tombstones respected) — it only adds back what's missing,
+// never duplicates and never resurrects intentional deletions.
+// ============================================================
+const BACKUP_SNAPSHOT_KEYS = ['binderData', 'binderDeletedIds', 'commissionData', 'carrierMasterData', 'prospectData'];
+const BACKUP_SLOTS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => 'backupSnapshot_' + d)
+    .concat(Array.from({length:12}, (_, i) => 'backupSnapshot_M' + String(i + 1).padStart(2, '0')));
+
+// Plain write — deliberately NOT driveSet: snapshots are point-in-time
+// copies that must never be merged with the cloud or flagged dirty.
+async function _backupPost(key, value) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+        method: 'POST',
+        headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+        body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+}
+
+let _backupRanThisLoad = false;
+async function runDailyCloudBackup() {
+    if (_backupRanThisLoad) return;
+    _backupRanThisLoad = true;
+    try {
+        const today = getEasternDateString();                       // YYYY-MM-DD (ET)
+        const noon  = new Date(today + 'T12:00:00');
+        const slot  = 'backupSnapshot_' + noon.toLocaleDateString('en-US', { weekday: 'short' });
+        const existing = await driveGet(slot);
+        // Reuse today's snapshot if a device already wrote it — but still
+        // fall through to the monthly check below (an interrupted first run
+        // may have written the daily slot and died before the monthly one).
+        let snap = (existing && existing.date === today) ? existing : null;
+        if (!snap) {
+            let entries = [];
+            try { entries = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
+            if (!entries.length) return;                            // never snapshot an empty book
+            snap = { date: today, savedAt: new Date().toISOString(), entryCount: entries.length, data: {} };
+            BACKUP_SNAPSHOT_KEYS.forEach(k => {
+                try { const v = localStorage.getItem(k); if (v !== null) snap.data[k] = JSON.parse(v); } catch (e) {}
+            });
+            await _backupPost(slot, snap);
+            console.log('☁️ Daily cloud backup saved →', slot, '(' + snap.entryCount + ' entries)');
+        }
+
+        const monthSlot = 'backupSnapshot_M' + String(noon.getMonth() + 1).padStart(2, '0');
+        const mExisting = await driveGet(monthSlot);
+        if (!mExisting || String(mExisting.date || '').slice(0, 7) !== today.slice(0, 7)) {
+            await _backupPost(monthSlot, snap);
+        }
+    } catch (e) { console.warn('Cloud backup failed (will retry next load):', e); _backupRanThisLoad = false; }
+}
+
+// ── Admin UI ─────────────────────────────────────────────────
+function showCloudBackups() {
+    let m = document.getElementById('cloudBackupsModal');
+    if (!m) {
+        m = document.createElement('div');
+        m.id = 'cloudBackupsModal';
+        m.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100001;display:flex;align-items:center;justify-content:center;padding:20px;';
+        m.innerHTML =
+            '<div style="background:#fff;border-radius:16px;max-width:560px;width:100%;max-height:82vh;display:flex;flex-direction:column;overflow:hidden;font-family:inherit;">' +
+              '<div style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">' +
+                '<div><div style="font-weight:700;font-size:16px;">🗄️ Cloud Backups</div>' +
+                '<div style="font-size:11.5px;opacity:.8;margin-top:2px;">Automatic snapshots — last 7 days + one per month. Restoring merges missing entries back in; it never deletes or duplicates.</div></div>' +
+                '<button onclick="document.getElementById(\'cloudBackupsModal\').remove()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;">&times;</button>' +
+              '</div>' +
+              '<div id="cloudBackupsList" style="padding:14px 20px;overflow-y:auto;font-size:13.5px;color:#0f172a;">Loading snapshots…</div>' +
+            '</div>';
+        m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+        document.body.appendChild(m);
+    }
+    _renderCloudBackupsList();
+}
+
+async function _renderCloudBackupsList() {
+    const list = document.getElementById('cloudBackupsList');
+    if (!list) return;
+    list.textContent = 'Loading snapshots…';
+    const rows = [];
+    for (const slot of BACKUP_SLOTS) {
+        try {
+            const snap = await driveGet(slot);
+            if (snap && snap.date) rows.push({ slot, snap });
+        } catch (e) {}
+    }
+    if (!document.getElementById('cloudBackupsList')) return; // modal closed meanwhile
+    if (!rows.length) {
+        list.innerHTML = 'No snapshots yet. The first one is saved automatically the next time the dashboard is opened — check back tomorrow.';
+        return;
+    }
+    rows.sort((a, b) => (b.snap.date || '').localeCompare(a.snap.date || ''));
+    list.innerHTML = rows.map(r =>
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #e2e8f0;">' +
+          '<div><strong>' + r.snap.date + '</strong>' +
+          '<span style="color:#64748b;"> · ' + (r.snap.entryCount || 0) + ' entries · ' +
+          (r.slot.indexOf('_M') > -1 ? 'monthly' : 'daily') + ' slot</span></div>' +
+          '<button class="btn-primary btn-sm" onclick="restoreCloudBackup(\'' + r.slot + '\')">Restore</button>' +
+        '</div>').join('');
+}
+
+async function restoreCloudBackup(slot) {
+    const snap = await driveGet(slot);
+    if (!snap || !snap.data || !Array.isArray(snap.data.binderData)) { alert('That snapshot is empty or unreadable.'); return; }
+    let local = [];
+    try { local = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
+    const merged = mergeBinderData(local, snap.data.binderData);
+    const added = merged.length - local.length;
+    if (!confirm('Restore snapshot from ' + snap.date + '?\n\n' +
+        'Snapshot: ' + snap.data.binderData.length + ' entries\nCurrent:  ' + local.length + ' entries\n\n' +
+        (added > 0 ? 'This will add back ' + added + ' missing entr' + (added === 1 ? 'y' : 'ies') + '.'
+                   : 'Nothing is missing from that snapshot — no changes would be made.') +
+        '\n\nExisting entries are never changed or deleted.')) return;
+    _origSetItem('binderData', JSON.stringify(merged));
+    allData = merged;
+    await driveSet('binderData', merged);
+    if (typeof loadAdminDashboard === 'function' && currentRole === 'admin') loadAdminDashboard();
+    else if (typeof loadAgentData === 'function') loadAgentData();
+    alert(added > 0 ? '✅ Restored ' + added + ' missing entr' + (added === 1 ? 'y' : 'ies') + ' from the ' + snap.date + ' snapshot.'
+                    : '✅ Checked — nothing was missing from that snapshot.');
+    _renderCloudBackupsList();
 }
