@@ -1113,7 +1113,7 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js?v=20260710a"></script>
+<script src="app.js?v=20260715a"></script>
 <script src="motion.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -1235,10 +1235,22 @@
             setVal('paymentMethod2', ext.paymentMethod2);
             setVal('paymentType', ext.paymentType);
             if (ext.company) {
+                // Auto-add the carrier if it isn't in the master list yet —
+                // otherwise the dropdown has no matching option and the
+                // extracted carrier silently fails to prefill.
+                if (typeof claudeEnsureCarrier === 'function') {
+                    const canonical = claudeEnsureCarrier(ext.company);
+                    if (canonical) ext.company = canonical;
+                }
                 refreshAllCarrierDropdowns();
                 setTimeout(() => setVal('company', ext.company), 100);
             }
             if (ext.source) {
+                // Same for a novel source value.
+                if (typeof claudeEnsureSource === 'function') {
+                    const canonicalSource = claudeEnsureSource(ext.source);
+                    if (canonicalSource) ext.source = canonicalSource;
+                }
                 populateSourceDropdown('source' + sfx, ext.source);
             }
             if (ext.policyNumber) {
