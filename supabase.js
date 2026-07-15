@@ -64,7 +64,7 @@
         const keys = [];
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
-            if (k && !SKIP.has(k)) keys.push(k);
+            if (k && !SKIP.has(k) && k.indexOf('uibDirty_') !== 0) keys.push(k);
         }
         let done = 0;
         for (const k of keys) {
@@ -134,7 +134,7 @@
 
     function queueDirty(key) {
         if (!autoEnabled || suppressAuto) return;
-        if (SKIP.has(key)) return;
+        if (SKIP.has(key) || key.indexOf('uibDirty_') === 0) return; // device-local sync bookkeeping
         dirty.add(key);
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(flushDirty, DEBOUNCE_MS);

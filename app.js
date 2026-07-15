@@ -26,15 +26,29 @@ async function driveGet(key) {
     }
 }
 
+// Track locally-made changes the cloud hasn't confirmed yet. If a write is
+// cut off (page navigation, flaky network), the flag survives in localStorage
+// and syncFromDrive() PUSHES the local copy instead of pulling the stale
+// cloud copy over it — which used to delete just-saved entries.
+let _driveSeq = 0;
+function _dirtyKey(key) { return 'uibDirty_' + key; }
+
 async function driveSet(key, value) {
+    const seq = (++_driveSeq) + '.' + Date.now();
+    try { _origSetItem(_dirtyKey(key), seq); } catch (e) {}
     try {
-        await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
             method: 'POST',
             headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
             body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
         });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        // Confirmed — clear the flag unless a newer local write happened meanwhile.
+        if (localStorage.getItem(_dirtyKey(key)) === seq) localStorage.removeItem(_dirtyKey(key));
+        return true;
     } catch (e) {
         console.warn(`Cloud write failed for ${key}:`, e);
+        return false;
     }
 }
 
@@ -46,6 +60,20 @@ async function syncFromDrive() {
     if (banner) banner.style.display = 'flex';
     for (const key of SYNC_KEYS) {
         if (DRIVE_PULL_SKIP.has(key)) continue; // preserve local credentials
+
+        // This key has local changes the cloud never confirmed (interrupted
+        // save, dropped connection). Pulling now would overwrite — i.e.
+        // DELETE — that local work with the older cloud copy. Push local up
+        // instead; the flag clears on success, or we retry next sync.
+        if (localStorage.getItem(_dirtyKey(key)) !== null) {
+            const localRaw = localStorage.getItem(key);
+            if (localRaw !== null) {
+                try { await driveSet(key, JSON.parse(localRaw)); } catch (e) { /* keep dirty; retry next sync */ }
+                continue;
+            }
+            localStorage.removeItem(_dirtyKey(key));
+        }
+
         const data = await driveGet(key);
         if (data !== null) {
             _origSetItem(key, JSON.stringify(data)); // bypass override to avoid write-back loop
@@ -294,6 +322,20 @@ const SHEET_HEADERS = [
 // Only overwrites local data when the cloud actually has records.
 async function loadFromSheet() {
     try {
+        // Local changes the cloud never confirmed? Push them up instead of
+        // pulling the stale cloud copy over local work — same rule as
+        // syncFromDrive(). Without this, logging back in after an interrupted
+        // save deleted the just-saved entry.
+        if (localStorage.getItem(_dirtyKey('binderData')) !== null) {
+            const localRaw = localStorage.getItem('binderData');
+            if (localRaw !== null) {
+                const localData = JSON.parse(localRaw);
+                allData = localData;
+                await driveSet('binderData', localData);
+                return;
+            }
+            localStorage.removeItem(_dirtyKey('binderData'));
+        }
         const data = await driveGet('binderData');
         if (Array.isArray(data) && data.length > 0) {
             allData = data;
@@ -1246,9 +1288,13 @@ function saveEntry() {
         commissionData = commData;
     }
 
-    // Save any pending files attached from the new entry form
+    // Save any pending files attached from the new entry form. Keep the
+    // promise: the standalone page must WAIT for these uploads before
+    // navigating away — navigation aborts in-flight uploads, which is how
+    // attached PDFs were getting lost.
+    let pendingFilesSave = Promise.resolve();
     if (_pendingEntryFiles.length > 0) {
-        binderSavePendingFiles(entry.customerName, entry.id);
+        pendingFilesSave = binderSavePendingFiles(entry.customerName, entry.id);
     }
 
     showSuccess();
@@ -1275,13 +1321,25 @@ function saveEntry() {
     const isStandalonePage = window.location.pathname.includes('dailysalesentry');
 
     if (isStandalonePage) {
-        // Push this entry to the cloud, then return the agent to the main
-        // dashboard. uibCurrentUser stays in sessionStorage so the main screen
-        // restores their session without asking them to log in again. The short
-        // delay lets the "saved" confirmation show before navigating.
-        if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
+        // Finish persisting BEFORE leaving the page: navigating away aborts
+        // in-flight uploads and cloud writes, which lost attached PDFs and
+        // let the next cloud pull erase the just-saved entry. Wait for the
+        // attachment uploads and the entry's cloud push, then go back to the
+        // dashboard. A time cap keeps a dead network from stranding the
+        // agent — anything unfinished stays flagged dirty and the next sync
+        // pushes it instead of pulling over it.
         try { sessionStorage.setItem('uibCurrentUser', currentUser || ''); } catch (e) {}
-        setTimeout(() => { window.location.href = './'; }, 1200);
+
+        const saveBtn = document.querySelector('#agentForm button[type="submit"]');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '☁️ Saving — uploading documents…'; }
+
+        const persistAll = Promise.all([
+            pendingFilesSave.catch(e => console.warn('Attachment save failed:', e)),
+            driveSet('binderData', allData),
+            driveSet('commissionData', JSON.parse(localStorage.getItem('commissionData') || '{}'))
+        ]);
+        const cap = new Promise(res => setTimeout(res, 25000));
+        Promise.race([persistAll, cap]).then(() => { window.location.href = './'; });
         return;
     }
 
