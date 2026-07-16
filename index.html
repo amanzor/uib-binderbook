@@ -2402,7 +2402,7 @@
             <div id="monthlyDocsSection" class="section">
                 <div class="user-info" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
                     <div style="display:flex;align-items:center;gap:10px;">
-                        <button class="btn-secondary btn-sm" onclick="showSection('adminSection')"><i data-lucide="arrow-left"></i> Back</button>
+                        <button class="btn-secondary btn-sm" onclick="showCommissionStatements()"><i data-lucide="arrow-left"></i> Back</button>
                         <strong style="font-size:16px;"><i data-lucide="folder-open"></i> Documents</strong>
                     </div>
                     <select id="mdocYear" onchange="mdocYearChanged()" style="padding:7px 14px;border:1px solid var(--gray-200);border-radius:8px;font-size:13.5px;font-weight:700;color:var(--gray-700);cursor:pointer;"></select>
@@ -2440,7 +2440,10 @@
                         <button class="btn-secondary btn-sm" onclick="showSection('adminSection')"><i data-lucide="arrow-left"></i> Back</button>
                         <strong style="font-size:16px;"><i data-lucide="file-spreadsheet"></i> Commission Statements</strong>
                     </div>
-                    <button class="btn-primary btn-sm" onclick="openCommissionUploadModal()"><i data-lucide="upload"></i> Upload Statement</button>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn-primary btn-sm" style="background:linear-gradient(135deg,#b45309,#f59e0b);" onclick="showMonthlyDocuments()" title="Monthly document storage + carrier commission dashboard"><i data-lucide="folder-open"></i> Documents</button>
+                        <button class="btn-primary btn-sm" onclick="openCommissionUploadModal()"><i data-lucide="upload"></i> Upload Statement</button>
+                    </div>
                 </div>
 
                 <!-- Month Tabs -->
@@ -2639,7 +2642,6 @@
                     <button class="btn-primary" onclick="showAgentManagement()"><i data-lucide="users"></i> Agents</button>
                     <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#0f766e,#14b8a6);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#b45309,#f59e0b);" onclick="showMonthlyDocuments()" title="Monthly document storage + carrier commission dashboard"><i data-lucide="folder-open"></i> Documents</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
                     <button class="btn-success" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" onclick="showProspectsSection()"><i data-lucide="target"></i> Prospects</button>
