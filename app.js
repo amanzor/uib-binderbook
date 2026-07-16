@@ -10160,3 +10160,212 @@ async function restoreCloudBackup(slot) {
                     : '✅ Checked — nothing was missing from that snapshot.');
     _renderCloudBackupsList();
 }
+
+// ============================================================
+// MONTHLY DOCUMENTS  (Admin → Documents)
+// ------------------------------------------------------------
+// 12 month buttons (January–December, per selected year). Each month
+// has two tabs:
+//   📄 Documents — upload/download/delete files for that month
+//                  (stored in the client-files bucket under
+//                  MonthlyDocs_<year>_<Month>, rows in `documents`)
+//   📊 Dashboard — per-carrier commission totals for that month,
+//                  aggregated from all saved Commission Statements
+// ============================================================
+const MDOC_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let _mdocYear = null;
+let _mdocMonth = null;
+
+function mdocClientKey() { return 'MonthlyDocs_' + _mdocYear + '_' + _mdocMonth; }
+
+function showMonthlyDocuments() {
+    const sel = document.getElementById('mdocYear');
+    if (sel && sel.options.length === 0) {
+        const y = new Date().getFullYear();
+        for (let yr = y + 1; yr >= y - 4; yr--) sel.add(new Option(yr, yr));
+        sel.value = y;
+    }
+    _mdocYear = parseInt(sel.value, 10);
+    _mdocMonth = null;
+    document.getElementById('mdocDetail').style.display = 'none';
+    showSection('monthlyDocsSection');
+    mdocRenderMonthGrid();
+    refreshIcons();
+}
+
+function mdocYearChanged() {
+    _mdocYear = parseInt(document.getElementById('mdocYear').value, 10);
+    _mdocMonth = null;
+    document.getElementById('mdocDetail').style.display = 'none';
+    mdocRenderMonthGrid();
+}
+
+async function mdocRenderMonthGrid() {
+    const grid = document.getElementById('mdocMonthGrid');
+    if (!grid) return;
+    grid.innerHTML = MDOC_MONTHS.map(m => {
+        const active = m === _mdocMonth;
+        return `<button onclick="mdocSelectMonth('${m}')" id="mdocBtn_${m}"
+            style="padding:16px 10px;border-radius:12px;cursor:pointer;text-align:center;transition:all .15s;
+                   border:2px solid ${active ? '#1d4ed8' : 'var(--gray-200)'};
+                   background:${active ? 'linear-gradient(135deg,#0d1f3c,#1d4ed8)' : '#fff'};
+                   color:${active ? '#fff' : 'var(--gray-700)'};font-weight:700;font-size:14px;">
+            📅 ${m}
+            <span id="mdocCount_${m}" style="display:block;margin-top:4px;font-size:11px;font-weight:600;color:${active ? 'rgba(255,255,255,.75)' : 'var(--gray-400)'};">&nbsp;</span>
+        </button>`;
+    }).join('');
+    // File-count badges (best effort — grid still works if this fails)
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?select=client_key&client_key=like.MonthlyDocs_${_mdocYear}_*`, { headers: _SB_HEADERS });
+        if (res.ok) {
+            const rows = await res.json();
+            const counts = {};
+            rows.forEach(r => {
+                const m = String(r.client_key || '').split('_')[2];
+                if (m) counts[m] = (counts[m] || 0) + 1;
+            });
+            MDOC_MONTHS.forEach(m => {
+                const el = document.getElementById('mdocCount_' + m);
+                if (el && counts[m]) el.textContent = counts[m] + ' file' + (counts[m] > 1 ? 's' : '');
+            });
+        }
+    } catch (e) { /* offline — counts are cosmetic */ }
+}
+
+function mdocSelectMonth(m) {
+    _mdocMonth = m;
+    document.getElementById('mdocMonthTitle').textContent = '📅 ' + m + ' ' + _mdocYear;
+    document.getElementById('mdocDetail').style.display = 'block';
+    MDOC_MONTHS.forEach(mm => {
+        const b = document.getElementById('mdocBtn_' + mm);
+        if (!b) return;
+        const on = mm === m;
+        b.style.border = '2px solid ' + (on ? '#1d4ed8' : 'var(--gray-200)');
+        b.style.background = on ? 'linear-gradient(135deg,#0d1f3c,#1d4ed8)' : '#fff';
+        b.style.color = on ? '#fff' : 'var(--gray-700)';
+        const c = document.getElementById('mdocCount_' + mm);
+        if (c) c.style.color = on ? 'rgba(255,255,255,.75)' : 'var(--gray-400)';
+    });
+    mdocSelectTab('docs');
+    document.getElementById('mdocDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function mdocSelectTab(tab) {
+    const docs = tab === 'docs';
+    document.getElementById('mdocDocsTab').style.display = docs ? 'block' : 'none';
+    document.getElementById('mdocDashTab').style.display = docs ? 'none' : 'block';
+    document.getElementById('mdocTabDocs').className = docs ? 'btn-primary btn-sm' : 'btn-secondary btn-sm';
+    document.getElementById('mdocTabDash').className = docs ? 'btn-secondary btn-sm' : 'btn-primary btn-sm';
+    if (docs) mdocLoadFileList(); else mdocRenderDashboard();
+}
+
+async function mdocUploadFiles(input) {
+    const files = [...(input.files || [])];
+    if (!files.length) return;
+    const status = document.getElementById('mdocUploadStatus');
+    let done = 0, failed = 0;
+    for (const f of files) {
+        if (status) status.textContent = `☁️ Uploading ${done + 1}/${files.length}: ${f.name}…`;
+        try { await binderCloudUpload(f, mdocClientKey(), 'Monthly'); done++; }
+        catch (e) { failed++; console.warn('Monthly doc upload failed:', e); }
+    }
+    input.value = '';
+    if (status) status.textContent = failed
+        ? `⚠️ Uploaded ${done} file${done !== 1 ? 's' : ''}, ${failed} failed — check your connection and try again.`
+        : `✅ Uploaded ${done} file${done !== 1 ? 's' : ''}.`;
+    mdocLoadFileList();
+    mdocRenderMonthGrid();
+}
+
+async function mdocLoadFileList() {
+    const box = document.getElementById('mdocFileList');
+    if (!box) return;
+    box.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:14px;">Loading files…</div>';
+    const files = await binderCloudList(mdocClientKey());
+    if (!files.length) {
+        box.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:14px;">No documents uploaded for ' + _mdocMonth + ' ' + _mdocYear + ' yet.</div>';
+        return;
+    }
+    files.forEach(f => { _binderCloudFiles[f.id] = { path: f.storage_path, name: f.file_name }; });
+    box.innerHTML = files.map(f => `
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 8px;border-bottom:1px solid #e5e7eb;font-size:13px;">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.file_name)}">📄 ${escHtml(f.file_name)}</span>
+            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${f.size_bytes ? (f.size_bytes / 1024 / 1024).toFixed(2) + ' MB' : ''}</span>
+            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploaded_at).toLocaleDateString()}</span>
+            <button class="btn-primary btn-sm" onclick="binderCloudDownload('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Download">⬇️</button>
+            <button class="btn-danger btn-sm" onclick="mdocDeleteFile('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Delete">🗑️</button>
+        </div>`).join('');
+}
+
+async function mdocDeleteFile(docId) {
+    const f = _binderCloudFiles[docId];
+    if (!f) return;
+    if (!confirm('Delete "' + f.name + '" from the cloud? This cannot be undone.')) return;
+    await fetch(_binderStorageUrl(f.path), {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    await fetch(`${SUPABASE_URL}/rest/v1/documents?id=eq.${encodeURIComponent(docId)}`, { method: 'DELETE', headers: _SB_HEADERS });
+    mdocLoadFileList();
+    mdocRenderMonthGrid();
+}
+
+function mdocRenderDashboard() {
+    const box = document.getElementById('mdocDashTab');
+    if (!box) return;
+    // Re-read so statements saved on another device (or just uploaded) show
+    initializeCommissionStatements();
+    const label = _mdocMonth + ' ' + _mdocYear;
+    const totals = {};
+    Object.values(commissionStatements || {}).forEach(stmt => {
+        if (!stmt || String(stmt.month || '').trim() !== label) return;
+        const ct = stmt.carrierTotals && Object.keys(stmt.carrierTotals).length ? stmt.carrierTotals : null;
+        if (ct) {
+            Object.entries(ct).forEach(([c, v]) => { totals[c] = (totals[c] || 0) + (parseFloat(v) || 0); });
+        } else {
+            (stmt.entries || []).forEach(e => {
+                const c = (e && e.carrier) || 'Unknown';
+                totals[c] = (totals[c] || 0) + (parseFloat(e && e.commission) || 0);
+            });
+        }
+    });
+    const carriers = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    if (!carriers.length) {
+        box.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--gray-400);">
+            <div style="font-size:44px;margin-bottom:12px;">📊</div>
+            <p style="font-size:14px;">No commission statements saved for <strong>${label}</strong> yet.<br>
+            Upload one in the <strong>Commission Statements</strong> section (or via the AI processor) and it will appear here.</p>
+        </div>`;
+        return;
+    }
+    const grand = carriers.reduce((s, [, v]) => s + v, 0);
+    const fmt = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    box.innerHTML = `
+        <div class="stat-card" style="border-left:4px solid #f59e0b;max-width:280px;margin-bottom:18px;">
+            <div class="label">Total Commission — ${label}</div>
+            <div class="number">${fmt(grand)}</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;">
+            <thead><tr style="border-bottom:2px solid var(--gray-100);">
+                <th style="padding:8px 10px;text-align:left;font-size:12px;color:var(--gray-500);text-transform:uppercase;">Carrier</th>
+                <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--gray-500);text-transform:uppercase;">Commission Received</th>
+                <th style="padding:8px 10px;text-align:left;font-size:12px;color:var(--gray-500);text-transform:uppercase;width:38%;">Share</th>
+            </tr></thead>
+            <tbody>${carriers.map(([c, v]) => {
+                const pct = grand > 0 ? Math.max(0, v / grand * 100) : 0;
+                const color = v >= 0 ? '#059669' : '#dc2626';
+                return `<tr style="border-bottom:1px solid var(--gray-100);">
+                    <td style="padding:9px 10px;font-size:13.5px;font-weight:600;">${escHtml(c)}</td>
+                    <td style="padding:9px 10px;text-align:right;font-weight:700;color:${color};">${fmt(v)}</td>
+                    <td style="padding:9px 10px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div style="flex:1;height:8px;background:var(--gray-100);border-radius:99px;overflow:hidden;">
+                                <div style="width:${pct.toFixed(1)}%;height:100%;background:${color};border-radius:99px;"></div>
+                            </div>
+                            <span style="font-size:11.5px;color:var(--gray-500);white-space:nowrap;">${pct.toFixed(1)}%</span>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('')}</tbody>
+        </table>`;
+}

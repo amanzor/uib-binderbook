@@ -2399,6 +2399,41 @@
             </div>
 
             <!-- Commission Statements Section -->
+            <div id="monthlyDocsSection" class="section">
+                <div class="user-info" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <button class="btn-secondary btn-sm" onclick="showSection('adminSection')"><i data-lucide="arrow-left"></i> Back</button>
+                        <strong style="font-size:16px;"><i data-lucide="folder-open"></i> Documents</strong>
+                    </div>
+                    <select id="mdocYear" onchange="mdocYearChanged()" style="padding:7px 14px;border:1px solid var(--gray-200);border-radius:8px;font-size:13.5px;font-weight:700;color:var(--gray-700);cursor:pointer;"></select>
+                </div>
+
+                <!-- 12 month buttons -->
+                <div id="mdocMonthGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin:18px 0;"></div>
+
+                <!-- Month detail: Documents / Dashboard tabs -->
+                <div id="mdocDetail" style="display:none;">
+                    <h3 id="mdocMonthTitle" style="margin:4px 0 12px;font-size:17px;color:var(--gray-700);"></h3>
+                    <div style="display:flex;gap:8px;border-bottom:2px solid var(--gray-100);margin-bottom:16px;padding-bottom:8px;">
+                        <button id="mdocTabDocs" class="btn-primary btn-sm" onclick="mdocSelectTab('docs')">📄 Documents</button>
+                        <button id="mdocTabDash" class="btn-secondary btn-sm" onclick="mdocSelectTab('dash')">📊 Dashboard</button>
+                    </div>
+
+                    <div id="mdocDocsTab">
+                        <div style="border:2px dashed var(--gray-200);border-radius:12px;padding:20px;text-align:center;margin-bottom:16px;background:#fafbfc;">
+                            <input type="file" id="mdocFileInput" multiple style="display:none;" onchange="mdocUploadFiles(this)">
+                            <div style="font-size:32px;">📎</div>
+                            <p style="font-size:13px;color:var(--gray-500);margin:6px 0 12px;">Upload commission statements, carrier reports, or any documents for this month</p>
+                            <button class="btn-primary btn-sm" onclick="document.getElementById('mdocFileInput').click()"><i data-lucide="upload"></i> Choose Files</button>
+                            <span id="mdocUploadStatus" style="display:block;margin-top:10px;font-size:12.5px;color:var(--gray-500);"></span>
+                        </div>
+                        <div id="mdocFileList"></div>
+                    </div>
+
+                    <div id="mdocDashTab" style="display:none;"></div>
+                </div>
+            </div>
+
             <div id="commissionStatementsSection" class="section">
                 <div class="user-info" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
                     <div style="display:flex;align-items:center;gap:10px;">
@@ -2604,6 +2639,7 @@
                     <button class="btn-primary" onclick="showAgentManagement()"><i data-lucide="users"></i> Agents</button>
                     <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#0f766e,#14b8a6);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
+                    <button class="btn-primary" style="background:linear-gradient(135deg,#b45309,#f59e0b);" onclick="showMonthlyDocuments()" title="Monthly document storage + carrier commission dashboard"><i data-lucide="folder-open"></i> Documents</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
                     <button class="btn-success" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" onclick="showProspectsSection()"><i data-lucide="target"></i> Prospects</button>
@@ -3547,7 +3583,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260716a"></script>
+    <script src="app.js?v=20260716b"></script>
     <script src="supabase.js?v=20260715c"></script>
 </body>
 </html>
