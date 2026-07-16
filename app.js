@@ -5773,6 +5773,30 @@ let csParsedPreview = null;
 function initializeCommissionStatements() {
     const stored = localStorage.getItem('commissionStatements');
     commissionStatements = stored ? JSON.parse(stored) : {};
+    normalizeCommissionStatements();
+}
+
+// AI-saved statements used to store the insured under `customerName` while
+// the manual spreadsheet path (and every renderer/export) uses `clientName`
+// — so "(AI)" statements showed blank names. Normalize in place, covering
+// statements saved before this fix. Idempotent; runs on every load/sync.
+function normalizeCommissionStatements() {
+    let changed = false;
+    Object.values(commissionStatements || {}).forEach(stmt => {
+        ((stmt && stmt.entries) || []).forEach(e => {
+            if (!e) return;
+            if (!e.clientName && e.customerName) { e.clientName = e.customerName; changed = true; }
+            if (e.transaction === undefined) { e.transaction = e.transactionType || ''; changed = true; }
+        });
+    });
+    if (changed) saveCommissionStatements();
+    return changed;
+}
+
+// Renderer-side safety net for statements synced from a device that
+// hasn't normalized yet.
+function _csClientName(e) {
+    return (e && (e.clientName || e.customerName)) || '';
 }
 
 function saveCommissionStatements() {
@@ -6220,9 +6244,9 @@ function renderCSEntries(monthKey) {
             : `<span style="background:#f3f4f6;color:var(--gray-400);padding:2px 8px;border-radius:999px;font-size:11px;">—</span>`;
 
         return `<tr style="${bg}border-bottom:1px solid var(--gray-100);">
-            <td style="padding:8px 10px;font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.clientName}">${e.clientName}</td>
+            <td style="padding:8px 10px;font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${_csClientName(e)}">${_csClientName(e) || '—'}</td>
             <td style="padding:8px 10px;font-size:12px;font-family:monospace;color:var(--gray-600);">${e.policyNumber || '—'}</td>
-            <td style="padding:8px 10px;font-size:12px;color:${txnColor};font-weight:600;">${e.transaction}</td>
+            <td style="padding:8px 10px;font-size:12px;color:${txnColor};font-weight:600;">${e.transaction || '—'}</td>
             <td style="padding:8px 10px;font-size:12px;">${e.carrier}</td>
             <td style="padding:8px 10px;font-size:12px;color:var(--gray-500);">${e.lob || '—'}</td>
             <td style="padding:8px 10px;font-size:12px;text-align:right;">${e.basePremium>0?'$'+e.basePremium.toLocaleString('en-US',{minimumFractionDigits:2}):'—'}</td>
@@ -6369,7 +6393,7 @@ function renderCSAgentDetail(monthKey) {
         const posNeg = e.commission >= 0 ? 'Positive' : 'Negative';
         const color = e.commission >= 0 ? '#059669' : '#dc2626';
         return `<tr style="border-bottom:1px solid var(--gray-100);">
-            <td style="padding:6px 10px;font-size:12.5px;">${e.clientName}</td>
+            <td style="padding:6px 10px;font-size:12.5px;">${_csClientName(e) || '—'}</td>
             <td style="padding:6px 10px;font-size:12px;font-family:monospace;color:var(--gray-600);">${e.policyNumber || '—'}</td>
             <td style="padding:6px 10px;font-size:11.5px;color:var(--gray-500);">${e.transaction || '—'}</td>
             <td style="padding:6px 10px;font-size:12.5px;text-align:right;color:${color};font-weight:600;">$${e.commission.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
@@ -6431,7 +6455,7 @@ function exportCSAgentReportCSV() {
     const carrierGroups = _csGroupByCarrier(selected.entries);
     carrierGroups.forEach(cg => {
         cg.entries.forEach(e => {
-            rows.push([label, cg.carrier, e.clientName, e.policyNumber || '', e.transaction || '', e.commission.toFixed(2), e.commission >= 0 ? 'Positive' : 'Negative']);
+            rows.push([label, cg.carrier, _csClientName(e), e.policyNumber || '', e.transaction || '', e.commission.toFixed(2), e.commission >= 0 ? 'Positive' : 'Negative']);
         });
         rows.push([label, cg.carrier + ' Total', '', '', '', cg.total.toFixed(2), '']);
     });
@@ -6479,9 +6503,9 @@ function renderCSAdjustments(monthKey) {
             ? `<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;">${e.agentMatch}</span>`
             : `<span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;">⚠️ Unassigned</span>`;
         return `<tr style="${bg}border-bottom:1px solid var(--gray-100);">
-            <td style="padding:8px 10px;font-size:13px;">${e.clientName}</td>
+            <td style="padding:8px 10px;font-size:13px;">${_csClientName(e) || '—'}</td>
             <td style="padding:8px 10px;font-size:12px;font-family:monospace;color:var(--gray-600);">${e.policyNumber || '—'}</td>
-            <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#c2410c;">${e.transaction}</td>
+            <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#c2410c;">${e.transaction || '—'}</td>
             <td style="padding:8px 10px;font-size:12px;">${e.carrier}</td>
             <td style="padding:8px 10px;text-align:right;font-weight:700;color:${commColor};">$${e.commission.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
             <td style="padding:8px 10px;">${agentBadge}</td>
@@ -6500,7 +6524,7 @@ function exportCSAdjustmentsCSV() {
     if (!stmt) return;
     const rows = stmt.entries.filter(_csIsAdjustment);
     const csvRows = [['Client Name', 'Policy Number', 'Transaction Type', 'Carrier', 'Commission', 'Agent']];
-    rows.forEach(e => csvRows.push([e.clientName, e.policyNumber || '', e.transaction, e.carrier, e.commission.toFixed(2), e.agentMatch || 'Unassigned']));
+    rows.forEach(e => csvRows.push([_csClientName(e), e.policyNumber || '', e.transaction || '', e.carrier, e.commission.toFixed(2), e.agentMatch || 'Unassigned']));
     const total = rows.reduce((s, e) => s + e.commission, 0);
     csvRows.push(['Adjustments Total', '', '', '', total.toFixed(2), '']);
 
@@ -9241,7 +9265,7 @@ COMMISSION STATEMENT PROCESSING MODE:
 The admin has uploaded one or more carrier commission statements. Your job:
 
 1. Identify the carrier and statement period for each PDF
-2. Extract EVERY transaction line item (don't skip any)
+2. Extract EVERY transaction line item (don't skip any). EVERY line item MUST include the insured/client name — carriers label this column differently (Insured, Named Insured, Client, Customer, Policyholder, Member, Risk Name, Account Name); find the correct column for each carrier's format, including statements where the name is on its own row above the transaction lines. If a line truly shows no name anywhere, take the name from the matched BinderBook entry; only if there is no match either, use the policy number as the name. Never leave customerName empty.
 3. Match each transaction to a BinderBook entry using the data above
 4. Identify the responsible agent from the matched entry
 5. Output a structured JSON summary at the end of your response
@@ -9256,8 +9280,9 @@ After a brief 2-3 sentence summary of what you found, output JSON in this exact 
   "totalGrossCommission": number,
   "transactions": [
     {
-      "customerName": "string",
+      "customerName": "string (insured/client name exactly as printed — REQUIRED, never empty)",
       "policyNumber": "string",
+      "transactionType": "string (New | Renewal | Endorsement | Cancellation | Payment | Adjustment | Other — as labeled on the statement)",
       "premium": number,
       "commissionAmount": number,
       "matchedEntryId": number_or_null,
@@ -9484,7 +9509,12 @@ async function claudeAdminApplyStatement(stmt) {
     const entries = stmt.transactions.map((t, i) => ({
         idx: i + 1,
         carrier: carrier,
+        // The statement viewers/CSV exports read `clientName`/`transaction`
+        // (the manual spreadsheet upload's field names) — store both so AI
+        // statements render identically to spreadsheet ones.
+        clientName: t.customerName || t.clientName || '',
         customerName: t.customerName || '',
+        transaction: t.transactionType || t.transaction || '',
         policyNumber: t.policyNumber || '',
         premium: parseFloat(t.premium) || 0,
         commission: parseFloat(t.commissionAmount) || 0,
