@@ -9146,6 +9146,7 @@ function claudeDragHasFiles(e) {
 
 let _claudeAdminMessages = [];
 let _claudeAdminPendingPdfs = []; // array of {name, base64}
+let _claudeAdminLastPdfs = [];    // PDFs from the last processed batch — uploaded to Storage on save
 let _claudeAdminBusy = false;
 
 function claudeAdminAddMessage(role, text, isHtml) {
@@ -9332,6 +9333,9 @@ async function claudeAdminSendMessage() {
 
     const pdfsAttached = hasPdfs;
     const pdfNames = _claudeAdminPendingPdfs.map(p => p.name);
+    // Keep the batch's PDFs so "Save as Commission Statement" can upload the
+    // originals to Supabase Storage and attach them to the statement month.
+    if (hasPdfs) _claudeAdminLastPdfs = _claudeAdminPendingPdfs.slice();
     _claudeAdminMessages.push({ role: 'user', content });
     _claudeAdminPendingPdfs = [];
     claudeAdminRefreshPreview();
@@ -9558,18 +9562,90 @@ async function claudeAdminApplyStatement(stmt) {
         agentTotals
     };
 
+    // Upload the original statement PDF(s) into the pertaining month of the
+    // Documents section (the "Documents" button in Commission Statements).
+    const documents = await claudeAdminUploadStatementDocs(monthLabel);
+    if (documents.length) commissionStatements[key].documents = documents;
+
     localStorage.setItem('commissionStatements', JSON.stringify(commissionStatements));
 
     // Persist to Supabase and VERIFY the write succeeded (driveSet swallows errors).
     const cloudOk = await claudeAdminSaveStatementsToSupabase();
 
+    const docNote = documents.length
+        ? `\n✓ ${documents.length} original PDF${documents.length > 1 ? 's' : ''} filed under ${(documents[0].monthKey || '').replace('MonthlyDocs_', '').split('_').reverse().join(' ')} in the Documents section.`
+        : (_claudeAdminLastPdfs.length ? '\n⚠️ Could not upload the original PDF(s) to cloud storage.' : '');
+
     if (cloudOk) {
-        alert(`✓ Saved commission statement: ${key}\n\n✓ Stored in Supabase — it is now visible in the admin "Commission Statements" section and in the AMS "Commissions" section.`);
+        alert(`✓ Saved commission statement: ${key}\n\n✓ Stored in Supabase — it is now visible in the admin "Commission Statements" section and in the AMS "Commissions" section.${docNote}`);
     } else {
-        alert(`⚠️ Saved commission statement locally: ${key}\n\nBut the Supabase cloud save FAILED — check your internet connection. The statement will retry syncing automatically, or click "Save as Commission Statement" again.`);
+        alert(`⚠️ Saved commission statement locally: ${key}\n\nBut the Supabase cloud save FAILED — check your internet connection. The statement will retry syncing automatically, or click "Save as Commission Statement" again.${docNote}`);
     }
     if (typeof loadCommissionStatementsList === 'function') loadCommissionStatementsList();
 }
+
+// Resolve a statement's month label ("June 2026", or a YYYY-MM-DD date) to
+// the Monthly Documents key (MonthlyDocs_<year>_<Month>). Falls back to the
+// current month so the file always lands somewhere findable.
+function _mdocKeyForMonthLabel(label) {
+    const m = String(label || '').trim().match(/^([A-Za-z]+)\s+(\d{4})/);
+    if (m) {
+        const month = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
+        if (MDOC_MONTHS.includes(month)) return `MonthlyDocs_${m[2]}_${month}`;
+    }
+    const d = new Date(String(label || '') + 'T12:00:00');
+    if (!isNaN(d)) return `MonthlyDocs_${d.getFullYear()}_${MDOC_MONTHS[d.getMonth()]}`;
+    const now = new Date();
+    return `MonthlyDocs_${now.getFullYear()}_${MDOC_MONTHS[now.getMonth()]}`;
+}
+
+// Upload the last processed batch's PDFs into the pertaining month of the
+// Documents section (client-files bucket + `documents` table rows), and
+// return their metadata for the statement record.
+async function claudeAdminUploadStatementDocs(monthLabel) {
+    const docs = [];
+    const mdocKey = _mdocKeyForMonthLabel(monthLabel);
+    for (const pdf of _claudeAdminLastPdfs) {
+        try {
+            const safeName = String(pdf.name).replace(/[^\w.\- ()]/g, '_');
+            const path = `${mdocKey}/${Date.now()}_${safeName}`;
+            const bin = Uint8Array.from(atob(pdf.base64), c => c.charCodeAt(0));
+            const res = await fetch(_binderStorageUrl(path), {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                    'Content-Type': 'application/pdf',
+                    'x-upsert': 'true'
+                },
+                body: bin
+            });
+            if (!res.ok) { console.warn(`Statement PDF upload failed for ${pdf.name}: HTTP ${res.status}`); continue; }
+            // Register in the documents table so it shows inside the
+            // Documents button under that month (with a count badge).
+            await fetch(`${SUPABASE_URL}/rest/v1/documents`, {
+                method: 'POST',
+                headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'return=minimal' }),
+                body: JSON.stringify([{
+                    client_key: mdocKey,
+                    file_name: pdf.name,
+                    category: 'Commission Statement',
+                    storage_path: path,
+                    size_bytes: bin.length,
+                    mime_type: 'application/pdf',
+                    uploaded_by: (currentUser || 'Admin') + ' (AI Commission Processor)'
+                }])
+            });
+            docs.push({ name: pdf.name, path, size: bin.length, uploadedAt: new Date().toISOString(), monthKey: mdocKey });
+        } catch (e) {
+            console.warn(`Statement PDF upload failed for ${pdf.name}:`, e);
+        }
+    }
+    return docs;
+}
+
+// (Original statement PDFs are filed in the Monthly Documents section —
+//  see showMonthlyDocuments() — under the statement's pertaining month.)
 
 // Direct, verified write of the full commissionStatements object to Supabase.
 async function claudeAdminSaveStatementsToSupabase() {

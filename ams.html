@@ -764,6 +764,7 @@
                         <button class="acct-tab" onclick="amsShowAccounting('pnl')">📊 P&amp;L Summary</button>
                         <button class="acct-tab" onclick="amsShowAccounting('salessummary')">📈 Sales Summary</button>
                         <button class="acct-tab" onclick="amsShowAccounting('commtracker')">🎯 Commission Tracker</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('statements')">🧾 Commissions</button>
                     </div>
                     <div class="report-body" id="amsAcctBody">
                         <div class="rpt-no-data" style="margin-top:60px;">
@@ -1821,7 +1822,7 @@
                 const active = k === _amsCommActiveKey;
                 const gross  = parseFloat(stmt.grossTotal) || 0;
                 const isAI   = stmt.source === 'claude-ai';
-                return `<button onclick="amsCommSelect(decodeURIComponent('${encodeURIComponent(k)}'))"
+                return `<button onclick="amsCommSelect(decodeURIComponent('${encodeURIComponent(k).replace(/'/g, '%27')}'))"
                     style="padding:8px 14px;border:1px solid ${active ? 'var(--blue)' : 'var(--gray-200)'};
                            border-radius:var(--radius-sm);background:${active ? 'var(--blue)' : '#fff'};
                            color:${active ? '#fff' : 'var(--gray-600)'};font-size:13px;font-weight:${active ? '700' : '400'};
@@ -1932,6 +1933,585 @@
                 <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--gray-400);margin-bottom:4px;">${label}</div>
                 <div style="font-size:20px;font-weight:800;color:${color};">${value}</div>
             </div>`;
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  ACCOUNTING ▸ COMMISSIONS TAB
+        //  Per-agent commission statements + AI statement processor
+        //  (same wiring as the Binder Book admin console).
+        // ══════════════════════════════════════════════════════════
+        let _commStAgent = '';   // '' = all agents
+        let _commStKey   = '';   // '' = all statements
+        const _COMM_UNMATCHED = '— Unmatched —';
+
+        async function amsAcctStatements() {
+            const body = document.getElementById('amsAcctBody');
+            body.innerHTML = '<div class="rpt-no-data" style="margin-top:40px;">⏳ Loading commission statements from Supabase…</div>';
+            await amsFetchCommissionStatements();
+            amsAcctStatementsRender();
+        }
+
+        function _commStRows() {
+            // Flatten every statement into normalized rows (handles both the
+            // Excel-upload shape and the AI-processor shape).
+            const rows = [];
+            Object.entries(_amsCommStatements).forEach(([key, stmt]) => {
+                (stmt.entries || []).forEach(e => rows.push({
+                    stmtKey:    key,
+                    uploadedAt: stmt.uploadedAt || '',
+                    name:       e.customerName || e.clientName || '—',
+                    policy:     e.policyNumber || '—',
+                    carrier:    e.carrier || stmt.carrier || '—',
+                    premium:    parseFloat(e.premium != null ? e.premium : (e.writtenPremium != null ? e.writtenPremium : e.basePremium)) || 0,
+                    commission: parseFloat(e.commission) || 0,
+                    agent:      e.agentMatch || null,
+                    confidence: e.matchConfidence || null
+                }));
+            });
+            return rows;
+        }
+
+        function amsAcctStatementsRender() {
+            const body = document.getElementById('amsAcctBody');
+            const allRows = _commStRows();
+            const stmtKeys = Object.keys(_amsCommStatements)
+                .sort((a, b) => new Date(_amsCommStatements[b].uploadedAt || 0) - new Date(_amsCommStatements[a].uploadedAt || 0));
+            const agents = [...new Set(allRows.map(r => r.agent).filter(Boolean))].sort();
+
+            let rows = allRows;
+            if (_commStKey)   rows = rows.filter(r => r.stmtKey === _commStKey);
+            if (_commStAgent) rows = rows.filter(r => (_commStAgent === _COMM_UNMATCHED ? !r.agent : r.agent === _commStAgent));
+
+            const totalComm = rows.reduce((s, r) => s + r.commission, 0);
+            const fmt$ = n => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            // ── Filters bar ──────────────────────────────────────────
+            let html = `<div class="rpt-filters" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+                <select onchange="_commStKey=this.value;amsAcctStatementsRender();" style="padding:7px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
+                    <option value="">All Statements (${stmtKeys.length})</option>
+                    ${stmtKeys.map(k => `<option value="${amsEscHtml(k)}" ${k === _commStKey ? 'selected' : ''}>${amsEscHtml(k)}</option>`).join('')}
+                </select>
+                <select onchange="_commStAgent=this.value;amsAcctStatementsRender();" style="padding:7px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
+                    <option value="">All Agents (${agents.length})</option>
+                    ${agents.map(a => `<option value="${amsEscHtml(a)}" ${a === _commStAgent ? 'selected' : ''}>${amsEscHtml(a)}</option>`).join('')}
+                    <option value="${_COMM_UNMATCHED}" ${_commStAgent === _COMM_UNMATCHED ? 'selected' : ''}>${_COMM_UNMATCHED}</option>
+                </select>
+                <button class="btn-secondary btn-sm" onclick="amsAcctStatements()">🔄 Refresh</button>
+                <button class="btn-secondary btn-sm" onclick="_commStExportCSV()" ${rows.length ? '' : 'disabled'}>⬇ Export CSV</button>
+                <button class="btn-secondary btn-sm" onclick="_commStPrint()" ${_commStAgent && rows.length ? '' : 'disabled'}
+                    title="${_commStAgent ? 'Print this agent\'s commission statement' : 'Select an agent first'}">🖨 Print Agent Statement</button>
+                ${_commStKey && (_amsCommStatements[_commStKey]?.documents || []).length
+                    ? `<button class="btn-secondary btn-sm" onclick="_commStOpenDocs(decodeURIComponent('${encodeURIComponent(_commStKey).replace(/'/g, '%27')}'))">📄 Documents (${_amsCommStatements[_commStKey].documents.length})</button>`
+                    : ''}
+            </div>`;
+
+            // ── KPIs ─────────────────────────────────────────────────
+            html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px;">
+                ${_commKpi(_commStAgent ? `${amsEscHtml(_commStAgent)} — Commission` : 'Total Commission', fmt$(totalComm), 'var(--green,#059669)')}
+                ${_commKpi('Transactions', rows.length.toLocaleString(), 'var(--blue)')}
+                ${_commKpi('Statements', (_commStKey ? 1 : stmtKeys.length).toLocaleString(), '#7c3aed')}
+                ${_commKpi('Agents Matched', agents.length.toLocaleString(), 'var(--orange,#ea580c)')}
+            </div>`;
+
+            if (!stmtKeys.length) {
+                html += `<div class="rpt-no-data" style="margin:40px 0;">
+                    <div style="font-size:44px;margin-bottom:12px;">🧾</div>
+                    <h3 style="color:var(--gray-500);margin-bottom:6px;">No Commission Statements Yet</h3>
+                    <p>Upload a carrier statement PDF below and the AI will identify each transaction and the original agent.</p>
+                </div>`;
+            } else if (_commStAgent) {
+                // ── Single-agent statement view (printable) ─────────
+                html += _commStAgentStatementHtml(_commStAgent, rows, fmt$);
+            } else {
+                // ── Divided by agent ────────────────────────────────
+                const byAgent = {};
+                rows.forEach(r => {
+                    const a = r.agent || _COMM_UNMATCHED;
+                    (byAgent[a] = byAgent[a] || []).push(r);
+                });
+                const agentBlocks = Object.entries(byAgent)
+                    .sort((a, b) => b[1].reduce((s, r) => s + r.commission, 0) - a[1].reduce((s, r) => s + r.commission, 0));
+                html += agentBlocks.map(([agent, list]) => {
+                    const tot = list.reduce((s, r) => s + r.commission, 0);
+                    const unmatched = agent === _COMM_UNMATCHED;
+                    return `<details style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius-md,10px);margin-bottom:12px;box-shadow:var(--shadow-sm,0 1px 2px rgba(0,0,0,.05));">
+                        <summary style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 16px;cursor:pointer;list-style:none;">
+                            <span style="font-weight:700;font-size:14px;color:${unmatched ? 'var(--gray-400)' : 'var(--navy)'};">
+                                ${unmatched ? '❔' : '👤'} ${amsEscHtml(agent)}
+                                <span style="font-weight:400;color:var(--gray-400);font-size:12px;">· ${list.length} transactions</span>
+                            </span>
+                            <span style="display:flex;align-items:center;gap:12px;">
+                                <span style="font-weight:800;font-size:15px;color:${tot >= 0 ? 'var(--green,#059669)' : '#dc2626'};">${fmt$(tot)}</span>
+                                ${unmatched ? '' : `<button class="btn-secondary btn-sm" onclick="event.preventDefault();_commStAgent=decodeURIComponent('${encodeURIComponent(agent).replace(/'/g, '%27')}');amsAcctStatementsRender();">View Statement →</button>`}
+                            </span>
+                        </summary>
+                        <div style="padding:0 16px 14px;">${_commStTable(list, fmt$, true)}</div>
+                    </details>`;
+                }).join('');
+            }
+
+            // ── AI Commission Processor (admin only) ────────────────
+            if (amsCurrentRole === 'admin') html += _commStAiPanelHtml();
+
+            body.innerHTML = html;
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function _commStTable(list, fmt$, showAgent) {
+            const confColors = { high: '#16a34a', medium: '#ca8a04', low: '#ea580c', none: '#dc2626' };
+            return `<div class="policies-table-wrap"><table class="policies-table">
+                <thead><tr>
+                    <th>Customer</th><th>Policy #</th><th>Carrier</th><th>Statement</th>
+                    <th style="text-align:right;">Premium</th><th style="text-align:right;">Commission</th>
+                    ${showAgent ? '<th style="text-align:center;">Match</th>' : ''}
+                </tr></thead>
+                <tbody>${list.map(r => `<tr>
+                    <td>${amsEscHtml(r.name)}</td>
+                    <td style="font-family:monospace;">${amsEscHtml(r.policy)}</td>
+                    <td>${amsEscHtml(r.carrier)}</td>
+                    <td style="font-size:11.5px;color:var(--gray-400);">${amsEscHtml(r.stmtKey)}</td>
+                    <td style="text-align:right;">${fmt$(r.premium)}</td>
+                    <td style="text-align:right;font-weight:700;color:${r.commission >= 0 ? 'var(--green,#059669)' : '#dc2626'};">${fmt$(r.commission)}</td>
+                    ${showAgent ? `<td style="text-align:center;">${r.confidence ? `<span style="background:${confColors[r.confidence] || '#6b7280'};color:#fff;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;">${amsEscHtml(r.confidence)}</span>` : '—'}</td>` : ''}
+                </tr>`).join('')}</tbody>
+            </table></div>`;
+        }
+
+        function _commStAgentStatementHtml(agent, rows, fmt$) {
+            const tot = rows.reduce((s, r) => s + r.commission, 0);
+            const period = _commStKey || 'All Statements';
+            return `<div id="commStPrintArea" style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius-md,10px);padding:22px;box-shadow:var(--shadow-sm,0 1px 2px rgba(0,0,0,.05));margin-bottom:20px;">
+                <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:2px solid var(--navy);padding-bottom:12px;margin-bottom:14px;">
+                    <div>
+                        <div style="font-size:17px;font-weight:800;color:var(--navy);">Universal Insurance Brokers</div>
+                        <div style="font-size:12px;color:var(--gray-500);">Agent Commission Statement</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:15px;font-weight:700;color:var(--blue);">${amsEscHtml(agent)}</div>
+                        <div style="font-size:12px;color:var(--gray-500);">Period: ${amsEscHtml(period)}</div>
+                        <div style="font-size:12px;color:var(--gray-500);">Generated: ${new Date().toLocaleDateString('en-US')}</div>
+                    </div>
+                </div>
+                ${_commStTable(rows, fmt$, false)}
+                <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+                    <div style="background:var(--green-pale,#ecfdf5);border:1px solid var(--green,#059669);border-radius:8px;padding:10px 18px;font-size:15px;font-weight:800;color:var(--green,#059669);">
+                        Total Commission: ${fmt$(tot)}
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        function _commStPrint() {
+            const area = document.getElementById('commStPrintArea');
+            if (!area) return;
+            const w = window.open('', '_blank');
+            w.document.write(`<html><head><title>Commission Statement — ${_commStAgent}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #1f2937; }
+                    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                    th { background: #0d1f3c; color: #fff; padding: 8px 10px; text-align: left; }
+                    td { padding: 7px 10px; border-bottom: 1px solid #e5e7eb; }
+                    :root { --navy:#0d1f3c; --blue:#1d4ed8; --gray-200:#e5e7eb; --gray-400:#9ca3af; --gray-500:#6b7280; --green:#059669; --green-pale:#ecfdf5; }
+                </style></head><body>${area.outerHTML}</body></html>`);
+            w.document.close();
+            setTimeout(() => { w.focus(); w.print(); }, 400);
+        }
+
+        function _commStExportCSV() {
+            let rows = _commStRows();
+            if (_commStKey)   rows = rows.filter(r => r.stmtKey === _commStKey);
+            if (_commStAgent) rows = rows.filter(r => (_commStAgent === _COMM_UNMATCHED ? !r.agent : r.agent === _commStAgent));
+            const esc = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+            const csv = ['Agent,Customer,Policy #,Carrier,Statement,Premium,Commission,Match Confidence']
+                .concat(rows.map(r => [r.agent || 'Unmatched', r.name, r.policy, r.carrier, r.stmtKey, r.premium.toFixed(2), r.commission.toFixed(2), r.confidence || ''].map(esc).join(',')))
+                .join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `commissions_${(_commStAgent || 'all-agents').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+        }
+
+        // ── AI Commission Processor (mirrors the Binder Book admin one) ──
+        const _COMM_AI_PROXY = 'https://jgjmobktucyimupelfxd.supabase.co/functions/v1/claude';
+        let _commAiPdfs = [];     // [{name, base64}]
+        let _commAiLastPdfs = []; // last processed batch — uploaded to Storage on save
+        let _commAiBusy = false;
+
+        function _commStAiPanelHtml() {
+            return `<div style="margin-top:8px;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <span style="font-size:15px;font-weight:700;color:#9a3412;">🤖 Claude AI — Commission Processor</span>
+                </div>
+                <div style="font-size:12.5px;color:#9a3412;margin-bottom:10px;">
+                    📤 <strong>Upload commission statement PDFs</strong> from any carrier. Claude identifies every transaction,
+                    matches it to Binder Book entries by policy number or customer name, and credits the <strong>original agent</strong>.
+                </div>
+                <div id="commAiMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:60px;max-height:480px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;font-size:13.5px;"></div>
+                <div id="commAiPreview" style="display:none;margin-top:8px;padding:8px 12px;background:#fde4cc;border:1px solid #f5c19a;border-radius:8px;font-size:12px;color:#9a3412;"></div>
+                <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+                    <button onclick="document.getElementById('commAiPdfInput').click()" ${_commAiBusy ? 'disabled' : ''}
+                        style="background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;">📎 Attach PDFs</button>
+                    <input type="file" id="commAiPdfInput" accept="application/pdf" multiple style="display:none;" onchange="_commAiHandlePdfUpload(event)">
+                    <button onclick="_commAiProcess()" id="commAiProcessBtn" ${_commAiBusy ? 'disabled' : ''}
+                        style="background:linear-gradient(135deg,#c2410c,#ea580c);color:#fff;border:none;padding:8px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">✨ Process Statements</button>
+                </div>
+            </div>`;
+        }
+
+        function _commAiAddMessage(role, html) {
+            const box = document.getElementById('commAiMessages');
+            if (!box) return null;
+            const div = document.createElement('div');
+            div.style.cssText = role === 'user'
+                ? 'align-self:flex-end;max-width:88%;padding:9px 13px;border-radius:12px;background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;'
+                : 'align-self:flex-start;max-width:95%;padding:9px 13px;border-radius:12px;background:#fff7ed;border:1px solid #fcd9b6;color:#1f2937;';
+            div.innerHTML = html;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+            return div;
+        }
+
+        function _commAiHandlePdfUpload(event) {
+            const files = Array.from(event.target.files || []).filter(f => f.type === 'application/pdf');
+            if (!files.length) return;
+            let loaded = 0;
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    _commAiPdfs.push({ name: file.name, base64: e.target.result.split(',')[1] });
+                    if (++loaded === files.length) _commAiRefreshPreview();
+                };
+                reader.readAsDataURL(file);
+            });
+            event.target.value = '';
+        }
+
+        function _commAiRefreshPreview() {
+            const el = document.getElementById('commAiPreview');
+            if (!el) return;
+            if (!_commAiPdfs.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+            el.style.display = 'block';
+            el.innerHTML = `<strong>${_commAiPdfs.length} PDF${_commAiPdfs.length > 1 ? 's' : ''} attached:</strong> ` +
+                _commAiPdfs.map((p, i) => `📎 ${amsEscHtml(p.name)} <button onclick="_commAiPdfs.splice(${i},1);_commAiRefreshPreview();" style="background:none;border:none;color:#9a3412;cursor:pointer;font-weight:700;">✕</button>`).join(' &nbsp; ');
+        }
+
+        function _commAiBuildSystemPrompt() {
+            let binder = JSON.parse(localStorage.getItem('binderData') || '[]');
+            if (!Array.isArray(binder)) binder = binder.value || [];
+            const data = binder.filter(e => e.customerName);
+            const entries = data.slice(-500).map(e =>
+                `id=${e.id}|${(e.customerName || '').trim()}|policy=${e.policyNumber || ''}|carrier=${e.company || ''}|agent=${e.agent || ''}|premium=${e.totalPremium || 0}|date=${e.entryDate || ''}`);
+            const agentList = [...new Set(data.map(e => e.agent).filter(Boolean))];
+            return `You are the AI commission processor for UIB (Universal Insurance Brokers). You reconcile carrier commission statements against Binder Book sales entries and identify the ORIGINAL AGENT for every transaction.
+
+Binder Book reference data (${data.length} total entries, showing most recent 500):
+
+Agents in system: ${agentList.join(', ')}
+
+Entries (pipe-delimited: id|customer|policy|carrier|agent|premium|date):
+${entries.join('\n')}
+
+GUIDELINES:
+- Be precise. This is financial reconciliation work.
+- Match transactions by policy number FIRST (highest confidence), then by customer name.
+- If a customer name has multiple matches, prefer the entry with the matching carrier.
+- Mark match confidence honestly: "high" (policy# exact match), "medium" (customer name + carrier match), "low" (customer name only), "none" (no match found).
+
+COMMISSION STATEMENT PROCESSING MODE:
+1. Identify the carrier and statement period for each PDF
+2. Extract EVERY transaction line item (don't skip any)
+3. Match each transaction to a Binder Book entry using the data above
+4. Identify the responsible agent from the matched entry
+5. Output a structured JSON summary at the end of your response
+
+After a brief 2-3 sentence summary, output JSON in this exact shape (wrapped in \`\`\`json fences as the LAST thing in your response):
+
+\`\`\`json
+{
+  "carrier": "string",
+  "statementMonth": "Month YYYY",
+  "statementDate": "YYYY-MM-DD",
+  "totalGrossCommission": number,
+  "transactions": [
+    { "customerName": "string", "policyNumber": "string", "premium": number, "commissionAmount": number,
+      "matchedEntryId": number_or_null, "matchedAgent": "string_or_null", "matchConfidence": "high|medium|low|none", "notes": "string" }
+  ],
+  "agentTotals": { "Agent Name": { "transactionCount": number, "totalCommission": number } }
+}
+\`\`\`
+
+If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
+        }
+
+        async function _commAiProcess() {
+            if (_commAiBusy) return;
+            if (!_commAiPdfs.length) { _commAiAddMessage('assistant', '📎 Attach at least one commission statement PDF first.'); return; }
+
+            const pdfs = _commAiPdfs.splice(0);
+            _commAiLastPdfs = pdfs; // kept for attaching originals on save
+            _commAiRefreshPreview();
+            _commAiBusy = true;
+            const btn = document.getElementById('commAiProcessBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+            _commAiAddMessage('user', `📎 ${pdfs.map(p => amsEscHtml(p.name)).join(', ')}<br>Process these commission statements and identify the original agent for every transaction.`);
+            const loading = _commAiAddMessage('assistant', '✨ Reading statement(s) and reconciling against Binder Book…');
+
+            try {
+                const content = pdfs.map(p => ({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: p.base64 } }));
+                content.push({ type: 'text', text: 'Process these commission statements. Identify every transaction, match to Binder Book entries, and break down per agent.' });
+
+                const res = await fetch(_COMM_AI_PROXY, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'apikey': AMS_SB_KEY, 'Authorization': 'Bearer ' + AMS_SB_KEY },
+                    body: JSON.stringify({
+                        model: 'claude-sonnet-4-6',
+                        max_tokens: 16000,
+                        system: _commAiBuildSystemPrompt(),
+                        messages: [{ role: 'user', content }]
+                    })
+                });
+                const raw = await res.text();
+                let data;
+                try { data = JSON.parse(raw); } catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status})`); }
+                if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+                if (!data.content || !data.content.length) throw new Error('Empty response from Claude.');
+
+                loading.remove();
+                const replyText = (data.content.find(b => b.type === 'text') || {}).text || '';
+                const statements = _commAiParseStatements(replyText);
+
+                if (!statements.length) {
+                    _commAiAddMessage('assistant', amsEscHtml(replyText.slice(0, 1200)) || '⚠️ No structured statement data found in the response.');
+                } else {
+                    statements.forEach((stmt, i) => {
+                        window['_commAiStmt' + i] = stmt; // stash for the save button
+                        const matched = (stmt.transactions || []).filter(t => t.matchedAgent).length;
+                        const agentRows = Object.entries(stmt.agentTotals || {}).sort((a, b) => (b[1].totalCommission || 0) - (a[1].totalCommission || 0));
+                        _commAiAddMessage('assistant',
+                            `<div style="font-weight:700;color:#6d28d9;margin-bottom:4px;">${amsEscHtml(stmt.carrier || 'Unknown carrier')} — ${amsEscHtml(stmt.statementMonth || stmt.statementDate || '')}</div>
+                            <div style="font-size:12px;color:#6b7280;margin-bottom:6px;">${(stmt.transactions || []).length} transactions · ${matched} matched · Gross $${(parseFloat(stmt.totalGrossCommission) || 0).toFixed(2)}</div>
+                            ${stmt._truncated ? '<div style="font-size:12px;color:#b45309;font-weight:700;margin-bottom:6px;">⚠️ Response was cut off — this list may be incomplete. Verify before saving.</div>' : ''}
+                            ${agentRows.length ? `<table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:8px;">${agentRows.map(([a, t]) =>
+                                `<tr><td style="padding:2px 6px;font-weight:600;">${amsEscHtml(a)}</td><td style="padding:2px 6px;text-align:right;">${t.transactionCount || 0} txns</td><td style="padding:2px 6px;text-align:right;font-weight:700;color:#15803d;">$${(t.totalCommission || 0).toFixed(2)}</td></tr>`).join('')}</table>` : ''}
+                            <button onclick="_commAiSaveStatement(${i})" style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12.5px;">💾 Save as Commission Statement</button>`);
+                    });
+                }
+            } catch (err) {
+                loading.remove();
+                _commAiAddMessage('assistant', `❌ Error: ${amsEscHtml(err.message)}`);
+            } finally {
+                _commAiBusy = false;
+                if (btn) { btn.disabled = false; btn.textContent = '✨ Process Statements'; }
+            }
+        }
+
+        function _commAiParseStatements(text) {
+            const results = [];
+            const re = /```json\s*([\s\S]*?)(?:```|$)/g;
+            let m;
+            while ((m = re.exec(text)) !== null) {
+                const block = m[1].trim();
+                if (!block) continue;
+                try {
+                    const obj = JSON.parse(block);
+                    if (obj && Array.isArray(obj.transactions)) results.push(obj);
+                } catch (e) {
+                    const repaired = _commAiRepairJson(block);
+                    if (repaired && Array.isArray(repaired.transactions)) { repaired._truncated = true; results.push(repaired); }
+                }
+            }
+            return results;
+        }
+
+        function _commAiRepairJson(str) {
+            const suffixes = [']}', '}]}', ']}}', '}', ''];
+            let cut = str.lastIndexOf('}');
+            let attempts = 0;
+            while (cut > 0 && attempts < 60) {
+                const base = str.slice(0, cut + 1);
+                for (const suffix of suffixes) {
+                    attempts++;
+                    try { const obj = JSON.parse(base + suffix); if (obj && typeof obj === 'object') return obj; } catch (e) {}
+                }
+                cut = str.lastIndexOf('}', cut - 1);
+            }
+            return null;
+        }
+
+        async function _commAiSaveStatement(idx) {
+            const stmt = window['_commAiStmt' + idx];
+            if (!stmt || !Array.isArray(stmt.transactions)) { alert('Invalid statement data.'); return; }
+
+            const monthLabel = stmt.statementMonth || stmt.statementDate || `Statement ${new Date().toISOString().slice(0, 10)}`;
+            const carrier = stmt.carrier || 'Unknown';
+            const key = `${monthLabel} — ${carrier} (AI)`;
+
+            const entries = stmt.transactions.map((t, i) => ({
+                idx: i + 1, carrier,
+                customerName: t.customerName || '',
+                policyNumber: t.policyNumber || '',
+                premium: parseFloat(t.premium) || 0,
+                commission: parseFloat(t.commissionAmount) || 0,
+                agentMatch: t.matchedAgent || null,
+                matchConfidence: t.matchConfidence || 'none',
+                matchedEntryId: t.matchedEntryId || null,
+                notes: t.notes || ''
+            }));
+
+            let agentTotals = stmt.agentTotals;
+            if (!agentTotals || !Object.keys(agentTotals).length) {
+                agentTotals = {};
+                entries.forEach(e => {
+                    if (!e.agentMatch) return;
+                    if (!agentTotals[e.agentMatch]) agentTotals[e.agentMatch] = { transactionCount: 0, totalCommission: 0 };
+                    agentTotals[e.agentMatch].transactionCount++;
+                    agentTotals[e.agentMatch].totalCommission = parseFloat((agentTotals[e.agentMatch].totalCommission + e.commission).toFixed(2));
+                });
+            }
+
+            const gross = parseFloat(stmt.totalGrossCommission) || entries.reduce((s, e) => s + e.commission, 0);
+            _amsCommStatements[key] = {
+                month: monthLabel, sheetName: `AI: ${carrier}`, uploadedAt: new Date().toISOString(),
+                source: 'claude-ai', carrier, entries,
+                carrierTotals: { [carrier]: gross }, grossTotal: gross,
+                entryCount: entries.length, agentTotals
+            };
+
+            // File the original statement PDF(s) under the pertaining month in
+            // the Documents section, and keep metadata on the statement.
+            const documents = await _commAiUploadDocs(monthLabel);
+            if (documents.length) _amsCommStatements[key].documents = documents;
+
+            localStorage.setItem('commissionStatements', JSON.stringify(_amsCommStatements));
+            let cloudOk = false;
+            try {
+                const res = await fetch(`${AMS_SB_URL}/rest/v1/app_store`, {
+                    method: 'POST',
+                    headers: Object.assign({}, AMS_SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+                    body: JSON.stringify([{ key: 'commissionStatements', value: _amsCommStatements, updated_at: new Date().toISOString() }])
+                });
+                cloudOk = res.ok;
+            } catch (e) { /* offline */ }
+
+            const docNote = documents.length
+                ? `\n✓ ${documents.length} original PDF${documents.length > 1 ? 's' : ''} filed under ${(documents[0].monthKey || '').replace('MonthlyDocs_', '').split('_').reverse().join(' ')} in the Binder Book Documents section.`
+                : (_commAiLastPdfs.length ? '\n⚠️ Could not upload the original PDF(s) to cloud storage.' : '');
+            alert(cloudOk
+                ? `✓ Saved commission statement: ${key}\n\n✓ Stored in Supabase — visible in this Commissions tab, the Commissions sidebar section, and the Binder Book admin dashboard.${docNote}`
+                : `⚠️ Saved locally: ${key}\n\nSupabase cloud save FAILED — check your connection and click Save again.${docNote}`);
+            amsAcctStatementsRender();
+        }
+
+        // Upload the last processed batch's PDFs into the pertaining month of
+        // the Binder Book "Documents" section (client-files bucket under
+        // MonthlyDocs_<year>_<Month> + rows in the `documents` table).
+        const _COMM_MDOC_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+        function _commMdocKey(monthLabel) {
+            const m = String(monthLabel || '').trim().match(/^([A-Za-z]+)\s+(\d{4})/);
+            if (m) {
+                const month = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
+                if (_COMM_MDOC_MONTHS.includes(month)) return `MonthlyDocs_${m[2]}_${month}`;
+            }
+            const d = new Date(String(monthLabel || '') + 'T12:00:00');
+            if (!isNaN(d)) return `MonthlyDocs_${d.getFullYear()}_${_COMM_MDOC_MONTHS[d.getMonth()]}`;
+            const now = new Date();
+            return `MonthlyDocs_${now.getFullYear()}_${_COMM_MDOC_MONTHS[now.getMonth()]}`;
+        }
+
+        async function _commAiUploadDocs(monthLabel) {
+            const docs = [];
+            const mdocKey = _commMdocKey(monthLabel);
+            for (const pdf of _commAiLastPdfs) {
+                try {
+                    const safeName = String(pdf.name).replace(/[^\w.\- ()]/g, '_');
+                    const path = `${mdocKey}/${Date.now()}_${safeName}`;
+                    const bin = Uint8Array.from(atob(pdf.base64), c => c.charCodeAt(0));
+                    const res = await fetch(_amsStorageUrl(path), {
+                        method: 'POST',
+                        headers: {
+                            'apikey': AMS_SB_KEY,
+                            'Authorization': 'Bearer ' + AMS_SB_KEY,
+                            'Content-Type': 'application/pdf',
+                            'x-upsert': 'true'
+                        },
+                        body: bin
+                    });
+                    if (!res.ok) { console.warn(`Statement PDF upload failed for ${pdf.name}: HTTP ${res.status}`); continue; }
+                    await fetch(`${AMS_SB_URL}/rest/v1/documents`, {
+                        method: 'POST',
+                        headers: Object.assign({}, AMS_SB_HEADERS, { 'Prefer': 'return=minimal' }),
+                        body: JSON.stringify([{
+                            client_key: mdocKey,
+                            file_name: pdf.name,
+                            category: 'Commission Statement',
+                            storage_path: path,
+                            size_bytes: bin.length,
+                            mime_type: 'application/pdf',
+                            uploaded_by: (amsCurrentUser || 'Admin') + ' (AI Commission Processor)'
+                        }])
+                    });
+                    docs.push({ name: pdf.name, path, size: bin.length, uploadedAt: new Date().toISOString(), monthKey: mdocKey });
+                } catch (e) { console.warn(`Statement PDF upload failed for ${pdf.name}:`, e); }
+            }
+            return docs;
+        }
+
+        // ── Statement documents viewer (AMS) ─────────────────────
+        function _commStOpenDocs(stmtKey) {
+            const stmt = _amsCommStatements[stmtKey];
+            const docs = (stmt && stmt.documents) || [];
+            if (!docs.length) { alert('No original statement documents are attached to this statement.'); return; }
+
+            document.getElementById('commStDocsModal')?.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'commStDocsModal';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100001;display:flex;align-items:center;justify-content:center;padding:20px;';
+            overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+            overlay.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+                <div style="background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-radius:14px 14px 0 0;">
+                    <strong style="font-size:15px;">📄 Statement Documents — ${amsEscHtml(stmtKey)}</strong>
+                    <button onclick="document.getElementById('commStDocsModal').remove()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+                </div>
+                <div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px;">
+                    ${docs.map((d, i) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--gray-200);border-radius:10px;padding:10px 14px;flex-wrap:wrap;">
+                        <div style="min-width:0;">
+                            <div style="font-weight:600;font-size:13.5px;color:#1f2937;word-break:break-all;">📎 ${amsEscHtml(d.name)}</div>
+                            <div style="font-size:11.5px;color:#6b7280;">${(d.size / 1024).toFixed(0)} KB · uploaded ${d.uploadedAt ? new Date(d.uploadedAt).toLocaleDateString('en-US') : '—'}</div>
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                            <button onclick="_commStFetchDoc(decodeURIComponent('${encodeURIComponent(stmtKey).replace(/'/g, '%27')}'), ${i}, false)" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;padding:6px 12px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;">👁 View</button>
+                            <button onclick="_commStFetchDoc(decodeURIComponent('${encodeURIComponent(stmtKey).replace(/'/g, '%27')}'), ${i}, true)" style="background:#ecfdf5;border:1px solid #a7f3d0;color:#059669;padding:6px 12px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;">⬇ Download</button>
+                        </div>
+                    </div>`).join('')}
+                </div>
+            </div>`;
+            document.body.appendChild(overlay);
+        }
+
+        async function _commStFetchDoc(stmtKey, idx, download) {
+            const doc = _amsCommStatements[stmtKey]?.documents?.[idx];
+            if (!doc) return;
+            try {
+                const res = await fetch(_amsStorageUrl(doc.path), {
+                    headers: { 'apikey': AMS_SB_KEY, 'Authorization': 'Bearer ' + AMS_SB_KEY }
+                });
+                if (!res.ok) { alert(`Could not fetch document (HTTP ${res.status})`); return; }
+                const blob = new Blob([await res.arrayBuffer()], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                if (download) {
+                    const a = document.createElement('a');
+                    a.href = url; a.download = doc.name;
+                    document.body.appendChild(a); a.click();
+                    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+                } else {
+                    window.open(url, '_blank');
+                    setTimeout(() => URL.revokeObjectURL(url), 60000);
+                }
+            } catch (e) { alert('Could not fetch document: ' + e.message); }
         }
 
         // ── Palette for agents/carriers ───────────────────────────
@@ -2982,16 +3562,16 @@
 
         function amsShowAccounting(section) {
             _activeAcct = section;
-            document.querySelectorAll('.acct-tab').forEach(b => b.classList.remove('active'));
-            const order = ['overview','ledger','cc','commissions','deposits','finance','fees','down','pnl'];
-            const tabs  = document.querySelectorAll('.acct-tab');
-            const idx   = order.indexOf(section);
-            if (tabs[idx]) tabs[idx].classList.add('active');
+            // Highlight by matching each tab's onclick target — index-based
+            // matching broke as tabs were added out of order.
+            document.querySelectorAll('.acct-tab').forEach(b =>
+                b.classList.toggle('active', (b.getAttribute('onclick') || '').includes(`'${section}'`)));
             Object.keys(_acctCharts).forEach(id => _acctDestroy(id));
             ({overview:amsAcctOverview, ledger:amsAcctLedger, cc:amsAcctCC,
               commissions:amsAcctCommissions, deposits:amsAcctDeposits,
               finance:amsAcctFinance, fees:amsAcctFees,
-              down:amsAcctDown, pnl:amsAcctPnL})[section]?.();
+              down:amsAcctDown, pnl:amsAcctPnL,
+              statements:amsAcctStatements})[section]?.();
         }
 
         // ── 1. FINANCIAL OVERVIEW ────────────────────────────────────
