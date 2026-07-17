@@ -2469,14 +2469,13 @@
                         <button class="btn-secondary btn-sm" onclick="showSection('adminSection')"><i data-lucide="arrow-left"></i> Back</button>
                         <strong style="font-size:16px;"><i data-lucide="file-spreadsheet"></i> Commission Statements</strong>
                     </div>
-                    <div style="display:flex;gap:8px;">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <select id="csMonthSelect" onchange="csSelectMonth(this.value)"
+                            style="padding:7px 14px;border:1px solid var(--gray-200);border-radius:8px;font-size:13.5px;font-weight:700;color:var(--gray-700);cursor:pointer;"></select>
                         <button class="btn-primary btn-sm" style="background:linear-gradient(135deg,#b45309,#f59e0b);" onclick="showMonthlyDocuments()" title="Monthly document storage + carrier commission dashboard"><i data-lucide="folder-open"></i> Documents</button>
                         <button class="btn-primary btn-sm" onclick="openCommissionUploadModal()"><i data-lucide="upload"></i> Upload Statement</button>
                     </div>
                 </div>
-
-                <!-- Month Tabs -->
-                <div id="csMonthTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px;"></div>
 
                 <!-- Empty State -->
                 <div id="csEmptyState" style="text-align:center;padding:60px 20px;color:var(--gray-400);display:none;">
@@ -2487,39 +2486,7 @@
                 </div>
 
                 <!-- Detail Area (shown when a month is selected) -->
-                <div id="csDetail" style="display:none;">
-
-                    <!-- Stat Cards -->
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px;">
-                        <div class="stat-card" style="border-left:4px solid #f59e0b;">
-                            <div class="label">Gross Commission</div>
-                            <div class="number" id="csGrossTotal">$0.00</div>
-                        </div>
-                        <div class="stat-card" style="border-left:4px solid #3b82f6;">
-                            <div class="label">Total Policies</div>
-                            <div class="number" id="csPolicyCount">0</div>
-                        </div>
-                        <div class="stat-card" style="border-left:4px solid #6366f1;">
-                            <div class="label">Carriers</div>
-                            <div class="number" id="csCarrierCount2">0</div>
-                        </div>
-                        <div class="stat-card" style="border-left:4px solid #10b981;">
-                            <div class="label">New Policies</div>
-                            <div class="number" id="csNewCount">0</div>
-                        </div>
-                        <div class="stat-card" style="border-left:4px solid #8b5cf6;">
-                            <div class="label">Renewals</div>
-                            <div class="number" id="csRenewalCount">0</div>
-                        </div>
-                        <div class="stat-card" style="border-left:4px solid #f97316;">
-                            <div class="label">Adjustments</div>
-                            <div class="number" id="csAdjCount">0</div>
-                        </div>
-                        <div class="stat-card" style="border-left:4px solid #ec4899;">
-                            <div class="label">Agent Matches</div>
-                            <div class="number" id="csMatchedCount">0</div>
-                        </div>
-                    </div>
+                <div id="csDetail" style="display:none;margin-top:16px;">
 
                     <!-- Carrier Breakdown -->
                     <div style="margin-bottom:22px;">
@@ -2559,12 +2526,16 @@
 
                     <!-- Per-Agent Commission Statement — click an agent, see their detail grouped by carrier -->
                     <div style="margin-bottom:22px;border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;">
-                        <div style="background:linear-gradient(135deg,var(--navy),#1a365d);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                            <div style="display:flex;align-items:center;gap:8px;">
-                                <i data-lucide="file-text"></i>
-                                <strong style="font-size:14px;">Agent Commission Statement</strong>
+                        <div style="background:linear-gradient(135deg,var(--navy),#1a365d);color:#fff;padding:12px 16px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <i data-lucide="file-text"></i>
+                                    <strong style="font-size:14px;">Agent Commission Statement</strong>
+                                    <span id="csAgentPanelMonth" style="font-size:12.5px;opacity:.85;font-weight:600;"></span>
+                                </div>
+                                <button class="btn-secondary btn-sm" onclick="exportCSAgentReportCSV()"><i data-lucide="download"></i> Export Selected Agent CSV</button>
                             </div>
-                            <button class="btn-secondary btn-sm" onclick="exportCSAgentReportCSV()"><i data-lucide="download"></i> Export Selected Agent CSV</button>
+                            <div id="csAgentPanelStats" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
                         </div>
                         <div style="display:flex;background:#fff;min-height:400px;">
                             <div id="csAgentNavList" style="width:230px;flex-shrink:0;border-right:1px solid var(--gray-200);max-height:600px;overflow-y:auto;background:var(--gray-50);"></div>
@@ -3585,7 +3556,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260717d"></script>
+    <script src="app.js?v=20260717e"></script>
     <script src="supabase.js?v=20260715c"></script>
 </body>
 </html>

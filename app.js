@@ -6135,15 +6135,15 @@ function csGetCombined(monthLabel) {
 function loadCommissionStatementsList() {
     const emptyEl  = document.getElementById('csEmptyState');
     const detailEl = document.getElementById('csDetail');
-    const tabsEl   = document.getElementById('csMonthTabs');
+    const monthSel = document.getElementById('csMonthSelect');
 
-    // One tab per month — all carriers combined.
+    // One entry per month — all carriers combined.
     const months = [...new Set(Object.keys(commissionStatements).map(csMonthOf))];
 
     if (!months.length) {
         emptyEl.style.display  = 'block';
         detailEl.style.display = 'none';
-        tabsEl.innerHTML = '';
+        if (monthSel) { monthSel.innerHTML = ''; monthSel.style.display = 'none'; }
         return;
     }
 
@@ -6164,19 +6164,14 @@ function loadCommissionStatementsList() {
         csCurrentMonthKey = months[months.length - 1];
     }
 
-    tabsEl.innerHTML = months.map(m => {
-        const stmt = csGetCombined(m);
-        const nSrc = csKeysForMonth(m).length;
-        const active = m === csCurrentMonthKey;
-        return `<button onclick="csSelectMonth('${m.replace(/'/g,'\\\'')}')"
-            style="padding:8px 14px;border:1px solid ${active?'var(--primary)':'var(--gray-200)'};
-                   border-radius:var(--radius-sm);background:${active?'var(--primary)':'#fff'};
-                   color:${active?'#fff':'var(--gray-600)'};font-size:13px;font-weight:${active?'700':'400'};
-                   cursor:pointer;line-height:1.4;text-align:center;">
-            ${m}${nSrc > 1 ? ` <span style="font-size:10px;opacity:.75;">(${nSrc} statements)</span>` : ''}
-            <span style="display:block;font-size:11px;opacity:0.85;">$${stmt.grossTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
-        </button>`;
-    }).join('');
+    // Compact month picker in the header (replaces the old tab row).
+    if (monthSel) {
+        monthSel.style.display = '';
+        monthSel.innerHTML = months.map(m => {
+            const nSrc = csKeysForMonth(m).length;
+            return `<option value="${m.replace(/"/g,'&quot;')}" ${m === csCurrentMonthKey ? 'selected' : ''}>📅 ${m}${nSrc > 1 ? ` (${nSrc} statements)` : ''}</option>`;
+        }).join('');
+    }
 
     renderCSMonthDetail(csCurrentMonthKey);
 }
@@ -6198,13 +6193,36 @@ function renderCSMonthDetail(monthKey) {
     const adjEntries   = stmt.entries.filter(_csIsAdjustment);
     const adjCount     = adjEntries.length;
 
-    document.getElementById('csGrossTotal').textContent    = '$' + stmt.grossTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-    document.getElementById('csPolicyCount').textContent   = stmt.entryCount;
-    document.getElementById('csCarrierCount2').textContent = Object.keys(stmt.carrierTotals).length;
-    document.getElementById('csMatchedCount').textContent  = matchedCount;
-    document.getElementById('csNewCount').textContent      = newCount;
-    document.getElementById('csRenewalCount').textContent  = renewalCount;
-    document.getElementById('csAdjCount').textContent      = adjCount;
+    // Summary now lives inside the Agent Commission Statement panel header
+    // (the old stat-card row and month tabs were removed).
+    const monthEl = document.getElementById('csAgentPanelMonth');
+    if (monthEl) monthEl.textContent = '— ' + monthKey;
+    const statsEl = document.getElementById('csAgentPanelStats');
+    if (statsEl) {
+        const chip = (label, value, color) =>
+            `<span style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:4px 12px;font-size:11.5px;display:inline-flex;gap:6px;align-items:baseline;">
+                <span style="opacity:.75;">${label}</span>
+                <strong style="font-size:13px;${color ? 'color:' + color + ';' : ''}">${value}</strong>
+            </span>`;
+        statsEl.innerHTML =
+            chip('Gross Commission', '$' + stmt.grossTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}), stmt.grossTotal >= 0 ? '#6ee7b7' : '#fca5a5') +
+            chip('Transactions', stmt.entryCount) +
+            chip('Carriers', Object.keys(stmt.carrierTotals).length) +
+            chip('New', newCount) +
+            chip('Renewals', renewalCount) +
+            chip('Adjustments', adjCount) +
+            chip('Agent Matches', matchedCount);
+    }
+
+    // Legacy stat-card IDs (removed from the page) — guarded for safety.
+    const _set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    _set('csGrossTotal', '$' + stmt.grossTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
+    _set('csPolicyCount', stmt.entryCount);
+    _set('csCarrierCount2', Object.keys(stmt.carrierTotals).length);
+    _set('csMatchedCount', matchedCount);
+    _set('csNewCount', newCount);
+    _set('csRenewalCount', renewalCount);
+    _set('csAdjCount', adjCount);
 
     // Carrier breakdown
     const breakdownBody = document.getElementById('csCarrierBreakdownBody');
