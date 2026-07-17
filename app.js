@@ -9582,6 +9582,9 @@ async function claudeAdminApplyStatement(stmt) {
         alert(`⚠️ Saved commission statement locally: ${key}\n\nBut the Supabase cloud save FAILED — check your internet connection. The statement will retry syncing automatically, or click "Save as Commission Statement" again.${docNote}`);
     }
     if (typeof loadCommissionStatementsList === 'function') loadCommissionStatementsList();
+    // The processor lives in the Documents section — refresh the month grid
+    // so the pertaining month's file-count badge updates immediately.
+    if (typeof mdocRenderMonthGrid === 'function' && _mdocYear) mdocRenderMonthGrid();
 }
 
 // Resolve a statement's month label ("June 2026", or a YYYY-MM-DD date) to
