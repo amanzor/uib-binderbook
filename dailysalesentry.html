@@ -724,12 +724,14 @@
 
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;">
                     <div class="form-group" style="margin:0;">
-                        <label>Transaction Type *</label>
+                        <label>Policy Type *</label>
                         <select id="policyTypeCom" required>
                             <option value="">Select Type</option>
+                            <option value="New">New</option>
+                            <option value="Rewrite">Rewrite</option>
+                            <option value="Renew A-B">Renew A-B</option>
+                            <option value="Renewal">Renewal</option>
                             <option value="Endorsement">Endorsement</option>
-                            <option value="Payment">Payment</option>
-                            <option value="WC Exemptions">WC Exemptions</option>
                             <option value="Miscellaneous">Miscellaneous</option>
                         </select>
                     </div>
