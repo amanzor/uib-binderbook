@@ -28,3 +28,10 @@ create policy "client_files_read"   on storage.objects for select using (bucket_
 create policy "client_files_insert" on storage.objects for insert with check (bucket_id = 'client-files');
 create policy "client_files_update" on storage.objects for update using (bucket_id = 'client-files');
 create policy "client_files_delete" on storage.objects for delete using (bucket_id = 'client-files');
+
+-- 3. The documents table needs three columns the app writes but the original
+--    schema didn't have (file listings key off client_key).
+alter table documents add column if not exists client_key  text;
+alter table documents add column if not exists mime_type   text;
+alter table documents add column if not exists uploaded_by text;
+create index if not exists idx_documents_client_key on documents(client_key);
