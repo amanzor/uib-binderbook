@@ -6446,26 +6446,39 @@ function renderCSAgentDetail(monthKey) {
 
     // One combined table — every carrier's transactions together, sorted by
     // insured name, with a Carrier column instead of per-carrier sections.
-    const allEntries = selected.entries.slice().sort((a, b) =>
+    _csAgentDetailEntries = selected.entries.slice().sort((a, b) =>
         String(_csClientName(a) || '').localeCompare(String(_csClientName(b) || '')));
+    _csAgentDetailMeta = { label, isUnassigned, total: selected.total };
 
-    const rowsHtml = allEntries.map(e => {
-        const posNeg = e.commission >= 0 ? 'Positive' : 'Negative';
-        const color = e.commission >= 0 ? '#059669' : '#dc2626';
-        return `<tr style="border-bottom:1px solid var(--gray-100);">
-            <td style="padding:6px 10px;font-size:12.5px;">${_csClientName(e) || '—'}</td>
-            <td style="padding:6px 10px;font-size:12px;font-family:monospace;color:var(--gray-600);">${e.policyNumber || '—'}</td>
-            <td style="padding:6px 10px;font-size:11.5px;color:#0369a1;font-weight:600;">${e.carrier || '—'}</td>
-            <td style="padding:6px 10px;font-size:11.5px;color:var(--gray-500);">${e.transaction || '—'}</td>
-            <td style="padding:6px 10px;font-size:12.5px;text-align:right;color:${color};font-weight:600;">$${e.commission.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-            <td style="padding:6px 10px;font-size:11.5px;color:${color};">${posNeg}</td>
-        </tr>`;
-    }).join('');
+    // Reset filters when the agent or month changes.
+    const filterFor = monthKey + '|' + selected.agent;
+    if (_csAgentFilterFor !== filterFor) {
+        _csAgentFilterFor = filterFor;
+        csAgentFilter = { q: '', carrier: '', txn: '', sign: '' };
+    }
+
+    const carriers = [...new Set(_csAgentDetailEntries.map(e => e.carrier).filter(Boolean))].sort();
+    const txns     = [...new Set(_csAgentDetailEntries.map(e => (e.transaction || '').trim()).filter(Boolean))].sort();
+    const opt = (v, cur, lbl) => `<option value="${v.replace(/"/g,'&quot;')}" ${v === cur ? 'selected' : ''}>${lbl || v}</option>`;
 
     const header = `
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--gray-200);">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;padding-bottom:10px;border-bottom:2px solid var(--gray-200);">
             <h3 style="margin:0;font-size:15px;color:${isUnassigned?'#92400e':'var(--navy)'};">${label}</h3>
             <span style="font-size:11.5px;color:var(--gray-400);">${carrierGroups.length} carrier${carrierGroups.length!==1?'s':''} · ${selected.entries.length} transactions</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+            <input type="text" id="csAgFilterQ" value="${csAgentFilter.q.replace(/"/g,'&quot;')}" placeholder="🔍 Search insured or policy #…"
+                oninput="csAgentFilterChanged()" style="flex:1;min-width:170px;padding:6px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:12px;">
+            <select id="csAgFilterCarrier" onchange="csAgentFilterChanged()" style="padding:6px 8px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:12px;max-width:180px;">
+                <option value="">All Carriers</option>${carriers.map(c => opt(c, csAgentFilter.carrier)).join('')}
+            </select>
+            <select id="csAgFilterTxn" onchange="csAgentFilterChanged()" style="padding:6px 8px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:12px;max-width:160px;">
+                <option value="">All Types</option>${txns.map(t => opt(t, csAgentFilter.txn)).join('')}
+            </select>
+            <select id="csAgFilterSign" onchange="csAgentFilterChanged()" style="padding:6px 8px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:12px;">
+                ${opt('', csAgentFilter.sign, 'Pos & Neg')}${opt('pos', csAgentFilter.sign, 'Positive only')}${opt('neg', csAgentFilter.sign, 'Negative only')}
+            </select>
+            <button class="btn-secondary btn-sm" onclick="csResetAgentFilter()" style="font-size:12px;">Reset</button>
         </div>`;
 
     const combinedTable = `
@@ -6480,17 +6493,82 @@ function renderCSAgentDetail(monthKey) {
                     <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Pos/Neg</th>
                 </tr>
             </thead>
-            <tbody>${rowsHtml}</tbody>
-        </table>`;
+            <tbody id="csAgentTxnBody"></tbody>
+        </table>
+        <div id="csAgentTotalBar"></div>`;
 
-    const footer = `
-        <div style="background:${isUnassigned?'#92400e':'var(--navy)'};color:#fff;padding:10px 14px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-top:10px;">
-            <span>${label} — TOTAL (all carriers)</span>
-            <span>$${selected.total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
-        </div>`;
-
-    container.innerHTML = header + combinedTable + footer;
+    container.innerHTML = header + combinedTable;
+    csRenderAgentRows();
     refreshIcons();
+}
+
+// ── Agent statement filters ──────────────────────────────────
+let _csAgentDetailEntries = [];
+let _csAgentDetailMeta = null;
+let _csAgentFilterFor = null;
+let csAgentFilter = { q: '', carrier: '', txn: '', sign: '' };
+
+function csAgentFilterChanged() {
+    csAgentFilter = {
+        q:       (document.getElementById('csAgFilterQ')?.value || '').trim().toLowerCase(),
+        carrier: document.getElementById('csAgFilterCarrier')?.value || '',
+        txn:     document.getElementById('csAgFilterTxn')?.value || '',
+        sign:    document.getElementById('csAgFilterSign')?.value || ''
+    };
+    csRenderAgentRows();
+}
+
+function csResetAgentFilter() {
+    csAgentFilter = { q: '', carrier: '', txn: '', sign: '' };
+    const q = document.getElementById('csAgFilterQ');       if (q) q.value = '';
+    const c = document.getElementById('csAgFilterCarrier'); if (c) c.value = '';
+    const t = document.getElementById('csAgFilterTxn');     if (t) t.value = '';
+    const s = document.getElementById('csAgFilterSign');    if (s) s.value = '';
+    csRenderAgentRows();
+}
+
+function csAgentFilteredEntries() {
+    const f = csAgentFilter;
+    return _csAgentDetailEntries.filter(e =>
+        (!f.carrier || (e.carrier || '') === f.carrier) &&
+        (!f.txn || (e.transaction || '').trim() === f.txn) &&
+        (!f.sign || (f.sign === 'pos' ? e.commission >= 0 : e.commission < 0)) &&
+        (!f.q || (String(_csClientName(e) || '') + ' ' + (e.policyNumber || '')).toLowerCase().includes(f.q)));
+}
+
+// Re-renders only the rows + total bar so filter inputs keep focus.
+function csRenderAgentRows() {
+    const body = document.getElementById('csAgentTxnBody');
+    const bar  = document.getElementById('csAgentTotalBar');
+    if (!body || !bar || !_csAgentDetailMeta) return;
+
+    const { label, isUnassigned, total } = _csAgentDetailMeta;
+    const rows = csAgentFilteredEntries();
+    const filtered = rows.length !== _csAgentDetailEntries.length;
+    const fTotal = rows.reduce((s, e) => s + e.commission, 0);
+
+    body.innerHTML = rows.length ? rows.map(e => {
+        const posNeg = e.commission >= 0 ? 'Positive' : 'Negative';
+        const color = e.commission >= 0 ? '#059669' : '#dc2626';
+        return `<tr style="border-bottom:1px solid var(--gray-100);">
+            <td style="padding:6px 10px;font-size:12.5px;">${_csClientName(e) || '—'}</td>
+            <td style="padding:6px 10px;font-size:12px;font-family:monospace;color:var(--gray-600);">${e.policyNumber || '—'}</td>
+            <td style="padding:6px 10px;font-size:11.5px;color:#0369a1;font-weight:600;">${e.carrier || '—'}</td>
+            <td style="padding:6px 10px;font-size:11.5px;color:var(--gray-500);">${e.transaction || '—'}</td>
+            <td style="padding:6px 10px;font-size:12.5px;text-align:right;color:${color};font-weight:600;">$${e.commission.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+            <td style="padding:6px 10px;font-size:11.5px;color:${color};">${posNeg}</td>
+        </tr>`;
+    }).join('') : `<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--gray-400);font-size:12.5px;">No transactions match the current filters.</td></tr>`;
+
+    bar.innerHTML = (filtered ? `
+        <div style="background:var(--gray-50);border:1px solid var(--gray-200);color:var(--gray-700);padding:8px 14px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:12.5px;margin-top:10px;">
+            <span>Filtered — showing ${rows.length} of ${_csAgentDetailEntries.length} transactions</span>
+            <span style="color:${fTotal>=0?'#059669':'#dc2626'};">$${fTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+        </div>` : '') + `
+        <div style="background:${isUnassigned?'#92400e':'var(--navy)'};color:#fff;padding:10px 14px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-top:${filtered?'6px':'10px'};">
+            <span>${label} — TOTAL (all carriers)</span>
+            <span>$${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+        </div>`;
 }
 
 function exportCSAgentReportCSV() {
@@ -6501,14 +6579,17 @@ function exportCSAgentReportCSV() {
     if (!selected) return;
     const label = _csAgentLabel(selected.agent);
 
-    // Flat combined export — mirrors the on-screen statement (all carriers
-    // in one list, sorted by insured name).
+    // Flat combined export — mirrors the on-screen statement (all carriers in
+    // one list, sorted by insured name) and respects the active filters.
+    const entries = csAgentFilteredEntries();
+    const filtered = entries.length !== _csAgentDetailEntries.length;
     const rows = [['Agent', 'Insured Name', 'Policy Number', 'Carrier', 'Transaction', 'Commission', 'Pos/Neg']];
-    selected.entries.slice()
-        .sort((a, b) => String(_csClientName(a) || '').localeCompare(String(_csClientName(b) || '')))
-        .forEach(e => {
-            rows.push([label, _csClientName(e), e.policyNumber || '', e.carrier || '', e.transaction || '', e.commission.toFixed(2), e.commission >= 0 ? 'Positive' : 'Negative']);
-        });
+    entries.forEach(e => {
+        rows.push([label, _csClientName(e), e.policyNumber || '', e.carrier || '', e.transaction || '', e.commission.toFixed(2), e.commission >= 0 ? 'Positive' : 'Negative']);
+    });
+    if (filtered) {
+        rows.push([label, `FILTERED TOTAL (${entries.length} of ${_csAgentDetailEntries.length} transactions)`, '', '', '', entries.reduce((s, e) => s + e.commission, 0).toFixed(2), '']);
+    }
     rows.push([label, 'GRAND TOTAL (all carriers)', '', '', '', selected.total.toFixed(2), '']);
 
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
