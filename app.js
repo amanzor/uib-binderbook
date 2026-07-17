@@ -6083,12 +6083,62 @@ function csParseSheetRows(rows) {
     return { entries, carrierTotals, grossTotal };
 }
 
+// ── Month combining ───────────────────────────────────────────
+// Statements are stored per upload (Excel per month, AI per carrier —
+// e.g. "June 2026 — Kemper Auto (AI)"). The UI shows ONE tab per month,
+// with every carrier's statement combined into a single view.
+
+// True month label ("June 2026") for a stored statement key.
+function csMonthOf(key) {
+    const stmt = commissionStatements[key];
+    const label = stmt && stmt.month ? String(stmt.month) : String(key);
+    const m = label.trim().match(/^([A-Za-z]+)\s+(\d{4})/);
+    if (m) return m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() + ' ' + m[2];
+    return label.split(' — ')[0].trim();
+}
+
+// Every stored statement key contributing to a month.
+function csKeysForMonth(monthLabel) {
+    return Object.keys(commissionStatements).filter(k => csMonthOf(k) === monthLabel);
+}
+
+// Virtual statement combining all carriers' statements for a month.
+function csGetCombined(monthLabel) {
+    // Backward compat: allow passing a raw storage key directly.
+    const keys = csKeysForMonth(monthLabel);
+    if (!keys.length) return commissionStatements[monthLabel] || null;
+    if (keys.length === 1) return commissionStatements[keys[0]];
+
+    const combined = {
+        month: monthLabel,
+        sheetName: `${keys.length} statements combined`,
+        uploadedAt: null,
+        entries: [], carrierTotals: {}, grossTotal: 0, entryCount: 0,
+        documents: [], sources: keys
+    };
+    keys.forEach(k => {
+        const s = commissionStatements[k];
+        (s.entries || []).forEach(e => combined.entries.push(e));
+        Object.entries(s.carrierTotals || {}).forEach(([c, t]) => {
+            combined.carrierTotals[c] = parseFloat(((combined.carrierTotals[c] || 0) + (parseFloat(t) || 0)).toFixed(2));
+        });
+        combined.grossTotal += parseFloat(s.grossTotal) || 0;
+        (s.documents || []).forEach(d => combined.documents.push(d));
+        if (s.uploadedAt && (!combined.uploadedAt || s.uploadedAt > combined.uploadedAt)) combined.uploadedAt = s.uploadedAt;
+    });
+    combined.grossTotal = parseFloat(combined.grossTotal.toFixed(2));
+    combined.entryCount = combined.entries.length;
+    return combined;
+}
+
 // ── List & Detail Views ───────────────────────────────────────
 function loadCommissionStatementsList() {
-    const months = Object.keys(commissionStatements);
     const emptyEl  = document.getElementById('csEmptyState');
     const detailEl = document.getElementById('csDetail');
     const tabsEl   = document.getElementById('csMonthTabs');
+
+    // One tab per month — all carriers combined.
+    const months = [...new Set(Object.keys(commissionStatements).map(csMonthOf))];
 
     if (!months.length) {
         emptyEl.style.display  = 'block';
@@ -6106,19 +6156,24 @@ function loadCommissionStatementsList() {
         return parse(a) - parse(b);
     });
 
-    if (!csCurrentMonthKey || !commissionStatements[csCurrentMonthKey]) {
+    // Normalize a stale/raw-key selection to its month label.
+    if (csCurrentMonthKey && !months.includes(csCurrentMonthKey)) {
+        csCurrentMonthKey = commissionStatements[csCurrentMonthKey] ? csMonthOf(csCurrentMonthKey) : null;
+    }
+    if (!csCurrentMonthKey || !months.includes(csCurrentMonthKey)) {
         csCurrentMonthKey = months[months.length - 1];
     }
 
     tabsEl.innerHTML = months.map(m => {
-        const stmt = commissionStatements[m];
+        const stmt = csGetCombined(m);
+        const nSrc = csKeysForMonth(m).length;
         const active = m === csCurrentMonthKey;
         return `<button onclick="csSelectMonth('${m.replace(/'/g,'\\\'')}')"
             style="padding:8px 14px;border:1px solid ${active?'var(--primary)':'var(--gray-200)'};
                    border-radius:var(--radius-sm);background:${active?'var(--primary)':'#fff'};
                    color:${active?'#fff':'var(--gray-600)'};font-size:13px;font-weight:${active?'700':'400'};
                    cursor:pointer;line-height:1.4;text-align:center;">
-            ${m}
+            ${m}${nSrc > 1 ? ` <span style="font-size:10px;opacity:.75;">(${nSrc} statements)</span>` : ''}
             <span style="display:block;font-size:11px;opacity:0.85;">$${stmt.grossTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
         </button>`;
     }).join('');
@@ -6132,7 +6187,7 @@ function csSelectMonth(monthKey) {
 }
 
 function renderCSMonthDetail(monthKey) {
-    const stmt = commissionStatements[monthKey];
+    const stmt = csGetCombined(monthKey);
     if (!stmt) return;
 
     document.getElementById('csDetail').style.display = 'block';
@@ -6212,7 +6267,7 @@ function renderCSMonthDetail(monthKey) {
 }
 
 function renderCSEntries(monthKey) {
-    const stmt = commissionStatements[monthKey];
+    const stmt = csGetCombined(monthKey);
     if (!stmt) return;
 
     const filterCarrier = document.getElementById('csCarrierFilter')?.value  || '';
@@ -6285,7 +6340,7 @@ function _csGroupByAgent(stmt) {
 }
 
 function renderCSAgentBreakdown(monthKey) {
-    const stmt = commissionStatements[monthKey];
+    const stmt = csGetCombined(monthKey);
     if (!stmt) return;
     const groups = _csGroupByAgent(stmt);
     const body = document.getElementById('csAgentBreakdownBody');
@@ -6336,7 +6391,7 @@ function _csGroupByCarrier(entries) {
 }
 
 function renderCSAgentReport(monthKey) {
-    const stmt = commissionStatements[monthKey];
+    const stmt = csGetCombined(monthKey);
     if (!stmt) return;
     const groups = _csGroupByAgent(stmt);
     if (!csSelectedAgentKey || !groups.some(g => g.agent === csSelectedAgentKey)) {
@@ -6347,7 +6402,7 @@ function renderCSAgentReport(monthKey) {
 }
 
 function renderCSAgentNav(monthKey) {
-    const stmt = commissionStatements[monthKey];
+    const stmt = csGetCombined(monthKey);
     const nav = document.getElementById('csAgentNavList');
     if (!stmt || !nav) return;
     const groups = _csGroupByAgent(stmt);
@@ -6376,7 +6431,7 @@ function csSelectAgentInReport(agentKey) {
 }
 
 function renderCSAgentDetail(monthKey) {
-    const stmt = commissionStatements[monthKey];
+    const stmt = csGetCombined(monthKey);
     const container = document.getElementById('csAgentReportBody');
     if (!stmt || !container) return;
     const groups = _csGroupByAgent(stmt);
@@ -6444,7 +6499,7 @@ function renderCSAgentDetail(monthKey) {
 }
 
 function exportCSAgentReportCSV() {
-    const stmt = commissionStatements[csCurrentMonthKey];
+    const stmt = csGetCombined(csCurrentMonthKey);
     if (!stmt || !csSelectedAgentKey) return;
     const groups = _csGroupByAgent(stmt);
     const selected = groups.find(g => g.agent === csSelectedAgentKey);
@@ -6485,7 +6540,7 @@ function _csIsAdjustment(e) {
 }
 
 function renderCSAdjustments(monthKey) {
-    const stmt = commissionStatements[monthKey];
+    const stmt = csGetCombined(monthKey);
     const tbody = document.getElementById('csAdjustmentsBody');
     if (!stmt || !tbody) return;
 
@@ -6520,7 +6575,7 @@ function renderCSAdjustments(monthKey) {
 }
 
 function exportCSAdjustmentsCSV() {
-    const stmt = commissionStatements[csCurrentMonthKey];
+    const stmt = csGetCombined(csCurrentMonthKey);
     if (!stmt) return;
     const rows = stmt.entries.filter(_csIsAdjustment);
     const csvRows = [['Client Name', 'Policy Number', 'Transaction Type', 'Carrier', 'Commission', 'Agent']];
@@ -6548,8 +6603,12 @@ function resetCSFilters() {
 
 function deleteCSStatement(monthKey) {
     if (!monthKey) return;
-    if (!confirm(`Delete the commission statement for ${monthKey}? This cannot be undone.`)) return;
-    delete commissionStatements[monthKey];
+    // A month tab combines every carrier's statement for that month.
+    const keys = csKeysForMonth(monthKey);
+    if (!keys.length) return;
+    const listing = keys.map(k => `  • ${k}`).join('\n');
+    if (!confirm(`Delete ALL ${keys.length} commission statement${keys.length > 1 ? 's' : ''} for ${monthKey}?\n\n${listing}\n\nThis cannot be undone.`)) return;
+    keys.forEach(k => { delete commissionStatements[k]; });
     saveCommissionStatements();
     csCurrentMonthKey = null;
     loadCommissionStatementsList();
