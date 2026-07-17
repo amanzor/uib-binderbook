@@ -364,6 +364,9 @@ function amsLogout() {
     amsCurrentUser = null;
     amsCurrentRole = null;
     amsActiveKey   = null;
+    const aiBtn = document.getElementById('aiBubbleBtn');
+    if (aiBtn) aiBtn.style.display = 'none';
+    document.getElementById('aiChatPanel')?.classList.remove('open');
     document.getElementById('amsApp').classList.remove('visible');
     document.getElementById('amsLoginScreen').style.display = 'flex';
     document.getElementById('amsLoginEmail').value    = '';
@@ -396,6 +399,7 @@ async function amsSyncDataFromDrive() {
 function amsLaunchApp() {
     document.getElementById('amsLoginScreen').style.display = 'none';
     document.getElementById('amsApp').classList.add('visible');
+    if (typeof aiShowBubble === 'function') aiShowBubble();
 
     // User chip
     const initials = amsCurrentUser.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -4454,4 +4458,475 @@ function acordPrintForm(formId) {
     win.document.write(html);
     win.document.close();
     setTimeout(() => win.print(), 500);
+}
+
+
+// ============================================================
+// AMS AI ASSISTANT — Claude chat with document → client import
+// Upload ANY document (PDF, image, Excel, CSV, text); the AI
+// extracts every client + policy it finds and offers one-click
+// "Create client" / "Update existing client" actions.
+// Routed through the same Supabase Edge Function as Binder Book.
+// ============================================================
+
+const AI_MODEL          = 'claude-sonnet-4-6';
+const AI_PROXY_URL      = AMS_SB_URL + '/functions/v1/claude';
+const AI_MAX_FILE_BYTES = 10 * 1024 * 1024;  // Anthropic base64 limit headroom
+const AI_MAX_TEXT_CHARS = 150000;            // cap pasted spreadsheet/text content
+
+let _aiMessages     = [];   // chat history [{role, content}]
+let _aiPendingFiles = [];   // [{name, kind:'pdf'|'image'|'text', media_type, base64, text}]
+let _aiBusy         = false;
+window._aiExtractions = []; // arrays of extracted client objects, per reply
+
+// ── Panel open / close ───────────────────────────────────────
+function aiShowBubble() {
+    const b = document.getElementById('aiBubbleBtn');
+    if (b) b.style.display = 'flex';
+}
+
+function aiOpenPanel() {
+    document.getElementById('aiChatPanel')?.classList.add('open');
+    const b = document.getElementById('aiBubbleBtn');
+    if (b) b.style.display = 'none';
+    if (_aiMessages.length === 0) {
+        aiAddMessage('assistant',
+            `👋 Hi ${amsCurrentUser || 'there'}! I'm your UIB AMS assistant.\n\n` +
+            `📎 Attach any client document — declaration page, policy PDF, ID card, ACORD form, spreadsheet export from your old system, even a photo — and I'll extract all the client info and create the client record(s) for you.\n\n` +
+            `You can also just ask me questions about your book of business.`);
+    }
+    setTimeout(() => document.getElementById('aiChatInput')?.focus(), 100);
+}
+
+function aiClosePanel() {
+    document.getElementById('aiChatPanel')?.classList.remove('open');
+    aiShowBubble();
+}
+
+function aiNewConversation() {
+    _aiMessages = [];
+    _aiPendingFiles = [];
+    window._aiExtractions = [];
+    document.getElementById('aiChatMessages').innerHTML = '';
+    const fp = document.getElementById('aiFilePreview');
+    fp.style.display = 'none'; fp.innerHTML = '';
+    aiOpenPanel();
+}
+
+// ── Message rendering ────────────────────────────────────────
+function aiEsc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function aiRenderMarkdown(text) {
+    // Hide raw JSON extraction blocks from the visible chat (the card shows the data)
+    let t = String(text || '').replace(/```json[\s\S]*?```/g, '').trim();
+    t = aiEsc(t);
+    t = t.replace(/```([\s\S]*?)```/g, (m, c) => `<pre style="background:#f1f5f9;padding:8px;border-radius:6px;overflow-x:auto;font-size:12px;">${c}</pre>`);
+    t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/`([^`]+?)`/g, '<code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px;">$1</code>');
+    return t;
+}
+
+function aiAddMessage(role, text, isHtml) {
+    const box = document.getElementById('aiChatMessages');
+    const div = document.createElement('div');
+    div.className = 'ai-msg ' + role;
+    if (isHtml) div.innerHTML = text; else div.textContent = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+}
+
+// ── File intake — any document type ──────────────────────────
+function aiUpdateFilePreview() {
+    const fp = document.getElementById('aiFilePreview');
+    if (!_aiPendingFiles.length) { fp.style.display = 'none'; fp.innerHTML = ''; return; }
+    fp.style.display = 'block';
+    fp.innerHTML = _aiPendingFiles.map((f, i) =>
+        `<span style="display:inline-block;margin:2px 6px 2px 0;padding:3px 8px;background:#fff;border:1px solid var(--gray-200);border-radius:999px;">
+            📎 ${aiEsc(f.name)} <a href="#" onclick="event.preventDefault();_aiPendingFiles.splice(${i},1);aiUpdateFilePreview();" style="color:var(--red);text-decoration:none;font-weight:700;">✕</a>
+        </span>`).join('') +
+        `<div style="margin-top:4px;color:var(--gray-500);">Type an instruction (or just hit Send) to extract client info.</div>`;
+}
+
+function aiHandleFileInput(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    files.forEach(f => aiIngestFile(f));
+}
+
+async function aiIngestFile(file) {
+    const ext  = (file.name.split('.').pop() || '').toLowerCase();
+    const IMAGE_TYPES = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp' };
+    try {
+        if (ext === 'pdf' || file.type === 'application/pdf') {
+            if (file.size > AI_MAX_FILE_BYTES) {
+                alert(`"${file.name}" is ${(file.size/1048576).toFixed(1)} MB — too large for AI extraction (max 10 MB).\nTry exporting just the relevant pages or re-scanning at lower resolution.`);
+                return;
+            }
+            const base64 = await aiFileToBase64(file);
+            _aiPendingFiles.push({ name: file.name, kind: 'pdf', media_type: 'application/pdf', base64 });
+        } else if (IMAGE_TYPES[ext] || file.type.startsWith('image/')) {
+            if (file.size > AI_MAX_FILE_BYTES) { alert(`"${file.name}" is too large (max 10 MB).`); return; }
+            const base64 = await aiFileToBase64(file);
+            _aiPendingFiles.push({ name: file.name, kind: 'image', media_type: IMAGE_TYPES[ext] || file.type, base64 });
+        } else if (ext === 'xlsx' || ext === 'xls') {
+            if (typeof XLSX === 'undefined') { alert('Spreadsheet library not loaded — refresh the page and try again.'); return; }
+            const buf = await file.arrayBuffer();
+            const wb  = XLSX.read(buf, { type: 'array' });
+            let text  = '';
+            wb.SheetNames.forEach(sn => {
+                text += `=== Sheet: ${sn} ===\n` + XLSX.utils.sheet_to_csv(wb.Sheets[sn]) + '\n';
+            });
+            if (text.length > AI_MAX_TEXT_CHARS) text = text.slice(0, AI_MAX_TEXT_CHARS) + '\n…(truncated)';
+            _aiPendingFiles.push({ name: file.name, kind: 'text', text });
+        } else if (['csv','tsv','txt','json','htm','html','eml','md'].includes(ext) || file.type.startsWith('text/')) {
+            let text = await file.text();
+            if (text.length > AI_MAX_TEXT_CHARS) text = text.slice(0, AI_MAX_TEXT_CHARS) + '\n…(truncated)';
+            _aiPendingFiles.push({ name: file.name, kind: 'text', text });
+        } else {
+            alert(`"${file.name}" — this file type (.${ext}) isn't supported for AI extraction.\n\nSupported: PDF, images (photo/scan), Excel, CSV, and text files.\nTip: for Word docs, save/print as PDF first.`);
+            return;
+        }
+        aiUpdateFilePreview();
+        document.getElementById('aiChatInput')?.focus();
+    } catch (e) {
+        alert(`Could not read "${file.name}": ${e.message || e}`);
+    }
+}
+
+function aiFileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload  = e => resolve(e.target.result.split(',')[1]);
+        r.onerror = () => reject(new Error('file read failed'));
+        r.readAsDataURL(file);
+    });
+}
+
+// ── Context + system prompt ──────────────────────────────────
+function aiBuildContext() {
+    const binder  = amsGetBinderData();
+    const clients = Object.values(amsClientIndex || {});
+    const agents  = Object.keys(amsGetCredentials());
+    const names   = clients.slice(0, 400).map(c => c.displayName);
+    return `Agency: Universal Insurance Brokers (UIB).
+Logged-in user: ${amsCurrentUser || 'unknown'} (role: ${amsCurrentRole || 'unknown'}).
+Total clients on file: ${clients.length}. Total policy entries: ${binder.length}.
+Agents: ${agents.join(', ') || '(none)'}.
+EXISTING CLIENT NAMES (for duplicate detection): ${names.join(' | ') || '(none)'}`;
+}
+
+function aiBuildSystemPrompt(hasFiles) {
+    const base = `You are the AI assistant inside UIB AMS — the Agency Management System of Universal Insurance Brokers. You help agents manage clients and policies.
+
+CONTEXT — current AMS state:
+${aiBuildContext()}
+
+GUIDELINES:
+- Be concise and practical. Insurance agents are busy.
+- When asked about the book of business, use the context numbers above.
+- If you don't have enough data, say so — never invent client data.`;
+
+    if (!hasFiles) return base;
+
+    return base + `
+
+DOCUMENT EXTRACTION MODE — be exhaustive:
+The user attached one or more documents (policy PDFs, declaration pages, binders, ACORD forms, ID cards, driver licenses, spreadsheet exports from another agency system, scans or photos). Your job: extract EVERY client found in the documents so the AMS can create client records. A spreadsheet export may contain MANY clients — extract every row as its own client. A policy PDF usually contains one client.
+
+Extract every field you can find. Do not invent values — omit fields you cannot find.
+Dates → YYYY-MM-DD. Phone numbers → digits with dashes. VINs → 17 chars, uppercase, no spaces.
+If a client name matches one of the EXISTING CLIENT NAMES above (case-insensitive), still include them — the app will offer an "update existing" action instead.
+
+After a brief summary (1-3 sentences: what the document is, how many clients found), respond with a JSON object in \`\`\`json fences as the LAST thing in your message:
+
+\`\`\`json
+{
+  "clients": [
+    {
+      "customerName": "string — primary insured or business name (REQUIRED)",
+      "contact": {
+        "firstName": "", "lastName": "", "dob": "YYYY-MM-DD", "gender": "Male|Female",
+        "marital": "Single|Married|Divorced|Widowed", "ssn4": "last 4 of SSN only",
+        "phone1": "", "phone2": "", "email": "",
+        "address": "street address", "city": "", "state": "2-letter", "zip": "",
+        "dlNum": "driver license #", "dlState": "2-letter", "dlExp": "YYYY-MM-DD",
+        "language": "English|Spanish|Portuguese|Creole|Other", "referral": "how they found the agency"
+      },
+      "policies": [
+        {
+          "policyType": "New|Renewal|Rewrite",
+          "lineOfBusiness": "exact match preferred: BOP, Boat, Builders Risk, Business Owner, Classic Collectors, Commercial Auto, Commercial Property, Excess Liability, Flood, Garage Keepers, General Liability, Home Owners DP1/DP2/DP3/H3/H4/H6/H8, Inland Marine, Motorcycle/ATV, Non-Trucking Liability, Personal Auto, Pollution Liability, Professional Liability, Surety Bond, Trucking, Umbrella, Workers Comp",
+          "company": "insurance carrier name",
+          "mga": "MGA / premium finance company",
+          "policyNumber": "", "binderNumber": "",
+          "down": 0, "agencyFee": 0, "basePremium": 0, "totalPremium": 0,
+          "paymentMethod": "CC-Agency|CC-Client|CC-Company|Cash|Check|ACH to Agency|Direct Billing|EFT|Escrow|Money Order|Premium Finance",
+          "paymentType": "Monthly Paid|Gross Paid",
+          "effectiveDate": "YYYY-MM-DD", "expirationDate": "YYYY-MM-DD",
+          "policyStatus": "Active|Cancelled|Expired|Pending",
+          "drivers":  [ { "firstName": "", "lastName": "", "dob": "YYYY-MM-DD", "dl": "" } ],
+          "vehicles": [ { "year": "", "make": "", "model": "", "vin": "" } ]
+        }
+      ]
+    }
+  ]
+}
+\`\`\`
+
+EXTRACTION TIPS:
+- Auto policies list ALL drivers ("Drivers", "Operators", "Named Insureds") and ALL vehicles ("Schedule of Autos", "Covered Autos") — extract every one.
+- Home/property policies usually have no drivers/vehicles — leave those arrays empty.
+- On spreadsheet exports, map the columns intelligently (e.g. "Insured Name" → customerName, "Cell" → phone1, "Eff Date" → effectiveDate).
+- If a document has no policy info (e.g. a driver license photo), return the client with an empty "policies" array — contact info alone is still valuable.
+- Omit any field you can't find. Never guess SSNs, license numbers, or VINs.`;
+}
+
+// ── API call (same proxy as Binder Book) ─────────────────────
+async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
+    const res = await fetch(AI_PROXY_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': AMS_SB_KEY,
+            'Authorization': 'Bearer ' + AMS_SB_KEY
+        },
+        body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens, system: systemPrompt, messages })
+    });
+    const raw = await res.text();
+    let data;
+    try { data = JSON.parse(raw); }
+    catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`); }
+    if (data.error) {
+        const t = data.error.type || '', m = data.error.message || JSON.stringify(data.error);
+        if (t === 'authentication_error') throw new Error('Claude API: invalid API key. Set the ANTHROPIC_API_KEY secret in Supabase Edge Functions.');
+        throw new Error(`Claude API ${t}: ${m}`);
+    }
+    if (!data.content || !data.content.length) throw new Error(`Empty response from Claude. Raw: ${raw.slice(0, 300)}`);
+    const tb = data.content.find(b => b.type === 'text');
+    return { text: tb ? tb.text : '', stopReason: data.stop_reason || null };
+}
+
+// ── Send ─────────────────────────────────────────────────────
+async function aiSendMessage() {
+    if (_aiBusy) return;
+    const input   = document.getElementById('aiChatInput');
+    let userText  = (input?.value || '').trim();
+    const hasFiles = _aiPendingFiles.length > 0;
+    if (!userText && !hasFiles) return;
+    if (!userText) userText = 'Extract all client information from the attached document(s) and prepare new AMS client records.';
+
+    const fileNames = _aiPendingFiles.map(f => f.name);
+    aiAddMessage('user', (hasFiles ? fileNames.map(n => '📎 ' + n).join('\n') + '\n' : '') + userText);
+    input.value = '';
+
+    // Build content blocks: files first, then the instruction
+    const content = [];
+    _aiPendingFiles.forEach(f => {
+        if (f.kind === 'pdf')   content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.base64 } });
+        if (f.kind === 'image') content.push({ type: 'image',    source: { type: 'base64', media_type: f.media_type,       data: f.base64 } });
+        if (f.kind === 'text')  content.push({ type: 'text', text: `--- Attached file: ${f.name} ---\n${f.text}\n--- end of ${f.name} ---` });
+    });
+    content.push({ type: 'text', text: userText });
+    _aiMessages.push({ role: 'user', content });
+    _aiPendingFiles = [];
+    aiUpdateFilePreview();
+
+    _aiBusy = true;
+    const sendBtn = document.getElementById('aiSendBtn');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '…'; }
+    const loading = aiAddMessage('assistant', '✨ Reading' + (hasFiles ? ' document…' : '…'));
+
+    try {
+        const reply = await aiCallAPI(aiBuildSystemPrompt(hasFiles), _aiMessages);
+        loading.remove();
+        let replyText = reply.text || '(no response)';
+        if (reply.stopReason === 'max_tokens') replyText += '\n\n⚠️ Response was cut off — a very large document may need to be split into smaller uploads.';
+        _aiMessages.push({ role: 'assistant', content: replyText });
+
+        const clients = aiTryParseClients(replyText);
+        if (clients && clients.length) {
+            window._aiExtractions.push(clients);
+            const setIdx = window._aiExtractions.length - 1;
+            const msg = aiAddMessage('assistant', '');
+            msg.innerHTML = aiRenderMarkdown(replyText) + aiRenderClientCards(setIdx, clients);
+        } else {
+            aiAddMessage('assistant', aiRenderMarkdown(replyText), true);
+        }
+    } catch (err) {
+        loading.remove();
+        aiAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+    } finally {
+        _aiBusy = false;
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
+    }
+}
+
+// ── Parse extraction JSON ────────────────────────────────────
+function aiTryParseClients(text) {
+    const fences = [...String(text || '').matchAll(/```json\s*([\s\S]*?)```/g)];
+    if (!fences.length) return null;
+    try {
+        const obj = JSON.parse(fences[fences.length - 1][1]);
+        let list = Array.isArray(obj) ? obj : (obj.clients || (obj.customerName ? [obj] : null));
+        if (!list) return null;
+        return list.filter(c => c && (c.customerName || (c.contact && (c.contact.firstName || c.contact.lastName))));
+    } catch (e) { return null; }
+}
+
+// ── Review cards ─────────────────────────────────────────────
+function aiClientDisplayName(c) {
+    if (c.customerName) return c.customerName;
+    const ct = c.contact || {};
+    return `${ct.firstName || ''} ${ct.lastName || ''}`.trim();
+}
+
+function aiRenderClientCards(setIdx, clients) {
+    let html = `<div style="margin-top:10px;font-weight:700;color:var(--navy);font-size:13px;">✓ ${clients.length} client${clients.length > 1 ? 's' : ''} extracted</div>`;
+    clients.forEach((c, i) => {
+        const name   = aiClientDisplayName(c);
+        const key    = amsClientKey(name);
+        const exists = !!amsClientIndex[key];
+        const ct     = c.contact || {};
+        const pols   = Array.isArray(c.policies) ? c.policies : [];
+        const bits   = [];
+        if (ct.phone1) bits.push('📞 ' + aiEsc(ct.phone1));
+        if (ct.email)  bits.push('✉️ ' + aiEsc(ct.email));
+        if (ct.dob)    bits.push('🎂 ' + aiEsc(ct.dob));
+        if (ct.address || ct.city) bits.push('📍 ' + aiEsc([ct.address, ct.city, ct.state, ct.zip].filter(Boolean).join(', ')));
+        pols.forEach(p => bits.push(`📄 ${aiEsc(p.lineOfBusiness || 'Policy')}${p.company ? ' — ' + aiEsc(p.company) : ''}${p.policyNumber ? ' #' + aiEsc(p.policyNumber) : ''}${p.totalPremium ? ' ($' + Number(p.totalPremium).toLocaleString() + ')' : ''}`));
+        html += `
+        <div class="ai-client-card ${exists ? 'exists' : ''}" id="aiCard_${setIdx}_${i}">
+            <div class="cc-name">${exists ? '⚠️' : '🆕'} ${aiEsc(name)} ${exists ? '<span style="font-size:11px;color:#92400e;">(already in AMS — will update, not duplicate)</span>' : ''}</div>
+            <div class="cc-fields">${bits.join('<br>') || 'No detail fields found'}</div>
+            <button onclick="aiCreateClient(${setIdx}, ${i})"
+                style="background:linear-gradient(135deg,${exists ? '#d97706,#b45309' : '#16a34a,#22c55e'});color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;">
+                ${exists ? '🔄 Update existing client' : '➕ Create client in AMS'}
+            </button>
+        </div>`;
+    });
+    if (clients.length > 1) {
+        html += `<button onclick="aiCreateAllClients(${setIdx})"
+            style="margin-top:10px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
+            ⚡ Create / update all ${clients.length} clients
+        </button>`;
+    }
+    return html;
+}
+
+// ── Create / update clients ──────────────────────────────────
+const AI_CONTACT_FIELDS = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
+                           'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language','referral'];
+
+function aiCreateClient(setIdx, clientIdx, silent) {
+    const c = (window._aiExtractions[setIdx] || [])[clientIdx];
+    if (!c) return null;
+    const name = aiClientDisplayName(c);
+    const key  = amsClientKey(name);
+    if (!key) { if (!silent) alert('No client name found in the extraction.'); return null; }
+
+    const today       = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const contacts    = amsGetClientData();
+    const existedBefore = !!contacts[key] || !!amsClientIndex[key];
+    if (!contacts[key]) contacts[key] = {};
+    const rec = contacts[key];
+    const ct  = c.contact || {};
+
+    // Fill contact fields — never overwrite existing non-empty values
+    AI_CONTACT_FIELDS.forEach(f => {
+        const v = (ct[f] == null ? '' : String(ct[f])).trim();
+        if (v && !rec[f]) rec[f] = v;
+    });
+    // Derive first/last from customerName when missing (individuals only)
+    if (!rec.firstName && !rec.lastName && name && !/\b(llc|inc|corp|dba|co\.?)\b/i.test(name)) {
+        const parts = name.trim().split(/\s+/);
+        if (parts.length >= 2) { rec.firstName = parts.slice(0, -1).join(' '); rec.lastName = parts[parts.length - 1]; }
+        else rec.firstName = name;
+    }
+    if (!rec.assignedAgent) rec.assignedAgent = (amsCurrentRole === 'agent' ? amsCurrentUser : rec.assignedAgent) || '';
+    if (!rec.clientSince)   rec.clientSince   = today;
+    if (!rec.clientStatus)  rec.clientStatus  = 'Active';
+    rec.updatedAt = new Date().toISOString();
+    amsSave('amsClientData', contacts);
+
+    // Add policies (skip duplicates by policy number for this client)
+    let added = 0, skipped = 0;
+    const pols = Array.isArray(c.policies) ? c.policies : [];
+    if (pols.length) {
+        const binder = amsGetBinderData();
+        const existingNums = new Set(
+            binder.filter(e => amsClientKey(e.customerName) === key)
+                  .map(e => String(e.policyNumber || '').trim().toUpperCase())
+                  .filter(Boolean)
+        );
+        pols.forEach((p, i) => {
+            const num = String(p.policyNumber || '').trim().toUpperCase();
+            if (num && existingNums.has(num)) { skipped++; return; }
+            if (num) existingNums.add(num);
+            binder.push({
+                id:                   Date.now() + i,
+                entryDate:            today,
+                customerName:         name,
+                agent:                (amsCurrentRole === 'agent' ? amsCurrentUser : rec.assignedAgent) || amsCurrentUser || '',
+                policyType:           p.policyType || 'New',
+                lineOfBusiness:       p.lineOfBusiness || '',
+                company:              p.company || '',
+                mga:                  p.mga || '',
+                policyNumber:         p.policyNumber || '',
+                binderNumber:         p.binderNumber || '',
+                down:                 parseFloat(p.down) || 0,
+                agencyFee:            parseFloat(p.agencyFee) || 0,
+                basePremium:          parseFloat(p.basePremium) || 0,
+                totalPremium:         parseFloat(p.totalPremium) || 0,
+                paymentMethod:        p.paymentMethod || '',
+                paymentType:          p.paymentType || '',
+                agencyCommission:     Math.round((parseFloat(p.totalPremium) || 0) * 0.10 * 100) / 100,
+                agentCommissionShare: 0,
+                effectiveDate:        p.effectiveDate || '',
+                expirationDate:       p.expirationDate || '',
+                policyStatus:         p.policyStatus || 'Active',
+                drivers:  Array.isArray(p.drivers)  ? p.drivers.map(d => ({ firstName: d.firstName || '', lastName: d.lastName || '', dob: d.dob || '', dl: d.dl || '' })) : [],
+                vehicles: Array.isArray(p.vehicles) ? p.vehicles.map(v => ({ year: String(v.year || ''), make: v.make || '', model: v.model || '', vin: String(v.vin || '').replace(/\s+/g, '').toUpperCase() })) : []
+            });
+            added++;
+        });
+        amsSave('binderData', binder);
+    }
+
+    amsBuildClientIndex();
+    amsRenderClientList();
+
+    // Mark the card as done (button may already be replaced if run twice)
+    const card    = document.getElementById(`aiCard_${setIdx}_${clientIdx}`);
+    const cardBtn = card ? card.querySelector('button') : null;
+    if (cardBtn) {
+        const summary = `${existedBefore ? 'Updated' : 'Created'} ✓` +
+            (added   ? ` — ${added} polic${added > 1 ? 'ies' : 'y'} added` : '') +
+            (skipped ? ` — ${skipped} duplicate polic${skipped > 1 ? 'ies' : 'y'} skipped` : '');
+        cardBtn.outerHTML =
+            `<span style="font-weight:700;color:#15803d;font-size:12px;">✅ ${aiEsc(summary)} — <a href="#" onclick="event.preventDefault();amsLoadClientDetail('${aiEsc(key).replace(/'/g, "\\'")}')" style="color:var(--blue);">open client</a></span>`;
+    }
+    if (!silent) {
+        amsLoadClientDetail(key);
+        amsFlashBanner(`${existedBefore ? 'Client updated' : 'Client created'}: ${name} ✓`);
+    }
+    return { key, name, existedBefore, added, skipped };
+}
+
+function aiCreateAllClients(setIdx) {
+    const list = window._aiExtractions[setIdx] || [];
+    let created = 0, updated = 0, policies = 0, lastKey = null;
+    list.forEach((c, i) => {
+        const r = aiCreateClient(setIdx, i, true);
+        if (!r) return;
+        if (r.existedBefore) updated++; else created++;
+        policies += r.added;
+        lastKey = r.key;
+    });
+    if (lastKey) amsLoadClientDetail(lastKey);
+    amsFlashBanner(`Batch done ✓ — ${created} created, ${updated} updated, ${policies} policies added`);
+    aiAddMessage('assistant', `✅ Batch complete: ${created} client${created !== 1 ? 's' : ''} created, ${updated} updated, ${policies} polic${policies !== 1 ? 'ies' : 'y'} added.`);
 }
