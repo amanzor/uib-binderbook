@@ -6444,12 +6444,18 @@ function renderCSAgentDetail(monthKey) {
     const label = _csAgentLabel(selected.agent);
     const carrierGroups = _csGroupByCarrier(selected.entries);
 
-    const rowsHtml = (entries) => entries.map(e => {
+    // One combined table — every carrier's transactions together, sorted by
+    // insured name, with a Carrier column instead of per-carrier sections.
+    const allEntries = selected.entries.slice().sort((a, b) =>
+        String(_csClientName(a) || '').localeCompare(String(_csClientName(b) || '')));
+
+    const rowsHtml = allEntries.map(e => {
         const posNeg = e.commission >= 0 ? 'Positive' : 'Negative';
         const color = e.commission >= 0 ? '#059669' : '#dc2626';
         return `<tr style="border-bottom:1px solid var(--gray-100);">
             <td style="padding:6px 10px;font-size:12.5px;">${_csClientName(e) || '—'}</td>
             <td style="padding:6px 10px;font-size:12px;font-family:monospace;color:var(--gray-600);">${e.policyNumber || '—'}</td>
+            <td style="padding:6px 10px;font-size:11.5px;color:#0369a1;font-weight:600;">${e.carrier || '—'}</td>
             <td style="padding:6px 10px;font-size:11.5px;color:var(--gray-500);">${e.transaction || '—'}</td>
             <td style="padding:6px 10px;font-size:12.5px;text-align:right;color:${color};font-weight:600;">$${e.commission.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
             <td style="padding:6px 10px;font-size:11.5px;color:${color};">${posNeg}</td>
@@ -6462,39 +6468,28 @@ function renderCSAgentDetail(monthKey) {
             <span style="font-size:11.5px;color:var(--gray-400);">${carrierGroups.length} carrier${carrierGroups.length!==1?'s':''} · ${selected.entries.length} transactions</span>
         </div>`;
 
-    const carrierBlocks = carrierGroups.map(cg => `
-        <div style="margin-bottom:16px;">
-            <div style="background:var(--gray-50);padding:6px 12px;font-weight:700;font-size:12.5px;color:#0369a1;border-radius:6px 6px 0 0;border:1px solid var(--gray-200);border-bottom:none;">
-                ${cg.carrier} <span style="font-weight:400;color:var(--gray-400);">(${cg.entries.length})</span>
-            </div>
-            <table style="width:100%;border-collapse:collapse;border:1px solid var(--gray-200);">
-                <thead>
-                    <tr style="background:#fff;border-bottom:1px solid var(--gray-200);">
-                        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Insured Name</th>
-                        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Policy #</th>
-                        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Transaction</th>
-                        <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:var(--gray-500);">Commission</th>
-                        <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Pos/Neg</th>
-                    </tr>
-                </thead>
-                <tbody>${rowsHtml(cg.entries)}</tbody>
-                <tfoot>
-                    <tr style="background:var(--gray-50);border-top:2px solid var(--gray-200);">
-                        <td colspan="3" style="padding:7px 10px;font-weight:700;font-size:12px;">${cg.carrier} Total</td>
-                        <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:12px;color:${cg.total>=0?'#059669':'#dc2626'};">$${cg.total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-                        <td></td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>`).join('');
+    const combinedTable = `
+        <table style="width:100%;border-collapse:collapse;border:1px solid var(--gray-200);">
+            <thead>
+                <tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200);">
+                    <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Insured Name</th>
+                    <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Policy #</th>
+                    <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Carrier</th>
+                    <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Transaction</th>
+                    <th style="padding:6px 10px;text-align:right;font-size:11px;font-weight:600;color:var(--gray-500);">Commission</th>
+                    <th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-500);">Pos/Neg</th>
+                </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+        </table>`;
 
     const footer = `
-        <div style="background:${isUnassigned?'#92400e':'var(--navy)'};color:#fff;padding:10px 14px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-top:4px;">
+        <div style="background:${isUnassigned?'#92400e':'var(--navy)'};color:#fff;padding:10px 14px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-top:10px;">
             <span>${label} — TOTAL (all carriers)</span>
             <span>$${selected.total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
         </div>`;
 
-    container.innerHTML = header + carrierBlocks + footer;
+    container.innerHTML = header + combinedTable + footer;
     refreshIcons();
 }
 
@@ -6506,14 +6501,14 @@ function exportCSAgentReportCSV() {
     if (!selected) return;
     const label = _csAgentLabel(selected.agent);
 
-    const rows = [['Agent', 'Carrier', 'Insured Name', 'Policy Number', 'Transaction', 'Commission', 'Pos/Neg']];
-    const carrierGroups = _csGroupByCarrier(selected.entries);
-    carrierGroups.forEach(cg => {
-        cg.entries.forEach(e => {
-            rows.push([label, cg.carrier, _csClientName(e), e.policyNumber || '', e.transaction || '', e.commission.toFixed(2), e.commission >= 0 ? 'Positive' : 'Negative']);
+    // Flat combined export — mirrors the on-screen statement (all carriers
+    // in one list, sorted by insured name).
+    const rows = [['Agent', 'Insured Name', 'Policy Number', 'Carrier', 'Transaction', 'Commission', 'Pos/Neg']];
+    selected.entries.slice()
+        .sort((a, b) => String(_csClientName(a) || '').localeCompare(String(_csClientName(b) || '')))
+        .forEach(e => {
+            rows.push([label, _csClientName(e), e.policyNumber || '', e.carrier || '', e.transaction || '', e.commission.toFixed(2), e.commission >= 0 ? 'Positive' : 'Negative']);
         });
-        rows.push([label, cg.carrier + ' Total', '', '', '', cg.total.toFixed(2), '']);
-    });
     rows.push([label, 'GRAND TOTAL (all carriers)', '', '', '', selected.total.toFixed(2), '']);
 
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
