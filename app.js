@@ -1218,7 +1218,17 @@ function showSection(sectionId) {
 // Form Handling
 document.getElementById('agentForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    saveEntry();
+    // Guard the whole save so an unexpected error can never leave the Save
+    // button looking dead (silent throw = "nothing happens"). Surface it
+    // instead; the entry stays on the form so nothing is lost.
+    try {
+        saveEntry();
+    } catch (err) {
+        console.error('saveEntry failed:', err);
+        alert('⚠️ Something went wrong while saving this entry:\n' +
+              (err && err.message ? err.message : err) +
+              '\n\nYour information is still on the form — please try again.');
+    }
 });
 
 // When the Save button is pressed but a required field is empty, the browser
@@ -1274,7 +1284,11 @@ function saveEntry() {
     // fields (Commercial's ids all carry a "Com" suffix) — read from
     // whichever one is currently selected/visible.
     const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : '';
-    const gid = id => document.getElementById(id + sfx);
+    // Never let a missing field throw: a single absent element used to make
+    // gid(id).value blow up, which killed the whole submit handler silently —
+    // the Save button appeared to "do nothing" (no save, no redirect). Fall
+    // back to an empty-value stand-in so field reads are always safe.
+    const gid = id => document.getElementById(id + sfx) || { value: '' };
 
     const entry = {
         id: Date.now(),
@@ -1334,64 +1348,72 @@ function saveEntry() {
     allData.push(entry);
     localStorage.setItem('binderData', JSON.stringify(allData));
 
-    // Auto-sync this entry's contact info to AMS (drivers, vehicles, agent, etc.)
-    syncEntryToAMS(entry);
+    // Everything past this point is a side effect (AMS sync, commission
+    // rollup). The entry is already saved above, so a failure here must NOT
+    // strand the agent on the form — wrap it so we still fall through to the
+    // success message and the redirect back to the main page.
+    try {
+        // Auto-sync this entry's contact info to AMS (drivers, vehicles, agent, etc.)
+        syncEntryToAMS(entry);
 
-    // Calculate and store commission based on base premium
-    const premium     = entry.basePremium;
-    const carrier     = entry.company;
-    const lob         = entry.lineOfBusiness;
-    const paymentType = entry.paymentType || 'Monthly Paid';
-    const policyType  = entry.policyType  || 'New';
-    const agent       = entry.agent;
+        // Calculate and store commission based on base premium
+        const premium     = entry.basePremium;
+        const carrier     = entry.company;
+        const lob         = entry.lineOfBusiness;
+        const paymentType = entry.paymentType || 'Monthly Paid';
+        const policyType  = entry.policyType  || 'New';
+        const agent       = entry.agent;
 
-    const rate = getCommissionRate(carrier, lob, paymentType, policyType);
+        const rate = getCommissionRate(carrier, lob, paymentType, policyType);
 
-    if (rate > 0) {
-        const commission = calculateCommission(premium, rate, entry.agencyFee || 0);
-        const month = new Date(entry.entryDate + 'T12:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-        const carrierType = paymentType === 'Monthly Paid' ? 'monthlyPaidCommissionCarriers' : 'grossPaidCarriers';
+        if (rate > 0) {
+            const commission = calculateCommission(premium, rate, entry.agencyFee || 0);
+            const month = new Date(entry.entryDate + 'T12:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+            const carrierType = paymentType === 'Monthly Paid' ? 'monthlyPaidCommissionCarriers' : 'grossPaidCarriers';
 
-        // Load current commission data
-        let commData = JSON.parse(localStorage.getItem('commissionData')) || {};
+            // Load current commission data
+            let commData = JSON.parse(localStorage.getItem('commissionData')) || {};
 
-        // Initialize structures if needed
-        if (!commData[agent]) {
-            commData[agent] = {
-                monthlyPaidCommissionCarriers: {},
-                grossPaidCarriers: {}
-            };
-        }
-
-        if (!commData[agent][carrierType]) {
-            commData[agent][carrierType] = {};
-        }
-
-        if (!commData[agent][carrierType][carrier]) {
-            commData[agent][carrierType][carrier] = {};
-        }
-
-        // Accumulate into same carrier/month bucket (multiple policies → sum)
-        const existing = commData[agent][carrierType][carrier][month];
-        if (existing) {
-            existing.amount   = parseFloat((existing.amount + commission).toFixed(2));
-            existing.premium  = parseFloat((existing.premium + premium).toFixed(2));
-            // Merge LOB label if different
-            if (existing.lob && existing.lob !== lob && !existing.lob.includes(lob)) {
-                existing.lob = existing.lob + ', ' + lob;
+            // Initialize structures if needed
+            if (!commData[agent]) {
+                commData[agent] = {
+                    monthlyPaidCommissionCarriers: {},
+                    grossPaidCarriers: {}
+                };
             }
-        } else {
-            commData[agent][carrierType][carrier][month] = {
-                amount:  commission,
-                lob:     lob,
-                rate:    rate,
-                premium: premium
-            };
-        }
 
-        // Save updated commission data
-        localStorage.setItem('commissionData', JSON.stringify(commData));
-        commissionData = commData;
+            if (!commData[agent][carrierType]) {
+                commData[agent][carrierType] = {};
+            }
+
+            if (!commData[agent][carrierType][carrier]) {
+                commData[agent][carrierType][carrier] = {};
+            }
+
+            // Accumulate into same carrier/month bucket (multiple policies → sum)
+            const existing = commData[agent][carrierType][carrier][month];
+            if (existing) {
+                existing.amount   = parseFloat((existing.amount + commission).toFixed(2));
+                existing.premium  = parseFloat((existing.premium + premium).toFixed(2));
+                // Merge LOB label if different
+                if (existing.lob && existing.lob !== lob && !existing.lob.includes(lob)) {
+                    existing.lob = existing.lob + ', ' + lob;
+                }
+            } else {
+                commData[agent][carrierType][carrier][month] = {
+                    amount:  commission,
+                    lob:     lob,
+                    rate:    rate,
+                    premium: premium
+                };
+            }
+
+            // Save updated commission data
+            localStorage.setItem('commissionData', JSON.stringify(commData));
+            commissionData = commData;
+        }
+    } catch (sideEffectErr) {
+        console.warn('Post-save side effect failed (entry was still saved):', sideEffectErr);
     }
 
     // Save any pending files attached from the new entry form. Keep the
@@ -1401,6 +1423,47 @@ function saveEntry() {
     let pendingFilesSave = Promise.resolve();
     if (_pendingEntryFiles.length > 0) {
         pendingFilesSave = binderSavePendingFiles(entry.customerName, entry.id);
+    }
+
+    // Detect standalone entry pages (daily sales / transaction) vs main app
+    // modal. On the standalone pages the whole point is to return to the
+    // dashboard after saving, so handle that FIRST — before the in-place form
+    // reset below, which is wasted work when we're leaving the page and could
+    // otherwise throw and block the redirect. The entry is already saved to
+    // localStorage above, so leaving is safe.
+    const isStandalonePage = window.location.pathname.includes('dailysalesentry')
+        || window.location.pathname.includes('transactionentry');
+
+    if (isStandalonePage) {
+        try { showSuccess(); } catch (e) {}
+        try { sessionStorage.setItem('uibCurrentUser', currentUser || ''); } catch (e) {}
+
+        const saveBtn = document.querySelector('#agentForm button[type="submit"]');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '☁️ Saved — returning to main page…'; }
+
+        // Finish persisting BEFORE leaving the page: navigating away aborts
+        // in-flight uploads and cloud writes, which lost attached PDFs and let
+        // the next cloud pull erase the just-saved entry. Wait for the
+        // attachment uploads and the entry's cloud push, then go back to the
+        // dashboard. Each write is individually guarded so one failed cloud
+        // push can't short-circuit the others (a rejected Promise.all would
+        // settle the race early). A 25s cap keeps a dead network from stranding
+        // the agent — anything unfinished stays flagged dirty and the next sync
+        // pushes it. Navigation runs from .finally so EVERY agent is returned
+        // home whether the writes succeed, fail, or time out. As a last-resort
+        // belt-and-suspenders, a hard timer forces the redirect even if the
+        // promise machinery never settles.
+        const persistAll = Promise.all([
+            pendingFilesSave.catch(e => console.warn('Attachment save failed:', e)),
+            Promise.resolve(driveSet('binderData', allData)).catch(e => console.warn('binderData sync failed:', e)),
+            Promise.resolve(driveSet('commissionData', JSON.parse(localStorage.getItem('commissionData') || '{}'))).catch(e => console.warn('commissionData sync failed:', e))
+        ]);
+        const cap = new Promise(res => setTimeout(res, 25000));
+        let navigated = false;
+        const goToMainPage = () => { if (navigated) return; navigated = true; window.location.href = './'; };
+        Promise.race([persistAll, cap]).finally(goToMainPage);
+        setTimeout(goToMainPage, 26000);
+        return;
     }
 
     showSuccess();
@@ -1422,45 +1485,6 @@ function saveEntry() {
         if (rateLabel) { rateLabel.style.display = 'none'; rateLabel.textContent = ''; }
         if (breakdownEl) { breakdownEl.style.display = 'none'; breakdownEl.textContent = ''; }
     });
-
-    // Detect standalone entry pages (daily sales / transaction) vs main app
-    // modal. Both standalone pages must wait for persistence and return to
-    // the dashboard — falling through to the modal branch re-renders
-    // dashboard tables that don't exist on those pages and throws.
-    const isStandalonePage = window.location.pathname.includes('dailysalesentry')
-        || window.location.pathname.includes('transactionentry');
-
-    if (isStandalonePage) {
-        // Finish persisting BEFORE leaving the page: navigating away aborts
-        // in-flight uploads and cloud writes, which lost attached PDFs and
-        // let the next cloud pull erase the just-saved entry. Wait for the
-        // attachment uploads and the entry's cloud push, then go back to the
-        // dashboard. A time cap keeps a dead network from stranding the
-        // agent — anything unfinished stays flagged dirty and the next sync
-        // pushes it instead of pulling over it.
-        try { sessionStorage.setItem('uibCurrentUser', currentUser || ''); } catch (e) {}
-
-        const saveBtn = document.querySelector('#agentForm button[type="submit"]');
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '☁️ Saving — returning to main page…'; }
-
-        // Wait for persistence, then ALWAYS return to the main page. Each write
-        // is individually guarded so one failed cloud push can't short-circuit
-        // the others (a rejected Promise.all would settle the race early). The
-        // time cap keeps a dead network from stranding the agent; anything
-        // unfinished stays flagged dirty and the next sync pushes it. Navigation
-        // runs from .finally so the agent is returned home whether the writes
-        // succeed, fail, or time out — the entry is already saved to
-        // localStorage above, so leaving is safe.
-        const persistAll = Promise.all([
-            pendingFilesSave.catch(e => console.warn('Attachment save failed:', e)),
-            Promise.resolve(driveSet('binderData', allData)).catch(e => console.warn('binderData sync failed:', e)),
-            Promise.resolve(driveSet('commissionData', JSON.parse(localStorage.getItem('commissionData') || '{}'))).catch(e => console.warn('commissionData sync failed:', e))
-        ]);
-        const cap = new Promise(res => setTimeout(res, 25000));
-        const goToMainPage = () => { window.location.href = './'; };
-        Promise.race([persistAll, cap]).finally(goToMainPage);
-        return;
-    }
 
     closeDailySalesModal();
     setTodayDate();
