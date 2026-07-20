@@ -1441,15 +1441,24 @@ function saveEntry() {
         try { sessionStorage.setItem('uibCurrentUser', currentUser || ''); } catch (e) {}
 
         const saveBtn = document.querySelector('#agentForm button[type="submit"]');
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '☁️ Saving — uploading documents…'; }
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '☁️ Saving — returning to main page…'; }
 
+        // Wait for persistence, then ALWAYS return to the main page. Each write
+        // is individually guarded so one failed cloud push can't short-circuit
+        // the others (a rejected Promise.all would settle the race early). The
+        // time cap keeps a dead network from stranding the agent; anything
+        // unfinished stays flagged dirty and the next sync pushes it. Navigation
+        // runs from .finally so the agent is returned home whether the writes
+        // succeed, fail, or time out — the entry is already saved to
+        // localStorage above, so leaving is safe.
         const persistAll = Promise.all([
             pendingFilesSave.catch(e => console.warn('Attachment save failed:', e)),
-            driveSet('binderData', allData),
-            driveSet('commissionData', JSON.parse(localStorage.getItem('commissionData') || '{}'))
+            Promise.resolve(driveSet('binderData', allData)).catch(e => console.warn('binderData sync failed:', e)),
+            Promise.resolve(driveSet('commissionData', JSON.parse(localStorage.getItem('commissionData') || '{}'))).catch(e => console.warn('commissionData sync failed:', e))
         ]);
         const cap = new Promise(res => setTimeout(res, 25000));
-        Promise.race([persistAll, cap]).then(() => { window.location.href = './'; });
+        const goToMainPage = () => { window.location.href = './'; };
+        Promise.race([persistAll, cap]).finally(goToMainPage);
         return;
     }
 
