@@ -7736,6 +7736,87 @@ async function importJorgeCastroData() {
     if (typeof prodApplyFilters === 'function') prodApplyFilters();
 }
 
+// ── Hevi Tile Corp Bulk Import ───────────────────────────────────────────────
+// Commercial client onboarded from the carrier AMS profile. Adds the client
+// contact record (into amsClientData, so it appears in the AMS) plus all of its
+// policies (into binderData). Each policy is dated on its effective month so it
+// lands in the pertaining month of the Binder Book. All policies are reported
+// under Lazaro Reigoza. Safe to re-run: entries with matching IDs are skipped.
+async function importHeviTileData() {
+    const confirmed = confirm(
+        'Import Hevi Tile Corp?\n\n' +
+        '• 1 commercial client (Hevi Tile Corp — Delray Beach, FL)\n' +
+        '• 10 policies (Jun 2024 – Jul 2026), all under Lazaro Reigoza\n' +
+        '• WC, Commercial Auto, General Liability, Excess Liability & Umbrella\n' +
+        '• Each policy is filed under its effective month in the Binder Book\n' +
+        '• Existing entries with matching IDs will be skipped (safe to re-run)\n\n' +
+        'Click OK to proceed.'
+    );
+    if (!confirmed) return;
+
+    let importData;
+    try {
+        const resp = await fetch('hevi_tile_import.json?v=20260720');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        importData = await resp.json();
+    } catch (err) {
+        alert('Failed to load hevi_tile_import.json: ' + err.message);
+        return;
+    }
+
+    const policies = importData.policies || [];
+
+    // 1) Merge policies into binderData (dedupe by id)
+    let existing = [];
+    try { existing = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) { existing = []; }
+
+    const existingIds = new Set(existing.map(e => e.id));
+    const newEntries  = policies.filter(e => !existingIds.has(e.id));
+    const merged      = [...existing, ...newEntries];
+    localStorage.setItem('binderData', JSON.stringify(merged));
+    allData = merged;
+    try { driveSet('binderData', merged); } catch (e) {}
+
+    // 2) Seed / merge the AMS client contact record (into amsClientData)
+    let contactSeeded = false;
+    const client = importData.client;
+    if (client && client.key) {
+        let clients = {};
+        try { clients = JSON.parse(localStorage.getItem('amsClientData')) || {}; } catch (e) { clients = {}; }
+        if (!clients[client.key]) {
+            clients[client.key] = { ...(client.contact || {}), updatedAt: new Date().toISOString() };
+            contactSeeded = true;
+        } else {
+            // Fill only fields that are currently empty; never overwrite existing data
+            const cur = clients[client.key];
+            Object.entries(client.contact || {}).forEach(([k, v]) => {
+                if (k === 'notes') return;
+                if (cur[k] === undefined || cur[k] === '' || cur[k] === null) cur[k] = v;
+            });
+            const seedNotes = (client.contact || {}).notes || [];
+            if (seedNotes.length) {
+                cur.notes = cur.notes || [];
+                const have = new Set(cur.notes.map(n => n.text));
+                seedNotes.forEach(n => { if (!have.has(n.text)) cur.notes.push(n); });
+            }
+        }
+        localStorage.setItem('amsClientData', JSON.stringify(clients));
+        try { driveSet('amsClientData', clients); } catch (e) {}
+    }
+
+    alert(
+        `✅ Import complete!\n\n` +
+        `• ${newEntries.length} new policies added\n` +
+        `• ${policies.length - newEntries.length} duplicates skipped\n` +
+        `• Client record ${contactSeeded ? 'created' : 'already existed (merged)'}\n` +
+        `• Total records now: ${merged.length}`
+    );
+
+    if (typeof loadAdminData === 'function') loadAdminData();
+    if (typeof apdInit     === 'function') apdInit();
+    if (typeof prodApplyFilters === 'function') prodApplyFilters();
+}
+
 // ============================================================
 // BINDER FILE SYSTEM — IndexedDB integration with UIB AMS
 // Shares the same 'UIB_AMS_Files' DB as ams.html so files
