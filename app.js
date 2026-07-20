@@ -8354,6 +8354,67 @@ function claudeCheckPdfFile(file) {
     return true;
 }
 
+// ── Archive AI-chat PDF uploads into the shared client document system ──
+// Writes to the same IndexedDB store (UIB_AMS_Files → "files") that backs both
+// the Binder Book file modal and the AMS Documents tab, so one save shows in both.
+function claudeBase64ToArrayBuffer(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+}
+
+async function claudeArchivePdfToClientFiles(pdf, customerName, category) {
+    if (!pdf || !pdf.base64 || !pdf.name) return null;
+    try {
+        if (!binderDB) await binderInitDB();
+        if (!binderDB) return null;
+
+        const named     = (customerName || '').trim();
+        const clientKey = named ? binderClientKey(named) : 'UNFILED';
+        const buffer    = claudeBase64ToArrayBuffer(pdf.base64);
+
+        // Don't re-save the same document twice for the same client
+        const existing = await binderDBGetFiles(clientKey);
+        if (existing.some(f => f.name === pdf.name && f.size === buffer.byteLength)) {
+            return { clientKey, duplicate: true };
+        }
+
+        await binderDBAddFile({
+            clientKey,
+            name:       pdf.name,
+            path:       '',
+            fullPath:   pdf.name,
+            type:       'application/pdf',
+            size:       buffer.byteLength,
+            category:   category || 'Policy',
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: currentUser || amsCurrentUser || 'AI Assistant',
+            data:       buffer
+        });
+        return { clientKey, duplicate: false };
+    } catch (e) {
+        console.warn('Failed to archive chat PDF to client files:', e);
+        return null;
+    }
+}
+
+function claudeRenderArchiveNotice(result, pdfName, customerName) {
+    if (!result) return '';
+    const unfiled = result.clientKey === 'UNFILED';
+    const where = unfiled
+        ? '<strong>Unfiled</strong> documents (no customer name detected)'
+        : `<strong>${_claudeEsc(customerName)}</strong>'s documents`;
+    if (result.duplicate) {
+        return `<div style="margin-top:10px;padding:10px 12px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;color:#475569;">
+            📁 "${_claudeEsc(pdfName)}" is already saved in ${where} — not duplicated.
+        </div>`;
+    }
+    return `<div style="margin-top:10px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af;">
+        📁 Saved "${_claudeEsc(pdfName)}" to ${where} — available in both Binder Book Files and the AMS Documents tab.
+    </div>`;
+}
+
 function claudeHandlePdfUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -8399,6 +8460,7 @@ async function claudeSendMessage() {
 
     const pdfWasAttached = hasPdf;
     const pdfFileName = hasPdf ? _claudePendingPdf.name : null;
+    const pdfBase64   = hasPdf ? _claudePendingPdf.base64 : null;
     _claudeMessages.push({ role: 'user', content });
     _claudePendingPdf = null;
 
@@ -8418,6 +8480,15 @@ async function claudeSendMessage() {
 
         // Check if reply contains a sales entry extraction JSON
         const extracted = pdfWasAttached ? claudeTryParseEntry(replyText) : null;
+
+        // Archive every uploaded PDF into the shared client document system
+        let archiveNotice = '';
+        if (pdfWasAttached && pdfBase64) {
+            const custName = (extracted && extracted.customerName) ? extracted.customerName : '';
+            const archived = await claudeArchivePdfToClientFiles({ name: pdfFileName, base64: pdfBase64 }, custName);
+            archiveNotice = claudeRenderArchiveNotice(archived, pdfFileName, custName);
+        }
+
         if (extracted) {
             extracted.lineType = claudeInferLineType(extracted);
             if (!window._claudeExtractions) window._claudeExtractions = [];
@@ -8451,9 +8522,9 @@ async function claudeSendMessage() {
                             or Transaction Entry
                         </button>`}
                     </div>
-                </div>` + existingWarning;
+                </div>` + existingWarning + archiveNotice;
         } else {
-            claudeAddMessage('assistant', claudeRenderMarkdown(replyText), true);
+            claudeAddMessage('assistant', claudeRenderMarkdown(replyText) + archiveNotice, true);
         }
     } catch (err) {
         loadingDiv.remove();
@@ -9099,6 +9170,7 @@ async function claudeInlineSendMessage() {
 
     const pdfWasAttached = hasPdf;
     const pdfFileName = hasPdf ? _claudeInlinePendingPdf.name : null;
+    const pdfBase64   = hasPdf ? _claudeInlinePendingPdf.base64 : null;
     _claudeInlineMessages.push({ role: 'user', content });
     _claudeInlinePendingPdf = null;
 
@@ -9116,6 +9188,15 @@ async function claudeInlineSendMessage() {
         _claudeInlineMessages.push({ role: 'assistant', content: replyText });
 
         const extracted = pdfWasAttached ? claudeTryParseEntry(replyText) : null;
+
+        // Archive every uploaded PDF into the shared client document system
+        let archiveNotice = '';
+        if (pdfWasAttached && pdfBase64) {
+            const custName = (extracted && extracted.customerName) ? extracted.customerName : '';
+            const archived = await claudeArchivePdfToClientFiles({ name: pdfFileName, base64: pdfBase64 }, custName);
+            archiveNotice = claudeRenderArchiveNotice(archived, pdfFileName, custName);
+        }
+
         if (extracted) {
             extracted.lineType = claudeInferLineType(extracted);
             if (!window._claudeExtractions) window._claudeExtractions = [];
@@ -9149,9 +9230,9 @@ async function claudeInlineSendMessage() {
                             or Transaction Entry
                         </button>`}
                     </div>
-                </div>` + existingWarning;
+                </div>` + existingWarning + archiveNotice;
         } else {
-            claudeInlineAddMessage('assistant', claudeRenderMarkdown(replyText), true);
+            claudeInlineAddMessage('assistant', claudeRenderMarkdown(replyText) + archiveNotice, true);
         }
     } catch (err) {
         loadingDiv.remove();
