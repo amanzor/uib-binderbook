@@ -1913,6 +1913,12 @@
                 <div style="margin-top:36px;">
                     <h3 style="color: #333; margin: 30px 0 20px 0; font-size: 1.3em;">📊 Your Submissions</h3>
                     <div class="filter-section" style="flex-wrap:wrap;gap:10px;align-items:flex-end;">
+                        <div class="filter-group" id="agentAgentFilterGroup" style="display:none;">
+                            <label>Agent:</label>
+                            <select id="agentAgentFilter" onchange="applyAgentFilters()" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;max-width:170px;">
+                                <option value="">All Agents</option>
+                            </select>
+                        </div>
                         <div class="filter-group">
                             <label>Month:</label>
                             <input type="month" id="agentFilter" onchange="applyAgentFilters()">
@@ -1986,6 +1992,7 @@
                                 <tr>
                                     <th style="width:36px;text-align:center;"><input type="checkbox" id="agentSelectAll" onchange="toggleSelectAllAgent(this)" title="Select all"></th>
                                     <th>Date</th>
+                                    <th id="agentColHeader" style="display:none;">Agent</th>
                                     <th>Customer</th>
                                     <th>Policy Type</th>
                                     <th>Line of Business</th>
@@ -3593,7 +3600,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260721a"></script>
+    <script src="app.js?v=20260721b"></script>
     <script src="supabase.js?v=20260715c"></script>
 </body>
 </html>

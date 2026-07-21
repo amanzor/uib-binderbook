@@ -2740,9 +2740,37 @@ function _agentDefaultMonth() {
     return latest.slice(0, 7);
 }
 
+// Agent admins: log in as regular agents but can view EVERY agent's
+// submissions (extra Agent filter + Agent column). Editing and deleting
+// still applies only to their own entries.
+const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz'];
+function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser); }
+
+// The entries the current user is allowed to SEE (before UI filters).
+function _agentVisibleEntries() {
+    return isAgentAdmin() ? allData.slice() : allData.filter(d => d.agent === currentUser);
+}
+
 function loadAgentData() {
     const monthInput = document.getElementById('agentFilter');
     if (monthInput && !monthInput.value) monthInput.value = _agentDefaultMonth();
+
+    // Reveal + populate the Agent dropdown for agent admins
+    const grp = document.getElementById('agentAgentFilterGroup');
+    if (grp) grp.style.display = isAgentAdmin() ? '' : 'none';
+    if (isAgentAdmin()) {
+        const sel = document.getElementById('agentAgentFilter');
+        if (sel) {
+            const current = sel.value;
+            const agents = [...new Set(allData.map(d => d.agent).filter(Boolean))].sort();
+            sel.innerHTML = '<option value="">All Agents</option>' +
+                agents.map(a => `<option value="${a.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">${a.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</option>`).join('');
+            if (agents.includes(current)) sel.value = current;
+        }
+    }
+    const agentColHeader = document.getElementById('agentColHeader');
+    if (agentColHeader) agentColHeader.style.display = isAgentAdmin() ? '' : 'none';
+
     populateAgentFilterOptions();
     applyAgentFilters();
     apdInit();
@@ -2751,7 +2779,7 @@ function loadAgentData() {
 // Fill the LOB and Carrier dropdowns from this agent's own entries,
 // preserving the current selection across data refreshes.
 function populateAgentFilterOptions() {
-    const mine = allData.filter(d => d.agent === currentUser);
+    const mine = _agentVisibleEntries();
     const fill = (id, values, allLabel) => {
         const sel = document.getElementById(id);
         if (!sel) return;
@@ -2779,8 +2807,10 @@ function applyAgentFilters() {
     const pMin  = parseFloat(val('agentPremiumMin'));
     const pMax  = parseFloat(val('agentPremiumMax'));
     const query = val('agentSubmissionSearch').trim().toLowerCase();
+    const agentPick = isAgentAdmin() ? val('agentAgentFilter') : '';
 
-    let entries = allData.filter(d => d.agent === currentUser);
+    let entries = _agentVisibleEntries();
+    if (agentPick) entries = entries.filter(d => d.agent === agentPick);
     if (from || to) {
         if (from) entries = entries.filter(d => d.entryDate && d.entryDate >= from);
         if (to)   entries = entries.filter(d => d.entryDate && d.entryDate <= to);
@@ -2806,9 +2836,10 @@ function applyAgentFilters() {
 
     const countEl = document.getElementById('agentFilterCount');
     if (countEl) {
-        const total = allData.filter(d => d.agent === currentUser).length;
+        const total = _agentVisibleEntries().length;
         const sum = entries.reduce((s, d) => s + (parseFloat(d.totalPremium) || 0), 0);
-        countEl.textContent = `${entries.length} of ${total} entries · $${sum.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} total premium`;
+        const scopeNote = isAgentAdmin() ? (agentPick ? ` · viewing ${agentPick}` : ' · viewing all agents') : '';
+        countEl.textContent = `${entries.length} of ${total} entries · $${sum.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} total premium${scopeNote}`;
     }
 
     renderAgentTable(entries);
@@ -2820,15 +2851,20 @@ function renderAgentTable(entries) {
     if (selectAll) selectAll.checked = false;
     _updateBulkDeleteBar();
 
+    const admin = isAgentAdmin();
+    const cols = admin ? 10 : 9;
     if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="no-data">No entries yet</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="${cols}" class="no-data">No entries yet</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = entries.map(entry => `
+    tbody.innerHTML = entries.map(entry => {
+        const own = entry.agent === currentUser;
+        return `
         <tr>
-            <td style="text-align:center;"><input type="checkbox" class="agent-row-cb" value="${entry.id}" onchange="_updateBulkDeleteBar()"></td>
+            <td style="text-align:center;">${own ? `<input type="checkbox" class="agent-row-cb" value="${entry.id}" onchange="_updateBulkDeleteBar()">` : ''}</td>
             <td>${formatDate(entry.entryDate)}</td>
+            ${admin ? `<td>${String(entry.agent || '—').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</td>` : ''}
             <td>${entry.customerName}</td>
             <td>${entry.policyType}</td>
             <td>${entry.lineOfBusiness}</td>
@@ -2836,12 +2872,12 @@ function renderAgentTable(entries) {
             <td>${entry.policyNumber || '-'}</td>
             <td>$${entry.totalPremium.toFixed(2)}</td>
             <td style="white-space:nowrap;">
-                <button class="btn-primary btn-sm" onclick="openEditModal(${entry.id})" style="margin-right:2px;"><i data-lucide="pencil"></i> Edit</button>
+                ${own ? `<button class="btn-primary btn-sm" onclick="openEditModal(${entry.id})" style="margin-right:2px;"><i data-lucide="pencil"></i> Edit</button>` : ''}
                 <button class="btn-success btn-sm" onclick="binderOpenFileModal(${entry.id}, this.dataset.customer)" data-customer="${String(entry.customerName || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" data-binder-file-btn="${entry.id}" title="Manage Files" style="margin-right:2px;background:#059669;"><i data-lucide="folder-open"></i></button>
-                <button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})"><i data-lucide="trash-2"></i> Delete</button>
+                ${own ? `<button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})"><i data-lucide="trash-2"></i> Delete</button>` : ''}
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
     refreshIcons();
     if (window.UIBMotion) UIBMotion.animateTableRows(document.getElementById('agentTable'));
 }
@@ -3256,6 +3292,12 @@ function deleteEntry(id) {
 
 // Export Functions
 function exportAgentData() {
+    if (isAgentAdmin()) {
+        const pick = document.getElementById('agentAgentFilter')?.value || '';
+        const entries = pick ? allData.filter(d => d.agent === pick) : allData.slice();
+        exportToCSV(entries, `${pick || 'all_agents'}_sales.csv`);
+        return;
+    }
     const entries = allData.filter(d => d.agent === currentUser);
     exportToCSV(entries, `${currentUser}_sales.csv`);
 }
