@@ -2743,11 +2743,56 @@ function _agentDefaultMonth() {
 function loadAgentData() {
     const monthInput = document.getElementById('agentFilter');
     if (monthInput && !monthInput.value) monthInput.value = _agentDefaultMonth();
-    const month = monthInput?.value || '';
-    const query = (document.getElementById('agentSubmissionSearch')?.value || '').trim().toLowerCase();
+    populateAgentFilterOptions();
+    applyAgentFilters();
+    apdInit();
+}
+
+// Fill the LOB and Carrier dropdowns from this agent's own entries,
+// preserving the current selection across data refreshes.
+function populateAgentFilterOptions() {
+    const mine = allData.filter(d => d.agent === currentUser);
+    const fill = (id, values, allLabel) => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const current = sel.value;
+        const opts = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        sel.innerHTML = `<option value="">${allLabel}</option>` +
+            opts.map(v => `<option value="${String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}">${String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</option>`).join('');
+        if (opts.includes(current)) sel.value = current;
+    };
+    fill('agentLobFilter',     mine.map(d => d.lineOfBusiness), 'All LOBs');
+    fill('agentCarrierFilter', mine.map(d => d.company),        'All Carriers');
+}
+
+// One unified filter pass — every control funnels through here.
+// A From/To date range, when set, takes precedence over the Month filter.
+function applyAgentFilters() {
+    const val   = id => document.getElementById(id)?.value || '';
+    const month = val('agentFilter');
+    const from  = val('agentFromDate');
+    const to    = val('agentToDate');
+    const type  = val('agentTypeFilter');
+    const lob   = val('agentLobFilter');
+    const carrier = val('agentCarrierFilter');
+    const payType = val('agentPayTypeFilter');
+    const pMin  = parseFloat(val('agentPremiumMin'));
+    const pMax  = parseFloat(val('agentPremiumMax'));
+    const query = val('agentSubmissionSearch').trim().toLowerCase();
 
     let entries = allData.filter(d => d.agent === currentUser);
-    if (month) entries = entries.filter(d => d.entryDate && d.entryDate.startsWith(month));
+    if (from || to) {
+        if (from) entries = entries.filter(d => d.entryDate && d.entryDate >= from);
+        if (to)   entries = entries.filter(d => d.entryDate && d.entryDate <= to);
+    } else if (month) {
+        entries = entries.filter(d => d.entryDate && d.entryDate.startsWith(month));
+    }
+    if (type)    entries = entries.filter(d => d.policyType === type);
+    if (lob)     entries = entries.filter(d => d.lineOfBusiness === lob);
+    if (carrier) entries = entries.filter(d => d.company === carrier);
+    if (payType) entries = entries.filter(d => d.paymentType === payType);
+    if (!isNaN(pMin)) entries = entries.filter(d => (parseFloat(d.totalPremium) || 0) >= pMin);
+    if (!isNaN(pMax)) entries = entries.filter(d => (parseFloat(d.totalPremium) || 0) <= pMax);
     if (query) {
         entries = entries.filter(d => {
             const haystack = [
@@ -2759,8 +2804,14 @@ function loadAgentData() {
         });
     }
 
+    const countEl = document.getElementById('agentFilterCount');
+    if (countEl) {
+        const total = allData.filter(d => d.agent === currentUser).length;
+        const sum = entries.reduce((s, d) => s + (parseFloat(d.totalPremium) || 0), 0);
+        countEl.textContent = `${entries.length} of ${total} entries · $${sum.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} total premium`;
+    }
+
     renderAgentTable(entries);
-    apdInit();
 }
 
 function renderAgentTable(entries) {
@@ -2833,48 +2884,25 @@ function bulkClearSelection() {
     _updateBulkDeleteBar();
 }
 
+// Legacy entry points — everything funnels through applyAgentFilters now.
 function filterAgentData() {
     const monthInput = document.getElementById('agentFilter');
     if (monthInput && !monthInput.value) monthInput.value = _agentDefaultMonth();
-    const month = monthInput.value;
-    const type = document.getElementById('agentTypeFilter')?.value || '';
-
-    let agentEntries = allData.filter(d => d.agent === currentUser);
-    if (month) agentEntries = agentEntries.filter(d => d.entryDate && d.entryDate.startsWith(month));
-    if (type) agentEntries = agentEntries.filter(d => d.policyType === type);
-    renderAgentTable(agentEntries);
+    applyAgentFilters();
 }
 
 function resetAgentFilter() {
     document.getElementById('agentFilter').value = _agentDefaultMonth();
-    const typeFilter = document.getElementById('agentTypeFilter');
-    if (typeFilter) typeFilter.value = '';
-    const search = document.getElementById('agentSubmissionSearch');
-    if (search) search.value = '';
-    loadAgentData();
+    ['agentFromDate','agentToDate','agentTypeFilter','agentLobFilter','agentCarrierFilter',
+     'agentPayTypeFilter','agentPremiumMin','agentPremiumMax','agentSubmissionSearch'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    applyAgentFilters();
 }
 
 function searchAgentSubmissions() {
-    const query = (document.getElementById('agentSubmissionSearch')?.value || '').trim().toLowerCase();
-    const month = document.getElementById('agentFilter')?.value || '';
-    const type = document.getElementById('agentTypeFilter')?.value || '';
-
-    let entries = allData.filter(d => d.agent === currentUser);
-    if (month) entries = entries.filter(d => d.entryDate && d.entryDate.startsWith(month));
-    if (type) entries = entries.filter(d => d.policyType === type);
-
-    if (query) {
-        entries = entries.filter(d => {
-            const haystack = [
-                d.customerName, d.contactName, d.company, d.mga,
-                d.policyNumber, d.binderNumber, d.lineOfBusiness,
-                d.policyType, d.location, d.entryDateDisplay
-            ].filter(Boolean).join(' ').toLowerCase();
-            return haystack.includes(query);
-        });
-    }
-
-    renderAgentTable(entries);
+    applyAgentFilters();
 }
 
 // Admin Dashboard

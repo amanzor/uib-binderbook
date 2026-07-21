@@ -1912,14 +1912,22 @@
 
                 <div style="margin-top:36px;">
                     <h3 style="color: #333; margin: 30px 0 20px 0; font-size: 1.3em;">📊 Your Submissions</h3>
-                    <div class="filter-section" style="flex-wrap:wrap;gap:10px;">
+                    <div class="filter-section" style="flex-wrap:wrap;gap:10px;align-items:flex-end;">
                         <div class="filter-group">
-                            <label>Filter by Month:</label>
-                            <input type="month" id="agentFilter">
+                            <label>Month:</label>
+                            <input type="month" id="agentFilter" onchange="applyAgentFilters()">
                         </div>
                         <div class="filter-group">
-                            <label>Filter by Type:</label>
-                            <select id="agentTypeFilter" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;">
+                            <label>From:</label>
+                            <input type="date" id="agentFromDate" onchange="applyAgentFilters()" title="Date range overrides the Month filter" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;">
+                        </div>
+                        <div class="filter-group">
+                            <label>To:</label>
+                            <input type="date" id="agentToDate" onchange="applyAgentFilters()" title="Date range overrides the Month filter" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;">
+                        </div>
+                        <div class="filter-group">
+                            <label>Type:</label>
+                            <select id="agentTypeFilter" onchange="applyAgentFilters()" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;">
                                 <option value="">All Types</option>
                                 <option value="New">New</option>
                                 <option value="Rewrite">Rewrite</option>
@@ -1929,13 +1937,42 @@
                                 <option value="Miscellaneous">Miscellaneous</option>
                             </select>
                         </div>
-                        <button class="btn-primary btn-sm" onclick="filterAgentData()">Filter</button>
+                        <div class="filter-group">
+                            <label>Line of Business:</label>
+                            <select id="agentLobFilter" onchange="applyAgentFilters()" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;max-width:180px;">
+                                <option value="">All LOBs</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Carrier:</label>
+                            <select id="agentCarrierFilter" onchange="applyAgentFilters()" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;max-width:180px;">
+                                <option value="">All Carriers</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Payment:</label>
+                            <select id="agentPayTypeFilter" onchange="applyAgentFilters()" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;">
+                                <option value="">All Payments</option>
+                                <option value="Monthly Paid">Monthly Paid</option>
+                                <option value="Gross Paid">Gross Paid</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Premium $:</label>
+                            <div style="display:flex;gap:4px;align-items:center;">
+                                <input type="number" id="agentPremiumMin" placeholder="Min" min="0" oninput="applyAgentFilters()" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;width:80px;font-family:inherit;">
+                                <span style="color:#94a3b8;">–</span>
+                                <input type="number" id="agentPremiumMax" placeholder="Max" min="0" oninput="applyAgentFilters()" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;width:80px;font-family:inherit;">
+                            </div>
+                        </div>
+                        <button class="btn-primary btn-sm" onclick="applyAgentFilters()">Filter</button>
                         <button class="btn-secondary btn-sm" onclick="resetAgentFilter()">Reset</button>
                         <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-                            <input type="text" id="agentSubmissionSearch" placeholder="Search by customer, carrier, policy #, binder #..." oninput="searchAgentSubmissions()" style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;width:320px;font-family:inherit;">
-                            <button class="btn-secondary btn-sm" onclick="document.getElementById('agentSubmissionSearch').value='';searchAgentSubmissions();" style="white-space:nowrap;">✕ Clear</button>
+                            <input type="text" id="agentSubmissionSearch" placeholder="Search by customer, carrier, policy #, binder #..." oninput="applyAgentFilters()" style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;width:320px;font-family:inherit;">
+                            <button class="btn-secondary btn-sm" onclick="document.getElementById('agentSubmissionSearch').value='';applyAgentFilters();" style="white-space:nowrap;">✕ Clear</button>
                         </div>
                     </div>
+                    <div id="agentFilterCount" style="font-size:12px;color:#64748b;margin:0 0 8px 2px;"></div>
                     <div id="bulkDeleteBar" style="display:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;padding:10px 20px;border-radius:10px;margin-bottom:10px;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;">
                         <span style="font-weight:700;font-size:14px;"><span id="bulkSelectedCount">0</span> selected</span>
                         <div style="display:flex;gap:8px;">
@@ -3556,7 +3593,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260717e"></script>
+    <script src="app.js?v=20260721a"></script>
     <script src="supabase.js?v=20260715c"></script>
 </body>
 </html>
