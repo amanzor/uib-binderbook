@@ -4870,7 +4870,7 @@ function aiCreateClient(setIdx, clientIdx, silent) {
                 id:                   Date.now() + i,
                 entryDate:            today,
                 customerName:         name,
-                agent:                (amsCurrentRole === 'agent' ? amsCurrentUser : rec.assignedAgent) || amsCurrentUser || '',
+                agent:                (amsCurrentRole === 'agent' ? amsCurrentUser : rec.assignedAgent) || '',
                 policyType:           p.policyType || 'New',
                 lineOfBusiness:       p.lineOfBusiness || '',
                 company:              p.company || '',
