@@ -2885,10 +2885,12 @@ function renderAgentTable(entries) {
     }
 
     tbody.innerHTML = entries.map(entry => {
-        const own = entry.agent === currentUser;
+        // Agents can edit/delete their own entries; the agent admins
+        // (Alberto Manzor / Randy Diaz) can edit/delete any agent's entry.
+        const canModify = entry.agent === currentUser || admin;
         return `
         <tr>
-            <td style="text-align:center;">${own ? `<input type="checkbox" class="agent-row-cb" value="${entry.id}" onchange="_updateBulkDeleteBar()">` : ''}</td>
+            <td style="text-align:center;">${canModify ? `<input type="checkbox" class="agent-row-cb" value="${entry.id}" onchange="_updateBulkDeleteBar()">` : ''}</td>
             <td>${formatDate(entry.entryDate)}</td>
             ${admin ? `<td>${String(entry.agent || '—').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</td>` : ''}
             <td>${entry.customerName}</td>
@@ -2898,9 +2900,9 @@ function renderAgentTable(entries) {
             <td>${entry.policyNumber || '-'}</td>
             <td>$${entry.totalPremium.toFixed(2)}</td>
             <td style="white-space:nowrap;">
-                ${own ? `<button class="btn-primary btn-sm" onclick="openEditModal(${entry.id})" style="margin-right:2px;"><i data-lucide="pencil"></i> Edit</button>` : ''}
+                ${canModify ? `<button class="btn-primary btn-sm" onclick="openEditModal(${entry.id})" style="margin-right:2px;"><i data-lucide="pencil"></i> Edit</button>` : ''}
                 <button class="btn-success btn-sm" onclick="binderOpenFileModal(${entry.id}, this.dataset.customer)" data-customer="${String(entry.customerName || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" data-binder-file-btn="${entry.id}" title="Manage Files" style="margin-right:2px;background:#059669;"><i data-lucide="folder-open"></i></button>
-                ${own ? `<button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})"><i data-lucide="trash-2"></i> Delete</button>` : ''}
+                ${canModify ? `<button class="btn-danger btn-sm" onclick="deleteEntry(${entry.id})"><i data-lucide="trash-2"></i> Delete</button>` : ''}
             </td>
         </tr>`;
     }).join('');
