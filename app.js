@@ -2152,6 +2152,9 @@ function renderVerificationLogsTable() {
 
     const yesStyle = 'background:#d1fae5;color:#065f46;';
     const noStyle  = 'background:#fef2f2;color:#991b1b;';
+    // Deleting a verification log is restricted to the agent admins
+    // (Alberto Manzor / Randy Diaz) — everyone else only edits/downloads.
+    const canDelete = isAgentAdmin();
 
     tbody.innerHTML = filtered.map(l => {
         const ackStyle  = _vlIsYes(l.acknowledged)   ? yesStyle : noStyle;
@@ -2172,6 +2175,7 @@ function renderVerificationLogsTable() {
                 <div style="display:flex;gap:4px;">
                     <button class="btn-sm btn-purple" onclick="openEditVerificationPermissionsModal('${l.id}')" title="Edit permissions"><i data-lucide="pencil"></i> Edit</button>
                     <button class="btn-sm btn-secondary" onclick="redownloadVerificationLog('${l.id}')" title="Download"><i data-lucide="download"></i></button>
+                    ${canDelete ? `<button class="btn-sm btn-danger" onclick="deleteVerificationLog('${l.id}')" title="Delete log"><i data-lucide="trash-2"></i></button>` : ''}
                 </div>
             </td>
         </tr>`;
@@ -2182,6 +2186,28 @@ function renderVerificationLogsTable() {
 
     refreshIcons();
     if (window.UIBMotion) UIBMotion.animateTableRows(tbody);
+}
+
+// Delete a verification log. Restricted to the agent admins — the button is
+// only rendered for them, and this re-checks so a stale page or a console
+// call can't delete on another agent's login.
+function deleteVerificationLog(id) {
+    if (!isAgentAdmin()) {
+        alert('Only Alberto Manzor and Randy Diaz can delete verification logs.');
+        return;
+    }
+    const logs  = JSON.parse(localStorage.getItem('verificationLogs')) || [];
+    const entry = logs.find(l => l.id === id);
+    if (!entry) return;
+
+    const who = `${entry.customerName || 'this customer'}${entry.dealer ? ' — ' + entry.dealer : ''}${entry.date ? ' (' + entry.date + ')' : ''}`;
+    if (!confirm(`Delete the verification log for ${who}?\n\nThis removes it for everyone and cannot be undone.`)) return;
+
+    const remaining = logs.filter(l => l.id !== id);
+    localStorage.setItem('verificationLogs', JSON.stringify(remaining));
+
+    renderVerificationLogsDashboard();
+    renderVerificationLogsTable();
 }
 
 function redownloadVerificationLog(id) {
