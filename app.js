@@ -7850,6 +7850,88 @@ async function importHeviTileData() {
     if (typeof prodApplyFilters === 'function') prodApplyFilters();
 }
 
+// ── Book of Business Bulk Import (Jul 2026) ──────────────────────────────────
+// Onboards four carrier books — Peoples Trust, Citizens, Slide, and the UPCIC
+// (Creative Insurance Agency) book — from book_import_2026.json. Creates every
+// client in the AMS (amsClientData) with the new County field, files every
+// policy into binderData under its effective month, and carries all the
+// carrier-only spreadsheet columns (coverage, deductibles, roof, construction,
+// flood zone, etc.) in each policy's propertyDetails so the AMS can show them.
+// All policies are reported under Randy Diaz. Safe to re-run (dedupe by id).
+async function importBookOfBusiness2026Data() {
+    const confirmed = confirm(
+        'Import Book of Business (Jul 2026)?\n\n' +
+        '• 104 policies / 95 clients, all under Randy Diaz\n' +
+        '• Peoples Trust (8), Citizens (17), Slide (34), UPCIC (45)\n' +
+        '• Homeowners: HO3, HO6, DP1, DP3\n' +
+        '• Each policy is filed under its effective month in the Binder Book\n' +
+        '• Clients are created in the AMS with property & coverage details\n' +
+        '• Existing entries with matching IDs are skipped (safe to re-run)\n\n' +
+        'Click OK to proceed.'
+    );
+    if (!confirmed) return;
+
+    let importData;
+    try {
+        const resp = await fetch('book_import_2026.json?v=20260722');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        importData = await resp.json();
+    } catch (err) {
+        alert('Failed to load book_import_2026.json: ' + err.message);
+        return;
+    }
+
+    const newPolicies = importData.policies || [];
+
+    // 1) Merge policies into binderData (dedupe by id)
+    let existing = [];
+    try { existing = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) { existing = []; }
+    const existingIds = new Set(existing.map(e => e.id));
+    const fresh  = newPolicies.filter(e => !existingIds.has(e.id));
+    const merged = [...existing, ...fresh];
+    localStorage.setItem('binderData', JSON.stringify(merged));
+    allData = merged;
+    try { driveSet('binderData', merged); } catch (e) {}
+
+    // 2) Seed the AMS client records. Never overwrite data someone already
+    //    typed in — only fill fields that are currently empty.
+    let created = 0, mergedClients = 0;
+    let contacts = {};
+    try { contacts = JSON.parse(localStorage.getItem('amsClientData')) || {}; } catch (e) { contacts = {}; }
+    Object.entries(importData.clients || {}).forEach(([ckey, seed]) => {
+        if (!contacts[ckey]) {
+            contacts[ckey] = { ...seed, updatedAt: new Date().toISOString() };
+            created++;
+        } else {
+            const cur = contacts[ckey];
+            Object.entries(seed).forEach(([f, v]) => {
+                if (f === 'notes') return;
+                if (cur[f] === undefined || cur[f] === '' || cur[f] === null) cur[f] = v;
+            });
+            mergedClients++;
+        }
+    });
+    localStorage.setItem('amsClientData', JSON.stringify(contacts));
+    try { driveSet('amsClientData', contacts); } catch (e) {}
+
+    // 3) Make sure the four carriers exist in the master list
+    ['Peoples Trust', 'Citizens', 'Slide Insurance Company',
+     'Universal Property & Casualty (UPCIC)'].forEach(c => {
+        if (typeof claudeEnsureCarrier === 'function') claudeEnsureCarrier(c);
+    });
+
+    alert(
+        `✅ Import complete!\n\n` +
+        `• ${fresh.length} new policies added (${newPolicies.length - fresh.length} duplicates skipped)\n` +
+        `• ${created} clients created, ${mergedClients} existing clients enriched\n` +
+        `• Total records now: ${merged.length}`
+    );
+
+    if (typeof loadAdminData === 'function') loadAdminData();
+    if (typeof apdInit     === 'function') apdInit();
+    if (typeof prodApplyFilters === 'function') prodApplyFilters();
+}
+
 // ============================================================
 // BINDER FILE SYSTEM — IndexedDB integration with UIB AMS
 // Shares the same 'UIB_AMS_Files' DB as ams.html so files
