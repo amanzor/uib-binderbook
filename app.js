@@ -7873,7 +7873,7 @@ async function importBookOfBusiness2026Data() {
 
     let importData;
     try {
-        const resp = await fetch('book_import_2026.json?v=20260722');
+        const resp = await fetch('book_import_2026.json?v=20260722b');
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         importData = await resp.json();
     } catch (err) {
@@ -7915,8 +7915,8 @@ async function importBookOfBusiness2026Data() {
     try { driveSet('amsClientData', contacts); } catch (e) {}
 
     // 3) Make sure the four carriers exist in the master list
-    ['Peoples Trust', 'Citizens', 'Slide Insurance Company',
-     'Universal Property & Casualty (UPCIC)'].forEach(c => {
+    // (named exactly as they appear on the carrier PDFs)
+    ['Peoples Trust', 'Citizens', 'Slide', 'UPCIC'].forEach(c => {
         if (typeof claudeEnsureCarrier === 'function') claudeEnsureCarrier(c);
     });
 
