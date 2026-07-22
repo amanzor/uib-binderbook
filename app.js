@@ -2878,7 +2878,7 @@ function renderAgentTable(entries) {
     _updateBulkDeleteBar();
 
     const admin = isAgentAdmin();
-    const cols = admin ? 10 : 9;
+    const cols = admin ? 11 : 10;
     if (entries.length === 0) {
         tbody.innerHTML = `<tr><td colspan="${cols}" class="no-data">No entries yet</td></tr>`;
         return;
@@ -2897,6 +2897,7 @@ function renderAgentTable(entries) {
             <td>${entry.policyType}</td>
             <td>${entry.lineOfBusiness}</td>
             <td>${entry.company}</td>
+            <td>${entry.mga || '—'}</td>
             <td>${entry.policyNumber || '-'}</td>
             <td>$${entry.totalPremium.toFixed(2)}</td>
             <td style="white-space:nowrap;">
@@ -7008,6 +7009,7 @@ function prodRenderTable(data) {
             <td style="padding:9px 12px;font-size:13px;">${d.customerName||'—'}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;font-family:monospace;">${pnum}</td>
             <td style="padding:9px 12px;font-size:12px;">${d.company||'—'}</td>
+            <td style="padding:9px 12px;font-size:12px;color:#64748b;">${d.mga||'—'}</td>
             <td style="padding:9px 12px;">${lobBadge}</td>
             <td style="padding:9px 12px;">${typeBadge}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;">${d.location||'—'}</td>
@@ -7029,6 +7031,7 @@ function prodRenderTable(data) {
                         ${th('customerName','Client Name')}
                         ${th('policyNumber','Policy #')}
                         ${th('company','Carrier')}
+                        ${th('mga','MGA')}
                         ${th('lineOfBusiness','LOB')}
                         ${th('policyType','Type')}
                         ${th('location','Location')}
@@ -7038,7 +7041,7 @@ function prodRenderTable(data) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${rows || '<tr><td colspan="11" style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No policies found for this period.</td></tr>'}
+                    ${rows || '<tr><td colspan="12" style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No policies found for this period.</td></tr>'}
                 </tbody>
             </table>
         </div>
@@ -7081,6 +7084,7 @@ function prodRenderChart(data) {
         switch (groupBy) {
             case 'agent':      key = d.agent           || 'Unknown'; break;
             case 'carrier':    key = d.company          || 'Unknown'; break;
+            case 'mga':        key = d.mga              || 'No MGA'; break;
             case 'lob':        key = d.lineOfBusiness   || 'Unknown'; break;
             case 'location':   key = d.location         || 'No Location'; break;
             case 'policyType': key = d.policyType       || 'Unknown'; break;
@@ -7116,7 +7120,7 @@ function prodRenderChart(data) {
     const maxVal   = Math.max(...barData.map(b => b.value), 1);
     const fmtVal   = v => metric === 'count' ? v.toLocaleString() : ('$' + Math.round(v).toLocaleString());
     const metricLbl = { premium:'Total Premium ($)', count:'Number of Policies', avg:'Avg Premium ($)' }[metric] || metric;
-    const groupLbl  = { agent:'Agent', carrier:'Carrier', lob:'Line of Business', location:'Location', policyType:'Policy Type', source:'Referral Source', referredBy:'Referred By', day:'Day', month:'Month' }[groupBy] || groupBy;
+    const groupLbl  = { agent:'Agent', carrier:'Carrier', mga:'MGA', lob:'Line of Business', location:'Location', policyType:'Policy Type', source:'Referral Source', referredBy:'Referred By', day:'Day', month:'Month' }[groupBy] || groupBy;
     const palette   = ['#1d4ed8','#059669','#7c3aed','#dc2626','#d97706','#0891b2','#be185d','#065f46','#7c2d12','#1e3a5f','#4338ca','#0f766e'];
 
     const barHTML = barData.length === 0
@@ -7144,6 +7148,7 @@ function prodRenderChart(data) {
                     style="padding:7px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;background:#fff;min-width:160px;cursor:pointer;">
                     <option value="agent"      ${groupBy==='agent'      ?'selected':''}>Agent</option>
                     <option value="carrier"    ${groupBy==='carrier'    ?'selected':''}>Carrier</option>
+                    <option value="mga"        ${groupBy==='mga'        ?'selected':''}>MGA</option>
                     <option value="lob"        ${groupBy==='lob'        ?'selected':''}>Line of Business</option>
                     <option value="policyType" ${groupBy==='policyType' ?'selected':''}>Policy Type</option>
                     <option value="location"   ${groupBy==='location'   ?'selected':''}>Location</option>
@@ -7182,7 +7187,7 @@ function prodExportCSV() {
     const data = prodGetFilteredData();
     if (data.length === 0) { alert('No data to export for this period.'); return; }
 
-    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
+    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
     const rows = data.map(d => [
         d.entryDate         || '',
         d.agent             || '',
@@ -7193,6 +7198,7 @@ function prodExportCSV() {
         d.lineOfBusiness    || '',
         d.policyType        || '',
         d.location          || '',
+        d.mga               || '',
         d.source            || '',
         d.referredBy        || '',
         d.down              || 0,
@@ -7425,6 +7431,7 @@ function apdRenderTable(data) {
             <td style="padding:9px 12px;font-size:13px;">${d.customerName||'—'}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;font-family:monospace;">${pnum}</td>
             <td style="padding:9px 12px;font-size:12px;">${d.company||'—'}</td>
+            <td style="padding:9px 12px;font-size:12px;color:#64748b;">${d.mga||'—'}</td>
             <td style="padding:9px 12px;">${lobBadge}</td>
             <td style="padding:9px 12px;">${typeBadge}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;">${d.location||'—'}</td>
@@ -7446,6 +7453,7 @@ function apdRenderTable(data) {
                         ${th('customerName','Client Name')}
                         ${th('policyNumber','Policy #')}
                         ${th('company','Carrier')}
+                        ${th('mga','MGA')}
                         ${th('lineOfBusiness','LOB')}
                         ${th('policyType','Type')}
                         ${th('location','Location')}
@@ -7455,7 +7463,7 @@ function apdRenderTable(data) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${rows || '<tr><td colspan="11" style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No policies found for this period.</td></tr>'}
+                    ${rows || '<tr><td colspan="12" style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No policies found for this period.</td></tr>'}
                 </tbody>
             </table>
         </div>
@@ -7497,6 +7505,7 @@ function apdRenderChart(data) {
         switch (groupBy) {
             case 'agent':      key = d.agent           || 'Unknown'; break;
             case 'carrier':    key = d.company          || 'Unknown'; break;
+            case 'mga':        key = d.mga              || 'No MGA'; break;
             case 'lob':        key = d.lineOfBusiness   || 'Unknown'; break;
             case 'location':   key = d.location         || 'No Location'; break;
             case 'policyType': key = d.policyType       || 'Unknown'; break;
@@ -7531,7 +7540,7 @@ function apdRenderChart(data) {
     const maxVal    = Math.max(...barData.map(b => b.value), 1);
     const fmtVal    = v => metric === 'count' ? v.toLocaleString() : ('$' + Math.round(v).toLocaleString());
     const metricLbl = { premium:'Total Premium ($)', count:'Number of Policies', avg:'Avg Premium ($)' }[metric] || metric;
-    const groupLbl  = { agent:'Agent', carrier:'Carrier', lob:'Line of Business', location:'Location', policyType:'Policy Type', source:'Referral Source', referredBy:'Referred By', day:'Day', month:'Month' }[groupBy] || groupBy;
+    const groupLbl  = { agent:'Agent', carrier:'Carrier', mga:'MGA', lob:'Line of Business', location:'Location', policyType:'Policy Type', source:'Referral Source', referredBy:'Referred By', day:'Day', month:'Month' }[groupBy] || groupBy;
     const palette   = ['#1d4ed8','#059669','#7c3aed','#dc2626','#d97706','#0891b2','#be185d','#065f46','#7c2d12','#1e3a5f','#4338ca','#0f766e'];
 
     const barHTML = barData.length === 0
@@ -7558,6 +7567,7 @@ function apdRenderChart(data) {
                     style="padding:7px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;background:#fff;min-width:160px;cursor:pointer;">
                     <option value="agent"      ${groupBy==='agent'      ?'selected':''}>Agent</option>
                     <option value="carrier"    ${groupBy==='carrier'    ?'selected':''}>Carrier</option>
+                    <option value="mga"        ${groupBy==='mga'        ?'selected':''}>MGA</option>
                     <option value="lob"        ${groupBy==='lob'        ?'selected':''}>Line of Business</option>
                     <option value="policyType" ${groupBy==='policyType' ?'selected':''}>Policy Type</option>
                     <option value="location"   ${groupBy==='location'   ?'selected':''}>Location</option>
@@ -7591,7 +7601,7 @@ function apdExportCSV() {
     const data = apdGetFilteredData();
     if (data.length === 0) { alert('No data to export for this period.'); return; }
 
-    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
+    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
     const rows = data.map(d => [
         d.entryDate         || '',
         d.agent             || '',
@@ -7602,6 +7612,7 @@ function apdExportCSV() {
         d.lineOfBusiness    || '',
         d.policyType        || '',
         d.location          || '',
+        d.mga               || '',
         d.source            || '',
         d.referredBy        || '',
         d.down              || 0,
