@@ -1342,7 +1342,8 @@
     "Agency Code": "0909-00-00",
     "Dwelling County": "Lee",
     "Source Book": "Peoples Trust Agency Policies export 07/17/2026"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000002,
@@ -1380,7 +1381,8 @@
     "Agency Code": "0909-00-00",
     "Dwelling County": "Lee",
     "Source Book": "Peoples Trust Agency Policies export 07/17/2026"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000003,
@@ -1418,7 +1420,8 @@
     "Agency Code": "0909-00-00",
     "Dwelling County": "Miami-Dade",
     "Source Book": "Peoples Trust Agency Policies export 07/17/2026"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000004,
@@ -1456,7 +1459,8 @@
     "Agency Code": "0909-00-00",
     "Dwelling County": "Lee",
     "Source Book": "Peoples Trust Agency Policies export 07/17/2026"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000005,
@@ -1494,7 +1498,8 @@
     "Agency Code": "0909-00-00",
     "Dwelling County": "Lee",
     "Source Book": "Peoples Trust Agency Policies export 07/17/2026"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000006,
@@ -1532,7 +1537,8 @@
     "Agency Code": "0909-00-00",
     "Dwelling County": "Lee",
     "Source Book": "Peoples Trust Agency Policies export 07/17/2026"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000007,
@@ -1570,7 +1576,8 @@
     "Agency Code": "0909-00-00",
     "Dwelling County": "Lee",
     "Source Book": "Peoples Trust Agency Policies export 07/17/2026"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000008,
@@ -1608,7 +1615,8 @@
     "Agency Code": "0909-00-00",
     "Dwelling County": "Lee",
     "Source Book": "Peoples Trust Agency Policies export 07/17/2026"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000009,
@@ -1663,7 +1671,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000010,
@@ -1768,7 +1777,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000012,
@@ -1823,7 +1833,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000013,
@@ -1928,7 +1939,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000015,
@@ -1983,7 +1995,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000016,
@@ -2085,7 +2098,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000018,
@@ -2137,7 +2151,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000019,
@@ -2238,7 +2253,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000021,
@@ -2290,7 +2306,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000022,
@@ -2345,7 +2362,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000023,
@@ -2402,7 +2420,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000024,
@@ -2458,7 +2477,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000025,
@@ -2512,7 +2532,8 @@
     "Source Agent": "Alberto Manzor",
     "Agent License": "W183440_1",
     "Source Book": "Citizens Policy Details export"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000026,
@@ -2571,7 +2592,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000027,
@@ -2630,7 +2652,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000028,
@@ -2689,7 +2712,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000029,
@@ -2746,7 +2770,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000030,
@@ -2805,7 +2830,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000031,
@@ -2864,7 +2890,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000032,
@@ -2923,7 +2950,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000033,
@@ -2979,7 +3007,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000034,
@@ -3038,7 +3067,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000035,
@@ -3097,7 +3127,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000036,
@@ -3156,7 +3187,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000037,
@@ -3215,7 +3247,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000038,
@@ -3274,7 +3307,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000039,
@@ -3333,7 +3367,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000040,
@@ -3392,7 +3427,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000041,
@@ -3451,7 +3487,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000042,
@@ -3510,7 +3547,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000043,
@@ -3569,7 +3607,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000044,
@@ -3628,7 +3667,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000045,
@@ -3687,7 +3727,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000046,
@@ -3746,7 +3787,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000047,
@@ -3805,7 +3847,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000048,
@@ -3861,7 +3904,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000049,
@@ -3920,7 +3964,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000050,
@@ -3979,7 +4024,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000051,
@@ -4038,7 +4084,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000052,
@@ -4097,7 +4144,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000053,
@@ -4156,7 +4204,8 @@
     "TSM": "Carmen Galvan",
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000054,
@@ -4216,7 +4265,8 @@
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)",
     "Cross-Reference": "Also on Slide Policies-In-Force report (07/2026), status InForce"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000055,
@@ -4276,7 +4326,8 @@
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)",
     "Cross-Reference": "Also on Slide Policies-In-Force report (07/2026), status InForce"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000056,
@@ -4336,7 +4387,8 @@
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)",
     "Cross-Reference": "Also on Slide Policies-In-Force report (07/2026), status InForce"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000057,
@@ -4396,7 +4448,8 @@
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)",
     "Cross-Reference": "Also on Slide Policies-In-Force report (07/2026), status InForce"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000058,
@@ -4456,7 +4509,8 @@
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)",
     "Cross-Reference": "Also on Slide Policies-In-Force report (07/2026), status InForce"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000059,
@@ -4516,7 +4570,8 @@
     "Agency Code": "9989324",
     "Source Book": "Slide book of business export (agency 9989324)",
     "Cross-Reference": "Also on Slide Policies-In-Force report (07/2026), status InForce"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000060,
@@ -4555,7 +4610,8 @@
     "Coverage A (Primary Cov)": "187183",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000061,
@@ -4594,7 +4650,8 @@
     "Coverage A (Primary Cov)": "354472",
     "County": "Miami-Dade",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000062,
@@ -4633,7 +4690,8 @@
     "Coverage A (Primary Cov)": "328394",
     "County": "Miami-Dade",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000063,
@@ -4672,7 +4730,8 @@
     "Coverage A (Primary Cov)": "227197",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000064,
@@ -4711,7 +4770,8 @@
     "Coverage A (Primary Cov)": "369465",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000065,
@@ -4750,7 +4810,8 @@
     "Coverage A (Primary Cov)": "164697",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000066,
@@ -4789,7 +4850,8 @@
     "Coverage A (Primary Cov)": "257968",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000067,
@@ -4828,7 +4890,8 @@
     "Coverage A (Primary Cov)": "184295",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000068,
@@ -4867,7 +4930,8 @@
     "Coverage A (Primary Cov)": "260032",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000069,
@@ -4906,7 +4970,8 @@
     "Coverage A (Primary Cov)": "326148",
     "County": "Miami-Dade",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000070,
@@ -4945,7 +5010,8 @@
     "Coverage A (Primary Cov)": "216521",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000071,
@@ -4984,7 +5050,8 @@
     "Coverage A (Primary Cov)": "238233",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000072,
@@ -5023,7 +5090,8 @@
     "Coverage A (Primary Cov)": "249048",
     "County": "Broward",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000073,
@@ -5062,7 +5130,8 @@
     "Coverage A (Primary Cov)": "253966",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000074,
@@ -5101,7 +5170,8 @@
     "Coverage A (Primary Cov)": "275179",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000075,
@@ -5140,7 +5210,8 @@
     "Coverage A (Primary Cov)": "215982",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000076,
@@ -5179,7 +5250,8 @@
     "Coverage A (Primary Cov)": "196454",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000077,
@@ -5218,7 +5290,8 @@
     "Coverage A (Primary Cov)": "250022",
     "County": "Duval",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000078,
@@ -5257,7 +5330,8 @@
     "Coverage A (Primary Cov)": "253741",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000079,
@@ -5296,7 +5370,8 @@
     "Coverage A (Primary Cov)": "228226",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000080,
@@ -5335,7 +5410,8 @@
     "Coverage A (Primary Cov)": "285427",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000081,
@@ -5374,7 +5450,8 @@
     "Coverage A (Primary Cov)": "254452",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000082,
@@ -5413,7 +5490,8 @@
     "Coverage A (Primary Cov)": "177992",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000083,
@@ -5452,7 +5530,8 @@
     "Coverage A (Primary Cov)": "303947",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000084,
@@ -5491,7 +5570,8 @@
     "Coverage A (Primary Cov)": "181579",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000085,
@@ -5530,7 +5610,8 @@
     "Coverage A (Primary Cov)": "246334",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000086,
@@ -5569,7 +5650,8 @@
     "Coverage A (Primary Cov)": "307214",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000087,
@@ -5608,7 +5690,8 @@
     "Coverage A (Primary Cov)": "261859",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000088,
@@ -5647,7 +5730,8 @@
     "Coverage A (Primary Cov)": "249422",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000089,
@@ -5686,7 +5770,8 @@
     "Coverage A (Primary Cov)": "322119",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000090,
@@ -5725,7 +5810,8 @@
     "Coverage A (Primary Cov)": "216795",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000091,
@@ -5764,7 +5850,8 @@
     "Coverage A (Primary Cov)": "328708",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000092,
@@ -5803,7 +5890,8 @@
     "Coverage A (Primary Cov)": "259612",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000093,
@@ -5842,7 +5930,8 @@
     "Coverage A (Primary Cov)": "304386",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000094,
@@ -5881,7 +5970,8 @@
     "Coverage A (Primary Cov)": "198075",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000095,
@@ -5920,7 +6010,8 @@
     "Coverage A (Primary Cov)": "247824",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000096,
@@ -5959,7 +6050,8 @@
     "Coverage A (Primary Cov)": "334626",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000097,
@@ -5998,7 +6090,8 @@
     "Coverage A (Primary Cov)": "170231",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000098,
@@ -6037,7 +6130,8 @@
     "Coverage A (Primary Cov)": "289966",
     "County": "Duval",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000099,
@@ -6076,7 +6170,8 @@
     "Coverage A (Primary Cov)": "20000",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000100,
@@ -6115,7 +6210,8 @@
     "Coverage A (Primary Cov)": "20000",
     "County": "Miami-Dade",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000101,
@@ -6154,7 +6250,8 @@
     "Coverage A (Primary Cov)": "6000",
     "County": "Miami-Dade",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000102,
@@ -6193,7 +6290,8 @@
     "Coverage A (Primary Cov)": "6000",
     "County": "Miami-Dade",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000103,
@@ -6232,7 +6330,8 @@
     "Coverage A (Primary Cov)": "40000",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   },
   {
    "id": 1910000000104,
@@ -6271,7 +6370,8 @@
     "Coverage A (Primary Cov)": "6000",
     "County": "Lee",
     "Source Book": "UPCIC Agency Book of Business 07/16/2026 \u2014 Creative Insurance Agency (master AX97, Dahil Duenas 239-204-2208)"
-   }
+   },
+   "policyStatus": "Active"
   }
  ]
 }
