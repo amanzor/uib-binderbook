@@ -6969,6 +6969,9 @@ function prodRenderTable(data) {
         const typeBadge = d.policyType
             ? `<span style="background:${d.policyType==='New'?'#ecfdf5':d.policyType==='Renewal'?'#fff7ed':'#f8fafc'};color:${d.policyType==='New'?'#065f46':d.policyType==='Renewal'?'#9a3412':'#475569'};padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;">${d.policyType}</span>`
             : '—';
+        const srcBadge = d.source
+            ? `<span style="background:#f5f3ff;color:#5b21b6;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;">${d.source}</span>`
+            : '—';
 
         return `<tr style="border-bottom:1px solid #f1f5f9;"
             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
@@ -6980,6 +6983,8 @@ function prodRenderTable(data) {
             <td style="padding:9px 12px;">${lobBadge}</td>
             <td style="padding:9px 12px;">${typeBadge}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;">${d.location||'—'}</td>
+            <td style="padding:9px 12px;">${srcBadge}</td>
+            <td style="padding:9px 12px;font-size:12px;color:#334155;">${d.referredBy||'—'}</td>
             <td style="padding:9px 12px;font-size:13px;font-weight:700;color:#059669;text-align:right;white-space:nowrap;">
                 $${tp.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
             </td>
@@ -6988,7 +6993,7 @@ function prodRenderTable(data) {
 
     document.getElementById('prodBody').innerHTML = `
         <div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px;">
-            <table style="width:100%;border-collapse:collapse;min-width:820px;">
+            <table style="width:100%;border-collapse:collapse;min-width:1000px;">
                 <thead>
                     <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
                         ${th('entryDate','Date')}
@@ -6999,11 +7004,13 @@ function prodRenderTable(data) {
                         ${th('lineOfBusiness','LOB')}
                         ${th('policyType','Type')}
                         ${th('location','Location')}
+                        ${th('source','Referral Source')}
+                        ${th('referredBy','Referred By')}
                         ${th('totalPremium','Premium','right')}
                     </tr>
                 </thead>
                 <tbody>
-                    ${rows || '<tr><td colspan="9" style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No policies found for this period.</td></tr>'}
+                    ${rows || '<tr><td colspan="11" style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No policies found for this period.</td></tr>'}
                 </tbody>
             </table>
         </div>
@@ -7049,6 +7056,8 @@ function prodRenderChart(data) {
             case 'lob':        key = d.lineOfBusiness   || 'Unknown'; break;
             case 'location':   key = d.location         || 'No Location'; break;
             case 'policyType': key = d.policyType       || 'Unknown'; break;
+            case 'source':     key = d.source           || 'No Source'; break;
+            case 'referredBy': key = d.referredBy       || 'No Referrer'; break;
             case 'day':
                 key = d.entryDate
                     ? new Date(d.entryDate + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
@@ -7079,7 +7088,7 @@ function prodRenderChart(data) {
     const maxVal   = Math.max(...barData.map(b => b.value), 1);
     const fmtVal   = v => metric === 'count' ? v.toLocaleString() : ('$' + Math.round(v).toLocaleString());
     const metricLbl = { premium:'Total Premium ($)', count:'Number of Policies', avg:'Avg Premium ($)' }[metric] || metric;
-    const groupLbl  = { agent:'Agent', carrier:'Carrier', lob:'Line of Business', location:'Location', policyType:'Policy Type', day:'Day', month:'Month' }[groupBy] || groupBy;
+    const groupLbl  = { agent:'Agent', carrier:'Carrier', lob:'Line of Business', location:'Location', policyType:'Policy Type', source:'Referral Source', referredBy:'Referred By', day:'Day', month:'Month' }[groupBy] || groupBy;
     const palette   = ['#1d4ed8','#059669','#7c3aed','#dc2626','#d97706','#0891b2','#be185d','#065f46','#7c2d12','#1e3a5f','#4338ca','#0f766e'];
 
     const barHTML = barData.length === 0
@@ -7110,6 +7119,8 @@ function prodRenderChart(data) {
                     <option value="lob"        ${groupBy==='lob'        ?'selected':''}>Line of Business</option>
                     <option value="policyType" ${groupBy==='policyType' ?'selected':''}>Policy Type</option>
                     <option value="location"   ${groupBy==='location'   ?'selected':''}>Location</option>
+                    <option value="source"     ${groupBy==='source'     ?'selected':''}>Referral Source</option>
+                    <option value="referredBy" ${groupBy==='referredBy' ?'selected':''}>Referred By</option>
                     <option value="day"        ${groupBy==='day'        ?'selected':''}>Day</option>
                     <option value="month"      ${groupBy==='month'      ?'selected':''}>Month</option>
                 </select>
@@ -7143,7 +7154,7 @@ function prodExportCSV() {
     const data = prodGetFilteredData();
     if (data.length === 0) { alert('No data to export for this period.'); return; }
 
-    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
+    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
     const rows = data.map(d => [
         d.entryDate         || '',
         d.agent             || '',
@@ -7154,6 +7165,8 @@ function prodExportCSV() {
         d.lineOfBusiness    || '',
         d.policyType        || '',
         d.location          || '',
+        d.source            || '',
+        d.referredBy        || '',
         d.down              || 0,
         d.agencyFee         || 0,
         d.basePremium       || 0,
@@ -7374,6 +7387,9 @@ function apdRenderTable(data) {
         const typeBadge = d.policyType
             ? `<span style="background:${d.policyType==='New'?'#ecfdf5':d.policyType==='Renewal'?'#fff7ed':'#f8fafc'};color:${d.policyType==='New'?'#065f46':d.policyType==='Renewal'?'#9a3412':'#475569'};padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;">${d.policyType}</span>`
             : '—';
+        const srcBadge = d.source
+            ? `<span style="background:#f5f3ff;color:#5b21b6;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;">${d.source}</span>`
+            : '—';
         return `<tr style="border-bottom:1px solid #f1f5f9;"
             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
             <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;">${disp}</td>
@@ -7384,6 +7400,8 @@ function apdRenderTable(data) {
             <td style="padding:9px 12px;">${lobBadge}</td>
             <td style="padding:9px 12px;">${typeBadge}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;">${d.location||'—'}</td>
+            <td style="padding:9px 12px;">${srcBadge}</td>
+            <td style="padding:9px 12px;font-size:12px;color:#334155;">${d.referredBy||'—'}</td>
             <td style="padding:9px 12px;font-size:13px;font-weight:700;color:#059669;text-align:right;white-space:nowrap;">
                 $${tp.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
             </td>
@@ -7392,7 +7410,7 @@ function apdRenderTable(data) {
 
     document.getElementById('apd_body').innerHTML = `
         <div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px;">
-            <table style="width:100%;border-collapse:collapse;min-width:820px;">
+            <table style="width:100%;border-collapse:collapse;min-width:1000px;">
                 <thead>
                     <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
                         ${th('entryDate','Date')}
@@ -7403,11 +7421,13 @@ function apdRenderTable(data) {
                         ${th('lineOfBusiness','LOB')}
                         ${th('policyType','Type')}
                         ${th('location','Location')}
+                        ${th('source','Referral Source')}
+                        ${th('referredBy','Referred By')}
                         ${th('totalPremium','Premium','right')}
                     </tr>
                 </thead>
                 <tbody>
-                    ${rows || '<tr><td colspan="9" style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No policies found for this period.</td></tr>'}
+                    ${rows || '<tr><td colspan="11" style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;">No policies found for this period.</td></tr>'}
                 </tbody>
             </table>
         </div>
@@ -7452,6 +7472,8 @@ function apdRenderChart(data) {
             case 'lob':        key = d.lineOfBusiness   || 'Unknown'; break;
             case 'location':   key = d.location         || 'No Location'; break;
             case 'policyType': key = d.policyType       || 'Unknown'; break;
+            case 'source':     key = d.source           || 'No Source'; break;
+            case 'referredBy': key = d.referredBy       || 'No Referrer'; break;
             case 'day':
                 key = d.entryDate
                     ? new Date(d.entryDate + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
@@ -7481,7 +7503,7 @@ function apdRenderChart(data) {
     const maxVal    = Math.max(...barData.map(b => b.value), 1);
     const fmtVal    = v => metric === 'count' ? v.toLocaleString() : ('$' + Math.round(v).toLocaleString());
     const metricLbl = { premium:'Total Premium ($)', count:'Number of Policies', avg:'Avg Premium ($)' }[metric] || metric;
-    const groupLbl  = { agent:'Agent', carrier:'Carrier', lob:'Line of Business', location:'Location', policyType:'Policy Type', day:'Day', month:'Month' }[groupBy] || groupBy;
+    const groupLbl  = { agent:'Agent', carrier:'Carrier', lob:'Line of Business', location:'Location', policyType:'Policy Type', source:'Referral Source', referredBy:'Referred By', day:'Day', month:'Month' }[groupBy] || groupBy;
     const palette   = ['#1d4ed8','#059669','#7c3aed','#dc2626','#d97706','#0891b2','#be185d','#065f46','#7c2d12','#1e3a5f','#4338ca','#0f766e'];
 
     const barHTML = barData.length === 0
@@ -7511,6 +7533,8 @@ function apdRenderChart(data) {
                     <option value="lob"        ${groupBy==='lob'        ?'selected':''}>Line of Business</option>
                     <option value="policyType" ${groupBy==='policyType' ?'selected':''}>Policy Type</option>
                     <option value="location"   ${groupBy==='location'   ?'selected':''}>Location</option>
+                    <option value="source"     ${groupBy==='source'     ?'selected':''}>Referral Source</option>
+                    <option value="referredBy" ${groupBy==='referredBy' ?'selected':''}>Referred By</option>
                     <option value="day"        ${groupBy==='day'        ?'selected':''}>Day</option>
                     <option value="month"      ${groupBy==='month'      ?'selected':''}>Month</option>
                 </select>
@@ -7539,7 +7563,7 @@ function apdExportCSV() {
     const data = apdGetFilteredData();
     if (data.length === 0) { alert('No data to export for this period.'); return; }
 
-    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
+    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
     const rows = data.map(d => [
         d.entryDate         || '',
         d.agent             || '',
@@ -7550,6 +7574,8 @@ function apdExportCSV() {
         d.lineOfBusiness    || '',
         d.policyType        || '',
         d.location          || '',
+        d.source            || '',
+        d.referredBy        || '',
         d.down              || 0,
         d.agencyFee         || 0,
         d.basePremium       || 0,
