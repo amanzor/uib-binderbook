@@ -7883,11 +7883,54 @@ async function importBookOfBusiness2026Data() {
 
     const newPolicies = importData.policies || [];
 
-    // 1) Merge policies into binderData (dedupe by id)
+    // 1) Merge policies into binderData.
+    //    Dedupe by id AND reconcile by policy number: some of these policies
+    //    were previously hand-keyed into the binder book (often with the
+    //    wrong LOB, e.g. defaulted to "Personal Auto", a different agent, and
+    //    none of the carrier detail). Instead of adding a duplicate row, the
+    //    matching existing entries are corrected in place: real homeowners
+    //    LOB, agent -> Randy Diaz, full property/coverage details attached,
+    //    and (on the most recent term only) the carrier's true effective/
+    //    expiration dates and status.
     let existing = [];
     try { existing = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) { existing = []; }
     const existingIds = new Set(existing.map(e => e.id));
-    const fresh  = newPolicies.filter(e => !existingIds.has(e.id));
+
+    const normPol = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const byPolNum = {};
+    existing.forEach(e => {
+        const n = normPol(e.policyNumber);
+        if (n) (byPolNum[n] = byPolNum[n] || []).push(e);
+    });
+
+    const fresh = [];
+    let reconciled = 0;
+    newPolicies.forEach(p => {
+        if (existingIds.has(p.id)) return;   // this exact import already ran
+        // match on the full number and on the number without a trailing
+        // term suffix like "H3FL000499153 00"
+        const baseNum = String(p.policyNumber).replace(/\s+\d{2}$/, '');
+        const matches = byPolNum[normPol(p.policyNumber)] || byPolNum[normPol(baseNum)] || [];
+        if (matches.length === 0) { fresh.push(p); return; }
+
+        // Correct every matching term row
+        matches.forEach(m => {
+            m.lineOfBusiness  = p.lineOfBusiness;
+            m.agent           = 'Randy Diaz';
+            m.propertyDetails = p.propertyDetails;
+        });
+        // The carrier's current term dates/status apply to the latest row only
+        const latest = matches.reduce((a, b) =>
+            String(a.effDate || a.entryDate || '') >= String(b.effDate || b.entryDate || '') ? a : b);
+        latest.effDate        = p.effDate;
+        latest.effectiveDate  = p.effectiveDate;
+        latest.expDate        = p.expDate;
+        latest.expirationDate = p.expirationDate;
+        latest.status         = p.status;
+        latest.policyStatus   = p.policyStatus || p.status;
+        reconciled += matches.length;
+    });
+
     const merged = [...existing, ...fresh];
     localStorage.setItem('binderData', JSON.stringify(merged));
     allData = merged;
@@ -7922,7 +7965,8 @@ async function importBookOfBusiness2026Data() {
 
     alert(
         `✅ Import complete!\n\n` +
-        `• ${fresh.length} new policies added (${newPolicies.length - fresh.length} duplicates skipped)\n` +
+        `• ${fresh.length} new policies added\n` +
+        `• ${reconciled} existing entries corrected (LOB, agent → Randy Diaz, details attached)\n` +
         `• ${created} clients created, ${mergedClients} existing clients enriched\n` +
         `• Total records now: ${merged.length}`
     );
