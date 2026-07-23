@@ -10849,6 +10849,29 @@ function populateRenewalAgentFilter() {
         agents.map(a => `<option value="${escHtml(a)}" ${a === current ? 'selected' : ''}>${escHtml(a)}</option>`).join('');
 }
 
+let _rnwActiveMonth = ''; // 'YYYY-MM' month view, or '' = expiring-within-window view
+
+function rnwSelectMonth(monthKey) {
+    _rnwActiveMonth = monthKey || '';
+    renderRenewalsTable();
+}
+
+function _rnwAgentList() {
+    const entryAgents  = (allData || []).map(e => e.agent).filter(Boolean);
+    const masterAgents = Object.keys(JSON.parse(localStorage.getItem('agentMasterData') || '{}'));
+    return [...new Set([...entryAgents, ...masterAgents])].sort();
+}
+
+function rnwAssignAgent(id, agent) {
+    if (!agent) return;
+    const e = (allData || []).find(x => String(x.id) === String(id));
+    if (!e) return;
+    e.agent = agent;
+    localStorage.setItem('binderData', JSON.stringify(allData));
+    populateRenewalAgentFilter();
+    renderRenewalsTable();
+}
+
 function renderRenewalsTable() {
     const tbody = document.getElementById('rnwTableBody');
     if (!tbody) return;
@@ -10860,21 +10883,56 @@ function renderRenewalsTable() {
     const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + days);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-    const rows = (allData || []).filter(e => {
+    // All upcoming renewals (agent filter applied) — the base for both views
+    const upcoming = (allData || []).filter(e => {
         if (!e.expirationDate || (e.policyType || '').toLowerCase() === 'cancellation') return false;
         if ((e.policyStatus || '').toLowerCase() === 'cancelled') return false;
         if (agentF && e.agent !== agentF) return false;
-        return e.expirationDate >= todayStr && e.expirationDate <= cutoffStr;
-    }).sort((a, b) => a.expirationDate.localeCompare(b.expirationDate));
+        return e.expirationDate >= todayStr;
+    });
+
+    // Month view buttons — the next 12 months that actually have renewals
+    const tabsEl = document.getElementById('rnwMonthTabs');
+    if (tabsEl) {
+        const months = [];
+        for (let i = 0; i < 12; i++) {
+            const m = new Date(today.getFullYear(), today.getMonth() + i, 1);
+            const key = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
+            const count = upcoming.filter(e => e.expirationDate.slice(0, 7) === key).length;
+            if (count) months.push({ key, count, label: m.toLocaleString('en-US', { month: 'short', year: 'numeric' }) });
+        }
+        // A previously selected month can disappear (e.g. agent filter change) — fall back to the window view
+        if (_rnwActiveMonth && !months.some(m => m.key === _rnwActiveMonth)) _rnwActiveMonth = '';
+        const btn = (key, label, active) =>
+            `<button onclick="rnwSelectMonth('${key}')"
+                style="padding:7px 14px;border:1px solid ${active ? '#1d4ed8' : '#e5e7eb'};border-radius:8px;cursor:pointer;
+                       background:${active ? '#1d4ed8' : '#fff'};color:${active ? '#fff' : '#4b5563'};
+                       font-size:12.5px;font-weight:${active ? '700' : '500'};font-family:inherit;">${label}</button>`;
+        tabsEl.innerHTML = btn('', `All (${upcoming.filter(e => e.expirationDate <= cutoffStr).length})`, !_rnwActiveMonth) +
+            months.map(m => btn(m.key, `${m.label} (${m.count})`, _rnwActiveMonth === m.key)).join('');
+    }
+
+    const monthLabel = _rnwActiveMonth
+        ? new Date(_rnwActiveMonth + '-01T12:00:00').toLocaleString('en-US', { month: 'long', year: 'numeric' })
+        : '';
+    const rows = upcoming.filter(e => _rnwActiveMonth
+        ? e.expirationDate.slice(0, 7) === _rnwActiveMonth
+        : e.expirationDate <= cutoffStr
+    ).sort((a, b) => a.expirationDate.localeCompare(b.expirationDate));
 
     const badge = document.getElementById('rnwBadge');
-    if (badge) badge.textContent = `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring within ${days} days`;
+    if (badge) badge.textContent = _rnwActiveMonth
+        ? `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring in ${monthLabel}`
+        : `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring within ${days} days`;
 
     if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="9" class="no-data">No renewals due in the next ${days} days.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="no-data">${_rnwActiveMonth
+            ? `No renewals due in ${monthLabel}.`
+            : `No renewals due in the next ${days} days.`}</td></tr>`;
         return;
     }
 
+    const agents = _rnwAgentList();
     tbody.innerHTML = rows.map(e => {
         const daysLeft = Math.ceil((new Date(e.expirationDate + 'T12:00:00') - today) / 86400000);
         const tlColor  = daysLeft <= 14 ? '#dc2626' : daysLeft <= 30 ? '#ea580c' : '#059669';
@@ -10889,7 +10947,14 @@ function renderRenewalsTable() {
             <td><strong>${escHtml(e.expirationDate)}</strong></td>
             <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
             <td>${escHtml(e.agent || '—')}</td>
-            <td><button class="btn-primary btn-sm" onclick="openEditModal(${e.id})"><i data-lucide="pencil"></i> Edit</button></td>
+            <td style="white-space:nowrap;">
+                <select onchange="rnwAssignAgent('${e.id}', this.value)" title="Assign this renewal to an agent"
+                    style="padding:5px 6px;border:1px solid #e5e7eb;border-radius:6px;font-size:11.5px;font-family:inherit;max-width:120px;margin-right:4px;">
+                    <option value="">${e.agent ? 'Reassign…' : 'Assign…'}</option>
+                    ${agents.map(a => `<option value="${escHtml(a)}" ${a === e.agent ? 'disabled' : ''}>${escHtml(a)}</option>`).join('')}
+                </select>
+                <button class="btn-primary btn-sm" onclick="openEditModal(${e.id})"><i data-lucide="pencil"></i> Edit</button>
+            </td>
         </tr>`;
     }).join('');
     refreshIcons();
