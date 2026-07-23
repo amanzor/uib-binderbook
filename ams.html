@@ -637,6 +637,9 @@
                     <button class="sidebar-nav-btn" id="sidebarNavReports" onclick="amsSidebarNav('reports')">
                         <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i> Reports
                     </button>
+                    <button class="sidebar-nav-btn" id="sidebarNavRenewals" onclick="amsSidebarNav('renewals')">
+                        <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i> Renewals
+                    </button>
                     <button class="sidebar-nav-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
                         <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
                     </button>
@@ -747,6 +750,79 @@
                             <h3 style="color:var(--gray-500);margin-bottom:8px;">Select a Report</h3>
                             <p>Choose a report type from the tabs above.</p>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Renewals panel — mirrors the UIB CRM Renewals page -->
+                <div id="amsRenewalsPanel" style="display:none;" class="reports-panel">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+                        <h2 style="display:flex;align-items:center;gap:10px;font-size:1.35rem;font-weight:800;color:var(--navy);margin:0;">
+                            <i data-lucide="refresh-cw" style="width:20px;height:20px;"></i> Renewals
+                        </h2>
+                        <span id="amsRnwBadge" style="background:var(--blue-pale);color:var(--blue);border:1px solid rgba(29,78,216,.25);border-radius:999px;padding:5px 14px;font-size:12px;font-weight:700;">0 policies expiring within 90 days</span>
+                    </div>
+
+                    <!-- ── Claude AI — Renewal Report Processor (admin only) ── -->
+                    <div id="amsRnwAiCard" style="display:none;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;margin-bottom:16px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <svg width="22" height="22" viewBox="0 0 32 32" fill="#D97757" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+                                    <path d="M16 2 C 16.8 6, 18.5 9, 22 11 C 18.5 13, 16.8 16, 16 20 C 15.2 16, 13.5 13, 10 11 C 13.5 9, 15.2 6, 16 2 Z M28 16 C 24.5 16.5, 22 18, 20.5 21 C 22 18, 22.5 16, 22.5 16 C 22.5 16, 22 14, 20.5 11 C 22 14, 24.5 15.5, 28 16 Z M16 30 C 15.2 26, 13.5 23, 10 21 C 13.5 19, 15.2 16, 16 12 C 16.8 16, 18.5 19, 22 21 C 18.5 23, 16.8 26, 16 30 Z M4 16 C 7.5 15.5, 10 14, 11.5 11 C 10 14, 9.5 16, 9.5 16 C 9.5 16, 10 18, 11.5 21 C 10 18, 7.5 16.5, 4 16 Z"/>
+                                </svg>
+                                <span style="font-size:15px;font-weight:700;color:#9a3412;">Claude AI — Renewal Report Processor</span>
+                            </div>
+                            <button onclick="rnwNewConversation()" style="background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
+                        </div>
+                        <div style="font-size:12px;color:#9a3412;background:#fff;border:1px dashed #f5c19a;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
+                            📤 <strong>Upload renewal reports</strong> from any insurance carrier (PDF). Claude will read every policy on the report and import them into the AMS — matching existing clients by policy number or name, updating expiration dates and premiums, and creating new client records for anyone not in the system. You can also just chat and ask questions about your book.
+                        </div>
+                        <div id="amsRnwMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:140px;max-height:520px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
+                        <div id="amsRnwFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#fde4cc;border:1px solid #f5c19a;border-radius:8px;font-size:12px;color:#9a3412;"></div>
+                        <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;">
+                            <button onclick="document.getElementById('amsRnwPdfInput').click()" title="Attach renewal report PDF(s)"
+                                style="flex-shrink:0;background:#fff;border:1.5px solid #f5c19a;color:#c2410c;width:42px;height:42px;border-radius:10px;cursor:pointer;font-size:18px;">📎</button>
+                            <input type="file" id="amsRnwPdfInput" accept="application/pdf" multiple style="display:none;" onchange="rnwHandlePdfUpload(event)">
+                            <textarea id="amsRnwInput" placeholder="Ask anything, or attach renewal report PDFs…" rows="2"
+                                style="flex:1;border:1.5px solid #f5c19a;border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;resize:none;outline:none;background:#fff;"
+                                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();rnwSendMessage();}"></textarea>
+                            <button onclick="rnwSendMessage()" id="amsRnwSendBtn"
+                                style="flex-shrink:0;background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;border:none;padding:0 18px;height:42px;border-radius:10px;cursor:pointer;font-weight:700;font-size:14px;">Send</button>
+                        </div>
+                    </div>
+                    <!-- /Claude AI Renewal Report Processor -->
+
+                    <!-- Filters -->
+                    <div style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:16px;display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap;box-shadow:var(--shadow-sm);">
+                        <div style="display:flex;flex-direction:column;gap:5px;">
+                            <label style="font-size:11.5px;font-weight:700;color:var(--gray-500);">Agent</label>
+                            <select id="amsRnwAgentFilter" onchange="amsRenewalsRender()"
+                                style="padding:7px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;min-width:160px;">
+                                <option value="">All Agents</option>
+                            </select>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:5px;">
+                            <label style="font-size:11.5px;font-weight:700;color:var(--gray-500);">Expiring Within</label>
+                            <select id="amsRnwWindow" onchange="amsRenewalsRender()"
+                                style="padding:7px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;">
+                                <option value="30">30 Days</option>
+                                <option value="60">60 Days</option>
+                                <option value="90" selected>90 Days</option>
+                                <option value="180">180 Days</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Renewals table -->
+                    <div class="policies-table-wrap" style="background:#fff;">
+                        <table class="policies-table">
+                            <thead><tr>
+                                <th>Client</th><th>Line of Business</th><th>Carrier</th><th>Policy #</th>
+                                <th>Premium</th><th>Expiration</th><th>Time Left</th><th>Agent</th><th>Actions</th>
+                            </tr></thead>
+                            <tbody id="amsRnwTableBody">
+                                <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">No renewals due in the next 90 days.</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -1769,7 +1845,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20260717a"></script>
+    <script src="ams.js?v=20260723a"></script>
     <script src="supabase.js?v=20260715c"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
@@ -1780,7 +1856,7 @@
         }
 
         function amsSidebarNav(section) {
-            const sections = ['dashboard','search','reports','accounting','commissions','download','realtime'];
+            const sections = ['dashboard','search','reports','renewals','accounting','commissions','download','realtime'];
             sections.forEach(s => {
                 const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
                 if (btn) btn.classList.toggle('active', s === section);
@@ -1790,6 +1866,7 @@
             const clientList    = document.getElementById('amsClientList');
             const dashPanel     = document.getElementById('amsDashboardPanel');
             const reportsPanel  = document.getElementById('amsReportsPanel');
+            const renewPanel    = document.getElementById('amsRenewalsPanel');
             const acctPanel     = document.getElementById('amsAccountingPanel');
             const commPanel     = document.getElementById('amsCommissionsPanel');
             const dlPanel       = document.getElementById('amsDownloadPanel');
@@ -1801,6 +1878,7 @@
             clientList.style.display   = 'none';
             dashPanel.style.display    = 'none';
             reportsPanel.style.display = 'none';
+            renewPanel.style.display   = 'none';
             acctPanel.style.display    = 'none';
             commPanel.style.display    = 'none';
             dlPanel.style.display      = 'none';
@@ -1819,6 +1897,11 @@
                 lucide.createIcons();
             } else if (section === 'reports') {
                 reportsPanel.style.display = 'flex';
+            } else if (section === 'renewals') {
+                renewPanel.style.display = 'flex';
+                amsRenewalsRender();
+                if (typeof rnwGreet === 'function') rnwGreet();
+                lucide.createIcons();
             } else if (section === 'accounting') {
                 acctPanel.style.display = 'flex';
                 if (!_activeAcct) amsShowAccounting('overview');
@@ -2822,6 +2905,76 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 from: document.getElementById('rptFrom')?.value || _rptDefaultFrom(),
                 to:   document.getElementById('rptTo')?.value   || _rptDefaultTo()
             };
+        }
+
+        // ══════════════════════════════════════════════════════
+        //  RENEWALS PANEL — CRM-style upcoming renewals view
+        // ══════════════════════════════════════════════════════
+        function amsRenewalsRender() {
+            const tbody = document.getElementById('amsRnwTableBody');
+            if (!tbody) return;
+
+            // AI processor card is admin-only
+            const aiCard = document.getElementById('amsRnwAiCard');
+            if (aiCard) aiCard.style.display = (amsCurrentRole === 'admin') ? '' : 'none';
+
+            const days   = parseInt(document.getElementById('amsRnwWindow')?.value || '90');
+            const today  = new Date();
+            const todayStr  = today.toISOString().slice(0,10);
+            const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + days);
+            const cutoffStr = cutoff.toISOString().slice(0,10);
+
+            const binder = _rptBinder();
+
+            // Keep the agent dropdown in sync without losing the current pick
+            const agentSel = document.getElementById('amsRnwAgentFilter');
+            if (agentSel) {
+                const current = agentSel.value;
+                const agents  = [...new Set(binder.map(p => p.agent).filter(Boolean))].sort();
+                agentSel.innerHTML = '<option value="">All Agents</option>' +
+                    agents.map(a => `<option value="${_rptEsc(a)}" ${a === current ? 'selected' : ''}>${_rptEsc(a)}</option>`).join('');
+            }
+            const agentF = agentSel?.value || '';
+
+            const rows = binder.filter(p => {
+                if (!p.expirationDate || (p.policyType || '').toLowerCase() === 'cancellation') return false;
+                if ((p.policyStatus || '').toLowerCase() === 'cancelled') return false;
+                if (agentF && p.agent !== agentF) return false;
+                return p.expirationDate >= todayStr && p.expirationDate <= cutoffStr;
+            }).sort((a, b) => a.expirationDate.localeCompare(b.expirationDate));
+
+            const badge = document.getElementById('amsRnwBadge');
+            if (badge) badge.textContent = `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring within ${days} days`;
+
+            if (!rows.length) {
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">No renewals due in the next ${days} days.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = rows.map(p => {
+                const daysLeft = Math.ceil((new Date(p.expirationDate + 'T12:00:00') - today) / 86400000);
+                const tlColor  = daysLeft <= 14 ? '#dc2626' : daysLeft <= 30 ? '#ea580c' : '#059669';
+                const tlBg     = daysLeft <= 14 ? '#fee2e2' : daysLeft <= 30 ? '#ffedd5' : '#d1fae5';
+                const key      = amsClientKey(p.customerName || '');
+                return `<tr>
+                    <td><strong>${_rptEsc(p.customerName || '—')}</strong></td>
+                    <td>${_rptEsc(p.lineOfBusiness || '—')}</td>
+                    <td>${_rptEsc(p.company || '—')}</td>
+                    <td style="font-family:monospace;font-size:11px;">${_rptEsc(p.policyNumber || '—')}</td>
+                    <td>${_rptFmt$(p.totalPremium)}</td>
+                    <td><strong>${p.expirationDate}</strong></td>
+                    <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
+                    <td>${_rptEsc(p.agent || '—')}</td>
+                    <td><button class="btn-sm" onclick="amsRnwOpenClient('${_rptEsc(key).replace(/'/g, "\\'")}')"
+                        style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;">Open Client</button></td>
+                </tr>`;
+            }).join('');
+        }
+
+        function amsRnwOpenClient(key) {
+            if (!key || !amsClientIndex[key]) { amsFlashBanner('Client record not found for this policy.'); return; }
+            amsSidebarNav('search');
+            amsLoadClientDetail(key);
         }
 
         // ══════════════════════════════════════════════════════

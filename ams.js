@@ -4930,3 +4930,367 @@ function aiCreateAllClients(setIdx) {
     amsFlashBanner(`Batch done ✓ — ${created} created, ${updated} updated, ${policies} policies added`);
     aiAddMessage('assistant', `✅ Batch complete: ${created} client${created !== 1 ? 's' : ''} created, ${updated} updated, ${policies} polic${policies !== 1 ? 'ies' : 'y'} added.`);
 }
+
+
+// ============================================================
+// RENEWALS — Claude AI Renewal Report Processor (admin only)
+// Lives on the Renewals panel. Upload carrier renewal report
+// PDFs; Claude extracts every policy on the report and the app
+// imports them: matching existing policies by policy number
+// (updating expiration dates & premiums), adding policies to
+// existing clients by name, and creating brand-new client
+// records for anyone not in the system.
+// Uses the same Supabase Edge Function proxy as the AI assistant.
+// ============================================================
+
+let _rnwMessages    = [];
+let _rnwPendingPdfs = [];   // [{name, base64}]
+let _rnwBusy        = false;
+window._rnwExtractions = []; // arrays of extracted renewal policies, per reply
+
+function rnwAddMessage(role, text, isHtml) {
+    const box = document.getElementById('amsRnwMessages');
+    if (!box) return null;
+    const isUser = role === 'user';
+    const div = document.createElement('div');
+    div.style.cssText = `align-self:${isUser ? 'flex-end' : 'flex-start'};max-width:92%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;` +
+        (isUser ? 'background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;' : 'background:#f9fafb;color:#1f2937;border:1px solid #e5e7eb;') +
+        'word-wrap:break-word;white-space:pre-wrap;';
+    if (isHtml) div.innerHTML = text; else div.textContent = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+}
+
+function rnwGreet() {
+    const box = document.getElementById('amsRnwMessages');
+    if (!box || box.children.length > 0) return;
+    rnwAddMessage('assistant',
+        `👋 Hi ${amsCurrentUser || 'Admin'}! I'm your UIB AI assistant. Attach one or more renewal report PDFs with 📎 and I'll import every policy into the AMS — or just ask me anything about your book of business.`);
+}
+
+function rnwNewConversation() {
+    _rnwMessages = [];
+    _rnwPendingPdfs = [];
+    window._rnwExtractions = [];
+    const box = document.getElementById('amsRnwMessages');
+    if (box) box.innerHTML = '';
+    const preview = document.getElementById('amsRnwFilePreview');
+    if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+    rnwGreet();
+}
+
+function rnwHandlePdfUpload(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    const pdfs = files.filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+    if (!pdfs.length) { alert('Please attach PDF files only.'); return; }
+    let loaded = 0;
+    pdfs.forEach(file => {
+        if (file.size > AI_MAX_FILE_BYTES) {
+            alert(`"${file.name}" is ${(file.size / 1048576).toFixed(1)} MB — too large (max 10 MB). Try splitting the report into fewer pages.`);
+            loaded++;
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = e => {
+            _rnwPendingPdfs.push({ name: file.name, base64: e.target.result.split(',')[1] });
+            loaded++;
+            if (loaded === pdfs.length) { rnwRefreshPreview(); document.getElementById('amsRnwInput')?.focus(); }
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function rnwRefreshPreview() {
+    const preview = document.getElementById('amsRnwFilePreview');
+    if (!preview) return;
+    if (!_rnwPendingPdfs.length) { preview.style.display = 'none'; preview.innerHTML = ''; return; }
+    preview.style.display = 'block';
+    const names = _rnwPendingPdfs.map((p, i) =>
+        `📎 ${aiEsc(p.name)} <button onclick="rnwRemovePdf(${i})" style="background:none;border:none;color:#9a3412;cursor:pointer;font-weight:700;margin-left:4px;">✕</button>`
+    ).join(' &nbsp;·&nbsp; ');
+    preview.innerHTML = `<strong>${_rnwPendingPdfs.length} PDF${_rnwPendingPdfs.length > 1 ? 's' : ''} attached:</strong> ${names}`;
+}
+
+function rnwRemovePdf(idx) {
+    _rnwPendingPdfs.splice(idx, 1);
+    rnwRefreshPreview();
+}
+
+function rnwBuildContext() {
+    const binder = amsGetBinderData();
+    const today  = new Date().toISOString().slice(0, 10);
+    const horizon = new Date(); horizon.setDate(horizon.getDate() + 180);
+    const horizonStr = horizon.toISOString().slice(0, 10);
+    const upcoming = binder
+        .filter(p => p.expirationDate && p.expirationDate >= today && p.expirationDate <= horizonStr &&
+                     (p.policyType || '').toLowerCase() !== 'cancellation')
+        .sort((a, b) => a.expirationDate.localeCompare(b.expirationDate))
+        .slice(0, 300)
+        .map(p => `${(p.customerName || '').trim()}|policy=${p.policyNumber || ''}|carrier=${p.company || ''}|lob=${p.lineOfBusiness || ''}|agent=${p.agent || ''}|premium=${p.totalPremium || 0}|expires=${p.expirationDate}`);
+    const agents = Object.keys(amsGetCredentials());
+    return `Agency: Universal Insurance Brokers (UIB). Logged-in user: ${amsCurrentUser || 'unknown'} (role: ${amsCurrentRole || 'unknown'}).
+Total policy entries in AMS: ${binder.length}. Agents: ${agents.join(', ') || '(none)'}.
+POLICIES EXPIRING WITHIN 180 DAYS (pipe-delimited: customer|policy|carrier|lob|agent|premium|expires):
+${upcoming.join('\n') || '(none)'}`;
+}
+
+function rnwBuildSystemPrompt(hasPdfs) {
+    const base = `You are the AI renewal assistant on the Renewals page of UIB AMS — the Agency Management System of Universal Insurance Brokers. You help the agency stay ahead of policy renewals.
+
+CONTEXT — current AMS state:
+${rnwBuildContext()}
+
+GUIDELINES:
+- Be concise and practical. Insurance agents are busy.
+- When asked about upcoming renewals or the book of business, use the context above.
+- Never invent client or policy data.`;
+
+    if (!hasPdfs) return base;
+
+    return base + `
+
+RENEWAL REPORT EXTRACTION MODE — be exhaustive:
+The user attached one or more carrier renewal reports (PDF). These reports list policies coming up for renewal — often MANY policies, one per row or one per section. Extract EVERY policy on the report. Do not invent values — omit fields you cannot find. Dates → YYYY-MM-DD. If the report shows a renewal effective date and a term (6 or 12 months) but no expiration, compute expiration = effective date + term.
+
+After a brief summary (2-3 sentences: carrier, how many policies found, date range), respond with a JSON object in \`\`\`json fences as the LAST thing in your message:
+
+\`\`\`json
+{
+  "renewals": [
+    {
+      "customerName": "primary insured or business name (REQUIRED)",
+      "policyNumber": "",
+      "carrier": "insurance carrier name",
+      "lineOfBusiness": "e.g. Personal Auto, Home Owners H3, General Liability",
+      "premium": 0,
+      "effectiveDate": "YYYY-MM-DD (renewal effective date)",
+      "expirationDate": "YYYY-MM-DD (renewal expiration date)",
+      "agent": "agent of record if shown",
+      "phone": "", "email": "", "address": ""
+    }
+  ]
+}
+\`\`\`
+
+EXTRACTION TIPS:
+- "premium" is the RENEWAL premium (the new term's premium), not the expiring premium.
+- Extract the policy number exactly as printed — the app matches existing AMS policies by policy number.
+- If the customer matches a name in the context list above, still include them — the app will update the existing record instead of duplicating.`;
+}
+
+async function rnwSendMessage() {
+    if (_rnwBusy) return;
+    const input = document.getElementById('amsRnwInput');
+    let userText = (input?.value || '').trim();
+    const hasPdfs = _rnwPendingPdfs.length > 0;
+    if (!userText && !hasPdfs) return;
+    if (!userText) userText = `Process ${_rnwPendingPdfs.length === 1 ? 'this renewal report' : 'these ' + _rnwPendingPdfs.length + ' renewal reports'}. Extract every policy so it can be imported into the AMS.`;
+
+    const pdfNames = _rnwPendingPdfs.map(p => p.name);
+    rnwAddMessage('user', (hasPdfs ? pdfNames.map(n => '📎 ' + n).join('\n') + '\n' : '') + userText);
+    if (input) input.value = '';
+
+    const content = [];
+    _rnwPendingPdfs.forEach(pdf => {
+        content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf.base64 } });
+    });
+    content.push({ type: 'text', text: userText });
+    _rnwMessages.push({ role: 'user', content });
+    _rnwPendingPdfs = [];
+    rnwRefreshPreview();
+
+    _rnwBusy = true;
+    const sendBtn = document.getElementById('amsRnwSendBtn');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '…'; }
+    const loading = rnwAddMessage('assistant', hasPdfs ? '✨ Reading renewal report(s) and matching against the AMS…' : '✨ Thinking…');
+
+    try {
+        const reply = await aiCallAPI(rnwBuildSystemPrompt(hasPdfs), _rnwMessages, hasPdfs ? 16000 : 4096);
+        loading.remove();
+        let replyText = reply.text || '(no response)';
+        _rnwMessages.push({ role: 'assistant', content: replyText });
+
+        const policies = hasPdfs ? rnwTryParsePolicies(replyText) : null;
+        if (policies && policies.length) {
+            window._rnwExtractions.push(policies);
+            const setIdx = window._rnwExtractions.length - 1;
+            const msg = rnwAddMessage('assistant', '', true);
+            msg.innerHTML = aiRenderMarkdown(replyText) + rnwRenderPolicyCards(setIdx, policies);
+        } else {
+            rnwAddMessage('assistant', aiRenderMarkdown(replyText), true);
+        }
+        if (reply.stopReason === 'max_tokens') {
+            rnwAddMessage('assistant', '⚠️ The response was cut off — a very large report may need to be uploaded in smaller batches (fewer pages at a time).');
+        }
+    } catch (err) {
+        loading.remove();
+        rnwAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+    } finally {
+        _rnwBusy = false;
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
+    }
+}
+
+function rnwTryParsePolicies(text) {
+    const fences = [...String(text || '').matchAll(/```json\s*([\s\S]*?)(?:```|$)/g)];
+    if (!fences.length) return null;
+    try {
+        const obj = JSON.parse(fences[fences.length - 1][1]);
+        const list = Array.isArray(obj) ? obj : (obj.renewals || obj.policies || null);
+        if (!list) return null;
+        return list.filter(p => p && p.customerName);
+    } catch (e) { return null; }
+}
+
+function _rnwNormNum(num) { return String(num || '').replace(/[^a-z0-9]/gi, '').toUpperCase(); }
+
+// Classify what importing each policy will do, against current AMS data
+function _rnwMatchStatus(p) {
+    const binder = amsGetBinderData();
+    const num = _rnwNormNum(p.policyNumber);
+    if (num) {
+        const hit = binder.find(e => _rnwNormNum(e.policyNumber) === num);
+        if (hit) return { kind: 'update', entry: hit };
+    }
+    const key = amsClientKey(p.customerName || '');
+    if (key && amsClientIndex[key]) return { kind: 'addPolicy', key };
+    return { kind: 'create' };
+}
+
+function rnwRenderPolicyCards(setIdx, policies) {
+    let html = `<div style="margin-top:10px;font-weight:700;color:var(--navy);font-size:13px;">✓ ${policies.length} renewal polic${policies.length > 1 ? 'ies' : 'y'} extracted</div>`;
+    policies.forEach((p, i) => {
+        const st = _rnwMatchStatus(p);
+        const icon  = st.kind === 'update' ? '🔄' : st.kind === 'addPolicy' ? '👤' : '🆕';
+        const label = st.kind === 'update'
+            ? 'Matches existing policy — will update expiration & premium'
+            : st.kind === 'addPolicy'
+                ? 'Existing client — will add this renewal policy'
+                : 'New client — will create the record';
+        const bits = [];
+        if (p.policyNumber)   bits.push('# ' + aiEsc(p.policyNumber));
+        if (p.carrier)        bits.push('🏢 ' + aiEsc(p.carrier));
+        if (p.lineOfBusiness) bits.push('📄 ' + aiEsc(p.lineOfBusiness));
+        if (p.premium)        bits.push('💲 ' + Number(p.premium).toLocaleString());
+        if (p.expirationDate) bits.push('⏳ expires ' + aiEsc(p.expirationDate));
+        if (p.agent)          bits.push('👔 ' + aiEsc(p.agent));
+        html += `
+        <div class="ai-client-card" id="rnwCard_${setIdx}_${i}" style="margin-top:8px;background:#fff;border:1px solid #fcd9b6;border-radius:10px;padding:10px 12px;">
+            <div style="font-weight:700;color:var(--navy);font-size:13px;">${icon} ${aiEsc(p.customerName)} <span style="font-size:11px;color:#92400e;font-weight:600;">(${label})</span></div>
+            <div style="font-size:12px;color:var(--gray-600);margin:4px 0 8px;">${bits.join(' &nbsp;·&nbsp; ') || 'No detail fields found'}</div>
+            <button onclick="rnwImportPolicy(${setIdx}, ${i})"
+                style="background:linear-gradient(135deg,${st.kind === 'update' ? '#d97706,#b45309' : '#16a34a,#22c55e'});color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;">
+                ${st.kind === 'update' ? '🔄 Update policy' : st.kind === 'addPolicy' ? '➕ Add renewal policy' : '➕ Create client & policy'}
+            </button>
+        </div>`;
+    });
+    if (policies.length > 1) {
+        html += `<button onclick="rnwImportAll(${setIdx})"
+            style="margin-top:10px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
+            ⚡ Import all ${policies.length} policies
+        </button>`;
+    }
+    return html;
+}
+
+function rnwImportPolicy(setIdx, polIdx, silent) {
+    const p = (window._rnwExtractions[setIdx] || [])[polIdx];
+    if (!p) return null;
+    const today  = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const binder = amsGetBinderData();
+    const num    = _rnwNormNum(p.policyNumber);
+    const premium = parseFloat(p.premium) || 0;
+    let outcome;
+
+    const hit = num ? binder.find(e => _rnwNormNum(e.policyNumber) === num) : null;
+    if (hit) {
+        // Renewal of a policy already in the AMS — refresh its dates & premium
+        if (p.effectiveDate)  hit.effectiveDate  = p.effectiveDate;
+        if (p.expirationDate) hit.expirationDate = p.expirationDate;
+        if (premium > 0) {
+            hit.totalPremium = premium;
+            hit.agencyCommission = Math.round(premium * 0.10 * 100) / 100;
+        }
+        hit.policyType   = 'Renewal';
+        hit.policyStatus = 'Active';
+        outcome = 'updated';
+    } else {
+        const key = amsClientKey(p.customerName || '');
+        const contacts = amsGetClientData();
+        const clientExists = !!(key && (amsClientIndex[key] || contacts[key]));
+        if (!clientExists && key) {
+            // Brand-new client — create a minimal contact record
+            const rec = contacts[key] = contacts[key] || {};
+            const name = String(p.customerName || '').trim();
+            if (!/\b(llc|inc|corp|dba|co\.?)\b/i.test(name)) {
+                const parts = name.split(/\s+/);
+                if (parts.length >= 2) { rec.firstName = parts.slice(0, -1).join(' '); rec.lastName = parts[parts.length - 1]; }
+                else rec.firstName = name;
+            }
+            if (p.phone)   rec.phone1  = String(p.phone);
+            if (p.email)   rec.email   = String(p.email);
+            if (p.address) rec.address = String(p.address);
+            if (p.agent)   rec.assignedAgent = String(p.agent);
+            rec.clientSince  = rec.clientSince  || today;
+            rec.clientStatus = rec.clientStatus || 'Active';
+            rec.updatedAt    = new Date().toISOString();
+            amsSave('amsClientData', contacts);
+        }
+        const agent = p.agent || contacts[key]?.assignedAgent || '';
+        binder.push({
+            id:                   Date.now() + polIdx,
+            entryDate:            today,
+            customerName:         String(p.customerName || '').trim(),
+            agent:                agent,
+            policyType:           'Renewal',
+            lineOfBusiness:       p.lineOfBusiness || '',
+            company:              p.carrier || '',
+            mga:                  '',
+            policyNumber:         p.policyNumber || '',
+            binderNumber:         '',
+            down:                 0,
+            agencyFee:            0,
+            basePremium:          premium,
+            totalPremium:         premium,
+            paymentMethod:        '',
+            paymentType:          '',
+            agencyCommission:     Math.round(premium * 0.10 * 100) / 100,
+            agentCommissionShare: 0,
+            effectiveDate:        p.effectiveDate || '',
+            expirationDate:       p.expirationDate || '',
+            policyStatus:         'Active',
+            drivers:  [],
+            vehicles: []
+        });
+        outcome = clientExists ? 'added' : 'created';
+    }
+
+    amsSave('binderData', binder);
+    amsBuildClientIndex();
+    amsRenderClientList();
+    if (typeof amsRenewalsRender === 'function') amsRenewalsRender();
+
+    const card = document.getElementById(`rnwCard_${setIdx}_${polIdx}`);
+    const btn  = card ? card.querySelector('button') : null;
+    if (btn) {
+        const msg = outcome === 'updated' ? 'Policy updated ✓' : outcome === 'added' ? 'Renewal policy added ✓' : 'Client & policy created ✓';
+        btn.outerHTML = `<span style="font-weight:700;color:#15803d;font-size:12px;">✅ ${msg}</span>`;
+    }
+    if (!silent) amsFlashBanner(`Renewal imported: ${p.customerName} ✓`);
+    return outcome;
+}
+
+function rnwImportAll(setIdx) {
+    const list = window._rnwExtractions[setIdx] || [];
+    let updated = 0, added = 0, created = 0;
+    list.forEach((p, i) => {
+        const r = rnwImportPolicy(setIdx, i, true);
+        if (r === 'updated') updated++;
+        else if (r === 'added') added++;
+        else if (r === 'created') created++;
+    });
+    amsFlashBanner(`Renewal import done ✓ — ${updated} updated, ${added} added, ${created} created`);
+    rnwAddMessage('assistant', `✅ Import complete: ${updated} polic${updated !== 1 ? 'ies' : 'y'} updated, ${added} added to existing clients, ${created} new client${created !== 1 ? 's' : ''} created.`);
+}

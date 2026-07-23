@@ -10817,3 +10817,401 @@ function mdocRenderDashboard() {
             }).join('')}</tbody>
         </table>`;
 }
+
+
+// ═══════════════════════════════════════════════════════════════
+// RENEWALS (Admin) — CRM-style upcoming renewals page with the
+// Claude AI Renewal Report Processor. Upload carrier renewal
+// report PDFs; Claude extracts every policy and the app imports
+// them into the Binder Book: matching existing entries by policy
+// number (updating expiration dates & premiums), adding renewal
+// entries for existing customers by name, and creating new
+// entries for anyone not in the system.
+// ═══════════════════════════════════════════════════════════════
+
+function showRenewalsSection() {
+    if (currentRole !== 'admin') return;
+    showSection('renewalsSection');
+    populateRenewalAgentFilter();
+    renderRenewalsTable();
+    claudeRenewalGreet();
+    refreshIcons();
+}
+
+function populateRenewalAgentFilter() {
+    const sel = document.getElementById('rnwAgentFilter');
+    if (!sel) return;
+    const current = sel.value;
+    const entryAgents  = (allData || []).map(e => e.agent).filter(Boolean);
+    const masterAgents = Object.keys(JSON.parse(localStorage.getItem('agentMasterData') || '{}'));
+    const agents = [...new Set([...entryAgents, ...masterAgents])].sort();
+    sel.innerHTML = '<option value="">All Agents</option>' +
+        agents.map(a => `<option value="${escHtml(a)}" ${a === current ? 'selected' : ''}>${escHtml(a)}</option>`).join('');
+}
+
+function renderRenewalsTable() {
+    const tbody = document.getElementById('rnwTableBody');
+    if (!tbody) return;
+
+    const days   = parseInt(document.getElementById('rnwWindow')?.value || '90');
+    const agentF = document.getElementById('rnwAgentFilter')?.value || '';
+    const today  = new Date();
+    const todayStr  = today.toISOString().slice(0, 10);
+    const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + days);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+    const rows = (allData || []).filter(e => {
+        if (!e.expirationDate || (e.policyType || '').toLowerCase() === 'cancellation') return false;
+        if ((e.policyStatus || '').toLowerCase() === 'cancelled') return false;
+        if (agentF && e.agent !== agentF) return false;
+        return e.expirationDate >= todayStr && e.expirationDate <= cutoffStr;
+    }).sort((a, b) => a.expirationDate.localeCompare(b.expirationDate));
+
+    const badge = document.getElementById('rnwBadge');
+    if (badge) badge.textContent = `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring within ${days} days`;
+
+    if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="no-data">No renewals due in the next ${days} days.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = rows.map(e => {
+        const daysLeft = Math.ceil((new Date(e.expirationDate + 'T12:00:00') - today) / 86400000);
+        const tlColor  = daysLeft <= 14 ? '#dc2626' : daysLeft <= 30 ? '#ea580c' : '#059669';
+        const tlBg     = daysLeft <= 14 ? '#fee2e2' : daysLeft <= 30 ? '#ffedd5' : '#d1fae5';
+        const premium  = parseFloat(e.totalPremium) || 0;
+        return `<tr>
+            <td><strong>${escHtml(e.customerName || '—')}</strong></td>
+            <td>${escHtml(e.lineOfBusiness || '—')}</td>
+            <td>${escHtml(e.company || '—')}</td>
+            <td style="font-family:monospace;font-size:11.5px;">${escHtml(e.policyNumber || '—')}</td>
+            <td>$${premium.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td><strong>${escHtml(e.expirationDate)}</strong></td>
+            <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
+            <td>${escHtml(e.agent || '—')}</td>
+            <td><button class="btn-primary btn-sm" onclick="openEditModal(${e.id})"><i data-lucide="pencil"></i> Edit</button></td>
+        </tr>`;
+    }).join('');
+    refreshIcons();
+}
+
+// ── Claude AI Renewal Report Processor ─────────────────────────
+let _claudeRenewalMessages    = [];
+let _claudeRenewalPendingPdfs = [];   // [{name, base64}]
+let _claudeRenewalBusy        = false;
+window._claudeRenewalExtractions = []; // arrays of extracted policies, per reply
+
+function claudeRenewalAddMessage(role, text, isHtml) {
+    const box = document.getElementById('claudeRenewalMessages');
+    if (!box) return null;
+    const isUser = role === 'user';
+    const div = document.createElement('div');
+    div.style.cssText = `align-self:${isUser ? 'flex-end' : 'flex-start'};max-width:92%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;${isUser ? 'background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;' : 'background:#f9fafb;color:#1f2937;border:1px solid #e5e7eb;'};word-wrap:break-word;white-space:pre-wrap;`;
+    if (isHtml) div.innerHTML = text;
+    else div.textContent = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+}
+
+function claudeRenewalGreet() {
+    const box = document.getElementById('claudeRenewalMessages');
+    if (!box || box.children.length > 0) return;
+    claudeRenewalAddMessage('assistant',
+        `👋 Hi Admin! I'm your UIB AI assistant. Attach one or more renewal report PDFs with 📎 and I'll import every policy into the Binder Book — or just ask me anything about your book of business.`);
+}
+
+function claudeRenewalNewConversation() {
+    _claudeRenewalMessages = [];
+    _claudeRenewalPendingPdfs = [];
+    window._claudeRenewalExtractions = [];
+    const box = document.getElementById('claudeRenewalMessages');
+    if (box) box.innerHTML = '';
+    const preview = document.getElementById('claudeRenewalFilePreview');
+    if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+    claudeRenewalGreet();
+}
+
+function claudeRenewalHandlePdfUpload(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    const pdfs = files.filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+    if (!pdfs.length) { alert('Please attach PDF files only.'); return; }
+    let loaded = 0;
+    pdfs.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            _claudeRenewalPendingPdfs.push({ name: file.name, base64: e.target.result.split(',')[1] });
+            loaded++;
+            if (loaded === pdfs.length) { claudeRenewalRefreshPreview(); document.getElementById('claudeRenewalInput')?.focus(); }
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function claudeRenewalRefreshPreview() {
+    const preview = document.getElementById('claudeRenewalFilePreview');
+    if (!preview) return;
+    if (!_claudeRenewalPendingPdfs.length) { preview.style.display = 'none'; preview.innerHTML = ''; return; }
+    preview.style.display = 'block';
+    const names = _claudeRenewalPendingPdfs.map((p, i) =>
+        `📎 ${escHtml(p.name)} <button onclick="claudeRenewalRemovePdf(${i})" style="background:none;border:none;color:#9a3412;cursor:pointer;font-weight:700;margin-left:4px;">✕</button>`
+    ).join(' &nbsp;·&nbsp; ');
+    preview.innerHTML = `<strong>${_claudeRenewalPendingPdfs.length} PDF${_claudeRenewalPendingPdfs.length > 1 ? 's' : ''} attached:</strong> ${names}`;
+}
+
+function claudeRenewalRemovePdf(idx) {
+    _claudeRenewalPendingPdfs.splice(idx, 1);
+    claudeRenewalRefreshPreview();
+}
+
+function claudeRenewalBuildContext() {
+    try {
+        const data = (allData || []).filter(e => e.customerName);
+        const today = new Date().toISOString().slice(0, 10);
+        const horizon = new Date(); horizon.setDate(horizon.getDate() + 180);
+        const horizonStr = horizon.toISOString().slice(0, 10);
+        const upcoming = data
+            .filter(e => e.expirationDate && e.expirationDate >= today && e.expirationDate <= horizonStr &&
+                         (e.policyType || '').toLowerCase() !== 'cancellation')
+            .sort((a, b) => a.expirationDate.localeCompare(b.expirationDate))
+            .slice(0, 300)
+            .map(e => `${(e.customerName || '').trim()}|policy=${e.policyNumber || ''}|carrier=${e.company || ''}|lob=${e.lineOfBusiness || ''}|agent=${e.agent || ''}|premium=${e.totalPremium || 0}|expires=${e.expirationDate}`);
+        const agentList = [...new Set(data.map(e => e.agent).filter(Boolean))];
+        return `Binder Book reference data (${data.length} total entries). Agents in system: ${agentList.join(', ')}.
+POLICIES EXPIRING WITHIN 180 DAYS (pipe-delimited: customer|policy|carrier|lob|agent|premium|expires):
+${upcoming.join('\n') || '(none)'}`;
+    } catch (e) {
+        return `(Data context unavailable: ${e.message})`;
+    }
+}
+
+function claudeRenewalBuildSystemPrompt(hasPdfs) {
+    const base = `You are the AI renewal assistant on the Renewals page of the UIB Binder Book — the sales/policy book of Universal Insurance Brokers. You help the agency stay ahead of policy renewals.
+
+CONTEXT — current Binder Book state:
+${claudeRenewalBuildContext()}
+
+GUIDELINES:
+- Be concise and practical. Insurance agents are busy.
+- When asked about upcoming renewals or the book of business, use the context above.
+- Never invent client or policy data.`;
+
+    if (!hasPdfs) return base;
+
+    return base + `
+
+RENEWAL REPORT EXTRACTION MODE — be exhaustive:
+The user attached one or more carrier renewal reports (PDF). These reports list policies coming up for renewal — often MANY policies, one per row or one per section. Extract EVERY policy on the report. Do not invent values — omit fields you cannot find. Dates → YYYY-MM-DD. If the report shows a renewal effective date and a term (6 or 12 months) but no expiration, compute expiration = effective date + term.
+
+After a brief summary (2-3 sentences: carrier, how many policies found, date range), respond with a JSON object in \`\`\`json fences as the LAST thing in your message:
+
+\`\`\`json
+{
+  "renewals": [
+    {
+      "customerName": "primary insured or business name (REQUIRED)",
+      "policyNumber": "",
+      "carrier": "insurance carrier name",
+      "lineOfBusiness": "e.g. Personal Auto, Home Owners H3, General Liability",
+      "premium": 0,
+      "effectiveDate": "YYYY-MM-DD (renewal effective date)",
+      "expirationDate": "YYYY-MM-DD (renewal expiration date)",
+      "agent": "agent of record if shown"
+    }
+  ]
+}
+\`\`\`
+
+EXTRACTION TIPS:
+- "premium" is the RENEWAL premium (the new term's premium), not the expiring premium.
+- Extract the policy number exactly as printed — the app matches existing entries by policy number.
+- If the customer matches a name in the context list above, still include them — the app will update the existing entry instead of duplicating.`;
+}
+
+async function claudeRenewalSendMessage() {
+    if (_claudeRenewalBusy) return;
+    const input = document.getElementById('claudeRenewalInput');
+    let userText = (input?.value || '').trim();
+    const hasPdfs = _claudeRenewalPendingPdfs.length > 0;
+    if (!userText && !hasPdfs) return;
+    if (!userText) userText = `Process ${_claudeRenewalPendingPdfs.length === 1 ? 'this renewal report' : 'these ' + _claudeRenewalPendingPdfs.length + ' renewal reports'}. Extract every policy so it can be imported into the Binder Book.`;
+
+    let displayText = userText;
+    if (hasPdfs) displayText = `📎 ${_claudeRenewalPendingPdfs.map(p => p.name).join(', ')}\n${userText}`;
+    claudeRenewalAddMessage('user', displayText);
+    if (input) input.value = '';
+
+    const content = [];
+    _claudeRenewalPendingPdfs.forEach(pdf => {
+        content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf.base64 } });
+    });
+    content.push({ type: 'text', text: userText });
+    _claudeRenewalMessages.push({ role: 'user', content });
+    _claudeRenewalPendingPdfs = [];
+    claudeRenewalRefreshPreview();
+
+    _claudeRenewalBusy = true;
+    const sendBtn = document.getElementById('claudeRenewalSendBtn');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '…'; }
+    const loadingDiv = claudeRenewalAddMessage('assistant', hasPdfs ? '✨ Reading renewal report(s) and matching against the Binder Book…' : '✨ Thinking…');
+
+    try {
+        const reply = await claudeCallAPI(claudeRenewalBuildSystemPrompt(hasPdfs), _claudeRenewalMessages, hasPdfs ? 16000 : 4096);
+        loadingDiv.remove();
+        const replyText = reply.text || '(no response)';
+        _claudeRenewalMessages.push({ role: 'assistant', content: replyText });
+
+        const policies = hasPdfs ? claudeRenewalTryParse(replyText) : null;
+        if (policies && policies.length) {
+            window._claudeRenewalExtractions.push(policies);
+            const setIdx = window._claudeRenewalExtractions.length - 1;
+            const msg = claudeRenewalAddMessage('assistant', '', true);
+            msg.innerHTML = claudeRenderMarkdown(replyText) + claudeRenewalRenderCards(setIdx, policies);
+        } else {
+            claudeRenewalAddMessage('assistant', claudeRenderMarkdown(replyText), true);
+        }
+        if (reply.stopReason === 'max_tokens') {
+            claudeRenewalAddMessage('assistant', '⚠️ The response was cut off — a very large report may need to be uploaded in smaller batches (fewer pages at a time).');
+        }
+    } catch (err) {
+        loadingDiv.remove();
+        claudeRenewalAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+    } finally {
+        _claudeRenewalBusy = false;
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
+    }
+}
+
+function claudeRenewalTryParse(text) {
+    const fences = [...String(text || '').matchAll(/```json\s*([\s\S]*?)(?:```|$)/g)];
+    if (!fences.length) return null;
+    try {
+        const obj = JSON.parse(fences[fences.length - 1][1]);
+        const list = Array.isArray(obj) ? obj : (obj.renewals || obj.policies || null);
+        if (!list) return null;
+        return list.filter(p => p && p.customerName);
+    } catch (e) { return null; }
+}
+
+function _rnwNormPolicyNum(num) { return String(num || '').replace(/[^a-z0-9]/gi, '').toUpperCase(); }
+function _rnwNormName(name)     { return String(name || '').trim().toUpperCase().replace(/\s+/g, ' '); }
+
+// Classify what importing each policy will do, against current Binder Book data
+function _claudeRenewalMatch(p) {
+    const num = _rnwNormPolicyNum(p.policyNumber);
+    if (num) {
+        const hit = (allData || []).find(e => _rnwNormPolicyNum(e.policyNumber) === num);
+        if (hit) return { kind: 'update', entry: hit };
+    }
+    const nameKey = _rnwNormName(p.customerName);
+    if (nameKey) {
+        const sameName = (allData || []).filter(e => _rnwNormName(e.customerName) === nameKey);
+        if (sameName.length) return { kind: 'addPolicy', prior: sameName[sameName.length - 1] };
+    }
+    return { kind: 'create' };
+}
+
+function claudeRenewalRenderCards(setIdx, policies) {
+    let html = `<div style="margin-top:10px;font-weight:700;color:#0d1f3c;font-size:13px;">✓ ${policies.length} renewal polic${policies.length > 1 ? 'ies' : 'y'} extracted</div>`;
+    policies.forEach((p, i) => {
+        const st = _claudeRenewalMatch(p);
+        const icon  = st.kind === 'update' ? '🔄' : st.kind === 'addPolicy' ? '👤' : '🆕';
+        const label = st.kind === 'update'
+            ? 'Matches existing entry — will update expiration & premium'
+            : st.kind === 'addPolicy'
+                ? 'Existing customer — will add a renewal entry'
+                : 'New customer — will create the entry';
+        const bits = [];
+        if (p.policyNumber)   bits.push('# ' + escHtml(p.policyNumber));
+        if (p.carrier)        bits.push('🏢 ' + escHtml(p.carrier));
+        if (p.lineOfBusiness) bits.push('📄 ' + escHtml(p.lineOfBusiness));
+        if (p.premium)        bits.push('💲 ' + Number(p.premium).toLocaleString());
+        if (p.expirationDate) bits.push('⏳ expires ' + escHtml(p.expirationDate));
+        if (p.agent)          bits.push('👔 ' + escHtml(p.agent));
+        html += `
+        <div id="claudeRnwCard_${setIdx}_${i}" style="margin-top:8px;background:#fff;border:1px solid #fcd9b6;border-radius:10px;padding:10px 12px;">
+            <div style="font-weight:700;color:#0d1f3c;font-size:13px;">${icon} ${escHtml(p.customerName)} <span style="font-size:11px;color:#92400e;font-weight:600;">(${label})</span></div>
+            <div style="font-size:12px;color:#4b5563;margin:4px 0 8px;">${bits.join(' &nbsp;·&nbsp; ') || 'No detail fields found'}</div>
+            <button onclick="claudeRenewalImport(${setIdx}, ${i})"
+                style="background:linear-gradient(135deg,${st.kind === 'update' ? '#d97706,#b45309' : '#16a34a,#22c55e'});color:#fff;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;">
+                ${st.kind === 'update' ? '🔄 Update entry' : '➕ Import renewal'}
+            </button>
+        </div>`;
+    });
+    if (policies.length > 1) {
+        html += `<button onclick="claudeRenewalImportAll(${setIdx})"
+            style="margin-top:10px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">
+            ⚡ Import all ${policies.length} policies
+        </button>`;
+    }
+    return html;
+}
+
+function claudeRenewalImport(setIdx, polIdx, silent) {
+    const p = (window._claudeRenewalExtractions[setIdx] || [])[polIdx];
+    if (!p) return null;
+    const today   = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const premium = parseFloat(p.premium) || 0;
+    const st = _claudeRenewalMatch(p);
+    let outcome;
+
+    if (st.kind === 'update') {
+        const e = st.entry;
+        if (p.effectiveDate)  e.effectiveDate  = p.effectiveDate;
+        if (p.expirationDate) e.expirationDate = p.expirationDate;
+        if (premium > 0) e.totalPremium = premium;
+        e.policyType   = 'Renewal';
+        e.policyStatus = 'Active';
+        outcome = 'updated';
+    } else {
+        const prior = st.kind === 'addPolicy' ? st.prior : null;
+        allData.push({
+            id:                   Date.now() + polIdx,
+            entryDate:            today,
+            customerName:         String(p.customerName || '').trim(),
+            agent:                p.agent || prior?.agent || '',
+            policyType:           'Renewal',
+            lineOfBusiness:       p.lineOfBusiness || prior?.lineOfBusiness || '',
+            company:              p.carrier || prior?.company || '',
+            mga:                  prior?.mga || '',
+            policyNumber:         p.policyNumber || '',
+            binderNumber:         '',
+            down:                 0,
+            agencyFee:            0,
+            basePremium:          premium,
+            totalPremium:         premium,
+            paymentMethod:        '',
+            paymentType:          prior?.paymentType || '',
+            agencyCommission:     0,
+            agentCommissionShare: 0,
+            effectiveDate:        p.effectiveDate || '',
+            expirationDate:       p.expirationDate || '',
+            policyStatus:         'Active'
+        });
+        outcome = prior ? 'added' : 'created';
+    }
+
+    localStorage.setItem('binderData', JSON.stringify(allData));
+    renderRenewalsTable();
+
+    const card = document.getElementById(`claudeRnwCard_${setIdx}_${polIdx}`);
+    const btn  = card ? card.querySelector('button') : null;
+    if (btn) {
+        const msg = outcome === 'updated' ? 'Entry updated ✓' : outcome === 'added' ? 'Renewal entry added ✓' : 'New entry created ✓';
+        btn.outerHTML = `<span style="font-weight:700;color:#15803d;font-size:12px;">✅ ${msg}</span>`;
+    }
+    return outcome;
+}
+
+function claudeRenewalImportAll(setIdx) {
+    const list = window._claudeRenewalExtractions[setIdx] || [];
+    let updated = 0, added = 0, created = 0;
+    list.forEach((p, i) => {
+        const r = claudeRenewalImport(setIdx, i, true);
+        if (r === 'updated') updated++;
+        else if (r === 'added') added++;
+        else if (r === 'created') created++;
+    });
+    claudeRenewalAddMessage('assistant', `✅ Import complete: ${updated} entr${updated !== 1 ? 'ies' : 'y'} updated, ${added} renewal entr${added !== 1 ? 'ies' : 'y'} added for existing customers, ${created} new entr${created !== 1 ? 'ies' : 'y'} created.`);
+}
