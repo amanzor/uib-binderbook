@@ -2920,13 +2920,21 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             amsRenewalsRender();
         }
 
-        function amsRnwAssignAgent(id, agent) {
+        // The binder array + rows currently rendered in the renewals table.
+        // Assignment goes through the rendered row (not an id lookup) because
+        // batch imports can stamp several entries with the same Date.now() id —
+        // an id lookup would then update the wrong entry.
+        let _amsRnwBinder = [];
+        let _amsRnwRows   = [];
+
+        function amsRnwAssignAgent(rowIdx, agent) {
+            if (amsCurrentRole !== 'admin') return; // admins only — agents cannot reassign
             if (!agent) return;
-            const binder = amsGetBinderData();
-            const p = binder.find(x => String(x.id) === String(id));
+            const p = _amsRnwRows[rowIdx];
             if (!p) return;
             p.agent = agent;
-            amsSave('binderData', binder);
+            p.updatedAt = Date.now(); // stamp the edit so the Binder Book cloud merge keeps it
+            amsSave('binderData', _amsRnwBinder);
             amsRenewalsRender();
             amsFlashBanner(`Renewal assigned to ${agent} ✓`);
         }
@@ -3006,11 +3014,20 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 return;
             }
 
-            tbody.innerHTML = rows.map(p => {
+            const isAdmin = amsCurrentRole === 'admin';
+            _amsRnwBinder = binder;
+            _amsRnwRows   = rows;
+            tbody.innerHTML = rows.map((p, idx) => {
                 const daysLeft = Math.ceil((new Date(p.expirationDate + 'T12:00:00') - today) / 86400000);
                 const tlColor  = daysLeft <= 14 ? '#dc2626' : daysLeft <= 30 ? '#ea580c' : '#059669';
                 const tlBg     = daysLeft <= 14 ? '#fee2e2' : daysLeft <= 30 ? '#ffedd5' : '#d1fae5';
                 const key      = amsClientKey(p.customerName || '');
+                const assignSel = isAdmin ? `
+                        <select onchange="amsRnwAssignAgent(${idx}, this.value)" title="Assign this renewal to an agent"
+                            style="padding:5px 6px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;font-family:inherit;max-width:115px;margin-right:4px;">
+                            <option value="">${p.agent ? 'Reassign…' : 'Assign…'}</option>
+                            ${allAgents.map(a => `<option value="${_rptEsc(a)}" ${a === p.agent ? 'disabled' : ''}>${_rptEsc(a)}</option>`).join('')}
+                        </select>` : '';
                 return `<tr>
                     <td><strong>${_rptEsc(p.customerName || '—')}</strong></td>
                     <td>${_rptEsc(p.lineOfBusiness || '—')}</td>
@@ -3020,12 +3037,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <td><strong>${p.expirationDate}</strong></td>
                     <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
                     <td>${_rptEsc(p.agent || '—')}</td>
-                    <td style="white-space:nowrap;">
-                        <select onchange="amsRnwAssignAgent('${p.id}', this.value)" title="Assign this renewal to an agent"
-                            style="padding:5px 6px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;font-family:inherit;max-width:115px;margin-right:4px;">
-                            <option value="">${p.agent ? 'Reassign…' : 'Assign…'}</option>
-                            ${allAgents.map(a => `<option value="${_rptEsc(a)}" ${a === p.agent ? 'disabled' : ''}>${_rptEsc(a)}</option>`).join('')}
-                        </select>
+                    <td style="white-space:nowrap;">${assignSel}
                         <button class="btn-sm" onclick="amsRnwOpenClient('${_rptEsc(key).replace(/'/g, "\\'")}')"
                         style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;">Open Client</button></td>
                 </tr>`;

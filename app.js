@@ -10862,11 +10862,19 @@ function _rnwAgentList() {
     return [...new Set([...entryAgents, ...masterAgents])].sort();
 }
 
-function rnwAssignAgent(id, agent) {
+// The rows currently rendered in the renewals table, in display order.
+// Assignment goes through this list (not an id lookup) because batch
+// imports can stamp several entries with the same Date.now() id — an id
+// lookup would then update the wrong entry.
+let _rnwRows = [];
+
+function rnwAssignAgent(rowIdx, agent) {
+    if (currentRole !== 'admin') return; // admins only — agents cannot reassign
     if (!agent) return;
-    const e = (allData || []).find(x => String(x.id) === String(id));
+    const e = _rnwRows[rowIdx];
     if (!e) return;
     e.agent = agent;
+    e.updatedAt = Date.now(); // stamp the edit so the cloud merge keeps it over stale copies
     localStorage.setItem('binderData', JSON.stringify(allData));
     populateRenewalAgentFilter();
     renderRenewalsTable();
@@ -10933,7 +10941,8 @@ function renderRenewalsTable() {
     }
 
     const agents = _rnwAgentList();
-    tbody.innerHTML = rows.map(e => {
+    _rnwRows = rows;
+    tbody.innerHTML = rows.map((e, idx) => {
         const daysLeft = Math.ceil((new Date(e.expirationDate + 'T12:00:00') - today) / 86400000);
         const tlColor  = daysLeft <= 14 ? '#dc2626' : daysLeft <= 30 ? '#ea580c' : '#059669';
         const tlBg     = daysLeft <= 14 ? '#fee2e2' : daysLeft <= 30 ? '#ffedd5' : '#d1fae5';
@@ -10948,7 +10957,7 @@ function renderRenewalsTable() {
             <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
             <td>${escHtml(e.agent || '—')}</td>
             <td style="white-space:nowrap;">
-                <select onchange="rnwAssignAgent('${e.id}', this.value)" title="Assign this renewal to an agent"
+                <select onchange="rnwAssignAgent(${idx}, this.value)" title="Assign this renewal to an agent"
                     style="padding:5px 6px;border:1px solid #e5e7eb;border-radius:6px;font-size:11.5px;font-family:inherit;max-width:120px;margin-right:4px;">
                     <option value="">${e.agent ? 'Reassign…' : 'Assign…'}</option>
                     ${agents.map(a => `<option value="${escHtml(a)}" ${a === e.agent ? 'disabled' : ''}>${escHtml(a)}</option>`).join('')}
