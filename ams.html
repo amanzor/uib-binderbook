@@ -802,7 +802,7 @@
                         </div>
                         <div style="display:flex;flex-direction:column;gap:5px;">
                             <label style="font-size:11.5px;font-weight:700;color:var(--gray-500);">Expiring Within</label>
-                            <select id="amsRnwWindow" onchange="amsRenewalsRender()"
+                            <select id="amsRnwWindow" onchange="amsRnwSelectMonth('')"
                                 style="padding:7px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;">
                                 <option value="30">30 Days</option>
                                 <option value="60">60 Days</option>
@@ -811,6 +811,9 @@
                             </select>
                         </div>
                     </div>
+
+                    <!-- Month view buttons -->
+                    <div id="amsRnwMonthTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
 
                     <!-- Renewals table -->
                     <div class="policies-table-wrap" style="background:#fff;">
@@ -2910,6 +2913,24 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // ══════════════════════════════════════════════════════
         //  RENEWALS PANEL — CRM-style upcoming renewals view
         // ══════════════════════════════════════════════════════
+        let _amsRnwActiveMonth = ''; // 'YYYY-MM' month view, or '' = expiring-within-window view
+
+        function amsRnwSelectMonth(monthKey) {
+            _amsRnwActiveMonth = monthKey || '';
+            amsRenewalsRender();
+        }
+
+        function amsRnwAssignAgent(id, agent) {
+            if (!agent) return;
+            const binder = amsGetBinderData();
+            const p = binder.find(x => String(x.id) === String(id));
+            if (!p) return;
+            p.agent = agent;
+            amsSave('binderData', binder);
+            amsRenewalsRender();
+            amsFlashBanner(`Renewal assigned to ${agent} ✓`);
+        }
+
         function amsRenewalsRender() {
             const tbody = document.getElementById('amsRnwTableBody');
             if (!tbody) return;
@@ -2925,29 +2946,63 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             const cutoffStr = cutoff.toISOString().slice(0,10);
 
             const binder = _rptBinder();
+            const allAgents = [...new Set([...binder.map(p => p.agent).filter(Boolean),
+                                           ...Object.keys(amsGetCredentials())])].sort();
 
             // Keep the agent dropdown in sync without losing the current pick
             const agentSel = document.getElementById('amsRnwAgentFilter');
             if (agentSel) {
                 const current = agentSel.value;
-                const agents  = [...new Set(binder.map(p => p.agent).filter(Boolean))].sort();
                 agentSel.innerHTML = '<option value="">All Agents</option>' +
-                    agents.map(a => `<option value="${_rptEsc(a)}" ${a === current ? 'selected' : ''}>${_rptEsc(a)}</option>`).join('');
+                    allAgents.map(a => `<option value="${_rptEsc(a)}" ${a === current ? 'selected' : ''}>${_rptEsc(a)}</option>`).join('');
             }
             const agentF = agentSel?.value || '';
 
-            const rows = binder.filter(p => {
+            // All upcoming renewals (agent filter applied) — the base for both views
+            const upcoming = binder.filter(p => {
                 if (!p.expirationDate || (p.policyType || '').toLowerCase() === 'cancellation') return false;
                 if ((p.policyStatus || '').toLowerCase() === 'cancelled') return false;
                 if (agentF && p.agent !== agentF) return false;
-                return p.expirationDate >= todayStr && p.expirationDate <= cutoffStr;
-            }).sort((a, b) => a.expirationDate.localeCompare(b.expirationDate));
+                return p.expirationDate >= todayStr;
+            });
+
+            // Month view buttons — the next 12 months that actually have renewals
+            const tabsEl = document.getElementById('amsRnwMonthTabs');
+            if (tabsEl) {
+                const months = [];
+                for (let i = 0; i < 12; i++) {
+                    const m = new Date(today.getFullYear(), today.getMonth() + i, 1);
+                    const key = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
+                    const count = upcoming.filter(p => p.expirationDate.slice(0, 7) === key).length;
+                    if (count) months.push({ key, count, label: m.toLocaleString('en-US', { month: 'short', year: 'numeric' }) });
+                }
+                if (_amsRnwActiveMonth && !months.some(m => m.key === _amsRnwActiveMonth)) _amsRnwActiveMonth = '';
+                const btn = (key, label, active) =>
+                    `<button onclick="amsRnwSelectMonth('${key}')"
+                        style="padding:7px 14px;border:1px solid ${active ? 'var(--blue)' : 'var(--gray-200)'};border-radius:8px;cursor:pointer;
+                               background:${active ? 'var(--blue)' : '#fff'};color:${active ? '#fff' : 'var(--gray-600)'};
+                               font-size:12.5px;font-weight:${active ? '700' : '500'};font-family:inherit;">${label}</button>`;
+                tabsEl.innerHTML = btn('', `All (${upcoming.filter(p => p.expirationDate <= cutoffStr).length})`, !_amsRnwActiveMonth) +
+                    months.map(m => btn(m.key, `${m.label} (${m.count})`, _amsRnwActiveMonth === m.key)).join('');
+            }
+
+            const monthLabel = _amsRnwActiveMonth
+                ? new Date(_amsRnwActiveMonth + '-01T12:00:00').toLocaleString('en-US', { month: 'long', year: 'numeric' })
+                : '';
+            const rows = upcoming.filter(p => _amsRnwActiveMonth
+                ? p.expirationDate.slice(0, 7) === _amsRnwActiveMonth
+                : p.expirationDate <= cutoffStr
+            ).sort((a, b) => a.expirationDate.localeCompare(b.expirationDate));
 
             const badge = document.getElementById('amsRnwBadge');
-            if (badge) badge.textContent = `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring within ${days} days`;
+            if (badge) badge.textContent = _amsRnwActiveMonth
+                ? `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring in ${monthLabel}`
+                : `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring within ${days} days`;
 
             if (!rows.length) {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">No renewals due in the next ${days} days.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">${_amsRnwActiveMonth
+                    ? `No renewals due in ${monthLabel}.`
+                    : `No renewals due in the next ${days} days.`}</td></tr>`;
                 return;
             }
 
@@ -2965,7 +3020,13 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <td><strong>${p.expirationDate}</strong></td>
                     <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
                     <td>${_rptEsc(p.agent || '—')}</td>
-                    <td><button class="btn-sm" onclick="amsRnwOpenClient('${_rptEsc(key).replace(/'/g, "\\'")}')"
+                    <td style="white-space:nowrap;">
+                        <select onchange="amsRnwAssignAgent('${p.id}', this.value)" title="Assign this renewal to an agent"
+                            style="padding:5px 6px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;font-family:inherit;max-width:115px;margin-right:4px;">
+                            <option value="">${p.agent ? 'Reassign…' : 'Assign…'}</option>
+                            ${allAgents.map(a => `<option value="${_rptEsc(a)}" ${a === p.agent ? 'disabled' : ''}>${_rptEsc(a)}</option>`).join('')}
+                        </select>
+                        <button class="btn-sm" onclick="amsRnwOpenClient('${_rptEsc(key).replace(/'/g, "\\'")}')"
                         style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;">Open Client</button></td>
                 </tr>`;
             }).join('');
