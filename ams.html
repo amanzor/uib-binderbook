@@ -795,10 +795,14 @@
                     <div style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:16px;display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap;box-shadow:var(--shadow-sm);">
                         <div style="display:flex;flex-direction:column;gap:5px;">
                             <label style="font-size:11.5px;font-weight:700;color:var(--gray-500);">Agent</label>
-                            <select id="amsRnwAgentFilter" onchange="amsRenewalsRender()"
-                                style="padding:7px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;min-width:160px;">
-                                <option value="">All Agents</option>
-                            </select>
+                            <div style="position:relative;">
+                                <button type="button" id="amsRnwAgentBtn" onclick="amsRnwToggleAgentMenu(event)"
+                                    style="min-width:180px;text-align:left;padding:7px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);background:#fff;font-size:13px;font-family:inherit;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                                    <span id="amsRnwAgentBtnLabel">All Agents</span>
+                                    <span style="color:var(--gray-400);font-size:11px;">▼</span>
+                                </button>
+                                <div id="amsRnwAgentMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14);min-width:210px;max-height:300px;overflow-y:auto;padding:6px;"></div>
+                            </div>
                         </div>
                         <div style="display:flex;flex-direction:column;gap:5px;">
                             <label style="font-size:11.5px;font-weight:700;color:var(--gray-500);">Expiring Within</label>
@@ -2920,6 +2924,60 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             amsRenewalsRender();
         }
 
+        // Multi-select agent filter. Empty set = All Agents.
+        let _amsRnwSelectedAgents = new Set();
+
+        function amsRnwBuildAgentMenu(agents) {
+            const menu = document.getElementById('amsRnwAgentMenu');
+            if (!menu) return;
+            _amsRnwSelectedAgents.forEach(a => { if (!agents.includes(a)) _amsRnwSelectedAgents.delete(a); });
+            const row = (checked, label, attr) =>
+                `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;"
+                        onmouseover="this.style.background='var(--blue-pale)'" onmouseout="this.style.background='transparent'">
+                    <input type="checkbox" ${checked ? 'checked' : ''} ${attr} style="cursor:pointer;"> ${label}
+                </label>`;
+            menu.innerHTML =
+                row(_amsRnwSelectedAgents.size === 0, '<strong>All Agents</strong>', `onclick="amsRnwSelectAllAgents()"`) +
+                `<div style="height:1px;background:var(--gray-100);margin:4px 0;"></div>` +
+                agents.map(a => row(_amsRnwSelectedAgents.has(a), _rptEsc(a),
+                    `onchange="amsRnwToggleAgent('${_rptEsc(a).replace(/'/g, "\\'")}', this.checked)"`)).join('');
+            amsRnwUpdateAgentBtnLabel();
+        }
+
+        function amsRnwUpdateAgentBtnLabel() {
+            const lbl = document.getElementById('amsRnwAgentBtnLabel');
+            if (!lbl) return;
+            const n = _amsRnwSelectedAgents.size;
+            lbl.textContent = n === 0 ? 'All Agents'
+                : n === 1 ? [..._amsRnwSelectedAgents][0]
+                : `${n} agents selected`;
+        }
+
+        function amsRnwToggleAgentMenu(event) {
+            if (event) event.stopPropagation();
+            const menu = document.getElementById('amsRnwAgentMenu');
+            if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function amsRnwSelectAllAgents() {
+            _amsRnwSelectedAgents.clear();
+            amsRenewalsRender();
+        }
+
+        function amsRnwToggleAgent(agent, checked) {
+            if (checked) _amsRnwSelectedAgents.add(agent); else _amsRnwSelectedAgents.delete(agent);
+            amsRnwUpdateAgentBtnLabel();
+            amsRenewalsRender();
+        }
+
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('amsRnwAgentMenu');
+            const btn  = document.getElementById('amsRnwAgentBtn');
+            if (menu && menu.style.display === 'block' && !menu.contains(e.target) && btn && !btn.contains(e.target)) {
+                menu.style.display = 'none';
+            }
+        });
+
         // The binder array + rows currently rendered in the renewals table.
         // Assignment goes through the rendered row (not an id lookup) because
         // batch imports can stamp several entries with the same Date.now() id —
@@ -2957,20 +3015,14 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             const allAgents = [...new Set([...binder.map(p => p.agent).filter(Boolean),
                                            ...Object.keys(amsGetCredentials())])].sort();
 
-            // Keep the agent dropdown in sync without losing the current pick
-            const agentSel = document.getElementById('amsRnwAgentFilter');
-            if (agentSel) {
-                const current = agentSel.value;
-                agentSel.innerHTML = '<option value="">All Agents</option>' +
-                    allAgents.map(a => `<option value="${_rptEsc(a)}" ${a === current ? 'selected' : ''}>${_rptEsc(a)}</option>`).join('');
-            }
-            const agentF = agentSel?.value || '';
+            // Build the multi-select agent menu (empty selection = All Agents)
+            amsRnwBuildAgentMenu(allAgents);
 
             // All upcoming renewals (agent filter applied) — the base for both views
             const upcoming = binder.filter(p => {
                 if (!p.expirationDate || (p.policyType || '').toLowerCase() === 'cancellation') return false;
                 if ((p.policyStatus || '').toLowerCase() === 'cancelled') return false;
-                if (agentF && p.agent !== agentF) return false;
+                if (_amsRnwSelectedAgents.size && !_amsRnwSelectedAgents.has(p.agent)) return false;
                 return p.expirationDate >= todayStr;
             });
 

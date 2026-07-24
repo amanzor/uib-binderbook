@@ -10838,16 +10838,63 @@ function showRenewalsSection() {
     refreshIcons();
 }
 
+// Multi-select agent filter. Empty set = All Agents.
+let _rnwSelectedAgents = new Set();
+
 function populateRenewalAgentFilter() {
-    const sel = document.getElementById('rnwAgentFilter');
-    if (!sel) return;
-    const current = sel.value;
-    const entryAgents  = (allData || []).map(e => e.agent).filter(Boolean);
-    const masterAgents = Object.keys(JSON.parse(localStorage.getItem('agentMasterData') || '{}'));
-    const agents = [...new Set([...entryAgents, ...masterAgents])].sort();
-    sel.innerHTML = '<option value="">All Agents</option>' +
-        agents.map(a => `<option value="${escHtml(a)}" ${a === current ? 'selected' : ''}>${escHtml(a)}</option>`).join('');
+    const menu = document.getElementById('rnwAgentMenu');
+    if (!menu) return;
+    const agents = _rnwAgentList();
+    // Drop any selected agent that no longer exists in the list
+    _rnwSelectedAgents.forEach(a => { if (!agents.includes(a)) _rnwSelectedAgents.delete(a); });
+    const row = (checked, val, label, onclick) =>
+        `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;"
+                onmouseover="this.style.background='var(--blue-pale)'" onmouseout="this.style.background='transparent'">
+            <input type="checkbox" ${checked ? 'checked' : ''} ${onclick} style="cursor:pointer;"> ${label}
+        </label>`;
+    menu.innerHTML =
+        row(_rnwSelectedAgents.size === 0, '', '<strong>All Agents</strong>', `onclick="rnwSelectAllAgents()"`) +
+        `<div style="height:1px;background:var(--gray-100);margin:4px 0;"></div>` +
+        agents.map(a => row(_rnwSelectedAgents.has(a), a, escHtml(a),
+            `onchange="rnwToggleAgent('${escHtml(a).replace(/'/g, "\\'")}', this.checked)"`)).join('');
+    rnwUpdateAgentBtnLabel();
 }
+
+function rnwUpdateAgentBtnLabel() {
+    const lbl = document.getElementById('rnwAgentBtnLabel');
+    if (!lbl) return;
+    const n = _rnwSelectedAgents.size;
+    lbl.textContent = n === 0 ? 'All Agents'
+        : n === 1 ? [..._rnwSelectedAgents][0]
+        : `${n} agents selected`;
+}
+
+function rnwToggleAgentMenu(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('rnwAgentMenu');
+    if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function rnwSelectAllAgents() {
+    _rnwSelectedAgents.clear();
+    populateRenewalAgentFilter();
+    renderRenewalsTable();
+}
+
+function rnwToggleAgent(agent, checked) {
+    if (checked) _rnwSelectedAgents.add(agent); else _rnwSelectedAgents.delete(agent);
+    rnwUpdateAgentBtnLabel();
+    renderRenewalsTable();
+}
+
+// Close the agent menu when clicking outside it
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('rnwAgentMenu');
+    const btn  = document.getElementById('rnwAgentBtn');
+    if (menu && menu.style.display === 'block' && !menu.contains(e.target) && btn && !btn.contains(e.target)) {
+        menu.style.display = 'none';
+    }
+});
 
 let _rnwActiveMonth = ''; // 'YYYY-MM' month view, or '' = expiring-within-window view
 
@@ -10885,17 +10932,17 @@ function renderRenewalsTable() {
     if (!tbody) return;
 
     const days   = parseInt(document.getElementById('rnwWindow')?.value || '90');
-    const agentF = document.getElementById('rnwAgentFilter')?.value || '';
     const today  = new Date();
     const todayStr  = today.toISOString().slice(0, 10);
     const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + days);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-    // All upcoming renewals (agent filter applied) — the base for both views
+    // All upcoming renewals (agent filter applied) — the base for both views.
+    // Empty selection = All Agents.
     const upcoming = (allData || []).filter(e => {
         if (!e.expirationDate || (e.policyType || '').toLowerCase() === 'cancellation') return false;
         if ((e.policyStatus || '').toLowerCase() === 'cancelled') return false;
-        if (agentF && e.agent !== agentF) return false;
+        if (_rnwSelectedAgents.size && !_rnwSelectedAgents.has(e.agent)) return false;
         return e.expirationDate >= todayStr;
     });
 
