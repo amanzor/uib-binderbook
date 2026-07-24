@@ -2967,6 +2967,14 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // ══════════════════════════════════════════════════════
         let _amsRnwActiveMonth = ''; // 'YYYY-MM' month view, or '' = expiring-within-window view
 
+        // Who can manage renewals (assign + Renew): the password "Admin" login,
+        // and the agency admins even when they sign in with their agent account.
+        // Regular agents remain read-only. Mirrors the Binder Book's AGENT_ADMINS.
+        const AMS_RENEWAL_ADMINS = ['Alberto Manzor', 'Randy Diaz'];
+        function amsIsRenewalAdmin() {
+            return amsCurrentRole === 'admin' || AMS_RENEWAL_ADMINS.includes(amsCurrentUser);
+        }
+
         function amsRnwSelectMonth(monthKey) {
             _amsRnwActiveMonth = monthKey || '';
             amsRenewalsRender();
@@ -3034,7 +3042,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         let _amsRnwRows   = [];
 
         function amsRnwAssignAgent(rowIdx, agent) {
-            if (amsCurrentRole !== 'admin') return; // admins only — agents cannot reassign
+            if (!amsIsRenewalAdmin()) return; // admins / agency admins only — regular agents cannot reassign
             if (!agent) return;
             const p = _amsRnwRows[rowIdx];
             if (!p) return;
@@ -3051,7 +3059,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
 
             // AI processor card is admin-only
             const aiCard = document.getElementById('amsRnwAiCard');
-            if (aiCard) aiCard.style.display = (amsCurrentRole === 'admin') ? '' : 'none';
+            if (aiCard) aiCard.style.display = amsIsRenewalAdmin() ? '' : 'none';
 
             const days   = parseInt(document.getElementById('amsRnwWindow')?.value || '90');
             const today  = new Date();
@@ -3114,7 +3122,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 return;
             }
 
-            const isAdmin = amsCurrentRole === 'admin';
+            const isAdmin = amsIsRenewalAdmin();
             _amsRnwBinder = binder;
             _amsRnwRows   = rows;
             tbody.innerHTML = rows.map((p, idx) => {
@@ -3170,7 +3178,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         function amsRnwRenew(rowIdx) {
-            if (amsCurrentRole !== 'admin') return; // admins only
+            if (!amsIsRenewalAdmin()) return; // admins / agency admins only
             const src = _amsRnwRows[rowIdx];
             if (!src) return;
             if (!src.agent) {
