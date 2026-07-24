@@ -645,9 +645,6 @@
             <button class="ams-tab-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
                 <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
             </button>
-            <button class="ams-tab-btn" id="sidebarNavCommissions" onclick="amsSidebarNav('commissions')">
-                <i data-lucide="coins" style="width:15px;height:15px;"></i> Commissions
-            </button>
             <button class="ams-tab-btn" id="sidebarNavDownload" onclick="amsSidebarNav('download')">
                 <i data-lucide="download" style="width:15px;height:15px;"></i> Download
             </button>
@@ -846,6 +843,7 @@
                 <div id="amsAccountingPanel" style="display:none;" class="reports-panel">
                     <div class="acct-tabs-bar">
                         <button class="acct-tab" onclick="amsShowAccounting('overview')">💼 Overview</button>
+                        <button class="acct-tab" onclick="amsShowAccounting('statements')">🧾 Commission Statement</button>
                         <button class="acct-tab" onclick="amsShowAccounting('ledger')">📋 Sales Ledger</button>
                         <button class="acct-tab" onclick="amsShowAccounting('cc')">💳 CC Transactions</button>
                         <button class="acct-tab" onclick="amsShowAccounting('commissions')">🏆 Commission Ledger</button>
@@ -856,7 +854,6 @@
                         <button class="acct-tab" onclick="amsShowAccounting('pnl')">📊 P&amp;L Summary</button>
                         <button class="acct-tab" onclick="amsShowAccounting('salessummary')">📈 Sales Summary</button>
                         <button class="acct-tab" onclick="amsShowAccounting('commtracker')">🎯 Commission Tracker</button>
-                        <button class="acct-tab" onclick="amsShowAccounting('statements')">🧾 Commissions</button>
                     </div>
                     <div class="report-body" id="amsAcctBody">
                         <div class="rpt-no-data" style="margin-top:60px;">
