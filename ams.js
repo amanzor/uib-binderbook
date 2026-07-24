@@ -185,6 +185,26 @@ function amsIsHomeownerLOB(lob) {
     return /home\s*owner|homeowner|dwelling/i.test(lob || '');
 }
 
+// Infinity and Kemper do not write Homeowners policies.
+function amsIsRestrictedHomeownerCarrier(company) {
+    return /infinity|kemper/i.test(company || '');
+}
+
+// Correct any Infinity/Kemper entry still marked as a Homeowner product to
+// "Personal Auto". Mutates in place; returns the number of entries changed.
+function amsNormalizeRestrictedCarrierLOBs(entries) {
+    if (!Array.isArray(entries)) return 0;
+    let fixed = 0;
+    entries.forEach(e => {
+        if (e && amsIsRestrictedHomeownerCarrier(e.company) && amsIsHomeownerLOB(e.lineOfBusiness)) {
+            e.lineOfBusiness = 'Personal Auto';
+            e.updatedAt = Date.now();
+            fixed++;
+        }
+    });
+    return fixed;
+}
+
 const AMS_ADMIN_PASSWORD = 'admin2024';
 
 // ── State ────────────────────────────────────────────────────
@@ -257,6 +277,11 @@ function amsBuildClientIndex() {
     const binder   = amsGetBinderData();
     const contacts = amsGetClientData();
     const index    = {};
+
+    // Correct any Infinity/Kemper entries mislabeled as Homeowners, then persist.
+    if (amsNormalizeRestrictedCarrierLOBs(binder) > 0) {
+        amsSave('binderData', binder);
+    }
 
     binder.forEach(entry => {
         const key = amsClientKey(entry.customerName);
@@ -1073,6 +1098,10 @@ function amsSavePolicyModal() {
     if (!policyType) { alert('Please select a Policy Type.');       return; }
     if (!lob)        { alert('Please select a Line of Business.');  return; }
     if (!carrier)    { alert('Please select a Carrier.');           return; }
+    if (amsIsRestrictedHomeownerCarrier(carrier) && amsIsHomeownerLOB(lob)) {
+        alert(`${carrier} does not write Homeowners policies. Please choose a different carrier or a non-Homeowners Line of Business.`);
+        return;
+    }
 
     const editId = parseInt(document.getElementById('amsPolicyEditId')?.value) || null;
     let binder   = amsGetBinderData();

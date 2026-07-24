@@ -95,7 +95,33 @@ function mergeBinderData(localArr, cloudArr, tombstones) {
     };
     (Array.isArray(cloudArr) ? cloudArr : []).forEach(put);
     (Array.isArray(localArr) ? localArr : []).forEach(put);
-    return [...byKey.values()].sort((x, y) => (x.id || 0) - (y.id || 0));
+    const merged = [...byKey.values()].sort((x, y) => (x.id || 0) - (y.id || 0));
+    // Enforce the carrier/LOB rule on every merge so corrections propagate to
+    // and from the cloud, not just on the device that first loaded the data.
+    normalizeRestrictedCarrierLOBs(merged);
+    return merged;
+}
+
+// Infinity and Kemper do not write Homeowners policies. Any entry pairing one
+// of those carriers with a Homeowner line of business is a data-entry error.
+function isRestrictedHomeownerCarrier(company) {
+    return /infinity|kemper/i.test(company || '');
+}
+
+// Rewrite the Line of Business to "Personal Auto" for any Infinity/Kemper entry
+// still marked as a Homeowner product. Mutates in place; returns the number of
+// entries changed. Idempotent — once corrected, an entry no longer matches.
+function normalizeRestrictedCarrierLOBs(entries) {
+    if (!Array.isArray(entries)) return 0;
+    let fixed = 0;
+    entries.forEach(e => {
+        if (e && isRestrictedHomeownerCarrier(e.company) && isHomeownerLOB(e.lineOfBusiness)) {
+            e.lineOfBusiness = 'Personal Auto';
+            e.updatedAt = Date.now();
+            fixed++;
+        }
+    });
+    return fixed;
 }
 
 // Pull cloud tombstones, union with local, persist locally. Returns the
@@ -240,6 +266,10 @@ function startAutoSync() {
 let currentUser = null;
 let currentRole = null;
 let allData = JSON.parse(localStorage.getItem('binderData')) || [];
+// One-time correction of any Infinity/Kemper entries mislabeled as Homeowners.
+if (normalizeRestrictedCarrierLOBs(allData) > 0) {
+    try { localStorage.setItem('binderData', JSON.stringify(allData)); } catch (e) {}
+}
 let carrierMasterData = JSON.parse(localStorage.getItem('carrierMasterData')) || {};
 
 // ── Eastern Time helpers ──────────────────────────────────────
@@ -1330,6 +1360,12 @@ function saveEntry() {
         entry.propertyYearBuilt = propVal('propertyYearBuilt');
         entry.drivers  = [];
         entry.vehicles = [];
+    }
+
+    // Infinity and Kemper do not write Homeowners policies.
+    if (isRestrictedHomeownerCarrier(entry.company) && isHomeownerLOB(entry.lineOfBusiness)) {
+        alert(`⚠️ ${entry.company} does not write Homeowners policies. Please choose a different carrier or a non-Homeowners Line of Business.`);
+        return;
     }
 
     // Duplicate guard — block if same agent + customer + policy# + company + date already exists
@@ -3287,6 +3323,13 @@ function closeModal() {
 function updateEntry() {
     const entry = allData.find(d => d.id === editingId);
     if (!entry) return;
+    // Validate the carrier/LOB rule before mutating the entry.
+    const _newLob     = document.getElementById('editLineOfBusiness').value;
+    const _newCompany = toTitleCase(document.getElementById('editCompany').value);
+    if (isRestrictedHomeownerCarrier(_newCompany) && isHomeownerLOB(_newLob)) {
+        alert(`⚠️ ${_newCompany} does not write Homeowners policies. Please choose a different carrier or a non-Homeowners Line of Business.`);
+        return;
+    }
     entry.customerName = toTitleCase(document.getElementById('editCustomerName').value);
     entry.source = document.getElementById('editSource').value;
     entry.referredBy = toTitleCase(document.getElementById('editReferredBy').value);
