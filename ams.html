@@ -3128,8 +3128,12 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                             <option value="">${p.agent ? 'Reassign…' : 'Assign…'}</option>
                             ${allAgents.map(a => `<option value="${_rptEsc(a)}" ${a === p.agent ? 'disabled' : ''}>${_rptEsc(a)}</option>`).join('')}
                         </select>` : '';
+                const renewBtn = isAdmin ? `
+                        <button class="btn-sm" onclick="amsRnwRenew(${idx})" title="Send this renewal to the assigned agent's Binder Book"
+                        style="background:linear-gradient(135deg,#047857,#059669);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;">🔄 Renew</button>` : '';
                 return `<tr>
-                    <td><strong>${_rptEsc(p.customerName || '—')}</strong></td>
+                    <td><button onclick="amsRnwOpenClient('${_rptEsc(key).replace(/'/g, "\\'")}')" title="Open this client"
+                        style="background:none;border:none;padding:0;color:var(--blue);font-weight:700;font-size:inherit;font-family:inherit;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px;">${_rptEsc(p.customerName || '—')}</button></td>
                     <td>${_rptEsc(p.lineOfBusiness || '—')}</td>
                     <td>${_rptEsc(p.company || '—')}</td>
                     <td style="font-family:monospace;font-size:11px;">${_rptEsc(p.policyNumber || '—')}</td>
@@ -3137,11 +3141,86 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <td><strong>${p.expirationDate}</strong></td>
                     <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
                     <td>${_rptEsc(p.agent || '—')}</td>
-                    <td style="white-space:nowrap;">${assignSel}
-                        <button class="btn-sm" onclick="amsRnwOpenClient('${_rptEsc(key).replace(/'/g, "\\'")}')"
-                        style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;">Open Client</button></td>
+                    <td style="white-space:nowrap;">${assignSel}${renewBtn}</td>
                 </tr>`;
             }).join('');
+        }
+
+        // ── Renew: create a renewal entry in the assigned agent's Binder Book ──
+        function _amsRnwAddMonths(dateStr, months) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const base = new Date(y, (m - 1) + months, 1);
+            const lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+            base.setDate(Math.min(d, lastDay));
+            return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+        }
+        function _amsRnwTermMonths(eff, exp) {
+            if (eff && exp) {
+                const days = (new Date(exp + 'T12:00:00') - new Date(eff + 'T12:00:00')) / 86400000;
+                if (days > 0 && days <= 215) return 6;
+            }
+            return 12;
+        }
+        function _amsRnwAlreadyRenewed(list, src, newEff) {
+            const norm = s => String(s || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+            const pol  = norm(src.policyNumber);
+            return list.some(e => (e.policyType || '').toLowerCase() === 'renewal' &&
+                e.effectiveDate === newEff &&
+                (pol ? norm(e.policyNumber) === pol : (e.customerName || '') === (src.customerName || '')));
+        }
+
+        function amsRnwRenew(rowIdx) {
+            if (amsCurrentRole !== 'admin') return; // admins only
+            const src = _amsRnwRows[rowIdx];
+            if (!src) return;
+            if (!src.agent) {
+                alert('Assign this renewal to an agent first, then click Renew — the record is sent to that agent\'s Binder Book.');
+                return;
+            }
+            const newEff = src.expirationDate;
+            const binder = amsGetBinderData();
+            if (_amsRnwAlreadyRenewed(binder, src, newEff)) {
+                alert(`A renewal for ${src.customerName || 'this policy'} (term starting ${newEff}) is already in ${src.agent}'s Binder Book.`);
+                return;
+            }
+            const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+            const term     = _amsRnwTermMonths(src.effectiveDate, newEff);
+            const newExp   = _amsRnwAddMonths(newEff, term);
+            const premium  = parseFloat(src.totalPremium) || 0;
+            binder.push({
+                id:                   Date.now(),
+                entryDate:            todayStr,
+                agent:                src.agent,
+                customerName:         src.customerName || '',
+                policyType:           'Renewal',
+                lineOfBusiness:       src.lineOfBusiness || '',
+                company:              src.company || '',
+                mga:                  src.mga || '',
+                policyNumber:         src.policyNumber || '',
+                binderNumber:         '',
+                down:                 0,
+                agencyFee:            0,
+                basePremium:          parseFloat(src.basePremium) || premium,
+                totalPremium:         premium,
+                agencyCommission:     Math.round((parseFloat(src.agencyCommission) || premium * 0.10) * 100) / 100,
+                agentCommissionShare: 0,
+                paymentType:          src.paymentType || '',
+                effDate:              newEff,
+                term:                 String(term),
+                effectiveDate:        newEff,
+                expirationDate:       newExp,
+                policyStatus:         'Pending',
+                lineType:             src.lineType || 'personal',
+                drivers:              Array.isArray(src.drivers)  ? src.drivers  : [],
+                vehicles:             Array.isArray(src.vehicles) ? src.vehicles : [],
+                notes:                'Renewal generated from the Renewals page — pending completion.',
+                renewalOfPolicy:      src.policyNumber || '',
+                renewalSourceId:      src.id,
+                updatedAt:            Date.now()
+            });
+            amsSave('binderData', binder);
+            amsRenewalsRender();
+            amsFlashBanner(`Renewal sent to ${src.agent}'s Binder Book ✓`);
         }
 
         function amsRnwOpenClient(key) {

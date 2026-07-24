@@ -11009,6 +11009,117 @@ function rnwAssignAgent(rowIdx, agent) {
     renderRenewalsTable();
 }
 
+// ── Renew: create a renewal entry in the assigned agent's Binder Book ──
+// Shared helpers (also used by the AMS renewals page via its own copy).
+function _rnwAddMonths(dateStr, months) {
+    // dateStr = YYYY-MM-DD. Add whole months, clamp day, return YYYY-MM-DD.
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const base = new Date(y, (m - 1) + months, 1);
+    const lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+    base.setDate(Math.min(d, lastDay));
+    return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+}
+
+// Term (6 or 12 months) inferred from the expiring policy, defaulting to 12.
+function _rnwTermMonths(eff, exp) {
+    if (eff && exp) {
+        const days = (new Date(exp + 'T12:00:00') - new Date(eff + 'T12:00:00')) / 86400000;
+        if (days > 0 && days <= 215) return 6; // ~7 months or less → 6-month term
+    }
+    return 12;
+}
+
+// Build a fresh renewal entry (new term) for the assigned agent to work.
+function buildRenewalEntry(src, todayStr) {
+    const origExp = src.expirationDate;
+    const term    = _rnwTermMonths(src.effectiveDate, origExp);
+    const newEff  = origExp;                       // new term starts when the old one ends
+    const newExp  = _rnwAddMonths(newEff, term);
+    const premium = parseFloat(src.totalPremium) || 0;
+    return {
+        id:                   Date.now(),
+        entryDate:            todayStr,
+        agent:                src.agent,
+        customerName:         src.customerName || '',
+        contactName:          src.contactName || '',
+        customerPhone:        src.customerPhone || '',
+        customerEmail:        src.customerEmail || '',
+        policyType:           'Renewal',
+        lineOfBusiness:       src.lineOfBusiness || '',
+        company:              src.company || '',
+        mga:                  src.mga || '',
+        policyNumber:         src.policyNumber || '',
+        binderNumber:         '',
+        down:                 0,
+        agencyFee:            0,
+        basePremium:          parseFloat(src.basePremium) || premium,
+        totalPremium:         premium,
+        agencyCommission:     Math.round((parseFloat(src.agencyCommission) || premium * 0.10) * 100) / 100,
+        agentCommissionShare: 0,
+        paymentType:          src.paymentType || '',
+        paymentMethod2:       src.paymentMethod2 || '',
+        effDate:              newEff,
+        term:                 String(term),
+        effectiveDate:        newEff,
+        expirationDate:       newExp,
+        policyStatus:         'Pending',
+        lineType:             src.lineType || 'personal',
+        drivers:              Array.isArray(src.drivers)  ? src.drivers  : [],
+        vehicles:             Array.isArray(src.vehicles) ? src.vehicles : [],
+        notes:                'Renewal generated from the Renewals page — pending completion.',
+        renewalOfPolicy:      src.policyNumber || '',
+        renewalSourceId:      src.id,
+        updatedAt:            Date.now(),
+        timestamp:            (typeof getEasternTimestamp === 'function' ? getEasternTimestamp() : new Date().toISOString())
+    };
+}
+
+// True if a renewal entry for this policy's new term already exists.
+function _rnwAlreadyRenewed(list, src, newEff) {
+    const norm = s => String(s || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+    const pol  = norm(src.policyNumber);
+    return list.some(e => (e.policyType || '').toLowerCase() === 'renewal' &&
+        e.effectiveDate === newEff &&
+        (pol ? norm(e.policyNumber) === pol
+             : (e.customerName || '') === (src.customerName || '')));
+}
+
+function rnwRenew(rowIdx) {
+    if (currentRole !== 'admin') return; // admins only
+    const src = _rnwRows[rowIdx];
+    if (!src) return;
+    if (!src.agent) {
+        alert('Assign this renewal to an agent first, then click Renew — the record is sent to that agent\'s Binder Book.');
+        return;
+    }
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const newEff   = src.expirationDate;
+    if (_rnwAlreadyRenewed(allData, src, newEff)) {
+        alert(`A renewal for ${src.customerName || 'this policy'} (term starting ${newEff}) is already in ${src.agent}'s Binder Book.`);
+        return;
+    }
+    const agent = src.agent;
+    allData.push(buildRenewalEntry(src, todayStr));
+    localStorage.setItem('binderData', JSON.stringify(allData));
+    renderRenewalsTable();
+    rnwToast(`Renewal sent to ${agent}'s Binder Book ✓`);
+}
+
+// Small non-blocking confirmation toast, bottom-right.
+function rnwToast(msg) {
+    let el = document.getElementById('rnwToast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'rnwToast';
+        el.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#0d1f3c;color:#fff;padding:11px 18px;border-radius:8px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.3);transition:opacity .3s;';
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.opacity = '1';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.opacity = '0'; }, 2600);
+}
+
 function renderRenewalsTable() {
     const tbody = document.getElementById('rnwTableBody');
     if (!tbody) return;
@@ -11077,7 +11188,8 @@ function renderRenewalsTable() {
         const tlBg     = daysLeft <= 14 ? '#fee2e2' : daysLeft <= 30 ? '#ffedd5' : '#d1fae5';
         const premium  = parseFloat(e.totalPremium) || 0;
         return `<tr>
-            <td><strong>${escHtml(e.customerName || '—')}</strong></td>
+            <td><button onclick="openEditModal(${e.id})" title="Open this record"
+                style="background:none;border:none;padding:0;color:var(--blue);font-weight:700;font-size:inherit;font-family:inherit;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px;">${escHtml(e.customerName || '—')}</button></td>
             <td>${escHtml(e.lineOfBusiness || '—')}</td>
             <td>${escHtml(e.company || '—')}</td>
             <td style="font-family:monospace;font-size:11.5px;">${escHtml(e.policyNumber || '—')}</td>
@@ -11091,7 +11203,7 @@ function renderRenewalsTable() {
                     <option value="">${e.agent ? 'Reassign…' : 'Assign…'}</option>
                     ${agents.map(a => `<option value="${escHtml(a)}" ${a === e.agent ? 'disabled' : ''}>${escHtml(a)}</option>`).join('')}
                 </select>
-                <button class="btn-primary btn-sm" onclick="openEditModal(${e.id})"><i data-lucide="pencil"></i> Edit</button>
+                <button class="btn-success btn-sm" onclick="rnwRenew(${idx})" title="Send this renewal to the assigned agent's Binder Book"><i data-lucide="refresh-cw"></i> Renew</button>
             </td>
         </tr>`;
     }).join('');
