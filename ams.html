@@ -31,6 +31,7 @@
             --white:      #ffffff;
             --sidebar-w:  320px;
             --header-h:   64px;
+            --tabbar-h:   50px;
             --radius-sm:  6px;
             --radius-md:  10px;
             --radius-lg:  16px;
@@ -113,38 +114,39 @@
         .ams-header .user-chip span { color: rgba(255,255,255,.85); font-size: 13px; }
         .ams-header .user-chip .avatar { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,.2); color: white; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
 
+        /* ── TOP TAB BAR (section nav, below header) ─────────────── */
+        .ams-tabbar {
+            height: var(--tabbar-h); display: flex; align-items: center; gap: 6px;
+            padding: 0 20px; background: white; border-bottom: 1px solid var(--gray-200);
+            position: fixed; top: var(--header-h); left: 0; right: 0; z-index: 190;
+            overflow-x: auto; overflow-y: hidden;
+        }
+        .ams-tab-btn {
+            display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+            padding: 8px 16px; border-radius: var(--radius-sm);
+            border: none; background: transparent;
+            font-family: inherit; font-size: 13px; font-weight: 600;
+            color: var(--gray-700); cursor: pointer;
+            transition: background .12s, color .12s;
+        }
+        .ams-tab-btn:hover { background: var(--blue-pale); color: var(--blue); }
+        .ams-tab-btn.active {
+            background: var(--blue); color: white;
+            box-shadow: 0 2px 8px rgba(29,78,216,.25);
+        }
+        .ams-tab-btn svg { flex-shrink: 0; }
+
         /* ── MAIN BODY LAYOUT ─────────────────────────────────────── */
-        .ams-body { display: flex; flex: 1; padding-top: var(--header-h); min-height: 100vh; }
+        .ams-body { display: flex; flex: 1; padding-top: calc(var(--header-h) + var(--tabbar-h)); min-height: 100vh; }
 
         /* ── LEFT SIDEBAR ─────────────────────────────────────────── */
         .ams-sidebar {
             width: var(--sidebar-w); flex-shrink: 0;
             background: white; border-right: 1px solid var(--gray-200);
             display: flex; flex-direction: column;
-            position: fixed; top: var(--header-h); bottom: 0; left: 0;
+            position: fixed; top: calc(var(--header-h) + var(--tabbar-h)); bottom: 0; left: 0;
             overflow: hidden; z-index: 100;
         }
-
-        /* ── SIDEBAR NAV BUTTONS ──────────────────────────────────── */
-        .sidebar-nav {
-            display: flex; flex-direction: column; gap: 4px;
-            padding: 12px 10px; border-bottom: 1px solid var(--gray-200);
-            background: var(--gray-50);
-        }
-        .sidebar-nav-btn {
-            display: flex; align-items: center; gap: 10px;
-            padding: 10px 14px; border-radius: var(--radius-sm);
-            border: none; background: transparent; width: 100%;
-            font-family: inherit; font-size: 13px; font-weight: 600;
-            color: var(--gray-700); cursor: pointer; text-align: left;
-            transition: background .12s, color .12s;
-        }
-        .sidebar-nav-btn:hover { background: var(--blue-pale); color: var(--blue); }
-        .sidebar-nav-btn.active {
-            background: var(--blue); color: white;
-            box-shadow: 0 2px 8px rgba(29,78,216,.25);
-        }
-        .sidebar-nav-btn svg { flex-shrink: 0; }
 
         .sidebar-toolbar {
             padding: 14px 12px 10px; border-bottom: 1px solid var(--gray-100);
@@ -398,7 +400,7 @@
         @media (max-width: 900px) { .dash-charts { grid-template-columns: 1fr; } }
 
         /* ── REPORTS PANEL ────────────────────────────────────────── */
-        .reports-panel { display: flex; flex-direction: column; height: calc(100vh - var(--header-h)); overflow: hidden; }
+        .reports-panel { display: flex; flex-direction: column; height: calc(100vh - var(--header-h) - var(--tabbar-h)); overflow: hidden; }
         .report-tabs-bar {
             display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 20px;
             background: white; border-bottom: 2px solid var(--gray-200);
@@ -508,6 +510,8 @@
 
         /* ── RESPONSIVE ───────────────────────────────────────────── */
         @media (max-width: 768px) {
+            .ams-tabbar { padding: 0 10px; }
+            .ams-tab-btn { padding: 8px 12px; font-size: 12px; }
             .ams-sidebar { width: 100%; position: relative; top: auto; bottom: auto; left: auto; height: auto; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--gray-200); }
             .ams-body { flex-direction: column; }
             .ams-main { margin-left: 0; padding: 16px 12px; }
@@ -612,7 +616,7 @@
             <div class="search-wrap">
                 <span class="search-icon"><i data-lucide="search" style="width:14px;height:14px;"></i></span>
                 <input type="text" id="amsGlobalSearch" placeholder="Search clients by name, phone, policy #…"
-                    oninput="amsSearch(this.value)">
+                    onfocus="amsSidebarNav('search')" oninput="amsSearch(this.value)">
             </div>
             <div class="user-chip">
                 <span id="amsUserLabel">—</span>
@@ -627,39 +631,36 @@
             </div>
         </header>
 
+        <!-- Section tab bar (below header) -->
+        <nav class="ams-tabbar" id="amsTabbar">
+            <button class="ams-tab-btn" id="sidebarNavDashboard" onclick="amsSidebarNav('dashboard')">
+                <i data-lucide="layout-dashboard" style="width:15px;height:15px;"></i> Dashboard
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavReports" onclick="amsSidebarNav('reports')">
+                <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i> Reports
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavRenewals" onclick="amsSidebarNav('renewals')">
+                <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i> Renewals
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
+                <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavCommissions" onclick="amsSidebarNav('commissions')">
+                <i data-lucide="coins" style="width:15px;height:15px;"></i> Commissions
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavDownload" onclick="amsSidebarNav('download')">
+                <i data-lucide="download" style="width:15px;height:15px;"></i> Download
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavRealtime" onclick="amsSidebarNav('realtime')">
+                <i data-lucide="zap" style="width:15px;height:15px;"></i> Real Time
+            </button>
+        </nav>
+
         <!-- Body -->
         <div class="ams-body">
 
             <!-- ── LEFT SIDEBAR ── -->
             <aside class="ams-sidebar">
-
-                <!-- Nav button bar -->
-                <nav class="sidebar-nav">
-                    <button class="sidebar-nav-btn" id="sidebarNavDashboard" onclick="amsSidebarNav('dashboard')">
-                        <i data-lucide="layout-dashboard" style="width:15px;height:15px;"></i> Dashboard
-                    </button>
-                    <button class="sidebar-nav-btn active" id="sidebarNavSearch" onclick="amsSidebarNav('search')">
-                        <i data-lucide="search" style="width:15px;height:15px;"></i> Search
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavReports" onclick="amsSidebarNav('reports')">
-                        <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i> Reports
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavRenewals" onclick="amsSidebarNav('renewals')">
-                        <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i> Renewals
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
-                        <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavCommissions" onclick="amsSidebarNav('commissions')">
-                        <i data-lucide="coins" style="width:15px;height:15px;"></i> Commissions
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavDownload" onclick="amsSidebarNav('download')">
-                        <i data-lucide="download" style="width:15px;height:15px;"></i> Download
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavRealtime" onclick="amsSidebarNav('realtime')">
-                        <i data-lucide="zap" style="width:15px;height:15px;"></i> Real Time
-                    </button>
-                </nav>
 
                 <div class="sidebar-toolbar" id="sidebarSearchToolbar">
                     <div class="sidebar-search">
@@ -1907,7 +1908,9 @@
         }
 
         function amsSidebarNav(section) {
-            const sections = ['dashboard','search','reports','renewals','accounting','commissions','download','realtime'];
+            // 'search' has no tab button of its own — it's reached via the header
+            // search box (onfocus) — so it's excluded from the active-tab toggle.
+            const sections = ['dashboard','reports','renewals','accounting','commissions','download','realtime'];
             sections.forEach(s => {
                 const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
                 if (btn) btn.classList.toggle('active', s === section);
