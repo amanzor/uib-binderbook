@@ -293,6 +293,97 @@ function amsBuildClientIndex() {
 
     amsClientIndex = index;
     amsFilteredKeys = Object.keys(index).sort();
+
+    amsBuildRelationIndex();
+}
+
+// ── Client relationship index ────────────────────────────────
+// Links clients that share a phone, email, mailing address, or referral so a
+// search can surface not just direct matches but the people connected to them
+// (household members, co-applicants, referrers, businesses at the same address).
+let amsRelationIndex   = { phone: {}, email: {}, address: {}, referral: {} };
+let amsRelationReasons = {};   // key → human-readable reason it was pulled in as related
+
+function amsNormPhone(v) {
+    let d = String(v || '').replace(/\D/g, '');
+    if (d.length === 11 && d[0] === '1') d = d.slice(1);
+    return d.length >= 7 ? d : '';
+}
+function amsNormEmail(v) {
+    const e = String(v || '').trim().toLowerCase();
+    return e.includes('@') ? e : '';
+}
+function amsNormAddress(contact) {
+    const street = String(contact.address || '').trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (street.length < 5) return '';
+    const locale = String(contact.zip || contact.city || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+    return locale ? `${street}|${locale}` : street;
+}
+
+function amsBuildRelationIndex() {
+    const phone = {}, email = {}, address = {}, referral = {};
+    const push = (map, val, key) => {
+        if (!val) return;
+        (map[val] = map[val] || []);
+        if (!map[val].includes(key)) map[val].push(key);
+    };
+
+    Object.values(amsClientIndex).forEach(client => {
+        const c   = client.contact || {};
+        const key = client.key;
+
+        push(phone, amsNormPhone(c.phone1), key);
+        push(phone, amsNormPhone(c.phone2), key);
+        push(email, amsNormEmail(c.email),  key);
+        push(address, amsNormAddress(c),    key);
+
+        // Referral / referred-by connections (free text that names another client)
+        const refNames = [c.referral, c.referredBy];
+        client.policies.forEach(p => { if (p.referredBy) refNames.push(p.referredBy); });
+        refNames.forEach(name => {
+            const refKey = amsClientKey(name);
+            if (refKey && refKey !== key && amsClientIndex[refKey]) {
+                // record the edge in both directions
+                push(referral, `${key}::${refKey}`, key);
+                push(referral, `${key}::${refKey}`, refKey);
+            }
+        });
+    });
+
+    amsRelationIndex   = { phone, email, address, referral };
+    amsRelationReasons = {};
+}
+
+// Return clients related to a given client key, each with the reason for the link.
+function amsRelatedTo(baseKey) {
+    const client = amsClientIndex[baseKey];
+    if (!client) return [];
+    const c = client.contact || {};
+    const found = {};   // relKey → reason label
+    const add = (relKey, reason) => {
+        if (!relKey || relKey === baseKey || found[relKey]) return;
+        found[relKey] = reason;
+    };
+
+    const scan = (map, val, reason) => {
+        if (!val) return;
+        (map[val] || []).forEach(k => add(k, reason));
+    };
+
+    scan(amsRelationIndex.phone, amsNormPhone(c.phone1), 'shared phone');
+    scan(amsRelationIndex.phone, amsNormPhone(c.phone2), 'shared phone');
+    scan(amsRelationIndex.email, amsNormEmail(c.email),  'shared email');
+    scan(amsRelationIndex.address, amsNormAddress(c),    'shared address');
+
+    // Referral edges involving this client
+    Object.keys(amsRelationIndex.referral).forEach(edge => {
+        const [a, b] = edge.split('::');
+        if (a === baseKey) add(b, 'referral link');
+        else if (b === baseKey) add(a, 'referral link');
+    });
+
+    return Object.keys(found).map(key => ({ key, reason: found[key] }));
 }
 
 // ── Login ────────────────────────────────────────────────────
@@ -517,12 +608,25 @@ function amsSearch(q) {
 
 function amsApplyFilters(q) {
     if (q === undefined) q = (document.getElementById('amsSidebarSearch')?.value || '').toLowerCase().trim();
-    const agentFilter   = document.getElementById('amsAgentFilter')?.value   || '';
-    const carrierFilter = document.getElementById('amsCarrierFilter')?.value || '';
+    const agentFilter    = document.getElementById('amsAgentFilter')?.value   || '';
+    const carrierFilter  = document.getElementById('amsCarrierFilter')?.value || '';
+    const includeRelated = document.getElementById('amsIncludeRelated')?.checked !== false;
 
-    amsFilteredKeys = Object.keys(amsClientIndex).filter(key => {
+    amsRelationReasons = {};
+
+    // Agent + carrier filters apply to every result (direct or related).
+    const passesFilters = key => {
         const client = amsClientIndex[key];
-        // Search match
+        if (!client) return false;
+        if (agentFilter && !client.policies.some(p => p.agent === agentFilter)
+            && (client.contact?.assignedAgent || '') !== agentFilter) return false;
+        if (carrierFilter && !client.policies.some(p => p.company === carrierFilter)) return false;
+        return true;
+    };
+
+    // Direct text matches (same fields as before).
+    const directKeys = Object.keys(amsClientIndex).filter(key => {
+        const client = amsClientIndex[key];
         if (q) {
             const contact = client.contact || {};
             const haystack = [
@@ -535,25 +639,40 @@ function amsApplyFilters(q) {
             ].join(' ').toLowerCase();
             if (!haystack.includes(q)) return false;
         }
-        // Agent filter
-        if (agentFilter && !client.policies.some(p => p.agent === agentFilter)) {
-            // allow if contact's assigned agent matches
-            if ((client.contact?.assignedAgent || '') !== agentFilter) return false;
-        }
-        // Carrier filter
-        if (carrierFilter && !client.policies.some(p => p.company === carrierFilter)) return false;
-        return true;
+        return passesFilters(key);
     }).sort();
 
-    amsRenderClientList();
+    // Expand to clients related to the direct matches (only when actually searching).
+    const relatedKeys = [];
+    if (q && includeRelated) {
+        const directSet = new Set(directKeys);
+        const seen = new Set(directKeys);
+        directKeys.forEach(baseKey => {
+            amsRelatedTo(baseKey).forEach(({ key: relKey, reason }) => {
+                if (seen.has(relKey) || !passesFilters(relKey)) return;
+                seen.add(relKey);
+                relatedKeys.push(relKey);
+                amsRelationReasons[relKey] = `${reason} with ${amsClientIndex[baseKey].displayName}`;
+            });
+        });
+        relatedKeys.sort();
+    }
+
+    amsFilteredKeys = directKeys.concat(relatedKeys);
+    amsRenderClientList(relatedKeys.length);
 }
 
 // ── Render client list ───────────────────────────────────────
-function amsRenderClientList() {
+function amsRenderClientList(relatedCount = 0) {
     const container = document.getElementById('amsClientList');
     const countEl   = document.getElementById('amsClientCount');
     if (!container) return;
-    if (countEl) countEl.textContent = `${amsFilteredKeys.length} client${amsFilteredKeys.length !== 1 ? 's' : ''}`;
+    if (countEl) {
+        const total = amsFilteredKeys.length;
+        countEl.textContent = relatedCount > 0
+            ? `${total} client${total !== 1 ? 's' : ''} · ${relatedCount} related`
+            : `${total} client${total !== 1 ? 's' : ''}`;
+    }
 
     if (!amsFilteredKeys.length) {
         container.innerHTML = '<div class="no-results">No clients found.</div>';
@@ -570,9 +689,10 @@ function amsRenderClientList() {
             ? new Date(c.policies[0].entryDate + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
             : '';
         const initials = c.displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+        const relReason = amsRelationReasons[key];
 
         return `
-        <div class="client-card ${key === amsActiveKey ? 'active' : ''}" onclick="amsLoadClientDetail('${amsEsc(key)}')">
+        <div class="client-card ${key === amsActiveKey ? 'active' : ''} ${relReason ? 'is-related' : ''}" onclick="amsLoadClientDetail('${amsEsc(key)}')">
             <div style="display:flex;gap:10px;align-items:center;">
                 <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--navy));color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${initials}</div>
                 <div style="flex:1;min-width:0;">
@@ -584,7 +704,9 @@ function amsRenderClientList() {
                     <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
                         <span class="cc-badge policies">${numPolicies} polic${numPolicies !== 1 ? 'ies' : 'y'}</span>
                         ${lastAgent ? `<span class="cc-badge agent">${amsEscHtml(lastAgent)}</span>` : ''}
+                        ${relReason ? `<span class="cc-badge related">Related</span>` : ''}
                     </div>
+                    ${relReason ? `<div class="cc-related-note" title="${amsEscHtml(relReason)}">🔗 ${amsEscHtml(relReason)}</div>` : ''}
                 </div>
             </div>
         </div>`;

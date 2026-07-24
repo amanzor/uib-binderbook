@@ -180,6 +180,13 @@
         .cc-badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; letter-spacing: .3px; }
         .cc-badge.policies  { background: #dbeafe; color: var(--blue); }
         .cc-badge.agent     { background: #f0fdf4; color: var(--green); }
+        .cc-badge.related   { background: #f3e8ff; color: var(--purple); }
+        .client-card.is-related { background: linear-gradient(90deg, rgba(124,58,237,.05), transparent 60%); }
+        .client-card.is-related::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--purple); }
+        .cc-related-note { font-size: 10px; color: var(--purple); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+        .related-toggle { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 11px; color: var(--gray-700); font-weight: 600; cursor: pointer; user-select: none; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); background: var(--gray-50); }
+        .related-toggle input { accent-color: var(--purple); cursor: pointer; margin: 0; }
+        .related-toggle:hover { border-color: var(--purple); }
         .no-results { padding: 32px 16px; text-align: center; color: var(--gray-400); font-size: 13px; }
 
         /* ── MAIN DETAIL PANEL ────────────────────────────────────── */
@@ -668,6 +675,11 @@
                             <option value="">All Carriers</option>
                         </select>
                     </div>
+                    <label class="related-toggle" title="Also surface clients linked to your matches by a shared phone, email, address, or referral">
+                        <input type="checkbox" id="amsIncludeRelated" checked onchange="amsApplyFilters()">
+                        <i data-lucide="git-branch" style="width:12px;height:12px;"></i>
+                        Include related clients
+                    </label>
                     <div class="sidebar-stat" id="amsClientCount">0 clients</div>
                 </div><!-- /sidebar-toolbar -->
 
