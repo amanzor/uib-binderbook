@@ -230,35 +230,64 @@ localStorage.setItem = function(key, value) {
     }
 };
 
-// Auto-poll Drive every 30 seconds and refresh the current view
+// Auto-poll the cloud and refresh the current view.
+//
+// This poll is the app's single biggest source of Supabase Disk IO — each
+// tick reads every sync key, on every open tab, all day. To cut that cost
+// WITHOUT changing behaviour:
+//   • the interval is 60s (was 30s) — half the steady-state reads;
+//   • polling is SKIPPED while the tab is hidden/backgrounded, so idle tabs
+//     generate no IO at all;
+//   • when a tab becomes visible again it syncs immediately, so returning to
+//     the app still shows fresh data right away.
 function startAutoSync() {
-    setInterval(async () => {
-        await syncFromDrive();
+    const POLL_MS        = 60000;   // was 30000
+    const REFOCUS_MIN_MS = 15000;   // skip the on-focus sync if we just synced
+    let _lastSyncAt = 0;
+    let _syncing    = false;
 
-        // Reload allData and carrierMasterData from localStorage after sync
-        const freshData = JSON.parse(localStorage.getItem('binderData'));
-        const freshCarriers = JSON.parse(localStorage.getItem('carrierMasterData'));
-        if (freshData) allData = freshData;
-        if (freshCarriers) { carrierMasterData = freshCarriers; refreshAllCarrierDropdowns(); }
-        initializeCommissionStatements(); // keep the in-memory copy current too
+    async function doSync() {
+        if (_syncing || document.hidden) return; // never overlap; never poll a hidden tab
+        _syncing = true;
+        try {
+            await syncFromDrive();
+            _lastSyncAt = Date.now();
 
-        // Refresh whichever view is currently active
-        if (currentRole === 'admin') {
-            loadAdminDashboard();
-        } else if (currentRole === 'agent') {
-            loadAgentData();
-        }
-        if (document.getElementById('commissionStatementsSection')?.classList.contains('active')) {
-            loadCommissionStatementsList();
-        }
+            // Reload allData and carrierMasterData from localStorage after sync
+            const freshData = JSON.parse(localStorage.getItem('binderData'));
+            const freshCarriers = JSON.parse(localStorage.getItem('carrierMasterData'));
+            if (freshData) allData = freshData;
+            if (freshCarriers) { carrierMasterData = freshCarriers; refreshAllCarrierDropdowns(); }
+            initializeCommissionStatements(); // keep the in-memory copy current too
 
-        // Flash the sync indicator briefly
-        const banner = document.getElementById('syncBanner');
-        if (banner) {
-            banner.style.display = 'flex';
-            setTimeout(() => { banner.style.display = 'none'; }, 1500);
+            // Refresh whichever view is currently active
+            if (currentRole === 'admin') {
+                loadAdminDashboard();
+            } else if (currentRole === 'agent') {
+                loadAgentData();
+            }
+            if (document.getElementById('commissionStatementsSection')?.classList.contains('active')) {
+                loadCommissionStatementsList();
+            }
+
+            // Flash the sync indicator briefly
+            const banner = document.getElementById('syncBanner');
+            if (banner) {
+                banner.style.display = 'flex';
+                setTimeout(() => { banner.style.display = 'none'; }, 1500);
+            }
+        } finally {
+            _syncing = false;
         }
-    }, 30000); // every 30 seconds
+    }
+
+    setInterval(doSync, POLL_MS);
+
+    // Sync the moment the user returns to a backgrounded tab (unless we synced
+    // very recently), so pausing while hidden never leaves them on stale data.
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && Date.now() - _lastSyncAt > REFOCUS_MIN_MS) doSync();
+    });
 }
 // ============================================================
 
