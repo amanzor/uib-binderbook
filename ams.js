@@ -179,6 +179,12 @@ const AMS_LOBS = [
     "Trucking","Umbrella","Workers Comp"
 ];
 
+// Any "Home Owners" / homeowner / dwelling LOB is a property policy — it
+// captures an insured property address rather than drivers & vehicles.
+function amsIsHomeownerLOB(lob) {
+    return /home\s*owner|homeowner|dwelling/i.test(lob || '');
+}
+
 const AMS_ADMIN_PASSWORD = 'admin2024';
 
 // ── State ────────────────────────────────────────────────────
@@ -975,8 +981,18 @@ function amsOpenAddPolicyModal() {
     const fields = ['mp_agent','mp_policyType','mp_lob','mp_carrier','mp_mga','mp_policyNum','mp_binderNum',
                     'mp_down','mp_agencyFee','mp_basePremium','mp_premium',
                     'mp_payMethod','mp_payMethod2','mp_agencyCommission','mp_agentCommission','mp_payType',
-                    'mp_effDate','mp_expDate','mp_policyStatus'];
+                    'mp_effDate','mp_expDate','mp_policyStatus',
+                    'mp_propAddress','mp_propUnit','mp_propCity','mp_propState','mp_propZip','mp_propYearBuilt'];
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+    // Pre-fill the insured property address from the client's contact record so
+    // homeowner policies default to the address already on file.
+    const contact = amsClientIndex[amsActiveKey]?.contact || {};
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    setVal('mp_propAddress', contact.address);
+    setVal('mp_propCity',    contact.city);
+    setVal('mp_propState',   contact.state);
+    setVal('mp_propZip',     contact.zip);
 
     // Pre-select current user if agent, then lock the field
     if (amsCurrentRole === 'agent') {
@@ -987,6 +1003,7 @@ function amsOpenAddPolicyModal() {
 
     // Reset drivers/vehicles with one empty row each, prefill from client contact
     amsResetDriversVehicles();
+    amsOnLobChange();
 
     document.getElementById('amsPolicyModal').classList.add('open');
     lucide.createIcons();
@@ -1019,7 +1036,13 @@ function amsEditPolicy(policyId) {
         mp_payType:          'paymentType',
         mp_effDate:          'effectiveDate',
         mp_expDate:          'expirationDate',
-        mp_policyStatus:     'policyStatus'
+        mp_policyStatus:     'policyStatus',
+        mp_propAddress:      'propertyAddress',
+        mp_propUnit:         'propertyUnit',
+        mp_propCity:         'propertyCity',
+        mp_propState:        'propertyState',
+        mp_propZip:          'propertyZip',
+        mp_propYearBuilt:    'propertyYearBuilt'
     };
     Object.entries(map).forEach(([elId, field]) => {
         const el = document.getElementById(elId);
@@ -1028,6 +1051,8 @@ function amsEditPolicy(policyId) {
 
     // Load drivers and vehicles from the entry
     amsResetDriversVehicles(entry.drivers, entry.vehicles);
+    // Show property vs drivers/vehicles based on the policy's LOB
+    amsOnLobChange();
 
     amsLockAgentField(document.getElementById('mp_agent'));
     document.getElementById('amsPolicyModal').classList.add('open');
@@ -1055,6 +1080,8 @@ function amsSavePolicyModal() {
     const v = id => document.getElementById(id)?.value || '';
     const n = id => parseFloat(document.getElementById(id)?.value) || 0;
 
+    const isHome = amsIsHomeownerLOB(lob);
+
     const policyData = {
         agent,
         policyType,
@@ -1075,8 +1102,10 @@ function amsSavePolicyModal() {
         effectiveDate:        v('mp_effDate'),
         expirationDate:       v('mp_expDate'),
         policyStatus:         v('mp_policyStatus'),
-        drivers:              amsCollectDriverRows(),
-        vehicles:             amsCollectVehicleRows()
+        // Homeowner policies capture an insured property instead of drivers/vehicles.
+        drivers:              isHome ? [] : amsCollectDriverRows(),
+        vehicles:             isHome ? [] : amsCollectVehicleRows(),
+        ...amsCollectProperty()
     };
 
     if (editId) {
@@ -1660,6 +1689,33 @@ function amsResetDriversVehicles(prefilledDrivers, prefilledVehicles) {
 
     amsUpdateDriversEmptyState();
     amsUpdateVehiclesEmptyState();
+}
+
+// Toggle the modal between an auto-style policy (drivers + vehicles) and a
+// homeowner policy (insured property address), based on the selected LOB.
+function amsOnLobChange() {
+    const lob     = document.getElementById('mp_lob')?.value || '';
+    const isHome  = amsIsHomeownerLOB(lob);
+    const propSec = document.getElementById('amsPropertySection');
+    const drvSec  = document.getElementById('amsDriversSection');
+    const vehSec  = document.getElementById('amsVehiclesSection');
+    if (propSec) propSec.style.display = isHome ? ''     : 'none';
+    if (drvSec)  drvSec.style.display  = isHome ? 'none' : '';
+    if (vehSec)  vehSec.style.display  = isHome ? 'none' : '';
+    // Switching to a homeowner LOB clears any driver/vehicle rows already added.
+    if (isHome) amsResetDriversVehicles();
+}
+
+function amsCollectProperty() {
+    const v = id => (document.getElementById(id)?.value || '').trim();
+    return {
+        propertyAddress:   v('mp_propAddress'),
+        propertyUnit:      v('mp_propUnit'),
+        propertyCity:      v('mp_propCity'),
+        propertyState:     v('mp_propState').toUpperCase(),
+        propertyZip:       v('mp_propZip'),
+        propertyYearBuilt: v('mp_propYearBuilt')
+    };
 }
 
 // ── Policy Status Management ─────────────────────────────────

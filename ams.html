@@ -1611,7 +1611,7 @@
                 </div>
                 <div class="info-field">
                     <label>Line of Business <span style="color:var(--red)">*</span></label>
-                    <select id="mp_lob"></select>
+                    <select id="mp_lob" onchange="amsOnLobChange()"></select>
                 </div>
                 <div class="info-field">
                     <label>Carrier <span style="color:var(--red)">*</span></label>
@@ -1734,8 +1734,44 @@
                 </div>
             </div>
 
+            <!-- ── Insured Property Section (shown for Homeowner LOBs) ── -->
+            <div id="amsPropertySection" style="display:none;margin:14px 0 0 0;background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1.5px solid #a5b4fc;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1.5px solid #c7d2fe;">
+                    <span style="font-size:15px;font-weight:700;color:#3730a3;">🏠 Insured Property Address</span>
+                    <span style="font-size:12px;color:#4338ca;font-style:italic;">— the property being insured on this Homeowner policy</span>
+                </div>
+                <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;">
+                    <div class="info-field" style="margin:0;">
+                        <label>Property Street Address</label>
+                        <input type="text" id="mp_propAddress" placeholder="123 Main St">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>Unit / Apt</label>
+                        <input type="text" id="mp_propUnit" placeholder="Unit 4B">
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:12px;">
+                    <div class="info-field" style="margin:0;">
+                        <label>City</label>
+                        <input type="text" id="mp_propCity" placeholder="Miami">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>State</label>
+                        <input type="text" id="mp_propState" placeholder="FL" maxlength="2" style="text-transform:uppercase;">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>ZIP</label>
+                        <input type="text" id="mp_propZip" placeholder="33101">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>Year Built</label>
+                        <input type="number" id="mp_propYearBuilt" min="1800" max="2099" placeholder="1998">
+                    </div>
+                </div>
+            </div>
+
             <!-- ── Drivers Section (optional) ── -->
-            <div style="margin:14px 0 0 0;background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:1.5px solid #5eead4;border-radius:10px;padding:14px 18px;">
+            <div id="amsDriversSection" style="margin:14px 0 0 0;background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:1.5px solid #5eead4;border-radius:10px;padding:14px 18px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #99f6e4;gap:10px;flex-wrap:wrap;">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <span style="font-size:15px;font-weight:700;color:#115e59;">🚘 Driver(s) Information</span>
@@ -1748,7 +1784,7 @@
             </div>
 
             <!-- ── Vehicles Section (optional) ── -->
-            <div style="margin:14px 0 0 0;background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;padding:14px 18px;">
+            <div id="amsVehiclesSection" style="margin:14px 0 0 0;background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;padding:14px 18px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #fed7aa;gap:10px;flex-wrap:wrap;">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <span style="font-size:15px;font-weight:700;color:#9a3412;">🚗 Vehicle(s) Information</span>
