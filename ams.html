@@ -3137,7 +3137,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                             ${allAgents.map(a => `<option value="${_rptEsc(a)}" ${a === p.agent ? 'disabled' : ''}>${_rptEsc(a)}</option>`).join('')}
                         </select>` : '';
                 const renewBtn = isAdmin ? `
-                        <button class="btn-sm" onclick="amsRnwRenew(${idx})" title="Send this renewal to the assigned agent's Binder Book"
+                        <button class="btn-sm" onclick="amsRnwRenew(${idx}, this)" title="Send this renewal to the assigned agent's Binder Book"
                         style="background:linear-gradient(135deg,#047857,#059669);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;">🔄 Renew</button>` : '';
                 return `<tr>
                     <td><button onclick="amsRnwOpenClient('${_rptEsc(key).replace(/'/g, "\\'")}')" title="Open this client"
@@ -3177,7 +3177,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 (pol ? norm(e.policyNumber) === pol : (e.customerName || '') === (src.customerName || '')));
         }
 
-        function amsRnwRenew(rowIdx) {
+        async function amsRnwRenew(rowIdx, btnEl) {
             if (!amsIsRenewalAdmin()) return; // admins / agency admins only
             const src = _amsRnwRows[rowIdx];
             if (!src) return;
@@ -3195,7 +3195,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             const term     = _amsRnwTermMonths(src.effectiveDate, newEff);
             const newExp   = _amsRnwAddMonths(newEff, term);
             const premium  = parseFloat(src.totalPremium) || 0;
-            binder.push({
+            const entry = {
                 id:                   Date.now(),
                 entryDate:            todayStr,
                 agent:                src.agent,
@@ -3225,10 +3225,50 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 renewalOfPolicy:      src.policyNumber || '',
                 renewalSourceId:      src.id,
                 updatedAt:            Date.now()
-            });
+            };
+            // Save to the AMS's own store (Apps Script + localStorage) and re-render
+            binder.push(entry);
             amsSave('binderData', binder);
+            if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Sending…'; }
+
+            // The agent's Binder Book reads binderData from Supabase — the AMS's
+            // normal sync writes to a different backend, so push the new entry to
+            // Supabase directly (merged) or the agent never sees it.
+            const ok = await amsRnwPushToSupabase(entry);
+
             amsRenewalsRender();
-            amsFlashBanner(`Renewal sent to ${src.agent}'s Binder Book ✓`);
+            if (ok) amsFlashBanner(`Renewal sent to ${src.agent}'s Binder Book ✓`);
+            else alert(`Saved locally, but the cloud sync to ${src.agent}'s Binder Book FAILED — check your connection and click Renew again.`);
+        }
+
+        // Push a single new entry into the Supabase app_store binderData that the
+        // Binder Book reads, without clobbering entries only present in the cloud:
+        // fetch current cloud array, union by id, write the merged array back.
+        async function amsRnwPushToSupabase(entry) {
+            try {
+                const res = await fetch(`${AMS_SB_URL}/rest/v1/app_store?select=value&key=eq.binderData`, { headers: AMS_SB_HEADERS });
+                let cloud = [];
+                if (res.ok) {
+                    const rows = await res.json();
+                    if (rows.length && rows[0].value != null) {
+                        cloud = Array.isArray(rows[0].value) ? rows[0].value
+                              : (Array.isArray(rows[0].value.value) ? rows[0].value.value : []);
+                    }
+                }
+                const byId = new Map();
+                cloud.forEach(e => { if (e && e.id != null) byId.set(e.id, e); });
+                byId.set(entry.id, entry); // add the new renewal
+                const merged = [...byId.values()];
+                const put = await fetch(`${AMS_SB_URL}/rest/v1/app_store`, {
+                    method: 'POST',
+                    headers: Object.assign({}, AMS_SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+                    body: JSON.stringify([{ key: 'binderData', value: merged, updated_at: new Date().toISOString() }])
+                });
+                return put.ok;
+            } catch (e) {
+                console.warn('Renewal Supabase push failed:', e);
+                return false;
+            }
         }
 
         function amsRnwOpenClient(key) {
