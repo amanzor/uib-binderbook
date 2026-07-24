@@ -1248,7 +1248,17 @@ function showSection(sectionId) {
 // Form Handling
 document.getElementById('agentForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    saveEntry();
+    // Guard the whole save so an unexpected error can never leave the Save
+    // button looking dead (silent throw = "nothing happens"). Surface it
+    // instead; the entry stays on the form so nothing is lost.
+    try {
+        saveEntry();
+    } catch (err) {
+        console.error('saveEntry failed:', err);
+        alert('⚠️ Something went wrong while saving this entry:\n' +
+              (err && err.message ? err.message : err) +
+              '\n\nYour information is still on the form — please try again.');
+    }
 });
 
 // When the Save button is pressed but a required field is empty, the browser
@@ -1304,7 +1314,11 @@ function saveEntry() {
     // fields (Commercial's ids all carry a "Com" suffix) — read from
     // whichever one is currently selected/visible.
     const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : '';
-    const gid = id => document.getElementById(id + sfx);
+    // Never let a missing field throw: a single absent element used to make
+    // gid(id).value blow up, which killed the whole submit handler silently —
+    // the Save button appeared to "do nothing" (no save, no redirect). Fall
+    // back to an empty-value stand-in so field reads are always safe.
+    const gid = id => document.getElementById(id + sfx) || { value: '' };
 
     const entry = {
         id: Date.now(),
@@ -1384,64 +1398,72 @@ function saveEntry() {
     allData.push(entry);
     localStorage.setItem('binderData', JSON.stringify(allData));
 
-    // Auto-sync this entry's contact info to AMS (drivers, vehicles, agent, etc.)
-    syncEntryToAMS(entry);
+    // Everything past this point is a side effect (AMS sync, commission
+    // rollup). The entry is already saved above, so a failure here must NOT
+    // strand the agent on the form — wrap it so we still fall through to the
+    // success message and the redirect back to the main page.
+    try {
+        // Auto-sync this entry's contact info to AMS (drivers, vehicles, agent, etc.)
+        syncEntryToAMS(entry);
 
-    // Calculate and store commission based on base premium
-    const premium     = entry.basePremium;
-    const carrier     = entry.company;
-    const lob         = entry.lineOfBusiness;
-    const paymentType = entry.paymentType || 'Monthly Paid';
-    const policyType  = entry.policyType  || 'New';
-    const agent       = entry.agent;
+        // Calculate and store commission based on base premium
+        const premium     = entry.basePremium;
+        const carrier     = entry.company;
+        const lob         = entry.lineOfBusiness;
+        const paymentType = entry.paymentType || 'Monthly Paid';
+        const policyType  = entry.policyType  || 'New';
+        const agent       = entry.agent;
 
-    const rate = getCommissionRate(carrier, lob, paymentType, policyType);
+        const rate = getCommissionRate(carrier, lob, paymentType, policyType);
 
-    if (rate > 0) {
-        const commission = calculateCommission(premium, rate, entry.agencyFee || 0);
-        const month = new Date(entry.entryDate + 'T12:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-        const carrierType = paymentType === 'Monthly Paid' ? 'monthlyPaidCommissionCarriers' : 'grossPaidCarriers';
+        if (rate > 0) {
+            const commission = calculateCommission(premium, rate, entry.agencyFee || 0);
+            const month = new Date(entry.entryDate + 'T12:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+            const carrierType = paymentType === 'Monthly Paid' ? 'monthlyPaidCommissionCarriers' : 'grossPaidCarriers';
 
-        // Load current commission data
-        let commData = JSON.parse(localStorage.getItem('commissionData')) || {};
+            // Load current commission data
+            let commData = JSON.parse(localStorage.getItem('commissionData')) || {};
 
-        // Initialize structures if needed
-        if (!commData[agent]) {
-            commData[agent] = {
-                monthlyPaidCommissionCarriers: {},
-                grossPaidCarriers: {}
-            };
-        }
-
-        if (!commData[agent][carrierType]) {
-            commData[agent][carrierType] = {};
-        }
-
-        if (!commData[agent][carrierType][carrier]) {
-            commData[agent][carrierType][carrier] = {};
-        }
-
-        // Accumulate into same carrier/month bucket (multiple policies → sum)
-        const existing = commData[agent][carrierType][carrier][month];
-        if (existing) {
-            existing.amount   = parseFloat((existing.amount + commission).toFixed(2));
-            existing.premium  = parseFloat((existing.premium + premium).toFixed(2));
-            // Merge LOB label if different
-            if (existing.lob && existing.lob !== lob && !existing.lob.includes(lob)) {
-                existing.lob = existing.lob + ', ' + lob;
+            // Initialize structures if needed
+            if (!commData[agent]) {
+                commData[agent] = {
+                    monthlyPaidCommissionCarriers: {},
+                    grossPaidCarriers: {}
+                };
             }
-        } else {
-            commData[agent][carrierType][carrier][month] = {
-                amount:  commission,
-                lob:     lob,
-                rate:    rate,
-                premium: premium
-            };
-        }
 
-        // Save updated commission data
-        localStorage.setItem('commissionData', JSON.stringify(commData));
-        commissionData = commData;
+            if (!commData[agent][carrierType]) {
+                commData[agent][carrierType] = {};
+            }
+
+            if (!commData[agent][carrierType][carrier]) {
+                commData[agent][carrierType][carrier] = {};
+            }
+
+            // Accumulate into same carrier/month bucket (multiple policies → sum)
+            const existing = commData[agent][carrierType][carrier][month];
+            if (existing) {
+                existing.amount   = parseFloat((existing.amount + commission).toFixed(2));
+                existing.premium  = parseFloat((existing.premium + premium).toFixed(2));
+                // Merge LOB label if different
+                if (existing.lob && existing.lob !== lob && !existing.lob.includes(lob)) {
+                    existing.lob = existing.lob + ', ' + lob;
+                }
+            } else {
+                commData[agent][carrierType][carrier][month] = {
+                    amount:  commission,
+                    lob:     lob,
+                    rate:    rate,
+                    premium: premium
+                };
+            }
+
+            // Save updated commission data
+            localStorage.setItem('commissionData', JSON.stringify(commData));
+            commissionData = commData;
+        }
+    } catch (sideEffectErr) {
+        console.warn('Post-save side effect failed (entry was still saved):', sideEffectErr);
     }
 
     // Save any pending files attached from the new entry form. Keep the
@@ -1451,6 +1473,47 @@ function saveEntry() {
     let pendingFilesSave = Promise.resolve();
     if (_pendingEntryFiles.length > 0) {
         pendingFilesSave = binderSavePendingFiles(entry.customerName, entry.id);
+    }
+
+    // Detect standalone entry pages (daily sales / transaction) vs main app
+    // modal. On the standalone pages the whole point is to return to the
+    // dashboard after saving, so handle that FIRST — before the in-place form
+    // reset below, which is wasted work when we're leaving the page and could
+    // otherwise throw and block the redirect. The entry is already saved to
+    // localStorage above, so leaving is safe.
+    const isStandalonePage = window.location.pathname.includes('dailysalesentry')
+        || window.location.pathname.includes('transactionentry');
+
+    if (isStandalonePage) {
+        try { showSuccess(); } catch (e) {}
+        try { sessionStorage.setItem('uibCurrentUser', currentUser || ''); } catch (e) {}
+
+        const saveBtn = document.querySelector('#agentForm button[type="submit"]');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '☁️ Saved — returning to main page…'; }
+
+        // Finish persisting BEFORE leaving the page: navigating away aborts
+        // in-flight uploads and cloud writes, which lost attached PDFs and let
+        // the next cloud pull erase the just-saved entry. Wait for the
+        // attachment uploads and the entry's cloud push, then go back to the
+        // dashboard. Each write is individually guarded so one failed cloud
+        // push can't short-circuit the others (a rejected Promise.all would
+        // settle the race early). A 25s cap keeps a dead network from stranding
+        // the agent — anything unfinished stays flagged dirty and the next sync
+        // pushes it. Navigation runs from .finally so EVERY agent is returned
+        // home whether the writes succeed, fail, or time out. As a last-resort
+        // belt-and-suspenders, a hard timer forces the redirect even if the
+        // promise machinery never settles.
+        const persistAll = Promise.all([
+            pendingFilesSave.catch(e => console.warn('Attachment save failed:', e)),
+            Promise.resolve(driveSet('binderData', allData)).catch(e => console.warn('binderData sync failed:', e)),
+            Promise.resolve(driveSet('commissionData', JSON.parse(localStorage.getItem('commissionData') || '{}'))).catch(e => console.warn('commissionData sync failed:', e))
+        ]);
+        const cap = new Promise(res => setTimeout(res, 25000));
+        let navigated = false;
+        const goToMainPage = () => { if (navigated) return; navigated = true; window.location.href = './'; };
+        Promise.race([persistAll, cap]).finally(goToMainPage);
+        setTimeout(goToMainPage, 26000);
+        return;
     }
 
     showSuccess();
@@ -1473,36 +1536,6 @@ function saveEntry() {
         if (rateLabel) { rateLabel.style.display = 'none'; rateLabel.textContent = ''; }
         if (breakdownEl) { breakdownEl.style.display = 'none'; breakdownEl.textContent = ''; }
     });
-
-    // Detect standalone entry pages (daily sales / transaction) vs main app
-    // modal. Both standalone pages must wait for persistence and return to
-    // the dashboard — falling through to the modal branch re-renders
-    // dashboard tables that don't exist on those pages and throws.
-    const isStandalonePage = window.location.pathname.includes('dailysalesentry')
-        || window.location.pathname.includes('transactionentry');
-
-    if (isStandalonePage) {
-        // Finish persisting BEFORE leaving the page: navigating away aborts
-        // in-flight uploads and cloud writes, which lost attached PDFs and
-        // let the next cloud pull erase the just-saved entry. Wait for the
-        // attachment uploads and the entry's cloud push, then go back to the
-        // dashboard. A time cap keeps a dead network from stranding the
-        // agent — anything unfinished stays flagged dirty and the next sync
-        // pushes it instead of pulling over it.
-        try { sessionStorage.setItem('uibCurrentUser', currentUser || ''); } catch (e) {}
-
-        const saveBtn = document.querySelector('#agentForm button[type="submit"]');
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '☁️ Saving — uploading documents…'; }
-
-        const persistAll = Promise.all([
-            pendingFilesSave.catch(e => console.warn('Attachment save failed:', e)),
-            driveSet('binderData', allData),
-            driveSet('commissionData', JSON.parse(localStorage.getItem('commissionData') || '{}'))
-        ]);
-        const cap = new Promise(res => setTimeout(res, 25000));
-        Promise.race([persistAll, cap]).then(() => { window.location.href = './'; });
-        return;
-    }
 
     closeDailySalesModal();
     setTodayDate();
@@ -7789,6 +7822,213 @@ async function importJorgeCastroData() {
     );
 
     // Refresh admin view if active
+    if (typeof loadAdminData === 'function') loadAdminData();
+    if (typeof apdInit     === 'function') apdInit();
+    if (typeof prodApplyFilters === 'function') prodApplyFilters();
+}
+
+// ── Hevi Tile Corp Bulk Import ───────────────────────────────────────────────
+// Commercial client onboarded from the carrier AMS profile. Adds the client
+// contact record (into amsClientData, so it appears in the AMS) plus all of its
+// policies (into binderData). Each policy is dated on its effective month so it
+// lands in the pertaining month of the Binder Book. All policies are reported
+// under Lazaro Reigoza. Safe to re-run: entries with matching IDs are skipped.
+async function importHeviTileData() {
+    const confirmed = confirm(
+        'Import Hevi Tile Corp?\n\n' +
+        '• 1 commercial client (Hevi Tile Corp — Delray Beach, FL)\n' +
+        '• 10 policies (Jun 2024 – Jul 2026), all under Lazaro Reigoza\n' +
+        '• WC, Commercial Auto, General Liability, Excess Liability & Umbrella\n' +
+        '• Each policy is filed under its effective month in the Binder Book\n' +
+        '• Existing entries with matching IDs will be skipped (safe to re-run)\n\n' +
+        'Click OK to proceed.'
+    );
+    if (!confirmed) return;
+
+    let importData;
+    try {
+        const resp = await fetch('hevi_tile_import.json?v=20260720');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        importData = await resp.json();
+    } catch (err) {
+        alert('Failed to load hevi_tile_import.json: ' + err.message);
+        return;
+    }
+
+    const policies = importData.policies || [];
+
+    // 1) Merge policies into binderData (dedupe by id)
+    let existing = [];
+    try { existing = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) { existing = []; }
+
+    const existingIds = new Set(existing.map(e => e.id));
+    const newEntries  = policies.filter(e => !existingIds.has(e.id));
+    const merged      = [...existing, ...newEntries];
+    localStorage.setItem('binderData', JSON.stringify(merged));
+    allData = merged;
+    try { driveSet('binderData', merged); } catch (e) {}
+
+    // 2) Seed / merge the AMS client contact record (into amsClientData)
+    let contactSeeded = false;
+    const client = importData.client;
+    if (client && client.key) {
+        let clients = {};
+        try { clients = JSON.parse(localStorage.getItem('amsClientData')) || {}; } catch (e) { clients = {}; }
+        if (!clients[client.key]) {
+            clients[client.key] = { ...(client.contact || {}), updatedAt: new Date().toISOString() };
+            contactSeeded = true;
+        } else {
+            // Fill only fields that are currently empty; never overwrite existing data
+            const cur = clients[client.key];
+            Object.entries(client.contact || {}).forEach(([k, v]) => {
+                if (k === 'notes') return;
+                if (cur[k] === undefined || cur[k] === '' || cur[k] === null) cur[k] = v;
+            });
+            const seedNotes = (client.contact || {}).notes || [];
+            if (seedNotes.length) {
+                cur.notes = cur.notes || [];
+                const have = new Set(cur.notes.map(n => n.text));
+                seedNotes.forEach(n => { if (!have.has(n.text)) cur.notes.push(n); });
+            }
+        }
+        localStorage.setItem('amsClientData', JSON.stringify(clients));
+        try { driveSet('amsClientData', clients); } catch (e) {}
+    }
+
+    alert(
+        `✅ Import complete!\n\n` +
+        `• ${newEntries.length} new policies added\n` +
+        `• ${policies.length - newEntries.length} duplicates skipped\n` +
+        `• Client record ${contactSeeded ? 'created' : 'already existed (merged)'}\n` +
+        `• Total records now: ${merged.length}`
+    );
+
+    if (typeof loadAdminData === 'function') loadAdminData();
+    if (typeof apdInit     === 'function') apdInit();
+    if (typeof prodApplyFilters === 'function') prodApplyFilters();
+}
+
+// ── Book of Business Bulk Import (Jul 2026) ──────────────────────────────────
+// Onboards four carrier books — Peoples Trust, Citizens, Slide, and the UPCIC
+// (Creative Insurance Agency) book — from book_import_2026.json. Creates every
+// client in the AMS (amsClientData) with the new County field, files every
+// policy into binderData under its effective month, and carries all the
+// carrier-only spreadsheet columns (coverage, deductibles, roof, construction,
+// flood zone, etc.) in each policy's propertyDetails so the AMS can show them.
+// All policies are reported under Randy Diaz. Safe to re-run (dedupe by id).
+async function importBookOfBusiness2026Data() {
+    const confirmed = confirm(
+        'Import Book of Business (Jul 2026)?\n\n' +
+        '• 104 policies / 95 clients, all under Randy Diaz\n' +
+        '• Peoples Trust (8), Citizens (17), Slide (34), UPCIC (45)\n' +
+        '• Homeowners: HO3, HO6, DP1, DP3\n' +
+        '• Each policy is filed under its effective month in the Binder Book\n' +
+        '• Clients are created in the AMS with property & coverage details\n' +
+        '• Existing entries with matching IDs are skipped (safe to re-run)\n\n' +
+        'Click OK to proceed.'
+    );
+    if (!confirmed) return;
+
+    let importData;
+    try {
+        const resp = await fetch('book_import_2026.json?v=20260722');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        importData = await resp.json();
+    } catch (err) {
+        alert('Failed to load book_import_2026.json: ' + err.message);
+        return;
+    }
+
+    const newPolicies = importData.policies || [];
+
+    // 1) Merge policies into binderData.
+    //    Dedupe by id AND reconcile by policy number: some of these policies
+    //    were previously hand-keyed into the binder book (often with the
+    //    wrong LOB, e.g. defaulted to "Personal Auto", a different agent, and
+    //    none of the carrier detail). Instead of adding a duplicate row, the
+    //    matching existing entries are corrected in place: real homeowners
+    //    LOB, agent -> Randy Diaz, full property/coverage details attached,
+    //    and (on the most recent term only) the carrier's true effective/
+    //    expiration dates and status.
+    let existing = [];
+    try { existing = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) { existing = []; }
+    const existingIds = new Set(existing.map(e => e.id));
+
+    const normPol = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const byPolNum = {};
+    existing.forEach(e => {
+        const n = normPol(e.policyNumber);
+        if (n) (byPolNum[n] = byPolNum[n] || []).push(e);
+    });
+
+    const fresh = [];
+    let reconciled = 0;
+    newPolicies.forEach(p => {
+        if (existingIds.has(p.id)) return;   // this exact import already ran
+        // match on the full number and on the number without a trailing
+        // term suffix like "H3FL000499153 00"
+        const baseNum = String(p.policyNumber).replace(/\s+\d{2}$/, '');
+        const matches = byPolNum[normPol(p.policyNumber)] || byPolNum[normPol(baseNum)] || [];
+        if (matches.length === 0) { fresh.push(p); return; }
+
+        // Correct every matching term row
+        matches.forEach(m => {
+            m.lineOfBusiness  = p.lineOfBusiness;
+            m.agent           = 'Randy Diaz';
+            m.propertyDetails = p.propertyDetails;
+        });
+        // The carrier's current term dates/status apply to the latest row only
+        const latest = matches.reduce((a, b) =>
+            String(a.effDate || a.entryDate || '') >= String(b.effDate || b.entryDate || '') ? a : b);
+        latest.effDate        = p.effDate;
+        latest.effectiveDate  = p.effectiveDate;
+        latest.expDate        = p.expDate;
+        latest.expirationDate = p.expirationDate;
+        latest.status         = p.status;
+        latest.policyStatus   = p.policyStatus || p.status;
+        reconciled += matches.length;
+    });
+
+    const merged = [...existing, ...fresh];
+    localStorage.setItem('binderData', JSON.stringify(merged));
+    allData = merged;
+    try { driveSet('binderData', merged); } catch (e) {}
+
+    // 2) Seed the AMS client records. Never overwrite data someone already
+    //    typed in — only fill fields that are currently empty.
+    let created = 0, mergedClients = 0;
+    let contacts = {};
+    try { contacts = JSON.parse(localStorage.getItem('amsClientData')) || {}; } catch (e) { contacts = {}; }
+    Object.entries(importData.clients || {}).forEach(([ckey, seed]) => {
+        if (!contacts[ckey]) {
+            contacts[ckey] = { ...seed, updatedAt: new Date().toISOString() };
+            created++;
+        } else {
+            const cur = contacts[ckey];
+            Object.entries(seed).forEach(([f, v]) => {
+                if (f === 'notes') return;
+                if (cur[f] === undefined || cur[f] === '' || cur[f] === null) cur[f] = v;
+            });
+            mergedClients++;
+        }
+    });
+    localStorage.setItem('amsClientData', JSON.stringify(contacts));
+    try { driveSet('amsClientData', contacts); } catch (e) {}
+
+    // 3) Make sure the four carriers exist in the master list
+    ['Peoples Trust', 'Citizens', 'Slide Insurance Company',
+     'Universal Property & Casualty (UPCIC)'].forEach(c => {
+        if (typeof claudeEnsureCarrier === 'function') claudeEnsureCarrier(c);
+    });
+
+    alert(
+        `✅ Import complete!\n\n` +
+        `• ${fresh.length} new policies added\n` +
+        `• ${reconciled} existing entries corrected (LOB, agent → Randy Diaz, details attached)\n` +
+        `• ${created} clients created, ${mergedClients} existing clients enriched\n` +
+        `• Total records now: ${merged.length}`
+    );
+
     if (typeof loadAdminData === 'function') loadAdminData();
     if (typeof apdInit     === 'function') apdInit();
     if (typeof prodApplyFilters === 'function') prodApplyFilters();

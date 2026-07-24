@@ -779,7 +779,7 @@ function amsLoadClientDetail(key) {
 
     // Populate contact form fields
     const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
-                    'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
+                    'prefContact','address','city','state','zip','county','dlNum','dlState','dlExp','language',
                     'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
     fields.forEach(f => {
         const el = document.getElementById(`ci_${f}`);
@@ -818,6 +818,14 @@ function amsRenderPolicies(key) {
         const hasCarrierData = txnHistory.length > 0 || p.al3SourceFile || p.al3TxnCode;
         const txnCount = txnHistory.length;
 
+        // Property & coverage details imported from carrier book-of-business
+        // files (coverage, deductibles, roof, construction, flood zone, …).
+        // Stored as a display-label → value map on the entry.
+        const propDetails = p.propertyDetails || {};
+        const propKeys    = Object.keys(propDetails);
+        const hasProps    = propKeys.length > 0;
+        const hasExpand   = hasCarrierData || hasProps;
+
         const txnBtnHtml = hasCarrierData
             ? `<button onclick="event.stopPropagation();amsTxnToggle(${p.id})" title="View carrier file events"
                 style="padding:3px 8px;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;">
@@ -825,10 +833,31 @@ function amsRenderPolicies(key) {
                </button>`
             : '';
 
-        const expandRow = hasCarrierData ? `
+        const propBtnHtml = hasProps
+            ? `<button onclick="event.stopPropagation();amsTxnToggle(${p.id})" title="View property & coverage details"
+                style="padding:3px 8px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                🏠 Details
+               </button>`
+            : '';
+
+        const propGridHtml = hasProps ? `
+                    <div style="font-size:11px;font-weight:700;color:#047857;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">
+                        🏠 Property &amp; Coverage Details
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px 18px;margin-bottom:${hasCarrierData ? '18px' : '4px'};">
+                        ${propKeys.map(k => `
+                            <div style="min-width:0;">
+                                <div style="font-size:10px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px;">${amsEscHtml(k)}</div>
+                                <div style="font-size:12.5px;color:var(--gray-700);font-weight:600;overflow:hidden;text-overflow:ellipsis;" title="${amsEscHtml(String(propDetails[k]))}">${amsEscHtml(String(propDetails[k]))}</div>
+                            </div>`).join('')}
+                    </div>` : '';
+
+        const expandRow = hasExpand ? `
         <tr id="txn-detail-${p.id}" style="display:none;background:#f8faff;">
             <td colspan="12" style="padding:0;">
                 <div style="padding:14px 20px 16px 28px;border-top:1px solid #e0e7ff;">
+                    ${propGridHtml}
+                    ${hasCarrierData ? `
                     <div style="font-size:11px;font-weight:700;color:#4338ca;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">
                         📋 Carrier File Events
                     </div>
@@ -875,12 +904,12 @@ function amsRenderPolicies(key) {
                             }).join('')}
                         </tbody>
                     </table>
-                    </div>
+                    </div>` : ''}
                 </div>
             </td>
         </tr>` : '';
 
-        return `<tr style="cursor:${hasCarrierData ? 'pointer' : 'default'};" ${hasCarrierData ? `onclick="amsTxnToggle(${p.id})"` : ''}>
+        return `<tr style="cursor:${hasExpand ? 'pointer' : 'default'};" ${hasExpand ? `onclick="amsTxnToggle(${p.id})"` : ''}>
             <td style="white-space:nowrap;">${dateStr}</td>
             <td>${amsEscHtml(p.agent || '—')}</td>
             <td><span class="tag tag-blue">${amsEscHtml(p.policyType || '—')}</span></td>
@@ -898,6 +927,7 @@ function amsRenderPolicies(key) {
             </td>
             <td style="white-space:nowrap;" onclick="event.stopPropagation()">
                 <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                    ${propBtnHtml}
                     ${txnBtnHtml}
                     ${canEdit
                         ? `<button class="btn-secondary btn-sm" onclick="amsEditPolicy(${p.id})" title="Edit policy">
@@ -959,7 +989,7 @@ function amsSaveContact() {
     if (!contacts[amsActiveKey]) contacts[amsActiveKey] = {};
 
     const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
-                    'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
+                    'prefContact','address','city','state','zip','county','dlNum','dlState','dlExp','language',
                     'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
     fields.forEach(f => {
         contacts[amsActiveKey][f] = document.getElementById(`ci_${f}`)?.value || '';
