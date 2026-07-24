@@ -10920,16 +10920,63 @@ function showRenewalsSection() {
     refreshIcons();
 }
 
+// Multi-select agent filter. Empty set = All Agents.
+let _rnwSelectedAgents = new Set();
+
 function populateRenewalAgentFilter() {
-    const sel = document.getElementById('rnwAgentFilter');
-    if (!sel) return;
-    const current = sel.value;
-    const entryAgents  = (allData || []).map(e => e.agent).filter(Boolean);
-    const masterAgents = Object.keys(JSON.parse(localStorage.getItem('agentMasterData') || '{}'));
-    const agents = [...new Set([...entryAgents, ...masterAgents])].sort();
-    sel.innerHTML = '<option value="">All Agents</option>' +
-        agents.map(a => `<option value="${escHtml(a)}" ${a === current ? 'selected' : ''}>${escHtml(a)}</option>`).join('');
+    const menu = document.getElementById('rnwAgentMenu');
+    if (!menu) return;
+    const agents = _rnwAgentList();
+    // Drop any selected agent that no longer exists in the list
+    _rnwSelectedAgents.forEach(a => { if (!agents.includes(a)) _rnwSelectedAgents.delete(a); });
+    const row = (checked, val, label, onclick) =>
+        `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;"
+                onmouseover="this.style.background='var(--blue-pale)'" onmouseout="this.style.background='transparent'">
+            <input type="checkbox" ${checked ? 'checked' : ''} ${onclick} style="cursor:pointer;"> ${label}
+        </label>`;
+    menu.innerHTML =
+        row(_rnwSelectedAgents.size === 0, '', '<strong>All Agents</strong>', `onclick="rnwSelectAllAgents()"`) +
+        `<div style="height:1px;background:var(--gray-100);margin:4px 0;"></div>` +
+        agents.map(a => row(_rnwSelectedAgents.has(a), a, escHtml(a),
+            `onchange="rnwToggleAgent('${escHtml(a).replace(/'/g, "\\'")}', this.checked)"`)).join('');
+    rnwUpdateAgentBtnLabel();
 }
+
+function rnwUpdateAgentBtnLabel() {
+    const lbl = document.getElementById('rnwAgentBtnLabel');
+    if (!lbl) return;
+    const n = _rnwSelectedAgents.size;
+    lbl.textContent = n === 0 ? 'All Agents'
+        : n === 1 ? [..._rnwSelectedAgents][0]
+        : `${n} agents selected`;
+}
+
+function rnwToggleAgentMenu(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('rnwAgentMenu');
+    if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function rnwSelectAllAgents() {
+    _rnwSelectedAgents.clear();
+    populateRenewalAgentFilter();
+    renderRenewalsTable();
+}
+
+function rnwToggleAgent(agent, checked) {
+    if (checked) _rnwSelectedAgents.add(agent); else _rnwSelectedAgents.delete(agent);
+    rnwUpdateAgentBtnLabel();
+    renderRenewalsTable();
+}
+
+// Close the agent menu when clicking outside it
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('rnwAgentMenu');
+    const btn  = document.getElementById('rnwAgentBtn');
+    if (menu && menu.style.display === 'block' && !menu.contains(e.target) && btn && !btn.contains(e.target)) {
+        menu.style.display = 'none';
+    }
+});
 
 let _rnwActiveMonth = ''; // 'YYYY-MM' month view, or '' = expiring-within-window view
 
@@ -10944,11 +10991,19 @@ function _rnwAgentList() {
     return [...new Set([...entryAgents, ...masterAgents])].sort();
 }
 
-function rnwAssignAgent(id, agent) {
+// The rows currently rendered in the renewals table, in display order.
+// Assignment goes through this list (not an id lookup) because batch
+// imports can stamp several entries with the same Date.now() id — an id
+// lookup would then update the wrong entry.
+let _rnwRows = [];
+
+function rnwAssignAgent(rowIdx, agent) {
+    if (currentRole !== 'admin') return; // admins only — agents cannot reassign
     if (!agent) return;
-    const e = (allData || []).find(x => String(x.id) === String(id));
+    const e = _rnwRows[rowIdx];
     if (!e) return;
     e.agent = agent;
+    e.updatedAt = Date.now(); // stamp the edit so the cloud merge keeps it over stale copies
     localStorage.setItem('binderData', JSON.stringify(allData));
     populateRenewalAgentFilter();
     renderRenewalsTable();
@@ -10959,17 +11014,17 @@ function renderRenewalsTable() {
     if (!tbody) return;
 
     const days   = parseInt(document.getElementById('rnwWindow')?.value || '90');
-    const agentF = document.getElementById('rnwAgentFilter')?.value || '';
     const today  = new Date();
     const todayStr  = today.toISOString().slice(0, 10);
     const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + days);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-    // All upcoming renewals (agent filter applied) — the base for both views
+    // All upcoming renewals (agent filter applied) — the base for both views.
+    // Empty selection = All Agents.
     const upcoming = (allData || []).filter(e => {
         if (!e.expirationDate || (e.policyType || '').toLowerCase() === 'cancellation') return false;
         if ((e.policyStatus || '').toLowerCase() === 'cancelled') return false;
-        if (agentF && e.agent !== agentF) return false;
+        if (_rnwSelectedAgents.size && !_rnwSelectedAgents.has(e.agent)) return false;
         return e.expirationDate >= todayStr;
     });
 
@@ -11015,7 +11070,8 @@ function renderRenewalsTable() {
     }
 
     const agents = _rnwAgentList();
-    tbody.innerHTML = rows.map(e => {
+    _rnwRows = rows;
+    tbody.innerHTML = rows.map((e, idx) => {
         const daysLeft = Math.ceil((new Date(e.expirationDate + 'T12:00:00') - today) / 86400000);
         const tlColor  = daysLeft <= 14 ? '#dc2626' : daysLeft <= 30 ? '#ea580c' : '#059669';
         const tlBg     = daysLeft <= 14 ? '#fee2e2' : daysLeft <= 30 ? '#ffedd5' : '#d1fae5';
@@ -11030,7 +11086,7 @@ function renderRenewalsTable() {
             <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
             <td>${escHtml(e.agent || '—')}</td>
             <td style="white-space:nowrap;">
-                <select onchange="rnwAssignAgent('${e.id}', this.value)" title="Assign this renewal to an agent"
+                <select onchange="rnwAssignAgent(${idx}, this.value)" title="Assign this renewal to an agent"
                     style="padding:5px 6px;border:1px solid #e5e7eb;border-radius:6px;font-size:11.5px;font-family:inherit;max-width:120px;margin-right:4px;">
                     <option value="">${e.agent ? 'Reassign…' : 'Assign…'}</option>
                     ${agents.map(a => `<option value="${escHtml(a)}" ${a === e.agent ? 'disabled' : ''}>${escHtml(a)}</option>`).join('')}

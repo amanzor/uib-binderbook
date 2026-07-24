@@ -2752,9 +2752,14 @@
                 <div class="filter-section" style="margin-top:18px;">
                     <div class="filter-group">
                         <label>Agent:</label>
-                        <select id="rnwAgentFilter" onchange="renderRenewalsTable()">
-                            <option value="">All Agents</option>
-                        </select>
+                        <div style="position:relative;">
+                            <button type="button" id="rnwAgentBtn" onclick="rnwToggleAgentMenu(event)"
+                                style="min-width:180px;text-align:left;padding:9px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);background:#fff;font-size:13px;font-family:inherit;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                                <span id="rnwAgentBtnLabel">All Agents</span>
+                                <span style="color:var(--gray-400);font-size:11px;">▼</span>
+                            </button>
+                            <div id="rnwAgentMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14);min-width:210px;max-height:300px;overflow-y:auto;padding:6px;"></div>
+                        </div>
                     </div>
                     <div class="filter-group">
                         <label>Expiring Within:</label>
@@ -3724,7 +3729,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260723b"></script>
+    <script src="app.js?v=20260724a"></script>
     <script src="supabase.js?v=20260715c"></script>
 </body>
 </html>
