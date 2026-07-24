@@ -31,6 +31,7 @@
             --white:      #ffffff;
             --sidebar-w:  320px;
             --header-h:   64px;
+            --tabbar-h:   50px;
             --radius-sm:  6px;
             --radius-md:  10px;
             --radius-lg:  16px;
@@ -113,38 +114,39 @@
         .ams-header .user-chip span { color: rgba(255,255,255,.85); font-size: 13px; }
         .ams-header .user-chip .avatar { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,.2); color: white; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
 
+        /* ── TOP TAB BAR (section nav, below header) ─────────────── */
+        .ams-tabbar {
+            height: var(--tabbar-h); display: flex; align-items: center; gap: 6px;
+            padding: 0 20px; background: white; border-bottom: 1px solid var(--gray-200);
+            position: fixed; top: var(--header-h); left: 0; right: 0; z-index: 190;
+            overflow-x: auto; overflow-y: hidden;
+        }
+        .ams-tab-btn {
+            display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+            padding: 8px 16px; border-radius: var(--radius-sm);
+            border: none; background: transparent;
+            font-family: inherit; font-size: 13px; font-weight: 600;
+            color: var(--gray-700); cursor: pointer;
+            transition: background .12s, color .12s;
+        }
+        .ams-tab-btn:hover { background: var(--blue-pale); color: var(--blue); }
+        .ams-tab-btn.active {
+            background: var(--blue); color: white;
+            box-shadow: 0 2px 8px rgba(29,78,216,.25);
+        }
+        .ams-tab-btn svg { flex-shrink: 0; }
+
         /* ── MAIN BODY LAYOUT ─────────────────────────────────────── */
-        .ams-body { display: flex; flex: 1; padding-top: var(--header-h); min-height: 100vh; }
+        .ams-body { display: flex; flex: 1; padding-top: calc(var(--header-h) + var(--tabbar-h)); min-height: 100vh; }
 
         /* ── LEFT SIDEBAR ─────────────────────────────────────────── */
         .ams-sidebar {
             width: var(--sidebar-w); flex-shrink: 0;
             background: white; border-right: 1px solid var(--gray-200);
             display: flex; flex-direction: column;
-            position: fixed; top: var(--header-h); bottom: 0; left: 0;
+            position: fixed; top: calc(var(--header-h) + var(--tabbar-h)); bottom: 0; left: 0;
             overflow: hidden; z-index: 100;
         }
-
-        /* ── SIDEBAR NAV BUTTONS ──────────────────────────────────── */
-        .sidebar-nav {
-            display: flex; flex-direction: column; gap: 4px;
-            padding: 12px 10px; border-bottom: 1px solid var(--gray-200);
-            background: var(--gray-50);
-        }
-        .sidebar-nav-btn {
-            display: flex; align-items: center; gap: 10px;
-            padding: 10px 14px; border-radius: var(--radius-sm);
-            border: none; background: transparent; width: 100%;
-            font-family: inherit; font-size: 13px; font-weight: 600;
-            color: var(--gray-700); cursor: pointer; text-align: left;
-            transition: background .12s, color .12s;
-        }
-        .sidebar-nav-btn:hover { background: var(--blue-pale); color: var(--blue); }
-        .sidebar-nav-btn.active {
-            background: var(--blue); color: white;
-            box-shadow: 0 2px 8px rgba(29,78,216,.25);
-        }
-        .sidebar-nav-btn svg { flex-shrink: 0; }
 
         .sidebar-toolbar {
             padding: 14px 12px 10px; border-bottom: 1px solid var(--gray-100);
@@ -180,6 +182,13 @@
         .cc-badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; letter-spacing: .3px; }
         .cc-badge.policies  { background: #dbeafe; color: var(--blue); }
         .cc-badge.agent     { background: #f0fdf4; color: var(--green); }
+        .cc-badge.related   { background: #f3e8ff; color: var(--purple); }
+        .client-card.is-related { background: linear-gradient(90deg, rgba(124,58,237,.05), transparent 60%); }
+        .client-card.is-related::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--purple); }
+        .cc-related-note { font-size: 10px; color: var(--purple); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+        .related-toggle { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 11px; color: var(--gray-700); font-weight: 600; cursor: pointer; user-select: none; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); background: var(--gray-50); }
+        .related-toggle input { accent-color: var(--purple); cursor: pointer; margin: 0; }
+        .related-toggle:hover { border-color: var(--purple); }
         .no-results { padding: 32px 16px; text-align: center; color: var(--gray-400); font-size: 13px; }
 
         /* ── MAIN DETAIL PANEL ────────────────────────────────────── */
@@ -391,7 +400,7 @@
         @media (max-width: 900px) { .dash-charts { grid-template-columns: 1fr; } }
 
         /* ── REPORTS PANEL ────────────────────────────────────────── */
-        .reports-panel { display: flex; flex-direction: column; height: calc(100vh - var(--header-h)); overflow: hidden; }
+        .reports-panel { display: flex; flex-direction: column; height: calc(100vh - var(--header-h) - var(--tabbar-h)); overflow: hidden; }
         .report-tabs-bar {
             display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 20px;
             background: white; border-bottom: 2px solid var(--gray-200);
@@ -501,6 +510,8 @@
 
         /* ── RESPONSIVE ───────────────────────────────────────────── */
         @media (max-width: 768px) {
+            .ams-tabbar { padding: 0 10px; }
+            .ams-tab-btn { padding: 8px 12px; font-size: 12px; }
             .ams-sidebar { width: 100%; position: relative; top: auto; bottom: auto; left: auto; height: auto; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--gray-200); }
             .ams-body { flex-direction: column; }
             .ams-main { margin-left: 0; padding: 16px 12px; }
@@ -605,7 +616,7 @@
             <div class="search-wrap">
                 <span class="search-icon"><i data-lucide="search" style="width:14px;height:14px;"></i></span>
                 <input type="text" id="amsGlobalSearch" placeholder="Search clients by name, phone, policy #…"
-                    oninput="amsSearch(this.value)">
+                    onfocus="amsSidebarNav('search')" oninput="amsSearch(this.value)">
             </div>
             <div class="user-chip">
                 <span id="amsUserLabel">—</span>
@@ -620,39 +631,36 @@
             </div>
         </header>
 
+        <!-- Section tab bar (below header) -->
+        <nav class="ams-tabbar" id="amsTabbar">
+            <button class="ams-tab-btn" id="sidebarNavDashboard" onclick="amsSidebarNav('dashboard')">
+                <i data-lucide="layout-dashboard" style="width:15px;height:15px;"></i> Dashboard
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavReports" onclick="amsSidebarNav('reports')">
+                <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i> Reports
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavRenewals" onclick="amsSidebarNav('renewals')">
+                <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i> Renewals
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
+                <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavCommissions" onclick="amsSidebarNav('commissions')">
+                <i data-lucide="coins" style="width:15px;height:15px;"></i> Commissions
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavDownload" onclick="amsSidebarNav('download')">
+                <i data-lucide="download" style="width:15px;height:15px;"></i> Download
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavRealtime" onclick="amsSidebarNav('realtime')">
+                <i data-lucide="zap" style="width:15px;height:15px;"></i> Real Time
+            </button>
+        </nav>
+
         <!-- Body -->
         <div class="ams-body">
 
             <!-- ── LEFT SIDEBAR ── -->
             <aside class="ams-sidebar">
-
-                <!-- Nav button bar -->
-                <nav class="sidebar-nav">
-                    <button class="sidebar-nav-btn" id="sidebarNavDashboard" onclick="amsSidebarNav('dashboard')">
-                        <i data-lucide="layout-dashboard" style="width:15px;height:15px;"></i> Dashboard
-                    </button>
-                    <button class="sidebar-nav-btn active" id="sidebarNavSearch" onclick="amsSidebarNav('search')">
-                        <i data-lucide="search" style="width:15px;height:15px;"></i> Search
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavReports" onclick="amsSidebarNav('reports')">
-                        <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i> Reports
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavRenewals" onclick="amsSidebarNav('renewals')">
-                        <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i> Renewals
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
-                        <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavCommissions" onclick="amsSidebarNav('commissions')">
-                        <i data-lucide="coins" style="width:15px;height:15px;"></i> Commissions
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavDownload" onclick="amsSidebarNav('download')">
-                        <i data-lucide="download" style="width:15px;height:15px;"></i> Download
-                    </button>
-                    <button class="sidebar-nav-btn" id="sidebarNavRealtime" onclick="amsSidebarNav('realtime')">
-                        <i data-lucide="zap" style="width:15px;height:15px;"></i> Real Time
-                    </button>
-                </nav>
 
                 <div class="sidebar-toolbar" id="sidebarSearchToolbar">
                     <div class="sidebar-search">
@@ -668,6 +676,11 @@
                             <option value="">All Carriers</option>
                         </select>
                     </div>
+                    <label class="related-toggle" title="Also surface clients linked to your matches by a shared phone, email, address, or referral">
+                        <input type="checkbox" id="amsIncludeRelated" checked onchange="amsApplyFilters()">
+                        <i data-lucide="git-branch" style="width:12px;height:12px;"></i>
+                        Include related clients
+                    </label>
                     <div class="sidebar-stat" id="amsClientCount">0 clients</div>
                 </div><!-- /sidebar-toolbar -->
 
@@ -1599,7 +1612,7 @@
                 </div>
                 <div class="info-field">
                     <label>Line of Business <span style="color:var(--red)">*</span></label>
-                    <select id="mp_lob"></select>
+                    <select id="mp_lob" onchange="amsOnLobChange()"></select>
                 </div>
                 <div class="info-field">
                     <label>Carrier <span style="color:var(--red)">*</span></label>
@@ -1722,8 +1735,44 @@
                 </div>
             </div>
 
+            <!-- ── Insured Property Section (shown for Homeowner LOBs) ── -->
+            <div id="amsPropertySection" style="display:none;margin:14px 0 0 0;background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1.5px solid #a5b4fc;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1.5px solid #c7d2fe;">
+                    <span style="font-size:15px;font-weight:700;color:#3730a3;">🏠 Insured Property Address</span>
+                    <span style="font-size:12px;color:#4338ca;font-style:italic;">— the property being insured on this Homeowner policy</span>
+                </div>
+                <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;">
+                    <div class="info-field" style="margin:0;">
+                        <label>Property Street Address</label>
+                        <input type="text" id="mp_propAddress" placeholder="123 Main St">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>Unit / Apt</label>
+                        <input type="text" id="mp_propUnit" placeholder="Unit 4B">
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:12px;">
+                    <div class="info-field" style="margin:0;">
+                        <label>City</label>
+                        <input type="text" id="mp_propCity" placeholder="Miami">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>State</label>
+                        <input type="text" id="mp_propState" placeholder="FL" maxlength="2" style="text-transform:uppercase;">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>ZIP</label>
+                        <input type="text" id="mp_propZip" placeholder="33101">
+                    </div>
+                    <div class="info-field" style="margin:0;">
+                        <label>Year Built</label>
+                        <input type="number" id="mp_propYearBuilt" min="1800" max="2099" placeholder="1998">
+                    </div>
+                </div>
+            </div>
+
             <!-- ── Drivers Section (optional) ── -->
-            <div style="margin:14px 0 0 0;background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:1.5px solid #5eead4;border-radius:10px;padding:14px 18px;">
+            <div id="amsDriversSection" style="margin:14px 0 0 0;background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:1.5px solid #5eead4;border-radius:10px;padding:14px 18px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #99f6e4;gap:10px;flex-wrap:wrap;">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <span style="font-size:15px;font-weight:700;color:#115e59;">🚘 Driver(s) Information</span>
@@ -1736,7 +1785,7 @@
             </div>
 
             <!-- ── Vehicles Section (optional) ── -->
-            <div style="margin:14px 0 0 0;background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;padding:14px 18px;">
+            <div id="amsVehiclesSection" style="margin:14px 0 0 0;background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;padding:14px 18px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #fed7aa;gap:10px;flex-wrap:wrap;">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <span style="font-size:15px;font-weight:700;color:#9a3412;">🚗 Vehicle(s) Information</span>
@@ -1859,7 +1908,9 @@
         }
 
         function amsSidebarNav(section) {
-            const sections = ['dashboard','search','reports','renewals','accounting','commissions','download','realtime'];
+            // 'search' has no tab button of its own — it's reached via the header
+            // search box (onfocus) — so it's excluded from the active-tab toggle.
+            const sections = ['dashboard','reports','renewals','accounting','commissions','download','realtime'];
             sections.forEach(s => {
                 const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
                 if (btn) btn.classList.toggle('active', s === section);

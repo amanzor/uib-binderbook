@@ -95,7 +95,33 @@ function mergeBinderData(localArr, cloudArr, tombstones) {
     };
     (Array.isArray(cloudArr) ? cloudArr : []).forEach(put);
     (Array.isArray(localArr) ? localArr : []).forEach(put);
-    return [...byKey.values()].sort((x, y) => (x.id || 0) - (y.id || 0));
+    const merged = [...byKey.values()].sort((x, y) => (x.id || 0) - (y.id || 0));
+    // Enforce the carrier/LOB rule on every merge so corrections propagate to
+    // and from the cloud, not just on the device that first loaded the data.
+    normalizeRestrictedCarrierLOBs(merged);
+    return merged;
+}
+
+// Infinity and Kemper do not write Homeowners policies. Any entry pairing one
+// of those carriers with a Homeowner line of business is a data-entry error.
+function isRestrictedHomeownerCarrier(company) {
+    return /infinity|kemper/i.test(company || '');
+}
+
+// Rewrite the Line of Business to "Personal Auto" for any Infinity/Kemper entry
+// still marked as a Homeowner product. Mutates in place; returns the number of
+// entries changed. Idempotent — once corrected, an entry no longer matches.
+function normalizeRestrictedCarrierLOBs(entries) {
+    if (!Array.isArray(entries)) return 0;
+    let fixed = 0;
+    entries.forEach(e => {
+        if (e && isRestrictedHomeownerCarrier(e.company) && isHomeownerLOB(e.lineOfBusiness)) {
+            e.lineOfBusiness = 'Personal Auto';
+            e.updatedAt = Date.now();
+            fixed++;
+        }
+    });
+    return fixed;
 }
 
 // Pull cloud tombstones, union with local, persist locally. Returns the
@@ -240,6 +266,10 @@ function startAutoSync() {
 let currentUser = null;
 let currentRole = null;
 let allData = JSON.parse(localStorage.getItem('binderData')) || [];
+// One-time correction of any Infinity/Kemper entries mislabeled as Homeowners.
+if (normalizeRestrictedCarrierLOBs(allData) > 0) {
+    try { localStorage.setItem('binderData', JSON.stringify(allData)); } catch (e) {}
+}
 let carrierMasterData = JSON.parse(localStorage.getItem('carrierMasterData')) || {};
 
 // ── Eastern Time helpers ──────────────────────────────────────
@@ -1318,6 +1348,26 @@ function saveEntry() {
     entry.agentCommissionShare     = parseFloat((commBase * (hasSecond ? 0.25 : 0.50)).toFixed(2));
     entry.secondAgentCommission    = hasSecond ? parseFloat((commBase * 0.25).toFixed(2)) : 0;
 
+    // Homeowner policies capture the insured property instead of drivers/vehicles.
+    // Property fields live in the personal-lines section (no id suffix).
+    if (isHomeownerLOB(entry.lineOfBusiness)) {
+        const propVal = id => (document.getElementById(id)?.value || '').trim();
+        entry.propertyAddress   = propVal('propertyAddress');
+        entry.propertyUnit      = propVal('propertyUnit');
+        entry.propertyCity      = propVal('propertyCity');
+        entry.propertyState     = propVal('propertyState').toUpperCase();
+        entry.propertyZip       = propVal('propertyZip');
+        entry.propertyYearBuilt = propVal('propertyYearBuilt');
+        entry.drivers  = [];
+        entry.vehicles = [];
+    }
+
+    // Infinity and Kemper do not write Homeowners policies.
+    if (isRestrictedHomeownerCarrier(entry.company) && isHomeownerLOB(entry.lineOfBusiness)) {
+        alert(`⚠️ ${entry.company} does not write Homeowners policies. Please choose a different carrier or a non-Homeowners Line of Business.`);
+        return;
+    }
+
     // Duplicate guard — block if same agent + customer + policy# + company + date already exists
     const isDupe = allData.some(d =>
         d.agent === entry.agent &&
@@ -1406,6 +1456,7 @@ function saveEntry() {
     showSuccess();
     document.getElementById('agentForm').reset();
     if (typeof selectLineType === 'function' && document.getElementById('lineTypeBtnPersonal')) selectLineType('personal');
+    if (typeof onBinderLobChange === 'function') onBinderLobChange();
     ['', 'Com'].forEach(sfx => {
         const agentCommEl = document.getElementById('agentCommission' + sfx);
         if (agentCommEl) agentCommEl.value = '';
@@ -3272,6 +3323,13 @@ function closeModal() {
 function updateEntry() {
     const entry = allData.find(d => d.id === editingId);
     if (!entry) return;
+    // Validate the carrier/LOB rule before mutating the entry.
+    const _newLob     = document.getElementById('editLineOfBusiness').value;
+    const _newCompany = toTitleCase(document.getElementById('editCompany').value);
+    if (isRestrictedHomeownerCarrier(_newCompany) && isHomeownerLOB(_newLob)) {
+        alert(`⚠️ ${_newCompany} does not write Homeowners policies. Please choose a different carrier or a non-Homeowners Line of Business.`);
+        return;
+    }
     entry.customerName = toTitleCase(document.getElementById('editCustomerName').value);
     entry.source = document.getElementById('editSource').value;
     entry.referredBy = toTitleCase(document.getElementById('editReferredBy').value);
@@ -10041,6 +10099,28 @@ async function claudeAdminSaveStatementsToSupabase() {
 let _driverRowCounter = 0;
 let _vehicleRowCounter = 0;
 
+// Any "Home Owners" / homeowner / dwelling LOB is a property policy — the entry
+// form captures an insured property address instead of drivers & vehicles.
+function isHomeownerLOB(lob) {
+    return /home\s*owner|homeowner|dwelling/i.test(lob || '');
+}
+
+// Toggle the (personal-lines) entry form between an auto-style policy
+// (drivers + vehicles) and a homeowner policy (insured property address),
+// based on the selected Line of Business.
+function onBinderLobChange() {
+    const lob     = document.getElementById('lineOfBusiness')?.value || '';
+    const isHome  = isHomeownerLOB(lob);
+    const propSec = document.getElementById('propertySection');
+    const drvSec  = document.getElementById('driversSection');
+    const vehSec  = document.getElementById('vehiclesSection');
+    if (propSec) propSec.style.display = isHome ? ''     : 'none';
+    if (drvSec)  drvSec.style.display  = isHome ? 'none' : '';
+    if (vehSec)  vehSec.style.display  = isHome ? 'none' : '';
+    // Switching to a homeowner LOB clears any driver/vehicle rows already added.
+    if (isHome && typeof resetDriversVehicles === 'function') resetDriversVehicles('');
+}
+
 function addDriverRow(prefill, suffix = '') {
     const container = document.getElementById('driversContainer' + suffix);
     if (!container) return;
@@ -10224,13 +10304,15 @@ function syncEntryToAMS(entry) {
             lastName:       existing.lastName       || (primaryDriver?.lastName)  || split.lastName,
             dob:            existing.dob            || (primaryDriver?.dob)       || '',
             dlNum:          existing.dlNum          || (primaryDriver?.dl)        || '',
-            phone1:         existing.phone1         || '',
+            phone1:         existing.phone1         || entry.customerPhone || '',
             phone2:         existing.phone2         || '',
-            email:          existing.email          || '',
-            address:        existing.address        || '',
-            city:           existing.city           || '',
-            state:          existing.state          || '',
-            zip:            existing.zip            || '',
+            email:          existing.email          || entry.customerEmail || '',
+            // For homeowner policies, the insured property address flows into the
+            // client's address on file (only filling blanks — never overwriting).
+            address:        existing.address        || entry.propertyAddress || '',
+            city:           existing.city           || entry.propertyCity    || '',
+            state:          existing.state          || entry.propertyState   || '',
+            zip:            existing.zip            || entry.propertyZip      || '',
             gender:         existing.gender         || '',
             marital:        existing.marital        || '',
             ssn4:           existing.ssn4           || '',
