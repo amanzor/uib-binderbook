@@ -14,16 +14,26 @@ const _SB_HEADERS = {
 };
 
 // Same names/contracts as the old Drive functions — every caller keeps working.
-async function driveGet(key) {
+// Returns { ok, value }. ok:false means the read FAILED (offline, timeout,
+// database down) — which is NOT the same as ok:true with value:null ("this key
+// doesn't exist yet"). Callers that write back MUST distinguish the two: during
+// an outage, treating a failed read as an empty cloud pushes this device's
+// local copy over everyone else's entries.
+async function driveGetResult(key) {
     try {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=value&key=eq.${encodeURIComponent(key)}`, { headers: _SB_HEADERS });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const rows = await res.json();
-        return rows.length && rows[0].value !== null ? rows[0].value : null;
+        return { ok: true, value: rows.length && rows[0].value !== null ? rows[0].value : null };
     } catch (e) {
         console.warn(`Cloud read failed for ${key}:`, e);
-        return null;
+        return { ok: false, value: null };
     }
+}
+
+async function driveGet(key) {
+    const r = await driveGetResult(key);
+    return r.value;
 }
 
 // Track locally-made changes the cloud hasn't confirmed yet. If a write is
@@ -142,13 +152,21 @@ async function driveSet(key, value) {
         // recent saves.
         if (key === 'binderData') {
             const tombs = await _syncTombstones().catch(() => _binderTombstones());
-            const cloudData = await driveGet('binderData');
-            value = mergeBinderData(Array.isArray(value) ? value : [], cloudData, tombs);
+            const cloudRes = await driveGetResult('binderData');
+            // Cloud unreachable: merging against an empty array and writing back
+            // would wipe every entry that only exists in the cloud. Bail out —
+            // the dirty flag set above keeps the local copy queued for retry.
+            if (!cloudRes.ok) {
+                console.warn('Skipping binderData cloud write — cloud read failed; will retry on the next sync.');
+                return false;
+            }
+            value = mergeBinderData(Array.isArray(value) ? value : [], cloudRes.value, tombs);
             _origSetItem('binderData', JSON.stringify(value));
             if (typeof allData !== 'undefined' && Array.isArray(allData)) allData = value;
         } else if (key === 'binderDeletedIds') {
-            const cloud = await driveGet('binderDeletedIds');
-            value = _mergeTombstones(Array.isArray(value) ? value : [], Array.isArray(cloud) ? cloud : []);
+            const cloudRes = await driveGetResult('binderDeletedIds');
+            if (!cloudRes.ok) return false; // same reasoning — retry later
+            value = _mergeTombstones(Array.isArray(value) ? value : [], Array.isArray(cloudRes.value) ? cloudRes.value : []);
             _origSetItem('binderDeletedIds', JSON.stringify(value));
         }
         const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
@@ -184,7 +202,11 @@ async function syncFromDrive() {
         // pushed a stale array before this deploy) — or local has changes
         // the cloud never confirmed — push the merged copy back up.
         if (key === 'binderData') {
-            const cloud = await driveGet('binderData');
+            const cloudRes = await driveGetResult('binderData');
+            // Cloud unreachable — leave the local copy untouched and try again
+            // next cycle. Pushing local now would overwrite the cloud book.
+            if (!cloudRes.ok) continue;
+            const cloud = cloudRes.value;
             let local = [];
             try { local = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
             const merged = mergeBinderData(local, cloud, tombs);
