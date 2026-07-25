@@ -3169,12 +3169,16 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             }
             return 12;
         }
-        function _amsRnwAlreadyRenewed(list, src, newEff) {
+        // Returns the existing renewal entry for this policy's new term, or null.
+        function _amsRnwFindRenewal(list, src, newEff) {
             const norm = s => String(s || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
             const pol  = norm(src.policyNumber);
-            return list.some(e => (e.policyType || '').toLowerCase() === 'renewal' &&
+            return list.find(e => (e.policyType || '').toLowerCase() === 'renewal' &&
                 e.effectiveDate === newEff &&
-                (pol ? norm(e.policyNumber) === pol : (e.customerName || '') === (src.customerName || '')));
+                (pol ? norm(e.policyNumber) === pol : (e.customerName || '') === (src.customerName || ''))) || null;
+        }
+        function _amsRnwAlreadyRenewed(list, src, newEff) {
+            return !!_amsRnwFindRenewal(list, src, newEff);
         }
 
         async function amsRnwRenew(rowIdx, btnEl) {
@@ -3187,8 +3191,17 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             }
             const newEff = src.expirationDate;
             const binder = amsGetBinderData();
-            if (_amsRnwAlreadyRenewed(binder, src, newEff)) {
-                alert(`A renewal for ${src.customerName || 'this policy'} (term starting ${newEff}) is already in ${src.agent}'s Binder Book.`);
+            // Already renewed locally. That can mean the cloud push failed
+            // earlier (offline / database down), leaving the renewal stranded on
+            // this device — so offer to re-send it instead of refusing outright.
+            const existing = _amsRnwFindRenewal(binder, src, newEff);
+            if (existing) {
+                if (!confirm(`A renewal for ${src.customerName || 'this policy'} (term starting ${newEff}) already exists locally.\n\nRe-send it to ${src.agent}'s Binder Book? (Use this if an earlier attempt failed to sync.)`)) return;
+                if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Sending…'; }
+                const resent = await amsRnwPushToSupabase(existing);
+                amsRenewalsRender();
+                if (resent) amsFlashBanner(`Renewal re-sent to ${src.agent}'s Binder Book ✓`);
+                else alert(`Still could not reach the cloud — the renewal is saved on this device. Try again once the connection is back.`);
                 return;
             }
             const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -3247,14 +3260,18 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         async function amsRnwPushToSupabase(entry) {
             try {
                 const res = await fetch(`${AMS_SB_URL}/rest/v1/app_store?select=value&key=eq.binderData`, { headers: AMS_SB_HEADERS });
+                // A FAILED read must never be treated as "the cloud is empty" —
+                // writing back then would replace the whole book of business with
+                // just this one entry. Abort and let the user retry instead.
+                if (!res.ok) throw new Error('cloud read HTTP ' + res.status);
+                const rows = await res.json();
                 let cloud = [];
-                if (res.ok) {
-                    const rows = await res.json();
-                    if (rows.length && rows[0].value != null) {
-                        cloud = Array.isArray(rows[0].value) ? rows[0].value
-                              : (Array.isArray(rows[0].value.value) ? rows[0].value.value : []);
-                    }
+                if (rows.length && rows[0].value != null) {
+                    cloud = Array.isArray(rows[0].value) ? rows[0].value
+                          : (Array.isArray(rows[0].value.value) ? rows[0].value.value : []);
                 }
+                // Guard against a truncated/partial read wiping a populated book.
+                if (!cloud.length && rows.length) throw new Error('cloud returned an empty book — refusing to overwrite');
                 const byId = new Map();
                 cloud.forEach(e => { if (e && e.id != null) byId.set(e.id, e); });
                 byId.set(entry.id, entry); // add the new renewal
