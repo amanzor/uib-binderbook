@@ -8,7 +8,18 @@
 (function () {
     if (!window.Motion) {
         console.warn('[UIBMotion] Motion library not loaded — animations skipped.');
-        window.UIBMotion = {};
+        // Fall back to no-op stubs for EVERY method so callers (app.js / ams.js)
+        // never throw when the Motion One CDN is blocked or fails to load. A
+        // thrown "UIBMotion.x is not a function" here previously aborted
+        // loadAgentData() mid-run, leaving the Production Dashboard and its
+        // filters uninitialized. With stubs the app just renders without motion.
+        const noop = () => {};
+        window.UIBMotion = {
+            animateHeader:      noop, animateAgentCards:  noop, animateSection:     noop,
+            animateModalOpen:   noop, animateModalClose:  noop, animateStatCards:   noop,
+            animateTableRows:   noop, animateChartBars:   noop, animateSuccess:     noop,
+            addRippleToButtons: noop, animateFormSections:noop, animateUserInfoBar: noop,
+        };
         return;
     }
 

@@ -1742,32 +1742,32 @@
                     <span style="font-size:15px;font-weight:700;color:#3730a3;">🏠 Insured Property Address</span>
                     <span style="font-size:12px;color:#4338ca;font-style:italic;">— the property being insured on this Homeowner policy</span>
                 </div>
-                <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px;">
-                    <div class="info-field" style="margin:0;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
+                    <div class="info-field" style="margin:0;min-width:0;">
                         <label>Property Street Address</label>
                         <input type="text" id="mp_propAddress" placeholder="123 Main St">
                     </div>
-                    <div class="info-field" style="margin:0;">
+                    <div class="info-field" style="margin:0;min-width:0;">
                         <label>Unit / Apt</label>
                         <input type="text" id="mp_propUnit" placeholder="Unit 4B">
                     </div>
                 </div>
-                <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:12px;">
-                    <div class="info-field" style="margin:0;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;">
+                    <div class="info-field" style="margin:0;min-width:0;">
                         <label>City</label>
                         <input type="text" id="mp_propCity" placeholder="Miami">
                     </div>
-                    <div class="info-field" style="margin:0;">
+                    <div class="info-field" style="margin:0;min-width:0;">
                         <label>State</label>
                         <input type="text" id="mp_propState" placeholder="FL" maxlength="2" style="text-transform:uppercase;">
                     </div>
-                    <div class="info-field" style="margin:0;">
+                    <div class="info-field" style="margin:0;min-width:0;">
                         <label>ZIP</label>
                         <input type="text" id="mp_propZip" placeholder="33101">
                     </div>
-                    <div class="info-field" style="margin:0;">
+                    <div class="info-field" style="margin:0;min-width:0;">
                         <label>Year Built</label>
-                        <input type="number" id="mp_propYearBuilt" min="1800" max="2099" placeholder="1998">
+                        <input type="number" id="mp_propYearBuilt" min="1800" max="2099" placeholder="1998" style="width:100%;box-sizing:border-box;">
                     </div>
                 </div>
             </div>
