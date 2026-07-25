@@ -11552,3 +11552,124 @@ function claudeRenewalImportAll(setIdx) {
     });
     claudeRenewalAddMessage('assistant', `✅ Import complete: ${updated} entr${updated !== 1 ? 'ies' : 'y'} updated, ${added} renewal entr${added !== 1 ? 'ies' : 'y'} added for existing customers, ${created} new entr${created !== 1 ? 'ies' : 'y'} created.`);
 }
+
+
+// ============================================================
+// DATA SAFETY — off-cloud snapshots you control
+// The cloud book lives in one Supabase row. If that database is
+// unreachable (or a device holds a stale copy), the only other
+// full copies are the ones sitting in each browser. These tools
+// let an admin pull a snapshot down to a file, and merge any
+// snapshot back in later. Restores always UNION — they never
+// replace, so a restore can add missing entries but can never
+// delete a policy that is already there.
+// ============================================================
+const SAFETY_KEYS = ['binderData', 'binderDeletedIds', 'commissionData', 'carrierMasterData',
+                     'prospectData', 'agentMasterData', 'agentCredentials', 'amsClientData',
+                     'commissionStatements', 'verificationLogs'];
+
+function _safetyLocal(key) {
+    try { const v = localStorage.getItem(key); return v === null ? null : JSON.parse(v); }
+    catch (e) { return null; }
+}
+
+function _safetyEntryCount() {
+    const d = _safetyLocal('binderData');
+    return Array.isArray(d) ? d.length : 0;
+}
+
+// Download everything this browser holds as a single JSON file.
+function downloadLocalSnapshot() {
+    const snap = {
+        kind: 'uib-binderbook-snapshot',
+        version: 1,
+        savedAt: new Date().toISOString(),
+        savedBy: (typeof currentUser !== 'undefined' && currentUser) || 'admin',
+        entryCount: _safetyEntryCount(),
+        data: {}
+    };
+    SAFETY_KEYS.forEach(k => { const v = _safetyLocal(k); if (v !== null) snap.data[k] = v; });
+
+    if (!snap.entryCount && !confirm('This browser currently holds 0 policies.\n\nDownload the snapshot anyway? (If the cloud is down, wait until your data loads before taking a snapshot.)')) return;
+
+    const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `uib-binderbook-snapshot-${getEasternDateString()}-${snap.entryCount}-policies.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+// Merge a snapshot file back in. Union only — never deletes.
+async function restoreSnapshotFromFile(input) {
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    let snap;
+    try { snap = JSON.parse(await file.text()); }
+    catch (e) { alert('That file is not a valid snapshot (could not read JSON).'); return; }
+
+    const payload = snap && snap.data ? snap.data : snap;
+    const incoming = payload && payload.binderData;
+    if (!Array.isArray(incoming)) { alert('That file does not contain a binderData book of business.'); return; }
+
+    const before = _safetyEntryCount();
+    const local  = _safetyLocal('binderData') || [];
+    // Union by id. Tombstones are respected so intentionally deleted entries
+    // are not resurrected by an old snapshot.
+    const merged = mergeBinderData(local, incoming, _binderTombstones());
+    const added  = merged.length - before;
+
+    if (!confirm(`Snapshot from ${snap.savedAt ? new Date(snap.savedAt).toLocaleString() : 'unknown date'}\n` +
+                 `Snapshot policies: ${incoming.length}\n` +
+                 `Currently loaded:  ${before}\n\n` +
+                 `This ADDS ${added} missing polic${added === 1 ? 'y' : 'ies'}. Nothing is deleted or overwritten.\n\nProceed?`)) return;
+
+    // Other keys: only fill in ones that are missing locally, so a restore can
+    // never clobber newer local settings.
+    Object.keys(payload).forEach(k => {
+        if (k === 'binderData' || !SAFETY_KEYS.includes(k)) return;
+        if (localStorage.getItem(k) === null) {
+            try { localStorage.setItem(k, JSON.stringify(payload[k])); } catch (e) {}
+        }
+    });
+
+    // Wrapped setItem pushes to the cloud; the read-failure guard makes that
+    // safe while the database is down (stays queued, retries later).
+    localStorage.setItem('binderData', JSON.stringify(merged));
+    if (typeof allData !== 'undefined') allData = merged;
+
+    alert(`✓ Restore complete — ${added} polic${added === 1 ? 'y' : 'ies'} added (${merged.length} total).` +
+          `\n\nIf the cloud is currently unreachable, this is saved on this device and will sync automatically once it is back.`);
+    try { if (currentRole === 'admin') loadAdminDashboard(); else loadAgentData(); } catch (e) {}
+}
+
+function showDataSafety() {
+    let m = document.getElementById('dataSafetyModal');
+    if (m) { m.remove(); }
+    const count = _safetyEntryCount();
+    m = document.createElement('div');
+    m.id = 'dataSafetyModal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100001;display:flex;align-items:center;justify-content:center;padding:20px;';
+    m.innerHTML =
+        '<div style="background:#fff;border-radius:16px;max-width:520px;width:100%;font-family:inherit;overflow:hidden;">' +
+          '<div style="background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">' +
+            '<strong style="font-size:16px;">🛟 Data Safety</strong>' +
+            '<button onclick="document.getElementById(\'dataSafetyModal\').remove()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;">&times;</button>' +
+          '</div>' +
+          '<div style="padding:20px;font-size:13.5px;color:#334155;line-height:1.6;">' +
+            '<div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:12px 14px;margin-bottom:16px;">' +
+              'Policies loaded in this browser: <strong style="font-size:16px;color:#0f766e;">' + count + '</strong>' +
+              (count === 0 ? '<div style="color:#b45309;margin-top:6px;">⚠️ Nothing is loaded right now. If the cloud is down, wait for it to come back before taking a snapshot.</div>' : '') +
+            '</div>' +
+            '<p style="margin:0 0 14px;"><strong>Download a snapshot</strong> to keep an off-cloud copy of the whole book on your own computer. Do this regularly, and especially before any big import.</p>' +
+            '<button onclick="downloadLocalSnapshot()" style="width:100%;background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;border:none;padding:11px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:18px;">⬇ Download snapshot (' + count + ' policies)</button>' +
+            '<p style="margin:0 0 14px;"><strong>Restore from a snapshot</strong> merges a saved file back in. It only <em>adds</em> missing policies — it never deletes or overwrites what is already there.</p>' +
+            '<input type="file" id="dataSafetyFile" accept="application/json,.json" style="display:none;" onchange="restoreSnapshotFromFile(this)">' +
+            '<button onclick="document.getElementById(\'dataSafetyFile\').click()" style="width:100%;background:#fff;border:1.5px solid #0f766e;color:#0f766e;padding:11px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;">⬆ Restore from snapshot file…</button>' +
+          '</div>' +
+        '</div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+}
