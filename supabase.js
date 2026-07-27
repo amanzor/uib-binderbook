@@ -55,7 +55,11 @@
     }
 
     async function cloudGetAll() {
-        const res = await fetch(REST + '?select=key,value', { headers: HEADERS });
+        // Rolling snapshots (backupSnapshot_*) are multi-MB point-in-time
+        // copies that restoreAll skips anyway — filtering them out server-side
+        // keeps a restore (or a fresh device's auto-load) from downloading
+        // tens of MB it will immediately throw away.
+        const res = await fetch(REST + '?select=key,value&key=not.like.backupSnapshot*', { headers: HEADERS });
         if (!res.ok) throw new Error('Fetch failed (HTTP ' + res.status + ')');
         return res.json();
     }

@@ -13,6 +13,32 @@ const _SB_HEADERS = {
     'Content-Type': 'application/json'
 };
 
+// Cloud freshness stamps — the updated_at we last saw for each key. A sync
+// cycle asks for stamps alone first (a few hundred bytes for every key) and
+// only downloads a key's value when its stamp moved, instead of re-pulling
+// multi-MB blobs that haven't changed. This was the app's single biggest
+// source of Supabase Disk IO. Stamps are compared for INEQUALITY only, never
+// ordered, so clock skew between devices cannot corrupt the decision.
+function _stampKey(key) { return 'uibCloudStamp_' + key; }
+function _seenStamp(key) { return localStorage.getItem(_stampKey(key)); }
+function _rememberStamp(key, stamp) {
+    if (stamp) { try { _origSetItem(_stampKey(key), stamp); } catch (e) {} }
+}
+
+async function driveGetStamps(keys) {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=key,updated_at&key=in.(${encodeURIComponent(keys.join(','))})`, { headers: _SB_HEADERS });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const rows = await res.json();
+        const map = {};
+        rows.forEach(r => { if (r && r.key) map[r.key] = r.updated_at || null; });
+        return { ok: true, stamps: map };
+    } catch (e) {
+        console.warn('Cloud stamp check failed:', e);
+        return { ok: false, stamps: {} };
+    }
+}
+
 // Same names/contracts as the old Drive functions — every caller keeps working.
 // Returns { ok, value }. ok:false means the read FAILED (offline, timeout,
 // database down) — which is NOT the same as ok:true with value:null ("this key
@@ -21,9 +47,10 @@ const _SB_HEADERS = {
 // local copy over everyone else's entries.
 async function driveGetResult(key) {
     try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=value&key=eq.${encodeURIComponent(key)}`, { headers: _SB_HEADERS });
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=value,updated_at&key=eq.${encodeURIComponent(key)}`, { headers: _SB_HEADERS });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const rows = await res.json();
+        if (rows.length) _rememberStamp(key, rows[0].updated_at);
         return { ok: true, value: rows.length && rows[0].value !== null ? rows[0].value : null };
     } catch (e) {
         console.warn(`Cloud read failed for ${key}:`, e);
@@ -136,7 +163,14 @@ function normalizeRestrictedCarrierLOBs(entries) {
 
 // Pull cloud tombstones, union with local, persist locally. Returns the
 // merged list so callers can pass it straight into mergeBinderData.
-async function _syncTombstones() {
+// When the caller already has fresh stamps showing the cloud copy hasn't
+// moved since we last pulled it, the local list IS the cloud list — skip
+// the network round trip.
+async function _syncTombstones(stamps) {
+    if (stamps && stamps['binderDeletedIds'] &&
+        stamps['binderDeletedIds'] === _seenStamp('binderDeletedIds')) {
+        return _binderTombstones();
+    }
     const cloud = await driveGet('binderDeletedIds');
     const merged = _mergeTombstones(_binderTombstones(), Array.isArray(cloud) ? cloud : []);
     _origSetItem('binderDeletedIds', JSON.stringify(merged));
@@ -195,14 +229,19 @@ async function driveSet(key, value) {
             value = _mergeTombstones(Array.isArray(value) ? value : [], Array.isArray(cloudRes.value) ? cloudRes.value : []);
             _origSetItem('binderDeletedIds', JSON.stringify(value));
         }
+        const wroteAt = new Date().toISOString();
         const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
             method: 'POST',
             headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
-            body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
+            body: JSON.stringify([{ key, value, updated_at: wroteAt }])
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         // Confirmed — clear the flag unless a newer local write happened meanwhile.
         if (localStorage.getItem(_dirtyKey(key)) === seq) localStorage.removeItem(_dirtyKey(key));
+        // Remember our own write's stamp so the next sync cycle doesn't
+        // re-download a blob we just uploaded. If another device wins the row
+        // after us, its different stamp forces a normal pull-and-merge.
+        _rememberStamp(key, wroteAt);
         return true;
     } catch (e) {
         console.warn(`Cloud write failed for ${key}:`, e);
@@ -216,10 +255,25 @@ const DRIVE_PULL_SKIP = new Set([]);
 async function syncFromDrive() {
     const banner = document.getElementById('syncBanner');
     if (banner) banner.style.display = 'flex';
+    // One tiny stamp query decides which keys actually need downloading.
+    // In the steady state (nothing changed anywhere) this is the sync's ONLY
+    // network request — no multi-MB blobs.
+    const stampRes = await driveGetStamps(SYNC_KEYS.concat(['binderDeletedIds']));
+    // Cloud unreachable — every read below would fail the same way. Leave all
+    // local copies (and dirty flags) untouched and try again next cycle.
+    if (!stampRes.ok) {
+        if (banner) banner.style.display = 'none';
+        return;
+    }
+    const stamps = stampRes.stamps;
+    // A key is "unchanged" when the cloud row still carries the stamp we saw
+    // on our last pull AND we actually hold a local copy to keep using.
+    const unchanged = key => stamps[key] && stamps[key] === _seenStamp(key) &&
+                             localStorage.getItem(key) !== null;
     // Tombstones first, so the entry merge below knows about deletions
     // made on other devices.
     let tombs;
-    try { tombs = await _syncTombstones(); } catch (e) { tombs = _binderTombstones(); }
+    try { tombs = await _syncTombstones(stamps); } catch (e) { tombs = _binderTombstones(); }
     for (const key of SYNC_KEYS) {
         if (DRIVE_PULL_SKIP.has(key)) continue; // preserve local credentials
 
@@ -228,6 +282,9 @@ async function syncFromDrive() {
         // pushed a stale array before this deploy) — or local has changes
         // the cloud never confirmed — push the merged copy back up.
         if (key === 'binderData') {
+            // Cloud copy unmoved since our last pull and nothing local is
+            // waiting to upload — the books already agree; skip the download.
+            if (unchanged('binderData') && localStorage.getItem(_dirtyKey('binderData')) === null) continue;
             const cloudRes = await driveGetResult('binderData');
             // Cloud unreachable — leave the local copy untouched and try again
             // next cycle. Pushing local now would overwrite the cloud book.
@@ -256,6 +313,8 @@ async function syncFromDrive() {
             }
             localStorage.removeItem(_dirtyKey(key));
         }
+
+        if (unchanged(key)) continue; // cloud copy unmoved — local is current
 
         const data = await driveGet(key);
         if (data !== null) {
@@ -10686,6 +10745,19 @@ async function _backupPost(key, value) {
     }
 }
 
+// Freshness probe: fetch ONLY the snapshot's date field, not the multi-MB
+// snapshot itself. Checking "did a device already back up today?" used to
+// download the entire blob (twice — daily + monthly slot) on every page
+// load; this asks Postgres to extract the one JSON field server-side.
+// Throws on network/HTTP failure so the caller can tell "no snapshot yet"
+// (null) apart from "cloud unreachable".
+async function _snapshotDate(slot) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=date:value->>date&key=eq.${encodeURIComponent(slot)}`, { headers: _SB_HEADERS });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    return rows.length ? (rows[0].date || null) : null;
+}
+
 let _backupRanThisLoad = false;
 async function runDailyCloudBackup() {
     if (_backupRanThisLoad) return;
@@ -10694,26 +10766,26 @@ async function runDailyCloudBackup() {
         const today = getEasternDateString();                       // YYYY-MM-DD (ET)
         const noon  = new Date(today + 'T12:00:00');
         const slot  = 'backupSnapshot_' + noon.toLocaleDateString('en-US', { weekday: 'short' });
-        const existing = await driveGet(slot);
-        // Reuse today's snapshot if a device already wrote it — but still
-        // fall through to the monthly check below (an interrupted first run
-        // may have written the daily slot and died before the monthly one).
-        let snap = (existing && existing.date === today) ? existing : null;
-        if (!snap) {
-            let entries = [];
-            try { entries = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
-            if (!entries.length) return;                            // never snapshot an empty book
-            snap = { date: today, savedAt: new Date().toISOString(), entryCount: entries.length, data: {} };
-            BACKUP_SNAPSHOT_KEYS.forEach(k => {
-                try { const v = localStorage.getItem(k); if (v !== null) snap.data[k] = JSON.parse(v); } catch (e) {}
-            });
+        const monthSlot = 'backupSnapshot_M' + String(noon.getMonth() + 1).padStart(2, '0');
+
+        const dailyDate   = await _snapshotDate(slot);
+        const monthlyDate = await _snapshotDate(monthSlot);
+        const needDaily   = dailyDate !== today;
+        const needMonthly = !monthlyDate || String(monthlyDate).slice(0, 7) !== today.slice(0, 7);
+        if (!needDaily && !needMonthly) return;   // both current — two tiny probes, zero blobs
+
+        let entries = [];
+        try { entries = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
+        if (!entries.length) return;                                // never snapshot an empty book
+        const snap = { date: today, savedAt: new Date().toISOString(), entryCount: entries.length, data: {} };
+        BACKUP_SNAPSHOT_KEYS.forEach(k => {
+            try { const v = localStorage.getItem(k); if (v !== null) snap.data[k] = JSON.parse(v); } catch (e) {}
+        });
+        if (needDaily) {
             await _backupPost(slot, snap);
             console.log('☁️ Daily cloud backup saved →', slot, '(' + snap.entryCount + ' entries)');
         }
-
-        const monthSlot = 'backupSnapshot_M' + String(noon.getMonth() + 1).padStart(2, '0');
-        const mExisting = await driveGet(monthSlot);
-        if (!mExisting || String(mExisting.date || '').slice(0, 7) !== today.slice(0, 7)) {
+        if (needMonthly) {
             await _backupPost(monthSlot, snap);
         }
     } catch (e) { console.warn('Cloud backup failed (will retry next load):', e); _backupRanThisLoad = false; }
@@ -10745,12 +10817,21 @@ async function _renderCloudBackupsList() {
     const list = document.getElementById('cloudBackupsList');
     if (!list) return;
     list.textContent = 'Loading snapshots…';
-    const rows = [];
-    for (const slot of BACKUP_SLOTS) {
-        try {
-            const snap = await driveGet(slot);
-            if (snap && snap.date) rows.push({ slot, snap });
-        } catch (e) {}
+    // One metadata query lists every slot's date and entry count — the
+    // snapshots themselves (multi-MB each) are only downloaded when the
+    // admin actually clicks Restore.
+    let rows = [];
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=key,date:value->>date,entryCount:value->>entryCount&key=like.backupSnapshot*`, { headers: _SB_HEADERS });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const meta = await res.json();
+        rows = meta.filter(r => r && r.date && BACKUP_SLOTS.includes(r.key))
+                   .map(r => ({ slot: r.key, snap: { date: r.date, entryCount: Number(r.entryCount) || 0 } }));
+    } catch (e) {
+        if (document.getElementById('cloudBackupsList')) {
+            list.innerHTML = 'Couldn\'t reach the cloud to list snapshots — check your connection and reopen this window.';
+        }
+        return;
     }
     if (!document.getElementById('cloudBackupsList')) return; // modal closed meanwhile
     if (!rows.length) {
