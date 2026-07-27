@@ -160,7 +160,33 @@ async function driveSet(key, value) {
                 console.warn('Skipping binderData cloud write — cloud read failed; will retry on the next sync.');
                 return false;
             }
+            const cloudArr = Array.isArray(cloudRes.value) ? cloudRes.value : [];
             value = mergeBinderData(Array.isArray(value) ? value : [], cloudRes.value, tombs);
+            // LAST-RESORT SHRINK GUARD. A merge can only ever ADD entries, so a
+            // result smaller than the cloud copy means something upstream is
+            // wrong — a caller passing a partial array, a bad merge, a bug. That
+            // is precisely how a whole book of business gets replaced by a
+            // handful of records. Refuse the write; never publish the shrink.
+            // Deliberate bulk deletes travel as tombstones, which are excluded
+            // from the comparison below so genuine deletions still work.
+            const deadIds = new Set((tombs || []).map(t => t.id));
+            const cloudLive = cloudArr.filter(e => !(e && e.id != null && deadIds.has(e.id))).length;
+            if (cloudLive > 0 && value.length < cloudLive) {
+                const lost = cloudLive - value.length;
+                console.error(`BLOCKED binderData write: would drop ${lost} of ${cloudLive} cloud entries.`);
+                try {
+                    _origSetItem('uibBlockedShrink', JSON.stringify({
+                        at: new Date().toISOString(), cloudLive, wouldWrite: value.length, lost
+                    }));
+                } catch (e) {}
+                if (typeof alert === 'function') {
+                    alert(`⚠️ Cloud save BLOCKED to protect your data.\n\n` +
+                          `The save would have reduced the book from ${cloudLive} to ${value.length} policies ` +
+                          `(${lost} lost). Nothing was written — your cloud data is untouched.\n\n` +
+                          `Reload the page. If this repeats, tell your admin before entering more data.`);
+                }
+                return false;
+            }
             _origSetItem('binderData', JSON.stringify(value));
             if (typeof allData !== 'undefined' && Array.isArray(allData)) allData = value;
         } else if (key === 'binderDeletedIds') {
@@ -10630,13 +10656,34 @@ const BACKUP_SLOTS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => 'backu
 
 // Plain write — deliberately NOT driveSet: snapshots are point-in-time
 // copies that must never be merged with the cloud or flagged dirty.
+// Snapshots are written to BOTH backends. Supabase is the primary store, but
+// when it went down for a full day the backups went down with it — a backup
+// that shares a failure domain with the thing it protects is not a backup. The
+// Apps Script store stayed reachable throughout, so it gets a copy too. A
+// failure on either side never blocks the other.
 async function _backupPost(key, value) {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
-        method: 'POST',
-        headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
-        body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const results = await Promise.allSettled([
+        (async () => {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+                method: 'POST',
+                headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+                body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
+            });
+            if (!res.ok) throw new Error('Supabase HTTP ' + res.status);
+        })(),
+        (async () => {
+            // Apps Script mirror — no-cors, so success is best-effort by design.
+            await fetch(DRIVE_API_URL, {
+                method: 'POST', mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key, value })
+            });
+        })()
+    ]);
+    // Only fail if BOTH backends rejected — one surviving copy is enough.
+    if (results.every(r => r.status === 'rejected')) {
+        throw new Error('both backup backends failed: ' + results.map(r => r.reason).join(' | '));
+    }
 }
 
 let _backupRanThisLoad = false;
