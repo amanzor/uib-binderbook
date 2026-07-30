@@ -9058,7 +9058,7 @@ async function claudeSendMessage() {
     const pdfWasAttached = hasPdf;
     const pdfFileName = hasPdf ? _claudePendingPdf.name : null;
     const pdfBase64   = hasPdf ? _claudePendingPdf.base64 : null;
-    _claudeMessages.push({ role: 'user', content });
+    _claudeMessages.push({ role: 'user', content, _pdfNames: hasPdf ? [pdfFileName] : [] });
     _claudePendingPdf = null;
 
     // Loading bubble
@@ -9125,7 +9125,7 @@ async function claudeSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+        claudeAddMessage('assistant', claudeExplainError(err));
     } finally {
         _claudeBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
@@ -9232,11 +9232,69 @@ Before the JSON, give a brief 2-3 sentence summary of what you found (document t
     return base;
 }
 
+// A PDF only has to reach Claude once. After it has been read and answered,
+// the findings live in the assistant's reply — so re-sending megabytes of
+// base64 on every later turn buys nothing. Leaving them in meant a five-turn
+// session re-uploaded the same statements five times, and any hiccup on the
+// uplink surfaced as a bare "Failed to fetch" mid-conversation.
+// Call this before each request: it clears every turn except the one being sent.
+function claudeStripPdfsFromHistory(messages) {
+    if (!Array.isArray(messages)) return;
+    for (let i = 0; i < messages.length - 1; i++) {
+        const m = messages[i];
+        if (!m || !Array.isArray(m.content)) continue;
+        let seen = 0;
+        m.content = m.content.map(block => {
+            if (!block || block.type !== 'document') return block;
+            const name = (m._pdfNames && m._pdfNames[seen++]) || 'a PDF';
+            return { type: 'text', text: `["${name}" was attached here. You already read it — your findings are in your reply below, so work from those. If you need the original again, ask the user to re-attach it.]` };
+        });
+    }
+}
+
+// Every failure used to be reported as "check that the Edge Function is
+// deployed", which sent people to the Supabase dashboard to fix something that
+// was never broken. Say what actually went wrong.
+function claudeExplainError(err) {
+    const msg = String((err && err.message) || err || 'Unknown error');
+
+    if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
+        return `❌ Couldn't reach the AI service — the request never completed.\n\n` +
+               `This is a connection problem, not a setup problem. Usually one of:\n` +
+               `• The connection dropped mid-upload (large statements take a while to send)\n` +
+               `• A browser extension or ad blocker blocked the request\n` +
+               `• VPN or office firewall interference\n\n` +
+               `Try again. If it keeps happening, open DevTools ▸ Network and check the "claude" request.`;
+    }
+    if (/idle_timeout|idle timeout|HTTP 504/i.test(msg)) {
+        return `❌ The AI ran past the 150-second limit and the request was cut off.\n\n` +
+               `Upload fewer PDFs at once, or split a large statement into smaller batches.`;
+    }
+    if (/abort/i.test(msg)) {
+        return `❌ The request was cancelled before it finished — it ran too long.\n\n` +
+               `Try again with a smaller upload.`;
+    }
+    if (/not deployed|NOT_FOUND|HTTP 404/i.test(msg)) {
+        return `❌ The "claude" Edge Function isn't deployed on Supabase.\n\n` +
+               `Fix: Supabase Dashboard ▸ Edge Functions ▸ Deploy a new function ▸ name it "claude".`;
+    }
+    if (/invalid api key|authentication_error|ANTHROPIC_API_KEY/i.test(msg)) {
+        return `❌ The Claude API key is missing or invalid.\n\n` +
+               `Fix: Supabase Dashboard ▸ Edge Functions ▸ Manage secrets ▸ set ANTHROPIC_API_KEY.`;
+    }
+    if (/rate_limit|overloaded/i.test(msg)) {
+        return `❌ Claude is rate-limited or overloaded right now.\n\nWait a few seconds and send it again.`;
+    }
+    return `❌ Error: ${msg}`;
+}
+
 // Default 8192: big commercial policies (20+ drivers/vehicles) can overflow a
 // 4096-token response, truncating the extraction JSON mid-output so no
 // "extracted" card ever appears. Callers with even larger outputs (the admin
 // commission processor) pass a higher limit explicitly.
 async function claudeCallAPI(systemPrompt, messages, maxTokens = 8192) {
+    claudeStripPdfsFromHistory(messages);
+
     const payload = {
         model: CLAUDE_MODEL,
         max_tokens: maxTokens,
@@ -9247,21 +9305,40 @@ async function claudeCallAPI(systemPrompt, messages, maxTokens = 8192) {
         }))
     };
 
-    const res = await fetch(CLAUDE_PROXY_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify(payload)
-    });
+    // The proxy is capped at 150s server-side; abort a little past that so a
+    // stalled socket fails with a clear message instead of spinning forever.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 180000);
+    let res;
+    try {
+        res = await fetch(CLAUDE_PROXY_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+    } catch (e) {
+        if (e.name === 'AbortError') throw new Error('The request took too long and was aborted after 3 minutes.');
+        throw e;
+    } finally {
+        clearTimeout(timer);
+    }
 
     // Read as text first so we can see exactly what came back
     const raw = await res.text();
     let data;
     try { data = JSON.parse(raw); }
     catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`); }
+
+    // Supabase gateway envelope — the worker timed out or died, so there is no
+    // Claude payload at all. Without this it fell through to "Empty response".
+    if (data.code && data.message && !data.content && !data.error) {
+        throw new Error(`AI proxy ${data.code}: ${data.message}`);
+    }
 
     // Proxy / config error envelope
     if (data.success === false) {
@@ -9768,7 +9845,7 @@ async function claudeInlineSendMessage() {
     const pdfWasAttached = hasPdf;
     const pdfFileName = hasPdf ? _claudeInlinePendingPdf.name : null;
     const pdfBase64   = hasPdf ? _claudeInlinePendingPdf.base64 : null;
-    _claudeInlineMessages.push({ role: 'user', content });
+    _claudeInlineMessages.push({ role: 'user', content, _pdfNames: hasPdf ? [pdfFileName] : [] });
     _claudeInlinePendingPdf = null;
 
     _claudeInlineBusy = true;
@@ -9833,7 +9910,7 @@ async function claudeInlineSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeInlineAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+        claudeInlineAddMessage('assistant', claudeExplainError(err));
     } finally {
         _claudeInlineBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
@@ -10167,7 +10244,7 @@ async function claudeAdminSendMessage() {
     // Keep the batch's PDFs so "Save as Commission Statement" can upload the
     // originals to Supabase Storage and attach them to the statement month.
     if (hasPdfs) _claudeAdminLastPdfs = _claudeAdminPendingPdfs.slice();
-    _claudeAdminMessages.push({ role: 'user', content });
+    _claudeAdminMessages.push({ role: 'user', content, _pdfNames: pdfNames });
     _claudeAdminPendingPdfs = [];
     claudeAdminRefreshPreview();
 
@@ -10205,7 +10282,7 @@ async function claudeAdminSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeAdminAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+        claudeAdminAddMessage('assistant', claudeExplainError(err));
     } finally {
         _claudeAdminBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Process'; }
@@ -11809,7 +11886,7 @@ async function claudeRenewalSendMessage() {
         content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf.base64 } });
     });
     content.push({ type: 'text', text: userText });
-    _claudeRenewalMessages.push({ role: 'user', content });
+    _claudeRenewalMessages.push({ role: 'user', content, _pdfNames: _claudeRenewalPendingPdfs.map(p => p.name) });
     _claudeRenewalPendingPdfs = [];
     claudeRenewalRefreshPreview();
 
@@ -11838,7 +11915,7 @@ async function claudeRenewalSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeRenewalAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+        claudeRenewalAddMessage('assistant', claudeExplainError(err));
     } finally {
         _claudeRenewalBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
