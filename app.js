@@ -1585,10 +1585,15 @@ function saveEntry() {
     // navigating away — navigation aborts in-flight uploads, which is how
     // attached PDFs were getting lost.
     let pendingFilesSave = Promise.resolve();
-    if (_pendingEntryFiles.length > 0) {
+    const hasAttachments = _pendingEntryFiles.length > 0;   // read before the async save clears the queue
+    if (hasAttachments) {
         pendingFilesSave = binderSavePendingFiles(entry.customerName, entry.id);
     }
 
+    // Everything below is cosmetic cleanup. It must never block the redirect
+    // back to the dashboard — a throw here strands the agent on the entry
+    // page with the entry already saved.
+    try {
     showSuccess();
     document.getElementById('agentForm').reset();
     if (typeof selectLineType === 'function' && document.getElementById('lineTypeBtnPersonal')) selectLineType('personal');
@@ -1610,12 +1615,19 @@ function saveEntry() {
         if (breakdownEl) { breakdownEl.style.display = 'none'; breakdownEl.textContent = ''; }
     });
 
+    } catch (e) { console.warn('Post-save form cleanup failed (entry was saved):', e); }
+
     // Detect standalone entry pages (daily sales / transaction) vs main app
     // modal. Both standalone pages must wait for persistence and return to
     // the dashboard — falling through to the modal branch re-renders
     // dashboard tables that don't exist on those pages and throws.
+    // The path check covers ./dailysalesentry and ./dailysalesentry.html; the
+    // #agentTable check is the fallback — that dashboard table exists only on
+    // index.html, so its absence means we're on a standalone entry page no
+    // matter what path it was served from.
     const isStandalonePage = window.location.pathname.includes('dailysalesentry')
-        || window.location.pathname.includes('transactionentry');
+        || window.location.pathname.includes('transactionentry')
+        || !document.getElementById('agentTable');
 
     if (isStandalonePage) {
         // Finish persisting BEFORE leaving the page: navigating away aborts
@@ -1628,15 +1640,26 @@ function saveEntry() {
         try { sessionStorage.setItem('uibCurrentUser', currentUser || ''); } catch (e) {}
 
         const saveBtn = document.querySelector('#agentForm button[type="submit"]');
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '☁️ Saving — uploading documents…'; }
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = hasAttachments ? '☁️ Saving — uploading documents…' : '☁️ Saving…';
+        }
 
         const persistAll = Promise.all([
             pendingFilesSave.catch(e => console.warn('Attachment save failed:', e)),
             driveSet('binderData', allData),
             driveSet('commissionData', JSON.parse(localStorage.getItem('commissionData') || '{}'))
         ]);
-        const cap = new Promise(res => setTimeout(res, 25000));
-        Promise.race([persistAll, cap]).then(() => { window.location.href = './'; });
+        // Cap the wait so a slow network can't strand the agent here. With
+        // attachments we allow longer, because navigating away aborts an
+        // in-flight upload and the file would be lost. Without attachments the
+        // entry is already in localStorage and flagged dirty, so the next sync
+        // pushes it — no reason to make the agent wait.
+        const cap = new Promise(res => setTimeout(res, hasAttachments ? 25000 : 6000));
+        const goHome = () => { window.location.href = './'; };
+        // .catch() as well as .then(): the agent must land on the dashboard
+        // even if a cloud write rejects.
+        Promise.race([persistAll, cap]).then(goHome).catch(goHome);
         return;
     }
 
