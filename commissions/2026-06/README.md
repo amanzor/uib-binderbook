@@ -184,11 +184,26 @@ Two PDFs in the same format as the May 2026 pair, rebuilt for June:
 Both foot to $4,724.29 and every carrier total agrees with the workbook's
 Carrier Recap tab.
 
-The monthly statement leaves **license fees, advances paid and cash collected
-open** — those are office records that appear on no carrier statement, so they
-are marked "to be entered" rather than estimated. Balance Owed (Beginning) of
-$589.41 carries forward from the May statement. Agency split (15%) and MVR /
-carrier fees ($32.90 Kemper UW reports + $16.72 Pearl MVR) are computed.
+Both end with the operating-expense block from the office's expense schedule:
+
+| | |
+|---|---:|
+| Gross Commissions | $4,767.71 |
+| Royalty (15%) | ($715.16) |
+| **Paid to Doral** | **$4,052.55** |
+| 220 License Rent | ($500.00) |
+| Systems | ($224.00) |
+| MVRs | ($43.42) |
+| Cash Payments Owed | ($589.00) |
+| **Net to Doral** | **$2,696.13** |
+
+**MVRs is shown as an expense line, not inside the carrier sections**, so it is
+not counted twice — it is the $8.36 of Pearl MVR costs plus $35.06 of National
+General loss- and violation-history chargebacks. That is why the grand total is
+$4,767.71 here and $4,724.29 on the workbook's Commission Summary: the same
+money, deducted one level lower. License Rent, Systems and Cash Payments Owed
+are office figures with no carrier source; edit them in `make_pdfs.py` if the
+June amounts differ.
 
 ```
 python3 pdf_data.py          # -> pdf_data.json

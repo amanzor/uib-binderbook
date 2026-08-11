@@ -42,9 +42,11 @@ for t in BM:
     k=(t['carrier'],norm(t['policy'])); bk[k]+=t['comm']; bkname[k]=t['book_name']
 for k,v in bk.items():
     rows[k[0]].append((bkname[k],round(v,2),'ren'))
-for a in ADJ:
-    if not a['doral']: continue
-    rows[a['carrier']].append(((a['book_name'] or a['name'])+f"  ({a['ttype']})",round(a['amt'],2),'ren'))
+adj_total=round(sum(a['amt'] for a in ADJ if a['doral']),2)   # -> the MVRs operating-expense line
+adj_parts=[]
+for c in ORDER:
+    v=round(sum(a['amt'] for a in ADJ if a['doral'] and a['carrier']==c),2)
+    if v: adj_parts.append((c,v))
 
 summary=[]
 gt_new=gt_ren=0.0
@@ -57,7 +59,8 @@ print(f"{'Carrier':18}{'New Business':>14}{'Renewals & Adj':>16}{'Total':>12}")
 for co,n,r,t in summary: print(f"  {co:16}{n:>14,.2f}{r:>16,.2f}{t:>12,.2f}")
 print(f"  {'TOTAL':16}{gt_new:>14,.2f}{gt_ren:>16,.2f}{gross:>12,.2f}")
 carrier_fees={'Infinity':32.90,'Ocean Harbor':16.72}
-print("\ncarrier fees on the June statements:",sum(carrier_fees.values()))
+print("\nMVRs / statement adjustments (operating-expense line):",adj_total,adj_parts)
 json.dump(dict(summary=summary,rows={k:v for k,v in rows.items()},gross=gross,
+               adj_total=adj_total,adj_parts=adj_parts,
                gt_new=round(gt_new,2),gt_ren=round(gt_ren,2),order=ORDER,label=LABEL,
                fees=carrier_fees),open('pdf_data.json','w'),indent=1)

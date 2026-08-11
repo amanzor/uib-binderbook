@@ -7,6 +7,11 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 
 D=json.load(open('pdf_data.json'))
+EXPENSES=[('220 License Rent',-500.00),('Systems',-224.00),
+          ('MVRs',round(D['adj_total'],2)),('Cash Payments Owed',-589.00)]
+def opex(gross):
+    roy=round(gross*0.15,2); paid=round(gross-roy,2)
+    return roy,paid,round(paid+sum(v for _,v in EXPENSES),2)
 ORDER=D['order']; LABEL=D['label']; ROWS=D['rows']
 NAVY=colors.HexColor('#1F3864'); LIGHT=colors.HexColor('#D9E1F2'); GREY=colors.HexColor('#666666')
 def m(v):
@@ -54,17 +59,38 @@ style += [('FONTNAME',(0,j),(-1,j),'Helvetica-Bold'),('FONTSIZE',(0,j),(-1,j),10
           ('LINEABOVE',(0,j),(-1,j),1.1,NAVY)]
 t=Table(data,colWidths=[4.4*inch,1.3*inch,1.0*inch],repeatRows=1)
 t.setStyle(TableStyle(style)); story.append(t)
+
+roy,paid,netd=opex(grand)
+story.append(Paragraph('OPERATING EXPENSES &amp; NET TO DORAL',sect))
+ed=[['Gross Commissions',m(grand)],['Royalty (15%)',m(-roy)],['Paid to Doral',m(paid)]]
+est=[('FONTSIZE',(0,0),(-1,-1),9),('ALIGN',(1,0),(1,-1),'RIGHT'),
+     ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),6),
+     ('FONTNAME',(0,2),(-1,2),'Helvetica-Bold'),('LINEABOVE',(0,2),(-1,2),0.5,NAVY),
+     ('TEXTCOLOR',(1,1),(1,1),colors.HexColor('#C00000'))]
+for _l,_v in EXPENSES:
+    i=len(ed); ed.append([_l,m(_v)])
+    if _v<0: est.append(('TEXTCOLOR',(1,i),(1,i),colors.HexColor('#C00000')))
+i=len(ed); ed.append(['Net to Doral',m(netd)])
+est += [('FONTNAME',(0,i),(-1,i),'Helvetica-Bold'),('FONTSIZE',(0,i),(-1,i),10.5),
+        ('BACKGROUND',(0,i),(-1,i),LIGHT),('TEXTCOLOR',(0,i),(-1,i),NAVY),
+        ('LINEABOVE',(0,i),(-1,i),1.1,NAVY)]
+et=Table(ed,colWidths=[4.4*inch,2.3*inch]); et.setStyle(TableStyle(est)); story.append(et)
+
 story += [Spacer(1,10), Paragraph(
     'Commission is taken from each carrier’s own June 2026 statement at the rate that carrier shows, matched to the '
     'Doral book by policy number. United Auto is carried at 10% as collected; its separate 3% promotional incentive '
     'is excluded. Amounts in parentheses are chargebacks — cancellations, credit endorsements and carrier '
-    'adjustments — which net against the month.',note)]
+    'adjustments — which net against the month.',note),
+    Spacer(1,5), Paragraph(
+    '<b>MVRs</b> of $43.42 is carrier-charged and is shown as an operating expense rather than inside the carrier '
+    'sections above, so it is not counted twice: $8.36 of Pearl MVR costs and $35.06 of National General loss- and '
+    'violation-history chargebacks. <b>220 License Rent, Systems and Cash Payments Owed</b> are office figures taken '
+    'from the expense schedule supplied; they appear on no carrier statement.',note)]
 doc.build(story)
 print("detail pdf grand total:",m(grand))
 
 # ============================ MONTHLY ============================
-gross=D['gross']; split=round(gross*0.15,2); fees=round(sum(D['fees'].values()),2)
-net=round(gross-split-fees,2); begin=589.41
+gross=D['gross']
 doc2=SimpleDocTemplate('Monthly_Commission_Statement_Doral_June_2026.pdf',pagesize=letter,
                        topMargin=0.75*inch,bottomMargin=0.7*inch,leftMargin=1.1*inch,rightMargin=1.1*inch,
                        title='Doral Office Monthly Commission Statement - June 2026',author='Doral Office')
@@ -108,31 +134,24 @@ def money_block(header,rows):
             st.append(('TEXTCOLOR',(1,i),(1,i),colors.HexColor('#C00000')))
     t=Table(d,colWidths=[4.1*inch,2.3*inch]); t.setStyle(TableStyle(st)); s2.append(t)
 
-money_block('DEDUCTIONS &amp; NET COMMISSION',[
+mroy,mpaid,mnet=opex(gross)
+money_block('ROYALTY &amp; AMOUNT PAID TO DORAL',[
     ('Gross Commissions',gross,''),
-    ('Less: Agency Split (15%)',-split,''),
-    ('Less: MVR / Carrier Fees',-fees,''),
-    ('Less: License Fees','—  to be entered','open'),
-    ('Net Commission Earned',net,'total')])
-money_block('PAYMENTS &amp; BALANCE',[
-    ('Net Commission Earned',net,''),
-    ('Less: Advances Paid','—  to be entered','open'),
-    ('Less: Cash Collected','—  to be entered','open'),
-    ('Net Payable This Period',net,'total'),
-    ('Balance Owed (Beginning)',begin,''),
-    ('Less: Payment Applied','—  to be entered','open'),
-    ('Balance Owed (Ending)',begin,'total')])
+    ('Royalty (15%)',-mroy,''),
+    ('Paid to Doral',mpaid,'total')])
+money_block('OPERATING EXPENSES',
+    [(l,v,'') for l,v in EXPENSES]+[('Net to Doral',mnet,'total')])
 s2 += [Spacer(1,12), Paragraph(
     '<b>Basis.</b> Gross commissions are taken from the seven carrier commission statements for June 2026 at the rate '
     'each carrier shows, matched to the Doral book by policy number. New Business is the 18 new policies on the June '
     'binder sheet; Renewals &amp; Adj. is the 45 renewals plus prior-month activity (endorsements, cancellations, '
     'as-collected commission) and carrier adjustments. United Auto is carried at 10% as collected, with its 3% '
-    'promotional incentive excluded. MVR / Carrier Fees are the $32.90 of Kemper UW report fees and $16.72 of Pearl '
-    'MVR costs charged on the June statements.',note),
+    'promotional incentive excluded.',note),
     Spacer(1,6), Paragraph(
-    '<b>Lines marked “to be entered”.</b> License fees, advances paid and cash collected are office records that do '
-    'not appear on any carrier statement, so they are left open rather than estimated. Balance Owed (Beginning) of '
-    '$589.41 is carried forward from the May 2026 statement. Once those figures are filled in, Net Payable and '
-    'Balance Owed (Ending) will change accordingly.',note)]
+    '<b>Operating expenses.</b> MVRs of $43.42 is carrier-charged — $8.36 of Pearl MVR costs and $35.06 of National '
+    'General loss- and violation-history chargebacks — and is shown here rather than inside the carrier figures '
+    'above so it is not counted twice. 220 License Rent, Systems and Cash Payments Owed are office figures taken '
+    'from the expense schedule supplied and appear on no carrier statement; change them here if the June amounts '
+    'differ.',note)]
 doc2.build(s2)
-print("monthly pdf: gross",m(gross),"split",m(split),"fees",m(fees),"net",m(net))
+print("monthly pdf: gross",m(gross),"royalty",m(mroy),"paid to doral",m(mpaid),"net to doral",m(mnet))
