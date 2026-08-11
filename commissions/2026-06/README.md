@@ -17,6 +17,11 @@ incentive is excluded.
 
 52 of the 63 binder policies were found on a carrier statement.
 
+Separately, the **Book Activity by Carrier** tab prices the wider Doral book of
+business (`Doral_Office_Binder_Book.xlsx`) against the same statements: 103 more
+transactions that belong to Doral clients written in earlier months, netting
+**-$1,593.97**. Combined Doral commission for June is **$4,767.71**.
+
 ## Tabs
 
 - **Commission Summary** — one row per binder policy, in binder order, split into
@@ -28,6 +33,9 @@ incentive is excluded.
   incentive lines sit at zero there.
 - **Carrier Recap** — per-carrier totals and the Doral book's share of each
   statement.
+- **Book Activity by Carrier** — a section per carrier listing the wider-book
+  transactions (endorsements, cancellations, adjustments, as-collected commission
+  on earlier policies), each with a subtotal.
 - **Notes & Sources** — method, tie-outs, and the exceptions below.
 
 ## Sources and rates
@@ -77,9 +85,10 @@ Matching is by policy number, not by name.
 - **No June activity (correctly $0)** — 5 policies effective late 2025 on
   12-month terms: Levy Diaz Torres, Elizabeth Mirabal Hernandez, Ana Maria
   Acosta, James John Ciullo (Infinity) and Armando Caralos (National General).
-- **GEICO** — no Doral binder client appears on it; it covers writing agents
-  Alberto Manzor Jr and Amanda Montano. Included on Transaction Detail for
-  completeness only, contributing $0 to the Doral totals.
+- **GEICO** — no *June binder sheet* client appears on it, but the wider book
+  does: Iris Lopez Sanchez (6219586788) has two renewal-year lines netting
+  -$45.78, on the Book Activity tab. The other 36 transactions belong to writing
+  agents Alberto Manzor Jr and Amanda Montano.
 
 ## Controls
 
@@ -99,6 +108,35 @@ Matching is by policy number, not by name.
   Princeton code 9019644). Every Doral policy number still matched its carrier
   statement exactly, so these are alternate identities for the same book.
 
+## Book Activity by Carrier
+
+All 384 statement transactions were tested against all 1,383 distinct policy
+numbers in the full book (54 monthly sheets, Dec 2022 – Aug 2026, 2,706 rows).
+Matching is by policy number, allowing for the suffixes carriers append —
+National General adds a two-digit term, GEICO appends a second number after a
+dash, United pads with leading zeros. Every match was then cross-checked on
+surname between the statement insured and the book customer: all 171 agreed, so
+none had to be resolved by judgement.
+
+| Carrier | Txns | Commission |
+|---|---:|---:|
+| Progressive | 25 | $64.35 |
+| Infinity | 8 | -$692.60 |
+| United Auto | 58 | -$657.67 |
+| Ocean Harbor | 2 | -$60.11 |
+| National General | 7 | -$202.23 |
+| AmWins | 1 | $0.07 |
+| GEICO | 2 | -$45.78 |
+| **Total** | **103** | **-$1,593.97** |
+
+It is negative because most of this activity is cancellations and chargebacks on
+business written in earlier months. The United 10%-as-collected rule applies here
+too. 213 of the 384 statement transactions matched no Doral policy at all — those
+belong to the agency's other offices and are excluded from every Doral figure.
+
+This tab does not change the Commission Summary, which remains the June binder
+sheet at $6,361.68.
+
 ## Rebuilding
 
 Scripts expect the eight source files in the working directory. Pearl Holding
@@ -109,6 +147,8 @@ python3 parse_binder.py      # binder PDF text -> binder.json
 python3 parse_carriers.py    # Kemper / AmWins / Progressive -> carriers.json
 python3 geico_parse.py       # GEICO PDF -> geico.json
 python3 parse_new3.py        # United / Ocean Harbor / National General -> carriers2.json
+python3 parse_bookall.py     # full book of business xlsx -> book_all.json
+python3 match_book.py        # match all statements to the full book -> bookmatch.json
 python3 build.py             # -> Doral_Binder_Book_June_2026_Commissions.xlsx
 ```
 
