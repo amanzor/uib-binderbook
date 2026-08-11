@@ -85,7 +85,8 @@ story += [Spacer(1,10), Paragraph(
     '<b>MVRs</b> of $43.42 is carrier-charged and is shown as an operating expense rather than inside the carrier '
     'sections above, so it is not counted twice: $8.36 of Pearl MVR costs and $35.06 of National General loss- and '
     'violation-history chargebacks. <b>220 License Rent, Systems and Cash Payments Owed</b> are office figures taken '
-    'from the expense schedule supplied; they appear on no carrier statement.',note)]
+    'from the expense schedule supplied; they appear on no carrier statement.',note),
+    Spacer(1,5), Paragraph('<b>United chargebacks removed.</b> Six United Auto chargebacks totalling $1,017.60 have been excluded from this month at the office\u2019s instruction: Charlie Hoz $316.20, Gabriela Liriano $286.90, Mirloude Petit Frere $259.80, Ramon S. Torres $127.20 and two Giovanni Ratto endorsements $27.50. They remain on United\u2019s own statement and in the workbook; only these statements exclude them.',note)]
 doc.build(story)
 print("detail pdf grand total:",m(grand))
 
@@ -152,6 +153,7 @@ s2 += [Spacer(1,12), Paragraph(
     'General loss- and violation-history chargebacks — and is shown here rather than inside the carrier figures '
     'above so it is not counted twice. 220 License Rent, Systems and Cash Payments Owed are office figures taken '
     'from the expense schedule supplied and appear on no carrier statement; change them here if the June amounts '
-    'differ.',note)]
+    'differ.',note),
+    Spacer(1,6), Paragraph('<b>United chargebacks removed.</b> Six United Auto chargebacks totalling $1,017.60 have been excluded from this month at the office\u2019s instruction: Charlie Hoz $316.20, Gabriela Liriano $286.90, Mirloude Petit Frere $259.80, Ramon S. Torres $127.20 and two Giovanni Ratto endorsements $27.50. They remain on United\u2019s own statement and in the workbook; only these statements exclude them.',note)]
 doc2.build(s2)
 print("monthly pdf: gross",m(gross),"royalty",m(mroy),"paid to doral",m(mpaid),"net to doral",m(mnet))
