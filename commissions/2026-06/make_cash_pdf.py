@@ -29,8 +29,6 @@ R2026=[('Jan 7, 2026','Progressive',283.82),('Jan 7, 2026','Progressive',102.15)
        ('Apr 30, 2026','Progressive',101.15)]
 UNCOLLECTED=[
  ('Jun 9, 2026','National General','','',39.00,'No policy number supplied'),
- ('Jun 12, 2026','Progressive','979651509','Claudia Ruiz Lopez',270.33,''),
- ('Jun 18, 2026','Progressive','867943703','Guillermo Fayas Rodriguez',1794.00,''),
  ('Jul 1, 2026','Progressive','979651509','Claudia Ruiz Lopez',269.33,''),
  ('Jul 1, 2026','Progressive','864189944','Claudia Ruiz Lopez',101.15,''),
  ('Jul 21, 2026','Progressive','9615185828','',1647.00,'Policy number is 10 digits; not found in the book'),
@@ -102,17 +100,21 @@ t.setStyle(TableStyle([('FONTSIZE',(0,0),(-1,-1),9.5),('ALIGN',(1,0),(1,-1),'RIG
 story.append(t)
 story += [Spacer(1,10), Paragraph(
  '<b>Uncollected</b> items were supplied by the office. Insured names are filled in where the policy number matches '
- 'the Doral book: 979651509 and 864189944 are both Claudia Ruiz Lopez, 867943703 is Guillermo Fayas Rodriguez '
- '(whose $1,794.00 renewal premium appears on the June Progressive statement for the same amount), and '
- 'P020077622807 is Moises D Carrillo.',note),
+ 'the Doral book: 864189944 and 979651509 are both Claudia Ruiz Lopez, and P020077622807 is Moises D '
+ 'Carrillo.',note),
  Spacer(1,5), Paragraph(
  '<b>Shaded rows need checking.</b> The June 9 National General item has no policy number. Policy 9615185828 is ten '
  'digits where Progressive uses nine, and matches nothing in the book. Policy 876976565 is listed as Pearl Holding '
  'but is in Progressive’s number format and is not in the book either — Pearl policies begin with a P. Amounts are '
  'carried exactly as supplied.',note),
  Spacer(1,5), Paragraph(
- '<b>Note on periods.</b> Five of the eight uncollected items fall in July 2026 and one on June 9, so they sit '
+ '<b>Note on periods.</b> Five of the six uncollected items fall in July 2026 and one on June 9, so they sit '
  'outside the June commission statement period. They do not change the June commission statements, whose Cash '
- 'Payments Owed line of $589.00 is a separate figure.',note)]
+ 'Payments Owed line of $589.00 is a separate figure.',note),
+ Spacer(1,5), Paragraph(
+ '<b>Removed as already collected.</b> Two items originally listed here have been taken off because they were '
+ 'collected on the May statement: policy 867943703 (Guillermo Fayas Rodriguez) $1,794.00 dated June 18, and policy '
+ '979651509 (Claudia Ruiz Lopez) $270.33 dated June 12. Uncollected falls from $4,313.81 to $2,249.48 as a result.',
+ note)]
 doc.build(story)
 print(f"received {m(gt)}   uncollected {m(tot)}   net {m(round(gt-tot,2))}")
