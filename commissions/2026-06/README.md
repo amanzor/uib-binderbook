@@ -17,15 +17,21 @@ incentive is excluded.
 
 52 of the 63 binder policies were found on a carrier statement.
 
-Separately, the **Book Activity by Carrier** tab prices the wider Doral book of
-business (`Doral_Office_Binder_Book.xlsx`) against the same statements: 103 more
-transactions that belong to Doral clients written in earlier months, netting
-**-$1,593.97**. Combined Doral commission for June is **$4,767.71**.
+The Commission Summary now foots to the whole picture:
+
+| Section | Commission |
+|---|---:|
+| June binder sheet (63 policies) | $6,361.68 |
+| Other Doral book activity (103 transactions) | -$1,593.97 |
+| Statement adjustments & fees | -$43.42 |
+| **Total Doral June commission** | **$4,724.29** |
 
 ## Tabs
 
-- **Commission Summary** — one row per binder policy, in binder order, split into
-  new business and renewals with subtotals.
+- **Commission Summary** — four blocks. New Business and Renewals are the June
+  binder sheet; below them, Other Doral Book Activity (one row per wider-book
+  policy) and Statement Adjustments & Fees (one row per carrier). Foots to the
+  total Doral June commission.
 - **Transaction Detail** — all 384 transactions from the seven statements,
   flagged for whether they belong to a Doral binder client. Blue figures come
   straight from the carrier; column L re-performs each as basis × rate and column
@@ -34,8 +40,9 @@ transactions that belong to Doral clients written in earlier months, netting
 - **Carrier Recap** — per-carrier totals and the Doral book's share of each
   statement.
 - **Book Activity by Carrier** — a section per carrier listing the wider-book
-  transactions (endorsements, cancellations, adjustments, as-collected commission
-  on earlier policies), each with a subtotal.
+  transactions (endorsements, cancellations, as-collected commission on earlier
+  policies), each with a subtotal; then a block of statement-level adjustments
+  and fees showing which are Doral-attributable and how each was matched.
 - **Notes & Sources** — method, tie-outs, and the exceptions below.
 
 ## Sources and rates
@@ -134,8 +141,23 @@ business written in earlier months. The United 10%-as-collected rule applies her
 too. 213 of the 384 statement transactions matched no Doral policy at all — those
 belong to the agency's other offices and are excluded from every Doral figure.
 
-This tab does not change the Commission Summary, which remains the June binder
-sheet at $6,361.68.
+## Statement adjustments and fees
+
+Chargebacks and fees the carriers apply *outside* the policy transaction listing,
+on separate sections of their statements. Three carriers have them this month.
+
+| Carrier | On the statement | Doral-attributable |
+|---|---:|---:|
+| National General — loss/violation history chargebacks | -$62.10 | -$35.06 |
+| Kemper — UW report fees | -$32.90 | $0.00 |
+| Pearl — MVR costs | -$16.72 | -$8.36 |
+| **Total** | **-$111.72** | **-$43.42** |
+
+These sections carry no policy number — National General gives a quote number,
+Pearl abbreviates to surname and initial, Kemper names no insured at all — so
+they are matched by **name**, which is weaker than the policy-number matching
+used everywhere else. Every row is listed with how it was matched, and only rows
+marked YES are counted. Kemper's fee is agency-level and counted as $0.
 
 ## Rebuilding
 

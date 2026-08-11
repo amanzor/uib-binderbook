@@ -94,6 +94,95 @@ for col in (8,11,12,13,14,15):
     L=get_column_letter(col)
     d.cell(tr+1,col).value=f'=SUMIF($P$2:$P${n+1},"YES",{L}2:{L}{n+1})'
 
+# ================= Book Activity by Carrier =================
+ADJ=json.load(open('adjustments.json'))
+ba=wb.create_sheet('Book Activity by Carrier')
+ba.cell(1,1).value='Other Doral Book Activity on the June 2026 Carrier Statements'
+ba.cell(2,1).value=('Transactions belonging to the wider Doral office book of business that appear on the June carrier '
+                    'statements but are NOT on the June binder sheet - endorsements, cancellations, adjustments and '
+                    'as-collected commission on policies written in earlier months.')
+bcols=['Customer Name (per Doral book)','Policy Number','Insured Name (per statement)','Transaction Type',
+       'Transaction Date','Premium / Basis','Premium Counted','Carrier Comm Rate','Commission per Statement',
+       'Commission Counted','Book Month','Company (per book)']
+NB=len(bcols)
+BA_HDR=4
+for j,c in enumerate(bcols,1): ba.cell(BA_HDR,j).value=c
+carrier_order=['Progressive','Infinity','United Auto','Ocean Harbor','National General','AmWins','GEICO']
+br=BA_HDR+1; ba_sub={}
+for co in carrier_order:
+    rows=sorted([t for t in BOOKM if t['carrier']==co],key=lambda x:(x['policy'],str(x['tdate'])))
+    if not rows: continue
+    ba.cell(br,1).value=f'{co.upper()}  -  {len(rows)} transaction{"s" if len(rows)!=1 else ""}'
+    ba.cell(br,1).font=Font(name=FONT,bold=True,color='FFFFFF')
+    for j in range(1,NB+1): ba.cell(br,j).fill=SECT
+    st=br+1; br+=1
+    for t in rows:
+        ba.cell(br,1).value=t['book_name']; ba.cell(br,2).value=t['policy']
+        ba.cell(br,3).value=t['name'];      ba.cell(br,4).value=t['ttype']
+        ba.cell(br,5).value=str(t['tdate'])
+        ba.cell(br,6).value=t['basis']
+        ba.cell(br,7).value=f'=IF(D{br}="{PROMO}",0,F{br})'
+        ba.cell(br,8).value=t['rate']
+        ba.cell(br,9).value=t['comm']
+        ba.cell(br,10).value=f'=IF(D{br}="{PROMO}",0,I{br})'
+        ba.cell(br,11).value=t['book_sheet'].strip(); ba.cell(br,12).value=t['book_co']
+        br+=1
+    ba.cell(br,1).value=f'{co} subtotal'
+    for col in (6,7,9,10): ba.cell(br,col).value=f'=SUM({get_column_letter(col)}{st}:{get_column_letter(col)}{br-1})'
+    for j in range(1,NB+1): ba.cell(br,j).fill=SUB; ba.cell(br,j).font=Font(name=FONT,bold=True)
+    ba_sub[co]=br; br+=2
+BA_TOT=br
+ba.cell(br,1).value='TOTAL - OTHER DORAL BOOK ACTIVITY'
+for col in (6,7,9,10):
+    L=get_column_letter(col)
+    ba.cell(br,col).value='='+'+'.join(f'{L}{v}' for v in ba_sub.values())
+for j in range(1,NB+1): ba.cell(br,j).fill=TOT; ba.cell(br,j).font=Font(name=FONT,bold=True,size=11)
+BA_LASTTX=br
+br+=3
+
+# ----- statement-level adjustments & fees -----
+ADJ_START=br
+ba.cell(br,1).value='STATEMENT-LEVEL ADJUSTMENTS & FEES'
+ba.cell(br,1).font=Font(name=FONT,size=12,bold=True,color=NAVY); br+=1
+ba.cell(br,1).value=('Chargebacks and fees the carriers apply outside the policy transaction listing. These carry no '
+                     'policy number, so they are matched by name where the carrier gives one. Only the rows marked '
+                     'YES are counted as Doral.')
+ba.cell(br,1).font=Font(name=FONT,size=10,italic=True,color='404040')
+ba.merge_cells(start_row=br,start_column=1,end_row=br,end_column=NB)
+ba.cell(br,1).alignment=Alignment(vertical='center',wrap_text=True); ba.row_dimensions[br].height=28; br+=1
+acols=['Name on the adjustment','Reference','Carrier','Adjustment Type','Date','Amount','','','','Doral?','Book Month','How it was matched']
+ADJ_HDR=br
+for j,c in enumerate(acols,1): ba.cell(br,j).value=c
+for j in range(1,NB+1):
+    c=ba.cell(br,j); c.fill=HDR; c.font=Font(name=FONT,size=10,bold=True,color='FFFFFF')
+    c.alignment=Alignment(vertical='center',wrap_text=True,horizontal='center'); c.border=box
+ba.row_dimensions[br].height=30; br+=1
+adj_start=br
+for a in sorted(ADJ,key=lambda x:(carrier_order.index(x['carrier']),not x['doral'],x['name'])):
+    ba.cell(br,1).value=a['book_name'] or a['name']
+    ba.cell(br,2).value=a['ref']; ba.cell(br,3).value=a['carrier']
+    ba.cell(br,4).value=a['ttype']; ba.cell(br,5).value=a['date']
+    ba.cell(br,6).value=a['amt']
+    ba.cell(br,10).value='YES' if a['doral'] else 'No'
+    ba.cell(br,11).value=a['book_sheet']; ba.cell(br,12).value=a['basis']
+    if not a['doral']:
+        for j in range(1,NB+1): ba.cell(br,j).fill=WARN
+    br+=1
+adj_end=br-1
+ba.cell(br,1).value='All adjustments on the statements'
+ba.cell(br,6).value=f'=SUM(F{adj_start}:F{adj_end})'
+for j in range(1,NB+1): ba.cell(br,j).fill=SUB; ba.cell(br,j).font=Font(name=FONT,bold=True)
+br+=1
+ADJ_DORAL=br
+ba.cell(br,1).value='OF WHICH DORAL - counted in the totals'
+ba.cell(br,6).value=f'=SUMIF(J{adj_start}:J{adj_end},"YES",F{adj_start}:F{adj_end})'
+for j in range(1,NB+1): ba.cell(br,j).fill=TOT; ba.cell(br,j).font=Font(name=FONT,bold=True,size=11)
+ADJ_LAST=br
+_S="'Book Activity by Carrier'!"
+def adj_carrier(co):
+    return (f'=SUMIFS({_S}$F${adj_start}:$F${adj_end},{_S}$C${adj_start}:$C${adj_end},"{co}",'
+            f'{_S}$J${adj_start}:$J${adj_end},"YES")')
+
 # ================= Commission Summary =================
 s=wb.create_sheet('Commission Summary',0)
 title=['Doral Office Binder Book - June 2026 Commission Statement',
@@ -155,52 +244,83 @@ for ptype,label in (('New','NEW BUSINESS'),('Renewal','RENEWALS')):
     sections.append((label,start,end,r))
     for j in range(1,len(scols)+1): s.cell(r,j).fill=SUB; s.cell(r,j).font=Font(name=FONT,bold=True)
     r+=2
-gr=r
-s.cell(gr,2).value='GRAND TOTAL - DORAL BINDER BOOK'
+jr=r
+s.cell(jr,2).value='JUNE BINDER SHEET TOTAL'
 for col in (10,14,15):
-    L=get_column_letter(col); s.cell(gr,col).value=f'={L}{sections[0][3]}+{L}{sections[1][3]}'
-s.cell(gr,16).value=f'=IF(N{gr}=0,"",O{gr}/N{gr})'
-for j in range(1,len(scols)+1): s.cell(gr,j).fill=TOT; s.cell(gr,j).font=Font(name=FONT,bold=True,size=11)
-SUM_LAST=gr
+    L=get_column_letter(col); s.cell(jr,col).value=f'={L}{sections[0][3]}+{L}{sections[1][3]}'
+s.cell(jr,16).value=f'=IF(N{jr}=0,"",O{jr}/N{jr})'
+for j in range(1,len(scols)+1): s.cell(jr,j).fill=SUB; s.cell(jr,j).font=Font(name=FONT,bold=True,size=11)
+r=jr+2
 
-# ================= Book Activity by Carrier =================
-ba=wb.create_sheet('Book Activity by Carrier')
-ba.cell(1,1).value='Other Doral Book Activity on the June 2026 Carrier Statements'
-ba.cell(2,1).value=('Transactions belonging to the wider Doral office book of business that appear on the June carrier '
-                    'statements but are NOT on the June binder sheet - endorsements, cancellations, adjustments and '
-                    'as-collected commission on policies written in earlier months.')
-bcols=['Customer Name (per Doral book)','Policy Number','Insured Name (per statement)','Transaction Type',
-       'Transaction Date','Premium / Basis','Carrier Comm Rate','Commission per Statement',
-       'Commission Counted','Book Month','Company (per book)']
-BA_HDR=4
-for j,c in enumerate(bcols,1): ba.cell(BA_HDR,j).value=c
-carrier_order=['Progressive','Infinity','United Auto','Ocean Harbor','National General','AmWins','GEICO']
-br=BA_HDR+1; ba_sub={}
+BAR=f"'Book Activity by Carrier'!$B${BA_HDR+1}:$B${BA_LASTTX}"
+BAP=f"'Book Activity by Carrier'!$G${BA_HDR+1}:$G${BA_LASTTX}"
+BAC=f"'Book Activity by Carrier'!$J${BA_HDR+1}:$J${BA_LASTTX}"
+s.cell(r,1).value='OTHER DORAL BOOK ACTIVITY  -  policies from the wider book with June statement activity'
+s.cell(r,1).font=Font(name=FONT,bold=True,color='FFFFFF')
+for j in range(1,len(scols)+1): s.cell(r,j).fill=SECT
+bstart=r+1; r+=1
+groups={}
+for t in BOOKM: groups.setdefault((t['carrier'],t['policy']),[]).append(t)
+for (co,pol),ts in sorted(groups.items(),key=lambda kv:(carrier_order.index(kv[0][0]),kv[0][1])):
+    base=sorted({x['rate'] for x in ts if x['ttype']!=PROMO})
+    s.cell(r,1).value='Jorge'
+    s.cell(r,2).value=ts[0]['book_name']
+    s.cell(r,3).value=ts[0]['book_sheet'].strip()
+    s.cell(r,4).value='Book activity'
+    s.cell(r,5).value=ts[0]['book_co'] or ''
+    s.cell(r,6).value=co
+    s.cell(r,7).value=pol
+    s.cell(r,11).value=STMT.get(co,GS)
+    s.cell(r,12).value=f'=COUNTIF({BAR},$G{r})'
+    s.cell(r,13).value=(base[0] if len(base)==1 else ' / '.join(pct(x) for x in sorted(base,reverse=True)))
+    s.cell(r,14).value=f'=SUMIF({BAR},$G{r},{BAP})'
+    s.cell(r,15).value=f'=SUMIF({BAR},$G{r},{BAC})'
+    s.cell(r,16).value=f'=IF(N{r}=0,"",O{r}/N{r})'
+    s.cell(r,17).value='; '.join(f"{x['ttype']} {x['basis']:,.2f} @ {pct(x['rate'])}" for x in ts if x['ttype']!=PROMO)
+    r+=1
+bend=r-1
+s.cell(r,2).value='OTHER BOOK ACTIVITY SUBTOTAL'
+for col in (14,15): s.cell(r,col).value=f'=SUM({get_column_letter(col)}{bstart}:{get_column_letter(col)}{bend})'
+s.cell(r,16).value=f'=IF(N{r}=0,"",O{r}/N{r})'
+for j in range(1,len(scols)+1): s.cell(r,j).fill=SUB; s.cell(r,j).font=Font(name=FONT,bold=True)
+BOOK_SUB=r; r+=2
+
+s.cell(r,1).value='STATEMENT ADJUSTMENTS & FEES  -  Doral-attributable only'
+s.cell(r,1).font=Font(name=FONT,bold=True,color='FFFFFF')
+for j in range(1,len(scols)+1): s.cell(r,j).fill=SECT
+astart=r+1; r+=1
 for co in carrier_order:
-    rows=sorted([t for t in BOOKM if t['carrier']==co],key=lambda x:(x['policy'],str(x['tdate'])))
+    rows=[a for a in ADJ if a['carrier']==co]
     if not rows: continue
-    ba.cell(br,1).value=f'{co.upper()}  -  {len(rows)} transaction{"s" if len(rows)!=1 else ""}'
-    ba.cell(br,1).font=Font(name=FONT,bold=True,color='FFFFFF')
-    for j in range(1,len(bcols)+1): ba.cell(br,j).fill=SECT
-    st=br+1; br+=1
-    for t in rows:
-        ba.cell(br,1).value=t['book_name']; ba.cell(br,2).value=t['policy']
-        ba.cell(br,3).value=t['name'];      ba.cell(br,4).value=t['ttype']
-        ba.cell(br,5).value=str(t['tdate']);ba.cell(br,6).value=t['basis']
-        ba.cell(br,7).value=t['rate'];      ba.cell(br,8).value=t['comm']
-        ba.cell(br,9).value=f'=IF(D{br}="{PROMO}",0,H{br})'
-        ba.cell(br,10).value=t['book_sheet'].strip(); ba.cell(br,11).value=t['book_co']
-        br+=1
-    ba.cell(br,1).value=f'{co} subtotal'
-    for col in (6,8,9): ba.cell(br,col).value=f'=SUM({get_column_letter(col)}{st}:{get_column_letter(col)}{br-1})'
-    for j in range(1,len(bcols)+1): ba.cell(br,j).fill=SUB; ba.cell(br,j).font=Font(name=FONT,bold=True)
-    ba_sub[co]=br; br+=2
-BA_TOT=br
-ba.cell(br,1).value='TOTAL - OTHER DORAL BOOK ACTIVITY'
-for col in (6,8,9):
-    L=get_column_letter(col)
-    ba.cell(br,col).value='='+'+'.join(f'{L}{v}' for v in ba_sub.values())
-for j in range(1,len(bcols)+1): ba.cell(br,j).fill=TOT; ba.cell(br,j).font=Font(name=FONT,bold=True,size=11)
+    dor=[a for a in rows if a['doral']]
+    s.cell(r,1).value='Jorge'
+    s.cell(r,2).value=f'{co} chargebacks and fees'
+    s.cell(r,4).value='Adjustment'
+    s.cell(r,6).value=co
+    s.cell(r,11).value=STMT.get(co,GS)
+    s.cell(r,12).value=len(dor)
+    s.cell(r,15).value=adj_carrier(co)
+    types=sorted({a['ttype'] for a in rows})
+    s.cell(r,17).value=(f"{len(dor)} of {len(rows)} rows matched to the Doral book ({', '.join(types)}). "
+                        f"All {len(rows)} are listed on the Book Activity tab; the rest belong to other offices "
+                        f"or cannot be attributed.")
+    r+=1
+aend=r-1
+s.cell(r,2).value='ADJUSTMENTS SUBTOTAL'
+s.cell(r,15).value=f'=SUM(O{astart}:O{aend})'
+for j in range(1,len(scols)+1): s.cell(r,j).fill=SUB; s.cell(r,j).font=Font(name=FONT,bold=True)
+ADJ_SUB=r; r+=2
+
+gr=r
+s.cell(gr,2).value='TOTAL DORAL JUNE COMMISSION'
+s.cell(gr,10).value=f'=J{jr}'
+s.cell(gr,14).value=f'=N{jr}+N{BOOK_SUB}'
+s.cell(gr,15).value=f'=O{jr}+O{BOOK_SUB}+O{ADJ_SUB}'
+s.cell(gr,16).value=f'=IF(N{gr}=0,"",O{gr}/N{gr})'
+s.cell(gr,17).value=(f'June binder sheet + other Doral book activity + Doral-attributable statement adjustments.')
+for j in range(1,len(scols)+1): s.cell(gr,j).fill=TOT; s.cell(gr,j).font=Font(name=FONT,bold=True,size=12)
+SUM_LAST=gr
+JUNE_LAST=jr-1   # recap must look only at the June binder rows, not the added sections
 
 # ================= Carrier Recap =================
 rc=wb.create_sheet('Carrier Recap')
@@ -208,7 +328,8 @@ rc.cell(1,1).value='Recap by Carrier - Doral Binder Book vs. Full Carrier Statem
 rcols=['Carrier','Commission Statement','Rate the Carrier Shows','Binder Policies','Found on Statement',
        'Commissionable Premium (binder clients)','Commission Earned (binder clients)',
        'Total Commission on Statement (all agency business)','Binder Share of Statement',
-       'Other Book Activity - Txns','Other Book Activity - Commission','Total Doral Commission']
+       'Other Book Activity - Txns','Other Book Activity - Commission',
+       'Statement Adjustments (Doral)','Total Doral Commission']
 for j,c in enumerate(rcols,1): rc.cell(3,j).value=c
 carriers=['Progressive','Infinity','United Auto','Ocean Harbor','National General','AmWins']
 rateshow={'Progressive':'8% - 14%, varies by policy','Infinity':'10% flat',
@@ -219,15 +340,16 @@ rr=4
 for co in carriers:
     rc.cell(rr,1).value=co; rc.cell(rr,2).value=stmtshow[co]; rc.cell(rr,3).value=rateshow[co]
     rc.cell(rr,4).value=len([b for b in B if b['co']==co])
-    rc.cell(rr,5).value=(f"=SUMPRODUCT(('Commission Summary'!$F${HDR_ROW+1}:$F${SUM_LAST}=$A{rr})"
-                         f"*('Commission Summary'!$L${HDR_ROW+1}:$L${SUM_LAST}>0))")
-    rc.cell(rr,6).value=f"=SUMIF('Commission Summary'!$F${HDR_ROW+1}:$F${SUM_LAST},$A{rr},'Commission Summary'!$N${HDR_ROW+1}:$N${SUM_LAST})"
-    rc.cell(rr,7).value=f"=SUMIF('Commission Summary'!$F${HDR_ROW+1}:$F${SUM_LAST},$A{rr},'Commission Summary'!$O${HDR_ROW+1}:$O${SUM_LAST})"
+    rc.cell(rr,5).value=(f"=SUMPRODUCT(('Commission Summary'!$F${HDR_ROW+1}:$F${JUNE_LAST}=$A{rr})"
+                         f"*('Commission Summary'!$L${HDR_ROW+1}:$L${JUNE_LAST}>0))")
+    rc.cell(rr,6).value=f"=SUMIF('Commission Summary'!$F${HDR_ROW+1}:$F${JUNE_LAST},$A{rr},'Commission Summary'!$N${HDR_ROW+1}:$N${JUNE_LAST})"
+    rc.cell(rr,7).value=f"=SUMIF('Commission Summary'!$F${HDR_ROW+1}:$F${JUNE_LAST},$A{rr},'Commission Summary'!$O${HDR_ROW+1}:$O${JUNE_LAST})"
     rc.cell(rr,8).value=f"=SUMIF('Transaction Detail'!$B$2:$B${n+1},$A{rr},'Transaction Detail'!$K$2:$K${n+1})"
     rc.cell(rr,9).value=f'=IF(H{rr}=0,"",G{rr}/H{rr})'
     rc.cell(rr,10).value=len([t for t in BOOKM if t['carrier']==co])
-    rc.cell(rr,11).value=(f"='Book Activity by Carrier'!I{ba_sub[co]}" if co in ba_sub else 0)
-    rc.cell(rr,12).value=f'=G{rr}+K{rr}'
+    rc.cell(rr,11).value=(f"='Book Activity by Carrier'!J{ba_sub[co]}" if co in ba_sub else 0)
+    rc.cell(rr,12).value=adj_carrier(co)
+    rc.cell(rr,13).value=f'=G{rr}+K{rr}+L{rr}'
 
     rr+=1
 rc.cell(4+carriers.index('United Auto'),8).comment=Comment(
@@ -239,14 +361,15 @@ rc.cell(rr,1).value='GEICO'; rc.cell(rr,2).value=GS; rc.cell(rr,3).value='10% / 
 rc.cell(rr,4).value=0; rc.cell(rr,5).value=0; rc.cell(rr,6).value=0; rc.cell(rr,7).value=0
 rc.cell(rr,8).value=f"=SUMIF('Transaction Detail'!$B$2:$B${n+1},$A{rr},'Transaction Detail'!$K$2:$K${n+1})"
 rc.cell(rr,10).value=len([t for t in BOOKM if t['carrier']=='GEICO'])
-rc.cell(rr,11).value=(f"='Book Activity by Carrier'!I{ba_sub['GEICO']}" if 'GEICO' in ba_sub else 0)
-rc.cell(rr,12).value=f'=G{rr}+K{rr}'
+rc.cell(rr,11).value=(f"='Book Activity by Carrier'!J{ba_sub['GEICO']}" if 'GEICO' in ba_sub else 0)
+rc.cell(rr,12).value=adj_carrier('GEICO')
+rc.cell(rr,13).value=f'=G{rr}+K{rr}+L{rr}'
 rc.cell(rr,1).comment=Comment('No client on the June binder sheet appears on the GEICO statement, but the wider '
   'Doral book does: Iris Lopez Sanchez (policy 6219586788) has two renewal-year lines on it. The rest of the '
   'statement covers writing agents Alberto Manzor Jr and Amanda Montano.','Analysis')
 grr=rr+1
 rc.cell(grr,1).value='TOTAL'
-for col in (4,5,6,7,8,10,11,12):
+for col in (4,5,6,7,8,10,11,12,13):
     L=get_column_letter(col); rc.cell(grr,col).value=f'=SUM({L}4:{L}{rr})'
 rc.cell(grr,9).value=f'=IF(H{grr}=0,"",G{grr}/H{grr})'
 for j in range(1,len(rcols)+1): rc.cell(grr,j).fill=TOT; rc.cell(grr,j).font=Font(name=FONT,bold=True)
@@ -294,7 +417,14 @@ notes=[
  ('What it shows','103 transactions across all seven carriers, netting -$1,860.29 as the carriers printed it, or -$1,593.97 once United\'s 3% incentive lines are excluded under the 10% rule. It is negative because most of this activity is cancellations and chargebacks on business written in earlier months - real money already collected and now being clawed back, which the June binder sheet alone does not show.'),
  ('United treatment','The same 10%-as-collected rule applies here. Incentive lines are listed and shaded but zeroed in the Commission Counted column.'),
  ('Not Doral business','213 of the 384 statement transactions matched no policy in the Doral book. Those belong to the agency\'s other offices and are excluded from every Doral figure in this workbook.'),
- ('Relationship to the summary','This tab does NOT change the Commission Summary. That tab remains the June binder sheet at $6,361.68. The Carrier Recap tab adds the two together in its Total Doral Commission column.'),
+ ('Relationship to the summary','The Commission Summary now carries this activity as its own section below the June binder rows, so the sheet foots to the real number. The June binder sheet total of $6,361.68 is still shown on its own line above it.'),
+ ('',''),
+ ('Statement adjustments and fees',''),
+ ('What they are','Chargebacks and fees the carriers apply OUTSIDE the policy transaction listing, on separate sections of their statements. Three carriers have them this month: National General -$62.10 of loss-history and violation-history chargebacks, Kemper -$32.90 of UW report fees, and Pearl -$16.72 of MVR costs. Total -$111.72, of which -$43.42 is attributable to the Doral book.'),
+ ('Why they are matched differently','These sections carry no policy number - National General gives a quote number, Pearl abbreviates the name to a surname and initial, and Kemper names no insured at all. They are therefore matched by NAME, which is weaker than the policy-number matching used everywhere else in this workbook. Each row on the Book Activity tab shows how it was matched, and only the rows marked YES are counted.'),
+ ('National General','8 quote numbers matched the Doral book, worth -$35.06. Violation-history rows share a quote number with a loss-history row, so where the quote is Doral every row on it is treated as Doral - that is how the two drivers on quote 242804983 are picked up.'),
+ ('Kemper','The -$32.90 is an agency-level UW report fee with no insured named, so none of it can be attributed to the Doral book. It is listed for completeness and counted as $0.'),
+ ('Pearl','JOHNSON, J is matched to Jahmar J Johnson, who appears on the same statement as a Doral cancellation, worth -$8.36. MARTINEZ, L could not be identified and is not counted.'),
  ('',''),
  ('Controls performed',''),
  ('Binder premium tie-out','The Binder Premium column reproduces the binder sheet\'s own totals exactly: new business $29,109.40 ($28,891.00 base + $218.40 MVR/fees) and renewals $49,272.55, confirming all 63 rows were captured.'),
@@ -304,7 +434,7 @@ notes=[
  ('Agency codes','The six statements are issued to different agency codes and letterheads (Universal Brokers LLC, Creative Insurance Agency, producer code 6883, Princeton code 9019644). Every Doral policy number nevertheless matched its carrier statement exactly, so the codes are alternate identities for the same book rather than a mismatch.'),
  ('',''),
  ('Reading the workbook',''),
- ('Commission Summary','One row per binder-book policy, in binder order, split into New Business and Renewals with subtotals. Column O is the commission earned.'),
+ ('Commission Summary','Four blocks. New Business and Renewals are the June binder sheet, footing to $6,361.68. Below them, Other Doral Book Activity carries one row per wider-book policy with June statement activity (-$1,593.97), and Statement Adjustments & Fees carries one row per carrier (-$43.42). The bottom line, Total Doral June Commission, is $4,724.29.'),
  ('Transaction Detail','Every line from all seven statements. Column P flags whether the line belongs to a Doral binder-book client. Blue figures are taken straight from the carrier statement; black figures are calculated. Columns N and O are what actually feeds the Commission Summary - United incentive lines sit at zero there.'),
  ('Carrier Recap','Per-carrier totals, what share of each carrier statement the June binder book represents, and the other book activity added alongside it to give a total Doral commission per carrier.'),
  ('Book Activity by Carrier','A section per carrier listing the wider-book transactions described above, each with a subtotal, and a grand total at the foot.'),
@@ -343,7 +473,7 @@ for i in range(HDR_ROW+1,SUM_LAST+1):
     if (s.cell(i,17).value or '').startswith('Policy not found'):
         for j in range(1,18): s.cell(i,j).fill=WARN
 s.column_dimensions['R'].hidden=True; s.cell(HDR_ROW,18).value='key'
-s.auto_filter.ref=f'A{HDR_ROW}:Q{SUM_LAST}'
+s.auto_filter.ref=f'A{HDR_ROW}:Q{JUNE_LAST}'
 
 base_style(d)
 for j,w in enumerate([26,17,40,20,32,22,14,17,17,12,17,15,9,15,16,12,30],1):
@@ -373,13 +503,13 @@ d.cell(1,15).comment=Comment('United Auto is booked at 10% as collected. Its sep
   'they do not reach the Commission Summary.','Analysis')
 
 base_style(rc); rc.cell(1,1).font=Font(name=FONT,size=13,bold=True,color=NAVY)
-for j,w in enumerate([20,40,32,12,14,20,20,24,14,15,20,20],1): rc.column_dimensions[get_column_letter(j)].width=w
-for j in range(1,13):
+for j,w in enumerate([20,40,32,12,14,20,20,24,14,15,20,20,20],1): rc.column_dimensions[get_column_letter(j)].width=w
+for j in range(1,14):
     c=rc.cell(3,j); c.fill=HDR; c.font=Font(name=FONT,size=10,bold=True,color='FFFFFF')
     c.alignment=Alignment(vertical='center',wrap_text=True,horizontal='center'); c.border=box
 rc.row_dimensions[3].height=42
 for i in range(4,grr+1):
-    for j in (6,7,8,11,12): rc.cell(i,j).number_format=MONEY
+    for j in (6,7,8,11,12,13): rc.cell(i,j).number_format=MONEY
     rc.cell(i,9).number_format=PCT
     for j in (4,5,10): rc.cell(i,j).alignment=Alignment(horizontal='center')
 
