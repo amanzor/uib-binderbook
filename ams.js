@@ -4892,21 +4892,98 @@ EXTRACTION TIPS:
 - Omit any field you can't find. Never guess SSNs, license numbers, or VINs.`;
 }
 
+// An attachment only has to reach Claude once. After it has been read and
+// answered, the findings live in the assistant's reply — so re-sending the
+// base64 on every later turn just makes each follow-up re-upload the whole
+// document, which is how a long session ends in "Failed to fetch" mid-send.
+// Clears every turn except the one being sent right now.
+function aiStripAttachmentsFromHistory(messages) {
+    if (!Array.isArray(messages)) return;
+    for (let i = 0; i < messages.length - 1; i++) {
+        const m = messages[i];
+        if (!m || !Array.isArray(m.content)) continue;
+        let seen = 0;
+        m.content = m.content.map(block => {
+            if (!block || (block.type !== 'document' && block.type !== 'image')) return block;
+            const name = (m._fileNames && m._fileNames[seen++]) || 'a file';
+            return { type: 'text', text: `["${name}" was attached here. You already read it — your findings are in your reply below, so work from those. If you need the original again, ask the user to re-attach it.]` };
+        });
+    }
+}
+
+// Every failure used to be reported as "check that the Edge Function is
+// deployed", which sent people to the Supabase dashboard to fix something that
+// was never broken. Say what actually went wrong.
+function aiExplainError(err) {
+    const msg = String((err && err.message) || err || 'Unknown error');
+    if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
+        return `❌ Couldn't reach the AI service — the request never completed.\n\n` +
+               `This is a connection problem, not a setup problem. Usually one of:\n` +
+               `• The connection dropped mid-upload (large documents take a while to send)\n` +
+               `• A browser extension or ad blocker blocked the request\n` +
+               `• VPN or office firewall interference\n\n` +
+               `Try again. If it keeps happening, open DevTools ▸ Network and check the "claude" request.`;
+    }
+    if (/idle_timeout|idle timeout|HTTP 504/i.test(msg)) {
+        return `❌ The AI ran past the 150-second limit and the request was cut off.\n\n` +
+               `Upload fewer documents at once, or split a large one into smaller batches.`;
+    }
+    if (/abort/i.test(msg)) {
+        return `❌ The request was cancelled before it finished — it ran too long.\n\nTry again with a smaller upload.`;
+    }
+    if (/not deployed|NOT_FOUND|HTTP 404/i.test(msg)) {
+        return `❌ The "claude" Edge Function isn't deployed on Supabase.\n\n` +
+               `Fix: Supabase Dashboard ▸ Edge Functions ▸ Deploy a new function ▸ name it "claude".`;
+    }
+    if (/invalid api key|authentication_error|ANTHROPIC_API_KEY/i.test(msg)) {
+        return `❌ The Claude API key is missing or invalid.\n\n` +
+               `Fix: Supabase Dashboard ▸ Edge Functions ▸ Manage secrets ▸ set ANTHROPIC_API_KEY.`;
+    }
+    if (/rate_limit|overloaded/i.test(msg)) {
+        return `❌ Claude is rate-limited or overloaded right now.\n\nWait a few seconds and send it again.`;
+    }
+    return `❌ Error: ${msg}`;
+}
+
 // ── API call (same proxy as Binder Book) ─────────────────────
 async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
-    const res = await fetch(AI_PROXY_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'apikey': AMS_SB_KEY,
-            'Authorization': 'Bearer ' + AMS_SB_KEY
-        },
-        body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens, system: systemPrompt, messages })
-    });
+    aiStripAttachmentsFromHistory(messages);
+
+    // Only role/content go to the API — internal bookkeeping keys stay here.
+    const wire = messages.map(m => ({ role: m.role, content: m.content }));
+
+    // The proxy is capped at 150s server-side; abort a little past that so a
+    // stalled socket fails with a clear message instead of spinning forever.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 180000);
+    let res;
+    try {
+        res = await fetch(AI_PROXY_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': AMS_SB_KEY,
+                'Authorization': 'Bearer ' + AMS_SB_KEY
+            },
+            body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens, system: systemPrompt, messages: wire }),
+            signal: controller.signal
+        });
+    } catch (e) {
+        if (e.name === 'AbortError') throw new Error('The request took too long and was aborted after 3 minutes.');
+        throw e;
+    } finally {
+        clearTimeout(timer);
+    }
+
     const raw = await res.text();
     let data;
     try { data = JSON.parse(raw); }
     catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`); }
+    // Supabase gateway envelope — the worker timed out or died, so there is no
+    // Claude payload at all. Without this it fell through to "Empty response".
+    if (data.code && data.message && !data.content && !data.error) {
+        throw new Error(`AI proxy ${data.code}: ${data.message}`);
+    }
     if (data.error) {
         const t = data.error.type || '', m = data.error.message || JSON.stringify(data.error);
         if (t === 'authentication_error') throw new Error('Claude API: invalid API key. Set the ANTHROPIC_API_KEY secret in Supabase Edge Functions.');
@@ -4938,7 +5015,7 @@ async function aiSendMessage() {
         if (f.kind === 'text')  content.push({ type: 'text', text: `--- Attached file: ${f.name} ---\n${f.text}\n--- end of ${f.name} ---` });
     });
     content.push({ type: 'text', text: userText });
-    _aiMessages.push({ role: 'user', content });
+    _aiMessages.push({ role: 'user', content, _fileNames: fileNames });
     _aiPendingFiles = [];
     aiUpdateFilePreview();
 
@@ -4965,7 +5042,7 @@ async function aiSendMessage() {
         }
     } catch (err) {
         loading.remove();
-        aiAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+        aiAddMessage('assistant', aiExplainError(err));
     } finally {
         _aiBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
@@ -5304,7 +5381,7 @@ async function rnwSendMessage() {
         content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf.base64 } });
     });
     content.push({ type: 'text', text: userText });
-    _rnwMessages.push({ role: 'user', content });
+    _rnwMessages.push({ role: 'user', content, _fileNames: pdfNames });
     _rnwPendingPdfs = [];
     rnwRefreshPreview();
 
@@ -5333,7 +5410,7 @@ async function rnwSendMessage() {
         }
     } catch (err) {
         loading.remove();
-        rnwAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+        rnwAddMessage('assistant', aiExplainError(err));
     } finally {
         _rnwBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }

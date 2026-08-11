@@ -8052,6 +8052,7 @@ function binderOpenPendingFileModal() {
 }
 
 function binderCloseFileModal() {
+    binderClosePreview();
     document.getElementById('binderFileModal').classList.remove('active');
 }
 
@@ -8103,7 +8104,7 @@ async function binderCloudUpload(file, clientKey, category) {
 
 async function binderCloudList(clientKey) {
     try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?select=id,file_name,category,storage_path,size_bytes,uploaded_at,uploaded_by&client_key=eq.${encodeURIComponent(clientKey)}&order=uploaded_at.desc`, { headers: _SB_HEADERS });
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?select=id,file_name,category,storage_path,size_bytes,mime_type,uploaded_at,uploaded_by&client_key=eq.${encodeURIComponent(clientKey)}&order=uploaded_at.desc`, { headers: _SB_HEADERS });
         if (!res.ok) return [];
         return await res.json();
     } catch (e) { return []; }
@@ -8140,6 +8141,47 @@ async function binderCloudDelete(docId) {
 
 // ── File list rendering ───────────────────────────────────────
 
+// Every row currently shown in the modal, normalised so preview / download
+// work the same whether the file lives in the cloud, in IndexedDB, or is
+// still queued for an unsaved entry.
+let _binderCurrentFileList = [];
+
+function _binderFileRow(rec, idx) {
+    const badge   = rec.source === 'cloud' ? '☁️' : (rec.source === 'local' ? '💾' : '📄');
+    const canPrev = binderCanPreview(rec.type, rec.name);
+    const meta    = rec.uploadedAt
+        ? new Date(rec.uploadedAt).toLocaleDateString()
+        : binderFormatSize(rec.size);
+    const nameCell = canPrev
+        ? `<span onclick="binderPreviewFile(${idx})" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:#1d4ed8;text-decoration:underline;text-decoration-color:#bfdbfe;" title="Click to preview — ${escHtml(rec.name)}">${badge} ${escHtml(rec.name)}</span>`
+        : `<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(rec.name)}">${badge} ${escHtml(rec.name)}</span>`;
+
+    const prevBtn = canPrev
+        ? `<button class="btn-secondary btn-sm" onclick="binderPreviewFile(${idx})" style="padding:3px 8px;font-size:11px;" title="Preview">👁️</button>`
+        : '';
+
+    let actions;
+    if (rec.source === 'cloud') {
+        actions = `<button class="btn-primary btn-sm" onclick="binderCloudDownload('${escHtml(rec.docId)}')" style="padding:3px 8px;font-size:11px;" title="Download">⬇️</button>
+            <button class="btn-danger btn-sm" onclick="binderCloudDelete('${escHtml(rec.docId)}')" style="padding:3px 8px;font-size:11px;" title="Delete">🗑️</button>`;
+    } else if (rec.source === 'local') {
+        actions = `<button class="btn-primary btn-sm" onclick="binderDownloadFile(${rec.id})" style="padding:3px 8px;font-size:11px;" title="Download">⬇️</button>
+            <button class="btn-danger btn-sm" onclick="binderDeleteFile(${rec.id})" style="padding:3px 8px;font-size:11px;" title="Delete">🗑️</button>`;
+    } else {
+        actions = `<button class="btn-danger btn-sm" onclick="binderRemovePendingFile(${rec.pendingIndex})" style="padding:3px 8px;font-size:11px;" title="Remove">🗑️</button>`;
+    }
+
+    return `
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 6px;border-bottom:1px solid #e5e7eb;font-size:13px;">
+            ${nameCell}
+            <span style="color:#6b7280;font-size:12px;white-space:nowrap;padding:2px 6px;background:#f3f4f6;border-radius:4px;">${escHtml(rec.category || 'Other')}</span>
+            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${escHtml(meta)}</span>
+            ${prevBtn}
+            ${actions}
+        </div>
+    `;
+}
+
 async function binderLoadFileList() {
     if (_binderFileIsPendingMode) { binderShowPendingFiles(); return; }
     const container = document.getElementById('binderFileList');
@@ -8150,56 +8192,282 @@ async function binderLoadFileList() {
         binderDBGetFiles(_binderFileModalClientKey)
     ]);
     if (cloudFiles.length === 0 && localFiles.length === 0) {
+        _binderCurrentFileList = [];
         container.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:16px;">No files uploaded for this client yet.</div>';
         return;
     }
     _binderCloudFiles = {};
     cloudFiles.forEach(f => { _binderCloudFiles[f.id] = { path: f.storage_path, name: f.file_name }; });
 
-    const cloudRows = cloudFiles.map(f => `
-        <div style="display:flex;align-items:center;gap:6px;padding:8px 6px;border-bottom:1px solid #e5e7eb;font-size:13px;">
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.file_name)}">☁️ ${escHtml(f.file_name)}</span>
-            <span style="color:#6b7280;font-size:12px;white-space:nowrap;padding:2px 6px;background:#f3f4f6;border-radius:4px;">${escHtml(f.category || 'Other')}</span>
-            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploaded_at).toLocaleDateString()}</span>
-            <button class="btn-primary btn-sm" onclick="binderCloudDownload('${escHtml(f.id)}')" style="padding:3px 8px;font-size:11px;" title="Download">⬇️</button>
-            <button class="btn-danger btn-sm" onclick="binderCloudDelete('${escHtml(f.id)}')" style="padding:3px 8px;font-size:11px;" title="Delete">🗑️</button>
-        </div>
-    `).join('');
-
-    const localRows = localFiles.map(f => `
-        <div style="display:flex;align-items:center;gap:6px;padding:8px 6px;border-bottom:1px solid #e5e7eb;font-size:13px;">
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.name)}">💾 ${escHtml(f.name)}</span>
-            <span style="color:#6b7280;font-size:12px;white-space:nowrap;padding:2px 6px;background:#f3f4f6;border-radius:4px;">${escHtml(f.category || 'Other')}</span>
-            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploadedAt).toLocaleDateString()}</span>
-            <button class="btn-primary btn-sm" onclick="binderDownloadFile(${f.id})" style="padding:3px 8px;font-size:11px;" title="Download">⬇️</button>
-            <button class="btn-danger btn-sm" onclick="binderDeleteFile(${f.id})" style="padding:3px 8px;font-size:11px;" title="Delete">🗑️</button>
-        </div>
-    `).join('');
+    _binderCurrentFileList = [
+        ...cloudFiles.map(f => ({
+            source: 'cloud', docId: f.id, storagePath: f.storage_path,
+            name: f.file_name, category: f.category || 'Other',
+            type: f.mime_type || '', size: f.size_bytes || 0, uploadedAt: f.uploaded_at
+        })),
+        ...localFiles.map(f => ({
+            source: 'local', id: f.id,
+            name: f.name, category: f.category || 'Other',
+            type: f.type || '', size: f.size || 0, uploadedAt: f.uploadedAt
+        }))
+    ];
 
     const legend = localFiles.length
         ? '<div style="font-size:11px;color:#9ca3af;padding:4px 6px;">☁️ cloud — available on all devices &nbsp;·&nbsp; 💾 this computer only</div>'
         : '';
-    container.innerHTML = cloudRows + localRows + legend;
+    container.innerHTML = _binderCurrentFileList.map(_binderFileRow).join('') + legend;
 }
 
 function binderShowPendingFiles() {
     const container = document.getElementById('binderFileList');
     if (_pendingEntryFiles.length === 0) {
+        _binderCurrentFileList = [];
         container.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:16px;">No files queued yet. Select files below — they\'ll be saved when you save the entry.</div>';
         return;
     }
-    container.innerHTML = _pendingEntryFiles.map((pf, i) => `
-        <div style="display:flex;align-items:center;gap:6px;padding:8px 6px;border-bottom:1px solid #e5e7eb;font-size:13px;">
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(pf.name)}">📄 ${escHtml(pf.name)}</span>
-            <span style="color:#6b7280;font-size:12px;white-space:nowrap;padding:2px 6px;background:#f3f4f6;border-radius:4px;">${escHtml(pf.category)}</span>
-            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${(pf.size / 1024).toFixed(1)} KB</span>
-            <button class="btn-danger btn-sm" onclick="binderRemovePendingFile(${i})" style="padding:3px 8px;font-size:11px;" title="Remove">🗑️</button>
-        </div>
-    `).join('');
+    _binderCurrentFileList = _pendingEntryFiles.map((pf, i) => ({
+        source: 'pending', pendingIndex: i, file: pf.file,
+        name: pf.name, category: pf.category,
+        type: pf.file?.type || '', size: pf.size || 0, uploadedAt: null
+    }));
+    container.innerHTML = _binderCurrentFileList.map(_binderFileRow).join('');
 }
 
 function escHtml(str) {
     return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Document preview ──────────────────────────────────────────
+// Opens uploaded docs in-app instead of forcing a download first.
+// Handles cloud (Supabase Storage), local (IndexedDB) and files still
+// queued against an unsaved entry.
+
+let _binderPreviewIdx    = -1;
+let _binderPreviewObjUrl = null;
+
+const BINDER_TEXT_EXTS = ['txt','csv','json','xml','html','htm','md','log','js','css','sql'];
+
+function binderFileExt(name) {
+    const parts = String(name || '').split('.');
+    return parts.length > 1 ? parts.pop().toLowerCase() : '';
+}
+
+function binderCanPreview(type, name) {
+    const t   = String(type || '').toLowerCase();
+    const ext = binderFileExt(name);
+    if (t.startsWith('image/') || t.startsWith('video/') || t.startsWith('audio/') || t.startsWith('text/')) return true;
+    if (t === 'application/pdf') return true;
+    if (['pdf','png','jpg','jpeg','gif','webp','bmp','svg','heic','mp4','webm','mov','mp3','wav','m4a'].includes(ext)) return true;
+    return BINDER_TEXT_EXTS.includes(ext);
+}
+
+function binderFormatSize(bytes) {
+    const b = Number(bytes) || 0;
+    if (b < 1024) return b + ' B';
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+    return (b / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function binderFileIcon(type, name) {
+    const t   = String(type || '').toLowerCase();
+    const ext = binderFileExt(name);
+    if (t.startsWith('image/')) return '🖼️';
+    if (t.startsWith('video/')) return '🎬';
+    if (t.startsWith('audio/')) return '🎵';
+    if (t === 'application/pdf' || ext === 'pdf') return '📕';
+    if (['doc','docx'].includes(ext))  return '📘';
+    if (['xls','xlsx','csv'].includes(ext)) return '📗';
+    if (['zip','rar','7z'].includes(ext))   return '🗜️';
+    return '📄';
+}
+
+/** Effective MIME type — cloud rows sometimes have none, so fall back to the extension. */
+function binderResolveType(rec) {
+    if (rec.type) return rec.type;
+    const ext = binderFileExt(rec.name);
+    const map = {
+        pdf:'application/pdf', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg',
+        gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml',
+        mp4:'video/mp4', webm:'video/webm', mov:'video/quicktime',
+        mp3:'audio/mpeg', wav:'audio/wav', m4a:'audio/mp4'
+    };
+    if (map[ext]) return map[ext];
+    if (BINDER_TEXT_EXTS.includes(ext)) return 'text/plain';
+    return 'application/octet-stream';
+}
+
+/** Pull the raw bytes for a normalised file record, wherever it lives. */
+async function _binderFileBlob(rec) {
+    const type = binderResolveType(rec);
+    if (rec.source === 'pending') {
+        return rec.file ? new Blob([rec.file], { type: rec.file.type || type }) : null;
+    }
+    if (rec.source === 'cloud') {
+        const res = await fetch(_binderStorageUrl(rec.storagePath), {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+        });
+        if (!res.ok) { alert('Could not load file from the cloud (HTTP ' + res.status + ')'); return null; }
+        return new Blob([await res.arrayBuffer()], { type });
+    }
+    if (!binderDB) await binderInitDB();
+    const full = await new Promise(resolve => {
+        const req = binderDB.transaction('files', 'readonly').objectStore('files').get(rec.id);
+        req.onsuccess = e => resolve(e.target.result || null);
+        req.onerror   = () => resolve(null);
+    });
+    if (!full) return null;
+    return new Blob([full.data], { type: full.type || type });
+}
+
+/** The preview overlay lives in JS so every page that loads app.js gets it. */
+function _binderEnsurePreviewModal() {
+    let modal = document.getElementById('binderPreviewModal');
+    if (modal) return modal;
+
+    modal = document.createElement('div');
+    modal.id = 'binderPreviewModal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:10030;background:rgba(15,23,42,.88);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);flex-direction:column;';
+    modal.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(15,23,42,.85);color:#f8fafc;flex-shrink:0;">
+            <div style="flex:1;min-width:0;">
+                <div id="binderPreviewName" style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</div>
+                <div id="binderPreviewMeta" style="font-size:11px;color:#94a3b8;margin-top:2px;"></div>
+            </div>
+            <button type="button" id="binderPreviewPrev" onclick="binderPreviewNav(-1)" title="Previous file (←)" style="background:#334155;color:#f8fafc;border:none;border-radius:7px;padding:6px 12px;font-size:13px;cursor:pointer;">‹</button>
+            <span id="binderPreviewCount" style="font-size:11px;color:#94a3b8;white-space:nowrap;"></span>
+            <button type="button" id="binderPreviewNext" onclick="binderPreviewNav(1)" title="Next file (→)" style="background:#334155;color:#f8fafc;border:none;border-radius:7px;padding:6px 12px;font-size:13px;cursor:pointer;">›</button>
+            <button type="button" onclick="binderPreviewDownload()" title="Download" style="background:#2563eb;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">⬇️ Download</button>
+            <button type="button" onclick="binderClosePreview()" title="Close (Esc)" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">✕ Close</button>
+        </div>
+        <div id="binderPreviewBody" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', e => { if (e.target === modal) binderClosePreview(); });
+    document.addEventListener('keydown', e => {
+        if (modal.style.display !== 'flex') return;
+        if (e.key === 'Escape')     { e.stopPropagation(); binderClosePreview(); }
+        if (e.key === 'ArrowLeft')  binderPreviewNav(-1);
+        if (e.key === 'ArrowRight') binderPreviewNav(1);
+    });
+    return modal;
+}
+
+async function binderPreviewFile(idx) {
+    const rec = _binderCurrentFileList[idx];
+    if (!rec) return;
+    _binderPreviewIdx = idx;
+    await _binderRenderPreview(rec);
+}
+
+async function _binderRenderPreview(rec) {
+    const modal = _binderEnsurePreviewModal();
+    const body  = document.getElementById('binderPreviewBody');
+    const type  = binderResolveType(rec);
+
+    document.getElementById('binderPreviewName').textContent = rec.name;
+    document.getElementById('binderPreviewMeta').textContent =
+        `${binderFormatSize(rec.size)} · ${type}` + (rec.category ? ` · ${rec.category}` : '');
+    document.getElementById('binderPreviewCount').textContent =
+        `${_binderPreviewIdx + 1} / ${_binderCurrentFileList.length}`;
+    document.getElementById('binderPreviewPrev').style.visibility = _binderPreviewIdx > 0 ? 'visible' : 'hidden';
+    document.getElementById('binderPreviewNext').style.visibility =
+        _binderPreviewIdx < _binderCurrentFileList.length - 1 ? 'visible' : 'hidden';
+
+    body.innerHTML = '<div style="color:#cbd5e1;font-size:14px;">Loading preview…</div>';
+    modal.style.display = 'flex';
+
+    let blob;
+    try {
+        blob = await _binderFileBlob(rec);
+    } catch (err) {
+        console.warn('Preview failed:', err);
+        blob = null;
+    }
+    if (!blob) {
+        body.innerHTML = '<div style="color:#fca5a5;font-size:14px;">Could not load this file for preview.</div>';
+        return;
+    }
+
+    if (_binderPreviewObjUrl) { URL.revokeObjectURL(_binderPreviewObjUrl); _binderPreviewObjUrl = null; }
+    const objUrl = URL.createObjectURL(blob);
+    _binderPreviewObjUrl = objUrl;
+
+    const ext = binderFileExt(rec.name);
+
+    if (type.startsWith('image/')) {
+        body.innerHTML = `<img src="${objUrl}" alt="${escHtml(rec.name)}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;background:#fff;">`;
+    } else if (type === 'application/pdf') {
+        body.innerHTML = `<iframe src="${objUrl}" title="${escHtml(rec.name)}" style="width:100%;height:100%;border:none;border-radius:8px;background:#fff;"></iframe>`;
+    } else if (type.startsWith('video/')) {
+        body.innerHTML = `<video src="${objUrl}" controls style="max-width:100%;max-height:100%;border-radius:8px;"></video>`;
+    } else if (type.startsWith('audio/')) {
+        body.innerHTML = `<div style="text-align:center;color:#f8fafc;">
+                <div style="font-size:56px;margin-bottom:16px;">🎵</div>
+                <div style="margin-bottom:14px;font-size:14px;">${escHtml(rec.name)}</div>
+                <audio src="${objUrl}" controls></audio>
+            </div>`;
+    } else if (type.startsWith('text/') || BINDER_TEXT_EXTS.includes(ext)) {
+        const text = await blob.slice(0, 400000).text();
+        const more = blob.size > 400000 ? '\n\n… truncated — download the file to see the rest.' : '';
+        body.innerHTML = ext === 'csv'
+            ? _binderCSVTable(text + more)
+            : `<pre style="width:100%;max-height:100%;overflow:auto;background:#fff;color:#111827;padding:16px;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-word;margin:0;">${escHtml(text + more)}</pre>`;
+    } else {
+        body.innerHTML = `<div style="text-align:center;color:#f8fafc;max-width:420px;">
+                <div style="font-size:56px;margin-bottom:12px;">${binderFileIcon(type, rec.name)}</div>
+                <div style="font-size:15px;font-weight:700;margin-bottom:8px;">${escHtml(rec.name)}</div>
+                <div style="font-size:13px;color:#94a3b8;margin-bottom:18px;">No in-app preview for this file type (${escHtml(type || ext || 'unknown')}).</div>
+                <button type="button" onclick="binderPreviewDownload()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">⬇️ Download File</button>
+            </div>`;
+    }
+}
+
+function _binderCSVTable(text) {
+    const rows = text.trim().split('\n').map(r => r.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+    if (!rows.length) return '<pre style="background:#fff;padding:16px;border-radius:8px;margin:0;">Empty CSV</pre>';
+    const header = rows[0].map(h => `<th style="padding:6px 10px;background:#1e293b;color:#e2e8f0;font-size:12px;white-space:nowrap;text-align:left;">${escHtml(h)}</th>`).join('');
+    const body   = rows.slice(1).map(r =>
+        `<tr>${r.map(c => `<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid #e2e8f0;">${escHtml(c)}</td>`).join('')}</tr>`
+    ).join('');
+    return `<div style="width:100%;max-height:100%;overflow:auto;background:#fff;border-radius:8px;"><table style="border-collapse:collapse;width:100%;"><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+async function binderPreviewNav(dir) {
+    // Skip over rows that have nothing to show (e.g. a .docx between two PDFs)
+    let next = _binderPreviewIdx + dir;
+    while (next >= 0 && next < _binderCurrentFileList.length) {
+        const rec = _binderCurrentFileList[next];
+        if (binderCanPreview(rec.type, rec.name)) {
+            _binderPreviewIdx = next;
+            await _binderRenderPreview(rec);
+            return;
+        }
+        next += dir;
+    }
+}
+
+function binderClosePreview() {
+    const modal = document.getElementById('binderPreviewModal');
+    if (modal) modal.style.display = 'none';
+    if (_binderPreviewObjUrl) { URL.revokeObjectURL(_binderPreviewObjUrl); _binderPreviewObjUrl = null; }
+    const body = document.getElementById('binderPreviewBody');
+    if (body) body.innerHTML = '';   // stops any playing video/audio
+    _binderPreviewIdx = -1;
+}
+
+async function binderPreviewDownload() {
+    const rec = _binderCurrentFileList[_binderPreviewIdx];
+    if (!rec) return;
+    if (rec.source === 'cloud')  { await binderCloudDownload(rec.docId); return; }
+    if (rec.source === 'local')  { await binderDownloadFile(rec.id);     return; }
+    const blob = await _binderFileBlob(rec);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href = url; a.download = rec.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 // ── Upload (saved entries) ────────────────────────────────────
@@ -8813,7 +9081,7 @@ async function claudeSendMessage() {
     const pdfWasAttached = hasPdf;
     const pdfFileName = hasPdf ? _claudePendingPdf.name : null;
     const pdfBase64   = hasPdf ? _claudePendingPdf.base64 : null;
-    _claudeMessages.push({ role: 'user', content });
+    _claudeMessages.push({ role: 'user', content, _pdfNames: hasPdf ? [pdfFileName] : [] });
     _claudePendingPdf = null;
 
     // Loading bubble
@@ -8880,7 +9148,7 @@ async function claudeSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+        claudeAddMessage('assistant', claudeExplainError(err));
     } finally {
         _claudeBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
@@ -8987,11 +9255,69 @@ Before the JSON, give a brief 2-3 sentence summary of what you found (document t
     return base;
 }
 
+// A PDF only has to reach Claude once. After it has been read and answered,
+// the findings live in the assistant's reply — so re-sending megabytes of
+// base64 on every later turn buys nothing. Leaving them in meant a five-turn
+// session re-uploaded the same statements five times, and any hiccup on the
+// uplink surfaced as a bare "Failed to fetch" mid-conversation.
+// Call this before each request: it clears every turn except the one being sent.
+function claudeStripPdfsFromHistory(messages) {
+    if (!Array.isArray(messages)) return;
+    for (let i = 0; i < messages.length - 1; i++) {
+        const m = messages[i];
+        if (!m || !Array.isArray(m.content)) continue;
+        let seen = 0;
+        m.content = m.content.map(block => {
+            if (!block || block.type !== 'document') return block;
+            const name = (m._pdfNames && m._pdfNames[seen++]) || 'a PDF';
+            return { type: 'text', text: `["${name}" was attached here. You already read it — your findings are in your reply below, so work from those. If you need the original again, ask the user to re-attach it.]` };
+        });
+    }
+}
+
+// Every failure used to be reported as "check that the Edge Function is
+// deployed", which sent people to the Supabase dashboard to fix something that
+// was never broken. Say what actually went wrong.
+function claudeExplainError(err) {
+    const msg = String((err && err.message) || err || 'Unknown error');
+
+    if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
+        return `❌ Couldn't reach the AI service — the request never completed.\n\n` +
+               `This is a connection problem, not a setup problem. Usually one of:\n` +
+               `• The connection dropped mid-upload (large statements take a while to send)\n` +
+               `• A browser extension or ad blocker blocked the request\n` +
+               `• VPN or office firewall interference\n\n` +
+               `Try again. If it keeps happening, open DevTools ▸ Network and check the "claude" request.`;
+    }
+    if (/idle_timeout|idle timeout|HTTP 504/i.test(msg)) {
+        return `❌ The AI ran past the 150-second limit and the request was cut off.\n\n` +
+               `Upload fewer PDFs at once, or split a large statement into smaller batches.`;
+    }
+    if (/abort/i.test(msg)) {
+        return `❌ The request was cancelled before it finished — it ran too long.\n\n` +
+               `Try again with a smaller upload.`;
+    }
+    if (/not deployed|NOT_FOUND|HTTP 404/i.test(msg)) {
+        return `❌ The "claude" Edge Function isn't deployed on Supabase.\n\n` +
+               `Fix: Supabase Dashboard ▸ Edge Functions ▸ Deploy a new function ▸ name it "claude".`;
+    }
+    if (/invalid api key|authentication_error|ANTHROPIC_API_KEY/i.test(msg)) {
+        return `❌ The Claude API key is missing or invalid.\n\n` +
+               `Fix: Supabase Dashboard ▸ Edge Functions ▸ Manage secrets ▸ set ANTHROPIC_API_KEY.`;
+    }
+    if (/rate_limit|overloaded/i.test(msg)) {
+        return `❌ Claude is rate-limited or overloaded right now.\n\nWait a few seconds and send it again.`;
+    }
+    return `❌ Error: ${msg}`;
+}
+
 // Default 8192: big commercial policies (20+ drivers/vehicles) can overflow a
 // 4096-token response, truncating the extraction JSON mid-output so no
 // "extracted" card ever appears. Callers with even larger outputs (the admin
 // commission processor) pass a higher limit explicitly.
 async function claudeCallAPI(systemPrompt, messages, maxTokens = 8192) {
+    claudeStripPdfsFromHistory(messages);
+
     const payload = {
         model: CLAUDE_MODEL,
         max_tokens: maxTokens,
@@ -9002,21 +9328,40 @@ async function claudeCallAPI(systemPrompt, messages, maxTokens = 8192) {
         }))
     };
 
-    const res = await fetch(CLAUDE_PROXY_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify(payload)
-    });
+    // The proxy is capped at 150s server-side; abort a little past that so a
+    // stalled socket fails with a clear message instead of spinning forever.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 180000);
+    let res;
+    try {
+        res = await fetch(CLAUDE_PROXY_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+    } catch (e) {
+        if (e.name === 'AbortError') throw new Error('The request took too long and was aborted after 3 minutes.');
+        throw e;
+    } finally {
+        clearTimeout(timer);
+    }
 
     // Read as text first so we can see exactly what came back
     const raw = await res.text();
     let data;
     try { data = JSON.parse(raw); }
     catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`); }
+
+    // Supabase gateway envelope — the worker timed out or died, so there is no
+    // Claude payload at all. Without this it fell through to "Empty response".
+    if (data.code && data.message && !data.content && !data.error) {
+        throw new Error(`AI proxy ${data.code}: ${data.message}`);
+    }
 
     // Proxy / config error envelope
     if (data.success === false) {
@@ -9523,7 +9868,7 @@ async function claudeInlineSendMessage() {
     const pdfWasAttached = hasPdf;
     const pdfFileName = hasPdf ? _claudeInlinePendingPdf.name : null;
     const pdfBase64   = hasPdf ? _claudeInlinePendingPdf.base64 : null;
-    _claudeInlineMessages.push({ role: 'user', content });
+    _claudeInlineMessages.push({ role: 'user', content, _pdfNames: hasPdf ? [pdfFileName] : [] });
     _claudeInlinePendingPdf = null;
 
     _claudeInlineBusy = true;
@@ -9588,7 +9933,7 @@ async function claudeInlineSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeInlineAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+        claudeInlineAddMessage('assistant', claudeExplainError(err));
     } finally {
         _claudeInlineBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
@@ -9922,7 +10267,7 @@ async function claudeAdminSendMessage() {
     // Keep the batch's PDFs so "Save as Commission Statement" can upload the
     // originals to Supabase Storage and attach them to the statement month.
     if (hasPdfs) _claudeAdminLastPdfs = _claudeAdminPendingPdfs.slice();
-    _claudeAdminMessages.push({ role: 'user', content });
+    _claudeAdminMessages.push({ role: 'user', content, _pdfNames: pdfNames });
     _claudeAdminPendingPdfs = [];
     claudeAdminRefreshPreview();
 
@@ -9960,7 +10305,7 @@ async function claudeAdminSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeAdminAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+        claudeAdminAddMessage('assistant', claudeExplainError(err));
     } finally {
         _claudeAdminBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Process'; }
@@ -11564,7 +11909,7 @@ async function claudeRenewalSendMessage() {
         content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf.base64 } });
     });
     content.push({ type: 'text', text: userText });
-    _claudeRenewalMessages.push({ role: 'user', content });
+    _claudeRenewalMessages.push({ role: 'user', content, _pdfNames: _claudeRenewalPendingPdfs.map(p => p.name) });
     _claudeRenewalPendingPdfs = [];
     claudeRenewalRefreshPreview();
 
@@ -11593,7 +11938,7 @@ async function claudeRenewalSendMessage() {
         }
     } catch (err) {
         loadingDiv.remove();
-        claudeRenewalAddMessage('assistant', `❌ Error: ${err.message}\n\nCheck that the Supabase Edge Function "claude" is deployed and the ANTHROPIC_API_KEY secret is set.`);
+        claudeRenewalAddMessage('assistant', claudeExplainError(err));
     } finally {
         _claudeRenewalBusy = false;
         if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
