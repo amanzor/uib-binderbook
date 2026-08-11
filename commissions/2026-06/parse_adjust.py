@@ -42,9 +42,24 @@ for who,date,amt in [('JOHNSON, J','06/22/2026',-8.36),('MARTINEZ, L','06/05/202
                     doral=bool(b),book_name=b['name'] if b else '',book_sheet=b['sheet'].strip() if b else '',
                     basis=('Name abbreviated by Pearl; matched to Jahmar J Johnson, who is on this same statement'
                            if b else 'Name abbreviated by Pearl - no confident Doral match')))
+# ---- United Auto: its statement's own "Adjustment Commission" section = the 3% incentive lines ----
+import collections
+BK=json.load(open('bookmatch.json'))['matched']
+up=[t for t in BK if t['carrier']=='United Auto' and t['ttype']=='Promotional Incentive']
+for label,rows in (('on June binder-sheet policies',[t for t in up if t['in_june']]),
+                   ('on wider Doral book policies',[t for t in up if not t['in_june']])):
+    if not rows: continue
+    adj.append(dict(carrier='United Auto',ref='Agent 001-1D-100208',
+                    name=f'3% promotional incentive {label}',ttype='Promotional Incentive',
+                    date='06/30/26',amt=round(sum(t['comm'] for t in rows),2),doral=False,
+                    book_name='',book_sheet=f'{len(rows)} lines',
+                    basis=('United books its 3% incentive as an Adjustment (its statement shows 37 such lines '
+                           'netting $6.89 agency-wide). Excluded by instruction - this book is carried at 10% '
+                           'as collected. Every line is itemised on the Transaction Detail and Book Activity tabs.')))
+
 tot=sum(a['amt'] for a in adj); dor=sum(a['amt'] for a in adj if a['doral'])
 print(f"adjustment rows {len(adj)}   total {tot:,.2f}   Doral-attributable {dor:,.2f}")
-for c in ['National General','Infinity','Ocean Harbor']:
+for c in ['National General','Infinity','Ocean Harbor','United Auto']:
     rs=[a for a in adj if a['carrier']==c]
     print(f"  {c:18} rows {len(rs):3}  all {sum(x['amt'] for x in rs):8.2f}  doral {sum(x['amt'] for x in rs if x['doral']):8.2f}")
 json.dump(adj,open('adjustments.json','w'),indent=1)

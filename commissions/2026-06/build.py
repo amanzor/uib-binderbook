@@ -1,5 +1,5 @@
-import json, re
-from openpyxl import Workbook
+import json, re, os
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.comments import Comment
@@ -30,10 +30,20 @@ STMT={'Progressive':'Progressive Detailed Statement 06/2026',
       'Ocean Harbor':'Pearl Holding Group Commission Stmt 06/2026',
       'National General':'National General Commission Stmt 06/2026'}
 
-wb=Workbook()
+MERGE=os.environ.get('MERGE_INTO')
+OUT=os.environ.get('MERGE_OUT','Doral_Binder_Book_June_2026_Commissions.xlsx')
+MINE=['Commission Summary','Transaction Detail','Carrier Recap','Book Activity by Carrier','Notes & Sources']
+if MERGE:
+    wb=load_workbook(MERGE)          # formulas preserved (data_only left False)
+    clash=[t for t in MINE if t in wb.sheetnames]
+    assert not clash, f'sheet name collision with the master workbook: {clash}'
+    HOST=list(wb.sheetnames)
+else:
+    wb=Workbook(); HOST=[]
 
 # ================= Transaction Detail =================
-d=wb.active; d.title='Transaction Detail'
+d=wb.create_sheet('Transaction Detail') if MERGE else wb.active
+d.title='Transaction Detail'
 dcols=['Match Key','Carrier','Commission Statement','Statement Policy #','Insured Name (per statement)',
        'Transaction Type','Transaction Date','Written / Gross Premium','Commissionable Basis',
        'Carrier Comm Rate','Commission per Statement','Check: Basis x Rate','Diff',
@@ -144,13 +154,14 @@ br+=3
 ADJ_START=br
 ba.cell(br,1).value='STATEMENT-LEVEL ADJUSTMENTS & FEES'
 ba.cell(br,1).font=Font(name=FONT,size=12,bold=True,color=NAVY); br+=1
-ba.cell(br,1).value=('Chargebacks and fees the carriers apply outside the policy transaction listing. These carry no '
-                     'policy number, so they are matched by name where the carrier gives one. Only the rows marked '
-                     'YES are counted as Doral.')
+ba.cell(br,1).value=('Every chargeback, fee and adjustment the carriers apply outside the policy transaction '
+                     'listing. Four carriers have them: National General, Kemper, Pearl and United. Most carry no '
+                     'policy number, so they are matched by name where the carrier gives one. Only rows marked YES '
+                     'reach the totals - a row can be Doral business and still be excluded, as United\'s 3% is.')
 ba.cell(br,1).font=Font(name=FONT,size=10,italic=True,color='404040')
 ba.merge_cells(start_row=br,start_column=1,end_row=br,end_column=NB)
 ba.cell(br,1).alignment=Alignment(vertical='center',wrap_text=True); ba.row_dimensions[br].height=28; br+=1
-acols=['Name on the adjustment','Reference','Carrier','Adjustment Type','Date','Amount','','','','Doral?','Book Month','How it was matched']
+acols=['Name on the adjustment','Reference','Carrier','Adjustment Type','Date','Amount','','','','Counted?','Book Month','How it was matched / why not counted']
 ADJ_HDR=br
 for j,c in enumerate(acols,1): ba.cell(br,j).value=c
 for j in range(1,NB+1):
@@ -174,7 +185,7 @@ ba.cell(br,6).value=f'=SUM(F{adj_start}:F{adj_end})'
 for j in range(1,NB+1): ba.cell(br,j).fill=SUB; ba.cell(br,j).font=Font(name=FONT,bold=True)
 br+=1
 ADJ_DORAL=br
-ba.cell(br,1).value='OF WHICH DORAL - counted in the totals'
+ba.cell(br,1).value='OF WHICH COUNTED IN THE DORAL TOTALS'
 ba.cell(br,6).value=f'=SUMIF(J{adj_start}:J{adj_end},"YES",F{adj_start}:F{adj_end})'
 for j in range(1,NB+1): ba.cell(br,j).fill=TOT; ba.cell(br,j).font=Font(name=FONT,bold=True,size=11)
 ADJ_LAST=br
@@ -285,29 +296,35 @@ s.cell(r,16).value=f'=IF(N{r}=0,"",O{r}/N{r})'
 for j in range(1,len(scols)+1): s.cell(r,j).fill=SUB; s.cell(r,j).font=Font(name=FONT,bold=True)
 BOOK_SUB=r; r+=2
 
-s.cell(r,1).value='STATEMENT ADJUSTMENTS & FEES  -  Doral-attributable only'
+s.cell(r,1).value=('STATEMENT ADJUSTMENTS & FEES  -  every chargeback and fee the carriers apply outside the '
+                   'policy listing. Shaded rows could not be tied to a Doral client and are NOT counted.')
 s.cell(r,1).font=Font(name=FONT,bold=True,color='FFFFFF')
 for j in range(1,len(scols)+1): s.cell(r,j).fill=SECT
 astart=r+1; r+=1
-for co in carrier_order:
-    rows=[a for a in ADJ if a['carrier']==co]
-    if not rows: continue
-    dor=[a for a in rows if a['doral']]
-    s.cell(r,1).value='Jorge'
-    s.cell(r,2).value=f'{co} chargebacks and fees'
+for a in sorted(ADJ,key=lambda x:(carrier_order.index(x['carrier']),not x['doral'],x['name'])):
+    s.cell(r,1).value='Jorge' if a['doral'] else ''
+    s.cell(r,2).value=a['book_name'] or a['name']
+    s.cell(r,3).value=a['book_sheet']
     s.cell(r,4).value='Adjustment'
-    s.cell(r,6).value=co
-    s.cell(r,11).value=STMT.get(co,GS)
-    s.cell(r,12).value=len(dor)
-    s.cell(r,15).value=adj_carrier(co)
-    types=sorted({a['ttype'] for a in rows})
-    s.cell(r,17).value=(f"{len(dor)} of {len(rows)} rows matched to the Doral book ({', '.join(types)}). "
-                        f"All {len(rows)} are listed on the Book Activity tab; the rest belong to other offices "
-                        f"or cannot be attributed.")
+    s.cell(r,5).value=a['ttype']
+    s.cell(r,6).value=a['carrier']
+    s.cell(r,7).value=a['ref']
+    s.cell(r,8).value=a['date']
+    s.cell(r,11).value=STMT.get(a['carrier'],GS)
+    s.cell(r,12).value=1
+    s.cell(r,14).value=a['amt']
+    s.cell(r,15).value=(a['amt'] if a['doral'] else 0)
+    s.cell(r,17).value=(a['basis'] if a['doral']
+                        else 'NOT COUNTED - '+a['basis']+(f" (statement name: {a['name']})" if a['book_name'] else ''))
+    if not a['doral']:
+        for j in range(1,len(scols)+1): s.cell(r,j).fill=WARN
     r+=1
 aend=r-1
 s.cell(r,2).value='ADJUSTMENTS SUBTOTAL'
+s.cell(r,14).value=f'=SUM(N{astart}:N{aend})'
 s.cell(r,15).value=f'=SUM(O{astart}:O{aend})'
+s.cell(r,17).value=('Column N is every adjustment on the statements; column O is the part tied to a Doral client, '
+                    'which is what carries into the total below.')
 for j in range(1,len(scols)+1): s.cell(r,j).fill=SUB; s.cell(r,j).font=Font(name=FONT,bold=True)
 ADJ_SUB=r; r+=2
 
@@ -420,7 +437,8 @@ notes=[
  ('Relationship to the summary','The Commission Summary now carries this activity as its own section below the June binder rows, so the sheet foots to the real number. The June binder sheet total of $6,361.68 is still shown on its own line above it.'),
  ('',''),
  ('Statement adjustments and fees',''),
- ('What they are','Chargebacks and fees the carriers apply OUTSIDE the policy transaction listing, on separate sections of their statements. Three carriers have them this month: National General -$62.10 of loss-history and violation-history chargebacks, Kemper -$32.90 of UW report fees, and Pearl -$16.72 of MVR costs. Total -$111.72, of which -$43.42 is attributable to the Doral book.'),
+ ('What they are','Chargebacks, fees and adjustments the carriers apply OUTSIDE the policy transaction listing, on separate sections of their statements. Four carriers have them: National General -$62.10 of loss-history and violation-history chargebacks, Kemper -$32.90 of UW report fees, Pearl -$16.72 of MVR costs, and United its 3% promotional incentive. Of these, -$43.42 reaches the Doral totals.'),
+ ('United','United books its 3% promotional incentive as an Adjustment - its statement footer reads "Adjustment Commission : 37  Commission: $6.89-", and those 37 lines are exactly the incentive lines. The Doral share is +$252.85 on June binder policies and -$266.32 on wider-book policies, netting -$13.47. All of it is excluded because this book is carried at 10% as collected, so it shows on the adjustments block at $0 counted. Every line is itemised on the Transaction Detail and Book Activity tabs.'),
  ('Why they are matched differently','These sections carry no policy number - National General gives a quote number, Pearl abbreviates the name to a surname and initial, and Kemper names no insured at all. They are therefore matched by NAME, which is weaker than the policy-number matching used everywhere else in this workbook. Each row on the Book Activity tab shows how it was matched, and only the rows marked YES are counted.'),
  ('National General','8 quote numbers matched the Doral book, worth -$35.06. Violation-history rows share a quote number with a loss-history row, so where the quote is Doral every row on it is treated as Doral - that is how the two drivers on quote 242804983 are picked up.'),
  ('Kemper','The -$32.90 is an agency-level UW report fee with no insured named, so none of it can be attributed to the Doral book. It is listed for completeness and counted as $0.'),
@@ -434,7 +452,8 @@ notes=[
  ('Agency codes','The six statements are issued to different agency codes and letterheads (Universal Brokers LLC, Creative Insurance Agency, producer code 6883, Princeton code 9019644). Every Doral policy number nevertheless matched its carrier statement exactly, so the codes are alternate identities for the same book rather than a mismatch.'),
  ('',''),
  ('Reading the workbook',''),
- ('Commission Summary','Four blocks. New Business and Renewals are the June binder sheet, footing to $6,361.68. Below them, Other Doral Book Activity carries one row per wider-book policy with June statement activity (-$1,593.97), and Statement Adjustments & Fees carries one row per carrier (-$43.42). The bottom line, Total Doral June Commission, is $4,724.29.'),
+ ('Commission Summary','Four blocks. New Business and Renewals are the June binder sheet, footing to $6,361.68. Below them, Other Doral Book Activity carries one row per wider-book policy with June statement activity (-$1,593.97), and Statement Adjustments & Fees lists every one of the 26 chargebacks and fees individually (-$43.42 counted). The bottom line, Total Doral June Commission, is $4,724.29.'),
+ ('Adjustment rows','In that block only, column N holds the amount as it appears on the statement and column O holds the part tied to a Doral client. Rows that could not be tied to a Doral client are shaded and carry $0 in column O, so they are visible without inflating the total. All 26 rows total -$111.72; the Doral part is -$43.42.'),
  ('Transaction Detail','Every line from all seven statements. Column P flags whether the line belongs to a Doral binder-book client. Blue figures are taken straight from the carrier statement; black figures are calculated. Columns N and O are what actually feeds the Commission Summary - United incentive lines sit at zero there.'),
  ('Carrier Recap','Per-carrier totals, what share of each carrier statement the June binder book represents, and the other book activity added alongside it to give a total Doral commission per carrier.'),
  ('Book Activity by Carrier','A section per carrier listing the wider-book transactions described above, each with a subtotal, and a grand total at the foot.'),
@@ -539,8 +558,11 @@ for row in nt.iter_rows():
         if not c.font.bold: c.font=Font(name=FONT,size=10)
         c.alignment=Alignment(vertical='top',wrap_text=True)
 
-wb._sheets=[wb[t] for t in ['Commission Summary','Transaction Detail','Carrier Recap',
-                            'Book Activity by Carrier','Notes & Sources']]
-for ws in wb: ws.sheet_view.showGridLines=False
-wb.save('Doral_Binder_Book_June_2026_Commissions.xlsx')
-print("saved; detail rows:",n)
+if MERGE:
+    others=[ws for ws in wb._sheets if ws.title not in MINE]
+    wb._sheets=[wb[t] for t in MINE]+others
+else:
+    wb._sheets=[wb[t] for t in MINE]
+for t in MINE: wb[t].sheet_view.showGridLines=False     # never touch the host sheets
+wb.save(OUT)
+print(f"saved {OUT}; detail rows: {n}; host sheets carried through: {len(HOST)}")

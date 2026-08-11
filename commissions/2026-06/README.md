@@ -146,18 +146,30 @@ belong to the agency's other offices and are excluded from every Doral figure.
 Chargebacks and fees the carriers apply *outside* the policy transaction listing,
 on separate sections of their statements. Three carriers have them this month.
 
-| Carrier | On the statement | Doral-attributable |
+| Carrier | On the statement | Counted |
 |---|---:|---:|
 | National General — loss/violation history chargebacks | -$62.10 | -$35.06 |
 | Kemper — UW report fees | -$32.90 | $0.00 |
 | Pearl — MVR costs | -$16.72 | -$8.36 |
-| **Total** | **-$111.72** | **-$43.42** |
+| United — 3% promotional incentive | -$13.47 | $0.00 |
+| **Total** | **-$125.19** | **-$43.42** |
+
+United books its 3% incentive as an *Adjustment* — its statement footer reads
+"Adjustment Commission : 37  Commission: $6.89-", and those 37 lines are exactly
+the incentive lines. The Doral share is +$252.85 on June binder policies and
+-$266.32 on wider-book policies. All of it is excluded because the book is
+carried at 10% as collected, so it shows at $0 counted.
+
+All 28 rows are itemized individually in the Commission Summary, where column N
+is the amount on the statement and column O is the part that counts. Rows that
+don't count are shaded, so nothing is hidden.
 
 These sections carry no policy number — National General gives a quote number,
 Pearl abbreviates to surname and initial, Kemper names no insured at all — so
 they are matched by **name**, which is weaker than the policy-number matching
 used everywhere else. Every row is listed with how it was matched, and only rows
-marked YES are counted. Kemper's fee is agency-level and counted as $0.
+marked YES are counted. A row can be Doral business and still not count —
+United's 3% is excluded by instruction, and Kemper's fee is agency-level.
 
 ## Rebuilding
 
