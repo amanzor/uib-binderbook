@@ -4,14 +4,16 @@
 office binder book (producer Jorge, 06/01/2026–06/30/2026) against the carrier
 commission statements for the same month, using the commission rate each carrier
 prints on its own statement. All six carriers on the binder are now covered.
+United Auto is booked at **10% as collected**; its separate 3% promotional
+incentive is excluded.
 
 ## Result
 
 | | Policies | Commissionable premium | Commission |
 |---|---:|---:|---:|
-| New business | 18 | $27,628.89 | $3,115.24 |
-| Renewals | 45 | $34,604.14 | $3,499.29 |
-| **Total** | **63** | **$62,233.03** | **$6,614.53** |
+| New business | 18 | $27,628.89 | $2,878.32 |
+| Renewals | 45 | $34,604.14 | $3,483.36 |
+| **Total** | **63** | **$62,233.03** | **$6,361.68** |
 
 52 of the 63 binder policies were found on a carrier statement.
 
@@ -22,7 +24,8 @@ prints on its own statement. All six carriers on the binder are now covered.
 - **Transaction Detail** — all 384 transactions from the seven statements,
   flagged for whether they belong to a Doral binder client. Blue figures come
   straight from the carrier; column L re-performs each as basis × rate and column
-  M shows the difference.
+  M shows the difference. Columns N and O are what feeds the summary — United
+  incentive lines sit at zero there.
 - **Carrier Recap** — per-carrier totals and the Doral book's share of each
   statement.
 - **Notes & Sources** — method, tie-outs, and the exceptions below.
@@ -33,7 +36,7 @@ prints on its own statement. All six carriers on the binder are now covered.
 |---|---|---|---|---:|
 | Progressive | Detailed Statement 06/2026 (agent 24258) | 8–14%, varies by policy | Gross premium | $14,289.02 |
 | Infinity | Kemper Auto Monthly Producer Statement (agent 5517897) | 10% | Premium | $656.60 |
-| United Auto | United Insurance Group Direct Billing (agent 001-1D-100208) | 10% + 3% promotional incentive | Premium collected | $444.33 |
+| United Auto | United Insurance Group Direct Billing (agent 001-1D-100208) | 10% as collected | Premium collected | $444.33 |
 | Ocean Harbor | Pearl Holding Group (producer code 6883) | 11%, 13% on some | Premium, fee excluded | $326.21 |
 | National General | Commission Statement 06/2026 (Princeton code 9019644) | 10% | Written premium | $871.27 |
 | AmWins | Amwins Specialty Auto of Florida (agent 246500) | 10% | Net cash | $72.34 |
@@ -49,15 +52,21 @@ Matching is by policy number, not by name.
   $1,103.35 binder premium; the rest earns on later monthly statements. The four
   United new-business policies (Gustave, Cordero, Vazquez, Howard) are on full
   premium.
+- **The 3% promotional incentive is excluded.** United pays 10% plus a separate
+  3% incentive line on 8 of the 10 Doral policies. By instruction this workbook
+  books United at 10% only. Those lines are still carried on Transaction Detail
+  exactly as United prints them (column K, shaded), and column O zeroes them so
+  they never reach the summary. The excluded amount is **$252.85**.
 - **United's statement nets to $444.33** for the whole agency because
   cancellations on non-Doral policies charge back over $1,300. The Doral book
-  itself earned $1,155.38, so its share of that statement reads over 100%.
+  itself earned $902.53 at 10%, so its share of that statement reads over 100%.
 - **Binder Premium and Commissionable Premium are not meant to agree.** The
   binder figure is full term premium including MVR and policy fees; the
   commissionable figure is what the carrier actually paid on this month.
-- **United truncates its 3% incentive** to the cent instead of rounding. Two
-  Doral clients (Sandra Zambrana, Luis A. Ortiz) are each a penny under a
-  straight 3%. The carrier figure is the one carried into the totals.
+- **Every counted transaction re-performs exactly.** The only lines where the
+  carrier figure differs from basis × rate are seven United incentive lines,
+  where United truncates the 3% instead of rounding — and those are excluded, so
+  column M is $0.00 across everything that reaches the totals.
 
 ## Exceptions
 
@@ -84,7 +93,7 @@ Matching is by policy number, not by name.
   premiums agree with the binder sheet ($1,153 + $35 fee = $1,188 on the binder;
   $1,141 + $35 = $1,176).
 - Column M of Transaction Detail is $0.00 on all 384 transactions except the
-  seven United promotional-incentive lines described above.
+  seven excluded United promotional-incentive lines described above.
 - The seven statements are issued to different agency codes and letterheads
   (Universal Brokers LLC, Creative Insurance Agency, producer code 6883,
   Princeton code 9019644). Every Doral policy number still matched its carrier
