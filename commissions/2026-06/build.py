@@ -36,7 +36,8 @@ d=wb.active; d.title='Transaction Detail'
 dcols=['Match Key','Carrier','Commission Statement','Statement Policy #','Insured Name (per statement)',
        'Transaction Type','Transaction Date','Written / Gross Premium','Commissionable Basis',
        'Carrier Comm Rate','Commission per Statement','Check: Basis x Rate','Diff',
-       'Premium Counted Once','In Doral Binder Book?','Binder Customer Name']
+       'Premium Counted in Summary','Commission Counted in Summary',
+       'In Doral Binder Book?','Binder Customer Name']
 d.append(dcols)
 
 binder_keys={}
@@ -48,7 +49,7 @@ drows=[]
 def add(carrier,policy,name,ttype,tdate,written,basis,rate,comm):
     key=f"{carrier}|{norm(policy)}"
     drows.append([key,carrier,STMT[carrier],str(policy),name,ttype,tdate,written,basis,rate,comm,
-                  None,None,None,'YES' if key in binder_keys else 'No',binder_keys.get(key,'')])
+                  None,None,None,None,'YES' if key in binder_keys else 'No',binder_keys.get(key,'')])
 
 for p in C['prog']:
     add('Progressive',p['policy'],p['name'],p['tran'],p['tdate'],p['prem'],p['prem'],p['rate'],p['comm'])
@@ -72,30 +73,31 @@ GS='GEICO Commission Statement 06/2026'
 for g in G:
     key='GEICO|'+norm(g['policy'])
     drows.append([key,'GEICO',GS,g['policy'],g['name'],g['section']+' Commission',g['tdate'],
-                  g['prem'],g['prem'],g['rate'],g['comm'],None,None,None,'No',''])
+                  g['prem'],g['prem'],g['rate'],g['comm'],None,None,None,None,'No',''])
 
 order={'Progressive':0,'Infinity':1,'United Auto':2,'Ocean Harbor':3,'National General':4,'AmWins':5,'GEICO':6}
-drows.sort(key=lambda r:(order[r[1]], r[14]!='YES', r[3], r[6]))
+drows.sort(key=lambda r:(order[r[1]], r[15]!='YES', r[3], r[6]))
 for r in drows: d.append(r)
 n=len(drows)
 for i in range(2,n+2):
     d.cell(i,12).value=f'=ROUND(I{i}*J{i},2)'
     d.cell(i,13).value=f'=K{i}-L{i}'
     d.cell(i,14).value=f'=IF(F{i}="{PROMO}",0,I{i})'
+    d.cell(i,15).value=f'=IF(F{i}="{PROMO}",0,K{i})'
 tr=n+3
 d.cell(tr,1).value='STATEMENT TOTAL (all transactions, all six carriers + GEICO)'
-for col in (8,11,12,13,14):
+for col in (8,11,12,13,14,15):
     L=get_column_letter(col); d.cell(tr,col).value=f'=SUM({L}2:{L}{n+1})'
 d.cell(tr+1,1).value='Of which: Doral binder-book clients'
-for col in (8,11,12,13,14):
+for col in (8,11,12,13,14,15):
     L=get_column_letter(col)
-    d.cell(tr+1,col).value=f'=SUMIF($O$2:$O${n+1},"YES",{L}2:{L}{n+1})'
+    d.cell(tr+1,col).value=f'=SUMIF($P$2:$P${n+1},"YES",{L}2:{L}{n+1})'
 
 # ================= Commission Summary =================
 s=wb.create_sheet('Commission Summary',0)
 title=['Doral Office Binder Book - June 2026 Commission Statement',
        'Universal Insurance Brokers  |  Producer: Jorge  |  Statement period 06/01/2026 - 06/30/2026',
-       'Commission taken from each carrier commission statement at the rate that carrier shows. Matched by policy number.']
+       'Commission taken from each carrier commission statement at the rate that carrier shows, matched by policy number. United Auto is booked at 10% as collected.']
 for i,t in enumerate(title,1): s.cell(i,1).value=t
 scols=['Producer','Customer Name','Binder Status','New / Renewal','Line of Business','Carrier',
        'Policy Number','Eff. Date','Term (mo)','Binder Premium','Carrier Statement Used','# Txns',
@@ -120,11 +122,15 @@ for ptype,label in (('New','NEW BUSINESS'),('Renewal','RENEWALS')):
             else:
                 note=f'Policy not found on the June 2026 {co} statement - commission likely paid in a different statement period.'
             rate=None
-        elif len(base)==1 and not inc: rate=base[0]
-        elif len(base)==1 and len(inc)==1: rate=f'{pct(base[0])} + {pct(inc[0])}'
-        else: rate=' / '.join(pct(x) for x in sorted(set(base+inc),reverse=True))
-        if len(h)>1:
-            note='; '.join(f"{x[5]} {x[7]:,.2f} @ {pct(x[9])}" for x in h)
+        elif len(base)==1: rate=base[0]
+        else: rate=' / '.join(pct(x) for x in sorted(base,reverse=True))
+        if len([x for x in h if x[5]!=PROMO])>1:
+            note='; '.join(f"{x[5]} {x[7]:,.2f} @ {pct(x[9])}" for x in h if x[5]!=PROMO)
+        if inc:
+            p=sum(x[10] for x in h if x[5]==PROMO)
+            note=(f'Booked at 10% as collected. United also paid a separate 3% promotional incentive of '
+                  f'${p:,.2f} on this policy - it is shown on the Transaction Detail tab but is deliberately '
+                  f'EXCLUDED from this total. | ')+note
         if h and co=='United Auto' and all(x[5]=='Comm as Collected' for x in h if x[5]!=PROMO):
             note=('United bills this policy direct and pays AS COLLECTED, so June earns commission only on the '
                   'premium United collected in June - more follows in later months. | ')+note
@@ -137,7 +143,7 @@ for ptype,label in (('New','NEW BUSINESS'),('Renewal','RENEWALS')):
         s.cell(r,12).value=f"=COUNTIF('Transaction Detail'!$A$2:$A${n+1},$R{r})"
         s.cell(r,13).value=rate
         s.cell(r,14).value=f"=SUMIF('Transaction Detail'!$A$2:$A${n+1},$R{r},'Transaction Detail'!$N$2:$N${n+1})"
-        s.cell(r,15).value=f"=SUMIF('Transaction Detail'!$A$2:$A${n+1},$R{r},'Transaction Detail'!$K$2:$K${n+1})"
+        s.cell(r,15).value=f"=SUMIF('Transaction Detail'!$A$2:$A${n+1},$R{r},'Transaction Detail'!$O$2:$O${n+1})"
         s.cell(r,16).value=f'=IF(N{r}=0,"",O{r}/N{r})'
         s.cell(r,17).value=note; s.cell(r,18).value=b['_key']
         r+=1
@@ -165,7 +171,7 @@ rcols=['Carrier','Commission Statement','Rate the Carrier Shows','Binder Policie
 for j,c in enumerate(rcols,1): rc.cell(3,j).value=c
 carriers=['Progressive','Infinity','United Auto','Ocean Harbor','National General','AmWins']
 rateshow={'Progressive':'8% - 14%, varies by policy','Infinity':'10% flat',
-          'United Auto':'10% + 3% promotional incentive','Ocean Harbor':'11% (13% on some policies)',
+          'United Auto':'10% as collected (3% incentive excluded)','Ocean Harbor':'11% (13% on some policies)',
           'National General':'10% flat','AmWins':'10% of net cash'}
 stmtshow={c:STMT[c] for c in carriers}
 rr=4
@@ -178,11 +184,13 @@ for co in carriers:
     rc.cell(rr,7).value=f"=SUMIF('Commission Summary'!$F${HDR_ROW+1}:$F${SUM_LAST},$A{rr},'Commission Summary'!$O${HDR_ROW+1}:$O${SUM_LAST})"
     rc.cell(rr,8).value=f"=SUMIF('Transaction Detail'!$B$2:$B${n+1},$A{rr},'Transaction Detail'!$K$2:$K${n+1})"
     rc.cell(rr,9).value=f'=IF(H{rr}=0,"",G{rr}/H{rr})'
+
     rr+=1
 rc.cell(4+carriers.index('United Auto'),8).comment=Comment(
   'The United statement NETS to $444.33 for the whole agency because large cancellations on non-Doral '
-  'policies (Charlie Hoz, Gabriela Liriano, Mirloude Petit Frere) charge back more than $1,300. The Doral '
-  'book itself earned $1,155.38, so its share reads over 100% - that is correct, not an error.','Analysis')
+  'policies (Charlie Hoz, Gabriela Liriano, Mirloude Petit Frere) charge back more than $1,300. This column '
+  'also includes United\'s 3% promotional incentive, which the Doral totals deliberately exclude. Both are '
+  'why the Doral share of this statement reads over 100% - that is correct, not an error.','Analysis')
 rc.cell(rr,1).value='GEICO'; rc.cell(rr,2).value=GS; rc.cell(rr,3).value='10% / 12% / 15%'
 rc.cell(rr,4).value=0; rc.cell(rr,5).value=0; rc.cell(rr,6).value=0; rc.cell(rr,7).value=0
 rc.cell(rr,8).value=f"=SUMIF('Transaction Detail'!$B$2:$B${n+1},$A{rr},'Transaction Detail'!$K$2:$K${n+1})"
@@ -213,15 +221,16 @@ notes=[
  ('Rate used','The rate is taken from the carrier statement itself - it is never assumed. Column K of the Transaction Detail tab is the commission the carrier printed; column L re-performs it as basis x rate and column M shows any difference.'),
  ('Progressive basis','Gross premium on the Progressive detail line. Progressive shows a per-policy rate that varies: 8%, 9%, 10%, 12% and 14% all appear.'),
  ('Infinity basis','Premium column on the Kemper statement. Kemper shows a flat 0.10 (10%) on every FL line.'),
- ('United Auto basis','Transaction amount on the United statement. United pays 10% base plus a separate 3% PROMOTIONAL INCENTIVE line on most policies, so the all-in rate is 13% - the two lines are shown separately on the Transaction Detail tab exactly as United shows them. Two Doral policies (Diaz Salazar and Carbot) carry the 10% only, with no incentive line.'),
+ ('United Auto basis','Transaction amount on the United statement, booked at 10% AS COLLECTED.'),
+ ('United Auto 3% incentive','United also pays a separate 3% PROMOTIONAL INCENTIVE line on most policies. By instruction this workbook books United at 10% only, so those incentive lines are EXCLUDED from every Doral total. They are still carried on the Transaction Detail tab exactly as United shows them (column K, shaded), and column O zeroes them so they never reach the Commission Summary. The amount excluded for Doral clients is $252.85 - if you later decide to book it, that is what it would add.'),
  ('United Auto as collected','Most United policies are direct bill and pay COMM AS COLLECTED, meaning June commission is earned only on the premium United actually collected in June - not on the full term premium. That is why, for example, Luis A. Ortiz shows $163.60 commissionable against a $1,103.35 binder premium. The rest of that policy will earn commission on later monthly statements. The four United new-business policies (Gustave, Cordero, Vazquez, Howard) are shown on full premium.'),
- ('United Auto net','United\'s statement nets to $444.33 for the whole agency because cancellations on non-Doral policies charge back more than $1,300. The Doral book on its own earned $1,155.38, which is why its share of that statement reads over 100% on the Carrier Recap tab.'),
+ ('United Auto net','United\'s statement nets to $444.33 for the whole agency because cancellations on non-Doral policies charge back more than $1,300. The Doral book on its own earned $902.53 at 10%, which is why its share of that statement reads over 100% on the Carrier Recap tab.'),
  ('United Auto signs','United prints amounts owed TO the agency with a trailing minus and chargebacks as positives. Those signs are reversed in this workbook so that commission earned is positive and chargebacks are negative, which is why the sum here reads $444.33 rather than $444.33-.'),
  ('Ocean Harbor basis','Premium only. The $35.00 policy fee that Pearl lists separately is NOT commissionable - e.g. Javier Forero: $1,153.00 x 11% = $126.83, with the $35.00 fee excluded. The binder premium of $1,188.00 is premium plus fee, which is why it is higher than the commissionable premium.'),
  ('National General basis','Written premium on the Summary Details tab. National General shows a flat 10%.'),
  ('AmWins basis','NET CASH (gross cash less fees), not written premium. AmWins shows 10% and applies it to net cash - e.g. Angely Gejo: $164.67 net cash x 10% = $16.47.'),
  ('Binder vs commissionable','Binder Premium and Commissionable Premium are not meant to agree. The binder figure is the full term premium including MVR and policy fees; the commissionable figure is what the carrier actually paid on this month - net of fees, net of endorsements and cancellations, and for United only the premium collected in June.'),
- ('Multiple transactions','Where a policy has more than one line in the month, all lines are netted and the Notes column on the summary lists them. The promotional-incentive premium is deliberately not added again into Commissionable Premium (column N of the detail tab), so the premium is never double counted and the effective rate reads 13% rather than 6.5%.'),
+ ('Multiple transactions','Where a policy has more than one line in the month, all lines are netted and the Notes column on the summary lists them. United incentive lines repeat the same premium as their 10% line, so they are excluded from Commissionable Premium as well (column N of the detail tab) and the premium is never double counted.'),
  ('',''),
  ('Items with no June commission',''),
  ('Not on the June statement','6 Progressive renewals on the binder book do not appear anywhere in the June Progressive detail: Amarillys Gonzalez (970306264), Brudys Garcia (990100610), Yosvany Larralde (982064065), Ana G Castano (866496112), Manuel Martinez (990228513), Reysel Castillo (970570633). Verified by both policy number and name. Most likely the commission fell into the May or July statement period - worth following up with Progressive.'),
@@ -232,12 +241,12 @@ notes=[
  ('Binder premium tie-out','The Binder Premium column reproduces the binder sheet\'s own totals exactly: new business $29,109.40 ($28,891.00 base + $218.40 MVR/fees) and renewals $49,272.55, confirming all 63 rows were captured.'),
  ('Carrier tie-out','Each statement was re-added from its individual transaction lines and agreed to the total the carrier printed: Progressive $14,289.02, Kemper/Infinity $656.60, United Auto $444.33, Ocean Harbor $326.21, National General $871.27, AmWins $72.34, GEICO $2,267.79.'),
  ('Cross-check on Ocean Harbor','Pearl Holding\'s statement is a scanned image, so it was read by OCR. The reading is confirmed three ways: the six lines re-add to the printed Commission Due of $326.21, every line reproduces as premium x rate, and both Doral policy numbers and premiums agree with the binder sheet ($1,153 + $35 fee = the $1,188 on the binder; $1,141 + $35 = $1,176).'),
- ('Rate re-performance','Column M of the Transaction Detail tab is the difference between the carrier-printed commission and basis x rate. It is $0.00 on every one of the 384 transactions except seven United Auto promotional-incentive lines, where United truncates the 3% to the cent instead of rounding it. Two of those seven are Doral clients - Sandra Zambrana and Luis A. Ortiz - and each is understated by exactly one cent versus a straight 3% calculation. The carrier figure is the one carried into the totals.'),
+ ('Rate re-performance','Column M of the Transaction Detail tab is the difference between the carrier-printed commission and basis x rate. It is $0.00 on every one of the 384 transactions except seven United Auto promotional-incentive lines, where United truncates the 3% to the cent instead of rounding it. Because the incentive is excluded from the Doral totals, every transaction that does reach those totals re-performs exactly, to the cent.'),
  ('Agency codes','The six statements are issued to different agency codes and letterheads (Universal Brokers LLC, Creative Insurance Agency, producer code 6883, Princeton code 9019644). Every Doral policy number nevertheless matched its carrier statement exactly, so the codes are alternate identities for the same book rather than a mismatch.'),
  ('',''),
  ('Reading the workbook',''),
  ('Commission Summary','One row per binder-book policy, in binder order, split into New Business and Renewals with subtotals. Column O is the commission earned.'),
- ('Transaction Detail','Every line from all seven statements. Column O flags whether the line belongs to a Doral binder-book client. Blue figures are taken straight from the carrier statement; black figures are calculated.'),
+ ('Transaction Detail','Every line from all seven statements. Column P flags whether the line belongs to a Doral binder-book client. Blue figures are taken straight from the carrier statement; black figures are calculated. Columns N and O are what actually feeds the Commission Summary - United incentive lines sit at zero there.'),
  ('Carrier Recap','Per-carrier totals, and what share of each carrier statement the Doral book represents.'),
 ]
 nt.cell(1,1).value='Notes, Sources & Methodology'
@@ -277,26 +286,31 @@ s.column_dimensions['R'].hidden=True; s.cell(HDR_ROW,18).value='key'
 s.auto_filter.ref=f'A{HDR_ROW}:Q{SUM_LAST}'
 
 base_style(d)
-for j,w in enumerate([26,17,40,20,32,22,14,17,17,12,17,15,9,15,12,30],1):
+for j,w in enumerate([26,17,40,20,32,22,14,17,17,12,17,15,9,15,16,12,30],1):
     d.column_dimensions[get_column_letter(j)].width=w
-for j in range(1,17):
+for j in range(1,18):
     c=d.cell(1,j); c.fill=HDR; c.font=Font(name=FONT,size=10,bold=True,color='FFFFFF')
     c.alignment=Alignment(vertical='center',wrap_text=True,horizontal='center'); c.border=box
 d.freeze_panes=d.cell(2,3); d.row_dimensions[1].height=42
-d.auto_filter.ref=f'A1:P{n+1}'
+d.auto_filter.ref=f'A1:Q{n+1}'
 for i in range(2,n+2):
-    for j in (8,9,11,12,13,14): d.cell(i,j).number_format=MONEY
+    for j in (8,9,11,12,13,14,15): d.cell(i,j).number_format=MONEY
     d.cell(i,10).number_format=PCT
-    d.cell(i,15).alignment=Alignment(horizontal='center')
+    d.cell(i,16).alignment=Alignment(horizontal='center')
     for j in (8,9,10,11): d.cell(i,j).font=BLUE
-    if d.cell(i,15).value=='YES':
-        for j in range(1,17): d.cell(i,j).fill=GREEN
+    if d.cell(i,16).value=='YES':
+        for j in range(1,18): d.cell(i,j).fill=GREEN
+    if d.cell(i,6).value==PROMO:
+        for j in (6,15): d.cell(i,j).fill=WARN
 for rw in (tr,tr+1):
-    for j in range(1,17):
+    for j in range(1,18):
         d.cell(rw,j).fill=TOT; d.cell(rw,j).font=Font(name=FONT,size=10,bold=True)
-        if j in (8,11,12,13,14): d.cell(rw,j).number_format=MONEY
+        if j in (8,11,12,13,14,15): d.cell(rw,j).number_format=MONEY
 d.cell(1,11).comment=Comment('Blue figures are taken directly from the carrier commission statement. '
   'Column L re-performs them as basis x rate and column M shows the difference.','Analysis')
+d.cell(1,15).comment=Comment('United Auto is booked at 10% as collected. Its separate 3% promotional '
+  'incentive lines (shaded) are carried in column K exactly as United shows them, but are zeroed here so '
+  'they do not reach the Commission Summary.','Analysis')
 
 base_style(rc); rc.cell(1,1).font=Font(name=FONT,size=13,bold=True,color=NAVY)
 for j,w in enumerate([20,40,32,12,14,20,20,24,14],1): rc.column_dimensions[get_column_letter(j)].width=w
