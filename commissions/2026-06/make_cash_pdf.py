@@ -18,15 +18,15 @@ R2025=[('Jan 23, 2025','Pearl Holding',124.94),('Feb 4, 2025','Pearl Holding',98
        ('Apr 22, 2025','United',141.95),('May 16, 2025','United',75.15),
        ('Jun 2, 2025','Pearl Holding',49.60),('Jul 16, 2025','United',125.25),
        ('Aug 15, 2025','Amwins',133.98),('Aug 22, 2025','United',192.05),
-       ('Oct 9, 2025','United',416.65)]
+       ('Sep 19, 2025','United',83.50),('Oct 9, 2025','United',416.65),
+       ('Dec 30, 2025','National General',26.33)]
 R2026=[('Jan 7, 2026','Progressive',283.82),('Jan 7, 2026','Progressive',102.15),
        ('Jan 21, 2026','Progressive',40.80),('Feb 1, 2026','Progressive',101.15),
        ('Mar 5, 2026','National General',37.20),('Mar 9, 2026','Progressive',616.77),
        ('Mar 10, 2026','Progressive',102.15),('Mar 13, 2026','Kemper',167.53),
        ('Apr 2, 2026','Progressive',269.39),('Apr 2, 2026','Progressive',102.15),
        ('Apr 27, 2026','National General',337.00),('Apr 30, 2026','Progressive',269.33),
-       ('Apr 30, 2026','Progressive',101.15),('Sep 19, 2026','United',83.50),
-       ('Dec 30, 2026','National General',26.33)]
+       ('Apr 30, 2026','Progressive',101.15)]
 UNCOLLECTED=[
  ('Jun 9, 2026','National General','','',39.00,'No policy number supplied'),
  ('Jun 12, 2026','Progressive','979651509','Claudia Ruiz Lopez',270.33,''),
