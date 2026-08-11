@@ -171,6 +171,30 @@ used everywhere else. Every row is listed with how it was matched, and only rows
 marked YES are counted. A row can be Doral business and still not count —
 United's 3% is excluded by instruction, and Kemper's fee is agency-level.
 
+## PDF statements
+
+Two PDFs in the same format as the May 2026 pair, rebuilt for June:
+
+- `Monthly_Commission_Statement_Doral_June_2026.pdf` — one page. Commission
+  summary by carrier split New Business / Renewals & Adj., then deductions and
+  net, then payments and balance.
+- `Detailed_Commission_Statement_Doral_June_2026.pdf` — four pages. One row per
+  insured, grouped by carrier with carrier totals, Pos/Neg column, grand total.
+
+Both foot to $4,724.29 and every carrier total agrees with the workbook's
+Carrier Recap tab.
+
+The monthly statement leaves **license fees, advances paid and cash collected
+open** — those are office records that appear on no carrier statement, so they
+are marked "to be entered" rather than estimated. Balance Owed (Beginning) of
+$589.41 carries forward from the May statement. Agency split (15%) and MVR /
+carrier fees ($32.90 Kemper UW reports + $16.72 Pearl MVR) are computed.
+
+```
+python3 pdf_data.py          # -> pdf_data.json
+python3 make_pdfs.py         # -> both PDFs
+```
+
 ## Rebuilding
 
 Scripts expect the eight source files in the working directory. Pearl Holding
