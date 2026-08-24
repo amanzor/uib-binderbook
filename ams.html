@@ -1805,6 +1805,125 @@
         </div>
     </div>
 
+
+    <!-- ═══════════════════════════════════════════════════════════
+         MODAL: Renew A-B — rewrite the policy with a new carrier
+    ════════════════════════════════════════════════════════════ -->
+    <div class="ams-modal" id="amsRnwAbModal">
+        <div class="ams-modal-box" style="max-width:640px;">
+            <h3>🔀 Renew A-B — Rewrite with a New Carrier</h3>
+            <div id="amsRnwAbSubtitle" style="font-size:12.5px;color:var(--gray-500);margin:-12px 0 16px;"></div>
+            <div class="info-grid" style="gap:12px;">
+                <div class="info-field">
+                    <label>Current Carrier (A)</label>
+                    <input type="text" id="amsRnwAbFrom" disabled style="background:var(--gray-100);">
+                </div>
+                <div class="info-field">
+                    <label>New Carrier (B) <span style="color:var(--red)">*</span></label>
+                    <select id="amsRnwAbTo" onchange="amsRnwAbCarrierChange()"></select>
+                </div>
+                <div class="info-field" id="amsRnwAbToOtherWrap" style="display:none;">
+                    <label>New Carrier Name</label>
+                    <input type="text" id="amsRnwAbToOther" placeholder="Type the carrier name">
+                </div>
+                <div class="info-field">
+                    <label>MGA</label>
+                    <input type="text" id="amsRnwAbMga" placeholder="Optional">
+                </div>
+                <div class="info-field">
+                    <label>New Policy #</label>
+                    <input type="text" id="amsRnwAbPolicyNum" placeholder="Leave blank if not issued yet">
+                </div>
+                <div class="info-field">
+                    <label>New Premium</label>
+                    <input type="number" id="amsRnwAbPremium" step="0.01" min="0">
+                </div>
+                <div class="info-field">
+                    <label>Effective Date <span style="color:var(--red)">*</span></label>
+                    <input type="date" id="amsRnwAbEff" onchange="amsRnwAbSyncExp()">
+                </div>
+                <div class="info-field">
+                    <label>Term</label>
+                    <select id="amsRnwAbTerm" onchange="amsRnwAbSyncExp()">
+                        <option value="12">12 Months</option>
+                        <option value="6">6 Months</option>
+                    </select>
+                </div>
+                <div class="info-field">
+                    <label>Expiration Date</label>
+                    <input type="date" id="amsRnwAbExp" disabled style="background:var(--gray-100);">
+                </div>
+            </div>
+            <div class="info-field" style="margin-top:14px;">
+                <label>Memo (optional)</label>
+                <textarea id="amsRnwAbMemo" placeholder="Why the rewrite, quoted premium, what the insured was told…"></textarea>
+            </div>
+            <div style="margin-top:12px;font-size:12px;color:var(--gray-500);">
+                Files a <strong>Rewrite</strong> in the assigned agent's Binder Book for the new term and leaves a memo on the expiring policy.
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="amsRnwCloseAB()">Close</button>
+                <button class="btn-success" id="amsRnwAbSubmitBtn" onclick="amsRnwSubmitAB()">🔀 Send Rewrite</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         MODAL: Cancel a policy (with cancellation date)
+    ════════════════════════════════════════════════════════════ -->
+    <div class="ams-modal" id="amsRnwCancelModal">
+        <div class="ams-modal-box" style="max-width:560px;">
+            <h3>🚫 Cancel Policy</h3>
+            <div id="amsRnwCancelSubtitle" style="font-size:12.5px;color:var(--gray-500);margin:-12px 0 16px;"></div>
+            <div class="info-grid" style="gap:12px;">
+                <div class="info-field">
+                    <label>Cancellation Date <span style="color:var(--red)">*</span></label>
+                    <input type="date" id="amsRnwCancelDate">
+                </div>
+                <div class="info-field">
+                    <label>Reason <span style="color:var(--red)">*</span></label>
+                    <select id="amsRnwCancelReason" onchange="amsRnwCancelReasonChange()"></select>
+                </div>
+                <div class="info-field" id="amsRnwCancelOtherWrap" style="display:none;">
+                    <label>Other Reason</label>
+                    <input type="text" id="amsRnwCancelOther" placeholder="Describe the reason">
+                </div>
+            </div>
+            <div class="info-field" style="margin-top:14px;">
+                <label>Memo (optional)</label>
+                <textarea id="amsRnwCancelNote" placeholder="Notes about the cancellation — saved to the policy's memos."></textarea>
+            </div>
+            <div style="margin-top:12px;font-size:12px;color:var(--gray-500);">
+                A date of today or earlier removes the policy from the renewals list. A future date keeps it listed with a
+                <span style="background:#fee2e2;color:#b91c1c;border-radius:999px;padding:1px 7px;font-size:10.5px;font-weight:700;">Cancels …</span> badge until that day.
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="amsRnwCloseCancel()">Close</button>
+                <button class="btn-secondary" id="amsRnwCancelUndoBtn" onclick="amsRnwUndoCancel()" style="display:none;">↩ Undo Cancellation</button>
+                <button class="btn-danger" onclick="amsRnwConfirmCancel()" style="background:linear-gradient(135deg,#b91c1c,#dc2626);color:#fff;border:none;">🚫 Record Cancellation</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         MODAL: Policy memos
+    ════════════════════════════════════════════════════════════ -->
+    <div class="ams-modal" id="amsRnwMemoModal">
+        <div class="ams-modal-box" style="max-width:560px;">
+            <h3>📝 Memos</h3>
+            <div id="amsRnwMemoSubtitle" style="font-size:12.5px;color:var(--gray-500);margin:-12px 0 16px;"></div>
+            <div id="amsRnwMemoList" style="max-height:280px;overflow-y:auto;background:var(--gray-50, #f9fafb);border:1px solid var(--gray-200);border-radius:8px;padding:10px;margin-bottom:14px;"></div>
+            <div class="info-field">
+                <label>New Memo</label>
+                <textarea id="amsRnwMemoText" placeholder="Spoke with the insured, quoted renewal, left voicemail…"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="amsRnwCloseMemo()">Close</button>
+                <button class="btn-success" onclick="amsRnwSaveMemo()">💾 Add Memo</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ═══════════════════════════════════════════════════════════
          FILE PREVIEW MODAL (full-screen lightbox)
     ════════════════════════════════════════════════════════════ -->
@@ -3077,7 +3196,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             // All upcoming renewals (agent filter applied) — the base for both views
             const upcoming = binder.filter(p => {
                 if (!p.expirationDate || (p.policyType || '').toLowerCase() === 'cancellation') return false;
-                if ((p.policyStatus || '').toLowerCase() === 'cancelled') return false;
+                if (/^cancel/i.test(p.policyStatus || '')) return false; // Cancelled / Canceled
                 if (_amsRnwSelectedAgents.size && !_amsRnwSelectedAgents.has(p.agent)) return false;
                 return p.expirationDate >= todayStr;
             });
@@ -3132,16 +3251,30 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 const key      = amsClientKey(p.customerName || '');
                 const assignSel = isAdmin ? `
                         <select onchange="amsRnwAssignAgent(${idx}, this.value)" title="Assign this renewal to an agent"
-                            style="padding:5px 6px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;font-family:inherit;max-width:115px;margin-right:4px;">
+                            style="padding:5px 6px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;font-family:inherit;max-width:115px;">
                             <option value="">${p.agent ? 'Reassign…' : 'Assign…'}</option>
                             ${allAgents.map(a => `<option value="${_rptEsc(a)}" ${a === p.agent ? 'disabled' : ''}>${_rptEsc(a)}</option>`).join('')}
                         </select>` : '';
-                const renewBtn = isAdmin ? `
-                        <button class="btn-sm" onclick="amsRnwRenew(${idx}, this)" title="Send this renewal to the assigned agent's Binder Book"
-                        style="background:linear-gradient(135deg,#047857,#059669);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;">🔄 Renew</button>` : '';
+                const actBtn = (label, title, onclick, bg) => `
+                        <button class="btn-sm" onclick="${onclick}" title="${title}"
+                        style="background:${bg};color:#fff;border:none;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">${label}</button>`;
+                const renewBtn  = isAdmin ? actBtn('🔄 Renew', "Send this renewal to the assigned agent's Binder Book",
+                                        `amsRnwRenew(${idx}, this)`, 'linear-gradient(135deg,#047857,#059669)') : '';
+                const abBtn     = isAdmin ? actBtn('🔀 Renew A-B', 'Rewrite this policy with a different carrier (A → B)',
+                                        `amsRnwOpenAB(${idx})`, 'linear-gradient(135deg,#1d4ed8,#3b82f6)') : '';
+                const cancelBtn = isAdmin ? actBtn(p.cancellationDate ? '🚫 Cancellation ✎' : '🚫 Cancel',
+                                        p.cancellationDate ? `Cancellation set for ${p.cancellationDate} — edit or undo` : 'Cancel this policy and record the cancellation date',
+                                        `amsRnwOpenCancel(${idx})`, 'linear-gradient(135deg,#b91c1c,#dc2626)') : '';
+                const memoCount = _amsRnwMemos(p).length;
+                const memoBtn   = actBtn(memoCount ? `📝 Memos (${memoCount})` : '📝 Memo', 'Read and add memos on this policy',
+                                        `amsRnwOpenMemo(${idx})`, memoCount ? 'linear-gradient(135deg,#b45309,#d97706)' : 'linear-gradient(135deg,#475569,#64748b)');
+                const lastMemo  = memoCount ? _amsRnwMemos(p)[memoCount - 1] : null;
+                const memoLine  = lastMemo ? `<div style="margin-top:3px;font-size:11px;color:var(--gray-500);font-style:italic;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                        title="${_rptEsc(lastMemo.text).replace(/"/g, '&quot;')}">📝 ${_rptEsc(lastMemo.text)}</div>` : '';
+                const cancelTag = p.cancellationDate ? `<div style="margin-top:3px;"><span style="background:#fee2e2;color:#b91c1c;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;white-space:nowrap;">Cancels ${p.cancellationDate}</span></div>` : '';
                 return `<tr>
                     <td><button onclick="amsRnwOpenClient('${_rptEsc(key).replace(/'/g, "\\'")}')" title="Open this client"
-                        style="background:none;border:none;padding:0;color:var(--blue);font-weight:700;font-size:inherit;font-family:inherit;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px;">${_rptEsc(p.customerName || '—')}</button></td>
+                        style="background:none;border:none;padding:0;color:var(--blue);font-weight:700;font-size:inherit;font-family:inherit;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px;">${_rptEsc(p.customerName || '—')}</button>${cancelTag}${memoLine}</td>
                     <td>${_rptEsc(p.lineOfBusiness || '—')}</td>
                     <td>${_rptEsc(p.company || '—')}</td>
                     <td style="font-family:monospace;font-size:11px;">${_rptEsc(p.policyNumber || '—')}</td>
@@ -3149,7 +3282,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <td><strong>${p.expirationDate}</strong></td>
                     <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
                     <td>${_rptEsc(p.agent || '—')}</td>
-                    <td style="white-space:nowrap;">${assignSel}${renewBtn}</td>
+                    <td><div style="display:flex;flex-wrap:nowrap;gap:5px;align-items:center;">${assignSel}${renewBtn}${abBtn}${cancelBtn}${memoBtn}</div></td>
                 </tr>`;
             }).join('');
         }
@@ -3181,6 +3314,46 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             return !!_amsRnwFindRenewal(list, src, newEff);
         }
 
+        // Build the new-term entry that goes into the agent's Binder Book. Shared
+        // by Renew (same carrier) and Renew A-B (rewrite with a new carrier), so
+        // both file an identically shaped record.
+        function _amsRnwBuildEntry(src, opts) {
+            const term    = parseInt(opts.term) || 12;
+            const eff     = opts.effectiveDate;
+            const premium = opts.premium != null ? (parseFloat(opts.premium) || 0) : (parseFloat(src.totalPremium) || 0);
+            return {
+                id:                   Date.now(),
+                entryDate:            new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }),
+                agent:                src.agent,
+                customerName:         src.customerName || '',
+                policyType:           opts.policyType,
+                lineOfBusiness:       src.lineOfBusiness || '',
+                company:              opts.company != null ? opts.company : (src.company || ''),
+                mga:                  opts.mga     != null ? opts.mga     : (src.mga     || ''),
+                policyNumber:         opts.policyNumber != null ? opts.policyNumber : (src.policyNumber || ''),
+                binderNumber:         '',
+                down:                 0,
+                agencyFee:            0,
+                basePremium:          parseFloat(src.basePremium) || premium,
+                totalPremium:         premium,
+                agencyCommission:     Math.round((parseFloat(src.agencyCommission) || premium * 0.10) * 100) / 100,
+                agentCommissionShare: 0,
+                paymentType:          src.paymentType || '',
+                effDate:              eff,
+                term:                 String(term),
+                effectiveDate:        eff,
+                expirationDate:       _amsRnwAddMonths(eff, term),
+                policyStatus:         'Pending',
+                lineType:             src.lineType || 'personal',
+                drivers:              Array.isArray(src.drivers)  ? src.drivers  : [],
+                vehicles:             Array.isArray(src.vehicles) ? src.vehicles : [],
+                notes:                opts.notes || '',
+                renewalOfPolicy:      src.policyNumber || '',
+                renewalSourceId:      src.id,
+                updatedAt:            Date.now()
+            };
+        }
+
         async function amsRnwRenew(rowIdx, btnEl) {
             if (!amsIsRenewalAdmin()) return; // admins / agency admins only
             const src = _amsRnwRows[rowIdx];
@@ -3204,41 +3377,12 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 else alert(`Still could not reach the cloud — the renewal is saved on this device. Try again once the connection is back.`);
                 return;
             }
-            const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-            const term     = _amsRnwTermMonths(src.effectiveDate, newEff);
-            const newExp   = _amsRnwAddMonths(newEff, term);
-            const premium  = parseFloat(src.totalPremium) || 0;
-            const entry = {
-                id:                   Date.now(),
-                entryDate:            todayStr,
-                agent:                src.agent,
-                customerName:         src.customerName || '',
-                policyType:           'Renewal',
-                lineOfBusiness:       src.lineOfBusiness || '',
-                company:              src.company || '',
-                mga:                  src.mga || '',
-                policyNumber:         src.policyNumber || '',
-                binderNumber:         '',
-                down:                 0,
-                agencyFee:            0,
-                basePremium:          parseFloat(src.basePremium) || premium,
-                totalPremium:         premium,
-                agencyCommission:     Math.round((parseFloat(src.agencyCommission) || premium * 0.10) * 100) / 100,
-                agentCommissionShare: 0,
-                paymentType:          src.paymentType || '',
-                effDate:              newEff,
-                term:                 String(term),
-                effectiveDate:        newEff,
-                expirationDate:       newExp,
-                policyStatus:         'Pending',
-                lineType:             src.lineType || 'personal',
-                drivers:              Array.isArray(src.drivers)  ? src.drivers  : [],
-                vehicles:             Array.isArray(src.vehicles) ? src.vehicles : [],
-                notes:                'Renewal generated from the Renewals page — pending completion.',
-                renewalOfPolicy:      src.policyNumber || '',
-                renewalSourceId:      src.id,
-                updatedAt:            Date.now()
-            };
+            const entry = _amsRnwBuildEntry(src, {
+                policyType:    'Renewal',
+                effectiveDate: newEff,
+                term:          _amsRnwTermMonths(src.effectiveDate, newEff),
+                notes:         'Renewal generated from the Renewals page — pending completion.'
+            });
             // Save to the AMS's own store (Apps Script + localStorage) and re-render
             binder.push(entry);
             amsSave('binderData', binder);
@@ -3286,6 +3430,339 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 console.warn('Renewal Supabase push failed:', e);
                 return false;
             }
+        }
+
+        // ══════════════════════════════════════════════════════
+        //  RENEWALS — Memos, Cancellations, and A→B Rewrites
+        // ══════════════════════════════════════════════════════
+        const AMS_RNW_CANCEL_REASONS = ['Insured Request', 'Non-Payment', 'Replacement Coverage',
+            'Sold Vehicle / Property', 'Rewritten with Another Carrier', 'Carrier / Underwriting', 'Other'];
+
+        function _amsRnwToday() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
+        function _amsRnwWho()   { return amsCurrentUser || 'Admin'; }
+        function _amsRnwAttr(s) { return _rptEsc(s).replace(/"/g, '&quot;'); }
+
+        // Save an edited binder entry locally, then mirror it to the Supabase copy
+        // the agents' Binder Books read. Batch imports can stamp several entries
+        // with the same Date.now() id — an id-keyed cloud merge would then
+        // overwrite the wrong record, so skip the push when the id is not unique.
+        async function _amsRnwPersistEdit(entry) {
+            entry.updatedAt = Date.now();
+            amsSave('binderData', _amsRnwBinder);
+            if (_amsRnwBinder.filter(e => e && e.id === entry.id).length > 1) {
+                console.warn('Renewal cloud update skipped — duplicate local id', entry.id);
+                return false;
+            }
+            return await amsRnwPushToSupabase(entry);
+        }
+
+        // ── Memos ─────────────────────────────────────────────
+        // A memo is {at:ISO, by:'agent name', text:'…'} kept on the binder entry,
+        // so it travels with the policy into the agent's Binder Book.
+        let _amsRnwMemoEntry = null;
+
+        function _amsRnwMemos(p) { return Array.isArray(p.memos) ? p.memos : []; }
+
+        function amsRnwOpenMemo(rowIdx) {
+            const p = _amsRnwRows[rowIdx];
+            if (!p) return;
+            _amsRnwMemoEntry = p;
+            const sub = document.getElementById('amsRnwMemoSubtitle');
+            if (sub) sub.textContent = [p.customerName || '—', p.company || '—',
+                p.policyNumber || 'no policy #', `exp ${p.expirationDate || '—'}`].join(' · ');
+            const box = document.getElementById('amsRnwMemoText');
+            if (box) box.value = '';
+            amsRnwRenderMemoList();
+            document.getElementById('amsRnwMemoModal')?.classList.add('open');
+            setTimeout(() => box?.focus(), 50);
+        }
+
+        function amsRnwCloseMemo() {
+            document.getElementById('amsRnwMemoModal')?.classList.remove('open');
+            _amsRnwMemoEntry = null;
+        }
+
+        function amsRnwRenderMemoList() {
+            const list = document.getElementById('amsRnwMemoList');
+            const p    = _amsRnwMemoEntry;
+            if (!list || !p) return;
+            const memos = _amsRnwMemos(p);
+            if (!memos.length) {
+                list.innerHTML = `<div style="text-align:center;padding:18px;color:var(--gray-400);font-size:13px;font-style:italic;">No memos on this policy yet.</div>`;
+                return;
+            }
+            list.innerHTML = memos.map((m, i) => {
+                const when = m.at ? new Date(m.at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+                return `<div style="border:1px solid var(--gray-200);border-left:3px solid var(--blue);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:5px;">
+                        <span style="font-size:11.5px;font-weight:700;color:var(--navy);">${_rptEsc(m.by || 'Unknown')}</span>
+                        <span style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:11px;color:var(--gray-400);">${_rptEsc(when)}</span>
+                            <button onclick="amsRnwDeleteMemo(${i})" title="Delete this memo"
+                                style="background:none;border:none;color:var(--gray-400);cursor:pointer;font-size:13px;line-height:1;padding:0 2px;">✕</button>
+                        </span>
+                    </div>
+                    <div style="font-size:13px;color:var(--gray-700);white-space:pre-wrap;line-height:1.45;">${_rptEsc(m.text || '')}</div>
+                </div>`;
+            }).reverse().join('');
+        }
+
+        async function amsRnwSaveMemo() {
+            const p    = _amsRnwMemoEntry;
+            const box  = document.getElementById('amsRnwMemoText');
+            const text = (box?.value || '').trim();
+            if (!p) return;
+            if (!text) { alert('Type a memo first.'); box?.focus(); return; }
+            p.memos = [..._amsRnwMemos(p), { at: new Date().toISOString(), by: _amsRnwWho(), text }];
+            if (box) box.value = '';
+            const ok = await _amsRnwPersistEdit(p);
+            amsRenewalsRender();
+            amsRnwRenderMemoList();
+            amsFlashBanner(ok ? 'Memo saved ✓' : 'Memo saved on this device — cloud sync pending');
+        }
+
+        async function amsRnwDeleteMemo(i) {
+            const p = _amsRnwMemoEntry;
+            if (!p || !confirm('Delete this memo?')) return;
+            p.memos = _amsRnwMemos(p).filter((_, n) => n !== i);
+            await _amsRnwPersistEdit(p);
+            amsRenewalsRender();
+            amsRnwRenderMemoList();
+        }
+
+        // ── Cancel ────────────────────────────────────────────
+        // A cancellation dated today or earlier drops the policy off the
+        // renewals list; a future date leaves it listed with a pending badge so
+        // the agent can still work it (or undo) before the date arrives.
+        let _amsRnwCancelEntry = null;
+
+        function amsRnwOpenCancel(rowIdx) {
+            if (!amsIsRenewalAdmin()) return;
+            const p = _amsRnwRows[rowIdx];
+            if (!p) return;
+            _amsRnwCancelEntry = p;
+            const sub = document.getElementById('amsRnwCancelSubtitle');
+            if (sub) sub.textContent = [p.customerName || '—', p.company || '—',
+                p.policyNumber || 'no policy #', `exp ${p.expirationDate || '—'}`].join(' · ');
+            const dateEl = document.getElementById('amsRnwCancelDate');
+            if (dateEl) dateEl.value = p.cancellationDate || _amsRnwToday();
+            const reasonEl = document.getElementById('amsRnwCancelReason');
+            if (reasonEl) {
+                reasonEl.innerHTML = ['<option value="">— Select Reason —</option>']
+                    .concat(AMS_RNW_CANCEL_REASONS.map(r => `<option value="${_amsRnwAttr(r)}">${_rptEsc(r)}</option>`)).join('');
+                // A reason typed into "Other" comes back as free text — reselect
+                // Other so the typed value stays visible and editable.
+                reasonEl.value = !p.cancelReason ? ''
+                    : AMS_RNW_CANCEL_REASONS.includes(p.cancelReason) ? p.cancelReason : 'Other';
+            }
+            const otherEl = document.getElementById('amsRnwCancelOther');
+            if (otherEl) otherEl.value = (p.cancelReason && !AMS_RNW_CANCEL_REASONS.includes(p.cancelReason)) ? p.cancelReason : '';
+            amsRnwCancelReasonChange();
+            const noteEl = document.getElementById('amsRnwCancelNote');
+            if (noteEl) noteEl.value = '';
+            const undoBtn = document.getElementById('amsRnwCancelUndoBtn');
+            if (undoBtn) undoBtn.style.display = p.cancellationDate ? '' : 'none';
+            document.getElementById('amsRnwCancelModal')?.classList.add('open');
+        }
+
+        function amsRnwCloseCancel() {
+            document.getElementById('amsRnwCancelModal')?.classList.remove('open');
+            _amsRnwCancelEntry = null;
+        }
+
+        function amsRnwCancelReasonChange() {
+            const wrap = document.getElementById('amsRnwCancelOtherWrap');
+            if (wrap) wrap.style.display = document.getElementById('amsRnwCancelReason')?.value === 'Other' ? '' : 'none';
+        }
+
+        async function amsRnwConfirmCancel() {
+            if (!amsIsRenewalAdmin()) return;
+            const p = _amsRnwCancelEntry;
+            if (!p) return;
+            const date   = document.getElementById('amsRnwCancelDate')?.value || '';
+            const picked = document.getElementById('amsRnwCancelReason')?.value || '';
+            const other  = (document.getElementById('amsRnwCancelOther')?.value || '').trim();
+            const note   = (document.getElementById('amsRnwCancelNote')?.value || '').trim();
+            if (!date) { alert('Enter the cancellation date.'); return; }
+            if (!picked) { alert('Select a cancellation reason.'); return; }
+            if (picked === 'Other' && !other) { alert('Describe the "Other" cancellation reason.'); return; }
+            const reason  = picked === 'Other' ? other : picked;
+            const pending = date > _amsRnwToday();
+            if (!confirm(`${pending ? 'Schedule a cancellation' : 'Cancel this policy'} for ${p.customerName || 'this client'} effective ${date}?` +
+                (pending ? '\n\nIt stays on the renewals list until that date.' : '\n\nIt will be removed from the renewals list.'))) return;
+
+            p.cancellationDate = date;
+            p.cancelReason     = reason;
+            if (note) p.cancelNotes = note;
+            p.policyStatus     = pending ? 'Pending Cancellation' : 'Cancelled';
+            p.memos = [..._amsRnwMemos(p), {
+                at: new Date().toISOString(), by: _amsRnwWho(),
+                text: `${pending ? 'Cancellation scheduled' : 'Policy cancelled'} effective ${date} — ${reason}${note ? `. ${note}` : ''}`
+            }];
+            const ok = await _amsRnwPersistEdit(p);
+            amsRnwCloseCancel();
+            amsRenewalsRender();
+            if (ok) amsFlashBanner(pending ? `Cancellation scheduled for ${date} ✓` : `Policy cancelled ${date} ✓`);
+            else alert('Saved on this device, but the cloud sync FAILED — the agent\'s Binder Book still shows the policy as active. Check your connection and record it again.');
+        }
+
+        async function amsRnwUndoCancel() {
+            if (!amsIsRenewalAdmin()) return;
+            const p = _amsRnwCancelEntry;
+            if (!p || !confirm('Remove the cancellation from this policy and put it back on the renewals list?')) return;
+            const was = p.cancellationDate;
+            delete p.cancellationDate;
+            delete p.cancelReason;
+            delete p.cancelNotes;
+            p.policyStatus = 'Active';
+            p.memos = [..._amsRnwMemos(p), {
+                at: new Date().toISOString(), by: _amsRnwWho(),
+                text: `Cancellation${was ? ` dated ${was}` : ''} reversed — policy reinstated on the renewals list.`
+            }];
+            await _amsRnwPersistEdit(p);
+            amsRnwCloseCancel();
+            amsRenewalsRender();
+            amsFlashBanner('Cancellation reversed ✓');
+        }
+
+        // ── Renew A-B: rewrite the policy with a different carrier ──
+        // Same idea as Renew, but the new term goes out under carrier B and is
+        // filed in the agent's Binder Book as a Rewrite instead of a Renewal.
+        let _amsRnwAbEntry = null;
+
+        function _amsRnwCarrierList() {
+            const master = Object.keys(amsGetCarriers());
+            const used   = _amsRnwBinder.map(e => e && e.company).filter(Boolean);
+            return [...new Set([...master, ...used])].sort((a, b) => a.localeCompare(b));
+        }
+
+        // The rewrite already filed for this policy's new term, or null.
+        function _amsRnwFindRewrite(list, src, newEff) {
+            const norm = s => String(s || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+            const pol  = norm(src.policyNumber);
+            return list.find(e => (e.policyType || '').toLowerCase() === 'rewrite' &&
+                e.effectiveDate === newEff &&
+                (pol ? norm(e.renewalOfPolicy) === pol : (e.customerName || '') === (src.customerName || ''))) || null;
+        }
+
+        function amsRnwOpenAB(rowIdx) {
+            if (!amsIsRenewalAdmin()) return;
+            const src = _amsRnwRows[rowIdx];
+            if (!src) return;
+            if (!src.agent) {
+                alert('Assign this renewal to an agent first, then click Renew A-B — the rewrite is sent to that agent\'s Binder Book.');
+                return;
+            }
+            _amsRnwAbEntry = src;
+            const sub = document.getElementById('amsRnwAbSubtitle');
+            if (sub) sub.textContent = `${src.customerName || '—'} · ${src.policyNumber || 'no policy #'} · ${src.agent}`;
+            const fromEl = document.getElementById('amsRnwAbFrom');
+            if (fromEl) fromEl.value = src.company || '—';
+            const toEl = document.getElementById('amsRnwAbTo');
+            if (toEl) {
+                toEl.innerHTML = ['<option value="">— Select New Carrier —</option>']
+                    .concat(_amsRnwCarrierList().map(c => `<option value="${_amsRnwAttr(c)}">${_rptEsc(c)}</option>`))
+                    .concat(['<option value="__other">Other (type below)…</option>']).join('');
+                toEl.value = '';
+            }
+            const otherEl = document.getElementById('amsRnwAbToOther');
+            if (otherEl) otherEl.value = '';
+            amsRnwAbCarrierChange();
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+            set('amsRnwAbMga', src.mga || '');
+            set('amsRnwAbPolicyNum', '');
+            set('amsRnwAbPremium', parseFloat(src.totalPremium) || '');
+            set('amsRnwAbEff', src.expirationDate || _amsRnwToday());
+            set('amsRnwAbTerm', String(_amsRnwTermMonths(src.effectiveDate, src.expirationDate)));
+            set('amsRnwAbMemo', '');
+            amsRnwAbSyncExp();
+            document.getElementById('amsRnwAbModal')?.classList.add('open');
+        }
+
+        function amsRnwCloseAB() {
+            document.getElementById('amsRnwAbModal')?.classList.remove('open');
+            _amsRnwAbEntry = null;
+        }
+
+        function amsRnwAbCarrierChange() {
+            const wrap = document.getElementById('amsRnwAbToOtherWrap');
+            if (wrap) wrap.style.display = document.getElementById('amsRnwAbTo')?.value === '__other' ? '' : 'none';
+        }
+
+        function amsRnwAbSyncExp() {
+            const eff  = document.getElementById('amsRnwAbEff')?.value || '';
+            const term = parseInt(document.getElementById('amsRnwAbTerm')?.value || '12');
+            const exp  = document.getElementById('amsRnwAbExp');
+            if (exp) exp.value = eff ? _amsRnwAddMonths(eff, term) : '';
+        }
+
+        async function amsRnwSubmitAB() {
+            if (!amsIsRenewalAdmin()) return;
+            const src = _amsRnwAbEntry;
+            if (!src) return;
+            const picked  = document.getElementById('amsRnwAbTo')?.value || '';
+            const other   = (document.getElementById('amsRnwAbToOther')?.value || '').trim();
+            const carrier = picked === '__other' ? other : picked;
+            const eff     = document.getElementById('amsRnwAbEff')?.value || '';
+            const term    = parseInt(document.getElementById('amsRnwAbTerm')?.value || '12');
+            const premium = parseFloat(document.getElementById('amsRnwAbPremium')?.value) || 0;
+            const memo    = (document.getElementById('amsRnwAbMemo')?.value || '').trim();
+            const polNum  = (document.getElementById('amsRnwAbPolicyNum')?.value || '').trim();
+            const mga     = (document.getElementById('amsRnwAbMga')?.value || '').trim();
+            if (!carrier) { alert('Pick the new carrier (B) for this rewrite.'); return; }
+            if (!eff)     { alert('Enter the effective date of the new term.'); return; }
+            if (carrier.trim().toUpperCase() === (src.company || '').trim().toUpperCase() &&
+                !confirm('The new carrier is the same as the current one. File it as a rewrite anyway?')) return;
+
+            // Work on _amsRnwBinder throughout: the rendered rows are references
+            // into that array, so saving a separately parsed copy over it would
+            // drop the memo left on the expiring policy below.
+            const existing = _amsRnwFindRewrite(_amsRnwBinder, src, eff);
+            const btn      = document.getElementById('amsRnwAbSubmitBtn');
+            if (existing) {
+                if (!confirm(`A rewrite for ${src.customerName || 'this policy'} (term starting ${eff}) already exists locally.\n\nRe-send it to ${src.agent}'s Binder Book? (Use this if an earlier attempt failed to sync.)`)) return;
+                if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending…'; }
+                const resent = await amsRnwPushToSupabase(existing);
+                if (btn) { btn.disabled = false; btn.textContent = '🔀 Send Rewrite'; }
+                amsRnwCloseAB();
+                amsRenewalsRender();
+                if (resent) amsFlashBanner(`Rewrite re-sent to ${src.agent}'s Binder Book ✓`);
+                else alert('Still could not reach the cloud — the rewrite is saved on this device. Try again once the connection is back.');
+                return;
+            }
+
+            const entry = _amsRnwBuildEntry(src, {
+                policyType:   'Rewrite',
+                effectiveDate: eff,
+                term:          term,
+                company:       carrier,
+                mga:           mga,
+                policyNumber:  polNum,
+                premium:       premium,
+                notes:         `Rewrite generated from the Renewals page — ${src.company || 'prior carrier'} → ${carrier}. Pending completion.${memo ? ` ${memo}` : ''}`
+            });
+            entry.rewrittenFromCarrier = src.company || '';
+            if (memo) entry.memos = [{ at: new Date().toISOString(), by: _amsRnwWho(), text: memo }];
+
+            // Leave the trail on the expiring policy too, so the row shows why it
+            // is being rewritten instead of straight-renewed.
+            src.memos = [..._amsRnwMemos(src), {
+                at: new Date().toISOString(), by: _amsRnwWho(),
+                text: `Rewritten to ${carrier} effective ${eff}${memo ? ` — ${memo}` : ''}`
+            }];
+            src.updatedAt = Date.now();
+            _amsRnwBinder.push(entry);
+            amsSave('binderData', _amsRnwBinder);
+
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending…'; }
+            const ok = await amsRnwPushToSupabase(entry);
+            await _amsRnwPersistEdit(src); // mirror the memo onto the cloud copy
+            if (btn) { btn.disabled = false; btn.textContent = '🔀 Send Rewrite'; }
+
+            amsRnwCloseAB();
+            amsRenewalsRender();
+            if (ok) amsFlashBanner(`Rewrite (${src.company || '—'} → ${carrier}) sent to ${src.agent}'s Binder Book ✓`);
+            else alert(`Saved locally, but the cloud sync to ${src.agent}'s Binder Book FAILED — check your connection and send the rewrite again.`);
         }
 
         function amsRnwOpenClient(key) {
