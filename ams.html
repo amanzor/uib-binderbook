@@ -1413,8 +1413,10 @@
                                     </select>
                                 </div>
                                 <div class="info-field">
-                                    <label>CSR Name</label>
-                                    <input type="text" id="ci_csrName" placeholder="CSR who handles account">
+                                    <label>Agent On Record</label>
+                                    <select id="ci_csrName">
+                                        <option value="">— Select —</option>
+                                    </select>
                                 </div>
                                 <div class="info-field">
                                     <label>Dealer / Location</label>
@@ -3161,7 +3163,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         let _amsRnwRows   = [];
 
         function amsRnwAssignAgent(rowIdx, agent) {
-            if (!amsIsRenewalAdmin()) return; // admins / agency admins only — regular agents cannot reassign
+            // Changing who a record belongs to is the Admin login's alone — a
+            // stricter rule than the other renewal actions on purpose.
+            if (!amsIsAdminUser()) return;
             if (!agent) return;
             const p = _amsRnwRows[rowIdx];
             if (!p) return;
@@ -3241,7 +3245,8 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 return;
             }
 
-            const isAdmin = amsIsRenewalAdmin();
+            const isAdmin   = amsIsRenewalAdmin();
+            const canAssign = amsIsAdminUser();
             _amsRnwBinder = binder;
             _amsRnwRows   = rows;
             tbody.innerHTML = rows.map((p, idx) => {
@@ -3249,7 +3254,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 const tlColor  = daysLeft <= 14 ? '#dc2626' : daysLeft <= 30 ? '#ea580c' : '#059669';
                 const tlBg     = daysLeft <= 14 ? '#fee2e2' : daysLeft <= 30 ? '#ffedd5' : '#d1fae5';
                 const key      = amsClientKey(p.customerName || '');
-                const assignSel = isAdmin ? `
+                const assignSel = canAssign ? `
                         <select onchange="amsRnwAssignAgent(${idx}, this.value)" title="Assign this renewal to an agent"
                             style="padding:5px 6px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;font-family:inherit;max-width:115px;">
                             <option value="">${p.agent ? 'Reassign…' : 'Assign…'}</option>

@@ -237,26 +237,32 @@ async function amsSyncToDrive(key, value) {
     } catch (e) { /* Drive unavailable */ }
 }
 
+// The Admin login. Setting, clearing or changing the agent on a record, and
+// deleting a policy, are restricted to it — an agent signed in with their own
+// account can never reassign a record or delete one, whatever the UI shows.
+function amsIsAdminUser() { return amsCurrentRole === 'admin'; }
+
 // Lock or unlock an agent <select> based on current role.
 // Agents see their own name locked; only admin can change it.
 function amsLockAgentField(sel) {
     if (!sel) return;
-    if (amsCurrentRole !== 'admin') {
+    if (!amsIsAdminUser()) {
         sel.disabled = true;
         sel.title    = '🔒 Only Admin can change the assigned agent';
         sel.style.background   = '#f3f4f6';
         sel.style.cursor       = 'not-allowed';
         sel.style.borderColor  = '#d1d5db';
         sel.style.color        = '#6b7280';
-        // Add a lock label next to the field if not already there
-        const parent = sel.parentElement;
-        if (parent && !parent.querySelector('.ams-agent-lock-badge')) {
+        // Badge this field's own label — not a neighbour's, which is where
+        // previousElementSibling lands when the field sits in a grid.
+        const field = sel.closest('.info-field, .form-group') || sel.parentElement;
+        const label = field?.querySelector('label');
+        if (label && !label.querySelector('.ams-agent-lock-badge')) {
             const badge = document.createElement('span');
             badge.className = 'ams-agent-lock-badge';
             badge.textContent = '🔒 Admin only';
             badge.style.cssText = 'font-size:11px;color:#dc2626;font-weight:700;margin-left:8px;';
-            const label = parent.previousElementSibling || parent.querySelector('label');
-            if (label) label.appendChild(badge);
+            label.appendChild(badge);
         }
     } else {
         sel.disabled = false;
@@ -266,7 +272,7 @@ function amsLockAgentField(sel) {
         sel.style.borderColor = '';
         sel.style.color       = '';
         // Remove lock badge if present
-        sel.closest('.info-field, .form-group, div')
+        (sel.closest('.info-field, .form-group') || sel.parentElement)
             ?.querySelectorAll('.ams-agent-lock-badge')
             .forEach(b => b.remove());
     }
@@ -537,6 +543,7 @@ function amsLaunchApp() {
     amsInitDB().then(async () => {
         await amsSyncDataFromDrive();
         amsBuildClientIndex();
+        amsBackfillAgentOnRecord();
         amsPopulateAgentFilter();
         amsPopulateCarrierFilter();
         amsRenderClientList();
@@ -616,16 +623,69 @@ function amsPopulateModalDropdowns() {
         });
     }
 
-    // Contact: assigned agent — admin only
-    const ciAgent = document.getElementById('ci_assignedAgent');
-    if (ciAgent) {
-        ciAgent.innerHTML = '<option value="">— Select Agent —</option>';
-        const creds = amsGetCredentials();
-        Object.keys(creds).sort().forEach(a => {
-            const o = document.createElement('option'); o.value = a; o.textContent = a; ciAgent.appendChild(o);
+    // Contact: assigned agent + agent on record — both admin only
+    ['ci_assignedAgent', 'ci_csrName'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const current = sel.value;
+        sel.innerHTML = '<option value="">— Select Agent —</option>';
+        const names = new Set(Object.keys(amsGetCredentials()));
+        // Keep a name already on the record even if that login is gone, so
+        // opening a client never silently blanks its agent on record.
+        if (current) names.add(current);
+        [...names].sort().forEach(a => {
+            const o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o);
         });
-        amsLockAgentField(ciAgent);
+        sel.value = current;
+        amsLockAgentField(sel);
+    });
+}
+
+// ── Agent On Record ──────────────────────────────────────────
+// The field used to be a free-text "CSR Name". It now records which agent owns
+// the client, so seed it from the agent on their most recent policy (falling
+// back to the assigned agent). Any old CSR text is kept in csrNameLegacy rather
+// than thrown away. Runs once per browser; re-runs only fill in blanks.
+const AMS_AOR_BACKFILL_KEY = 'amsAgentOnRecordBackfill_v1';
+
+function amsClientCurrentAgent(client) {
+    const dated = (client?.policies || []).filter(p => p && p.agent);
+    if (dated.length) {
+        const newest = dated.slice().sort((a, b) =>
+            String(b.expirationDate || b.effectiveDate || b.entryDate || '')
+                .localeCompare(String(a.expirationDate || a.effectiveDate || a.entryDate || '')))[0];
+        if (newest?.agent) return newest.agent;
     }
+    return client?.contact?.assignedAgent || '';
+}
+
+function amsBackfillAgentOnRecord() {
+    const firstRun = !localStorage.getItem(AMS_AOR_BACKFILL_KEY);
+    const contacts = amsGetClientData();
+    let changed = 0;
+
+    Object.values(amsClientIndex).forEach(client => {
+        const agent = amsClientCurrentAgent(client);
+        if (!agent) return;
+        const rec = contacts[client.key] || (contacts[client.key] = {});
+        // First run replaces the old CSR text; later runs only fill blanks.
+        if (!firstRun && rec.csrName) return;
+        if (rec.csrName === agent) return;
+        if (firstRun && rec.csrName && rec.csrName !== agent && !rec.csrNameLegacy) {
+            rec.csrNameLegacy = rec.csrName;
+        }
+        rec.csrName   = agent;
+        rec.updatedAt = new Date().toISOString();
+        changed++;
+    });
+
+    if (changed) amsSave('amsClientData', contacts);
+    if (firstRun) localStorage.setItem(AMS_AOR_BACKFILL_KEY, new Date().toISOString());
+    if (changed) {
+        amsBuildClientIndex();
+        console.log(`Agent On Record set on ${changed} client${changed === 1 ? '' : 's'}.`);
+    }
+    return changed;
 }
 
 // ── Search & Filter ──────────────────────────────────────────
@@ -788,7 +848,17 @@ function amsLoadClientDetail(key) {
                     'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
     fields.forEach(f => {
         const el = document.getElementById(`ci_${f}`);
-        if (el) el.value = contact[f] || '';
+        if (!el) return;
+        const val = contact[f] || '';
+        // A name no longer in the agent list (a departed agent, or the old CSR
+        // text this field used to hold) would vanish from a <select>. Keep it as
+        // an option so opening a client never blanks what is on record.
+        if (el.tagName === 'SELECT' && val && ![...el.options].some(o => o.value === val)) {
+            const o = document.createElement('option');
+            o.value = val; o.textContent = val;
+            el.appendChild(o);
+        }
+        el.value = val;
     });
 
     amsRenderPolicies(key);
@@ -979,9 +1049,24 @@ function amsSaveContact() {
     const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
                     'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
                     'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
+    // Assigned agent is the Admin login's to set — an agent saving the contact
+    // tab keeps whatever it was, even if the locked field was tampered with.
+    const priorAgents = { assignedAgent: contacts[amsActiveKey].assignedAgent || '',
+                          csrName:       contacts[amsActiveKey].csrName       || '' };
     fields.forEach(f => {
         contacts[amsActiveKey][f] = document.getElementById(`ci_${f}`)?.value || '';
     });
+    if (!amsIsAdminUser()) {
+        let blocked = false;
+        Object.keys(priorAgents).forEach(f => {
+            if (contacts[amsActiveKey][f] === priorAgents[f]) return;
+            contacts[amsActiveKey][f] = priorAgents[f];
+            const el = document.getElementById(`ci_${f}`);
+            if (el) el.value = priorAgents[f];
+            blocked = true;
+        });
+        if (blocked) alert('Only an administrator can change the assigned agent or the agent on record. The rest of your changes were saved.');
+    }
     contacts[amsActiveKey].updatedAt = new Date().toISOString();
 
     amsSave('amsClientData', contacts);
@@ -1107,7 +1192,7 @@ function amsClosePolicyModal() {
 }
 
 function amsSavePolicyModal() {
-    const agent      = document.getElementById('mp_agent')?.value      || '';
+    let   agent      = document.getElementById('mp_agent')?.value      || '';
     const policyType = document.getElementById('mp_policyType')?.value || '';
     const lob        = document.getElementById('mp_lob')?.value        || '';
     const carrier    = document.getElementById('mp_carrier')?.value    || '';
@@ -1123,6 +1208,22 @@ function amsSavePolicyModal() {
 
     const editId = parseInt(document.getElementById('amsPolicyEditId')?.value) || null;
     let binder   = amsGetBinderData();
+
+    // Only the Admin login decides who a record belongs to. An agent editing a
+    // record keeps whatever agent it already had; a record they create is theirs.
+    if (!amsIsAdminUser()) {
+        const original = editId ? binder.find(p => p.id === editId) : null;
+        const forced   = original ? (original.agent || amsCurrentUser || '') : (amsCurrentUser || '');
+        if (agent !== forced) {
+            const sel = document.getElementById('mp_agent');
+            if (sel) sel.value = forced;
+            if (original && original.agent && agent) {
+                alert('Only an administrator can change the agent on a record. Saving it under ' + original.agent + '.');
+            }
+        }
+        agent = forced;
+        if (!agent) { alert('Your login has no agent name, so this record cannot be saved. Ask an administrator.'); return; }
+    }
 
     const v = id => document.getElementById(id)?.value || '';
     const n = id => parseFloat(document.getElementById(id)?.value) || 0;
@@ -1933,7 +2034,7 @@ function amsOpenPolicyActionMenu(event, policyId, clientKey, polIdx) {
         <i data-lucide="pencil" style="width:14px;height:14px;display:inline;margin-right:6px;"></i> Edit Policy
     </button>`;
     
-    menuHTML += `<button onclick="amsDeletePolicy(${policyId});document.getElementById('amsPolicyActionMenu').remove();" style="
+    if (amsIsAdminUser()) menuHTML += `<button onclick="amsDeletePolicy(${policyId});document.getElementById('amsPolicyActionMenu').remove();" style="
         width: 100%;
         padding: 8px 12px;
         border: none;
@@ -1984,6 +2085,7 @@ function amsChangePolicyStatus(policyId, newStatus) {
 
 // Delete policy
 function amsDeletePolicy(policyId) {
+    if (!amsIsAdminUser()) { alert('Only an administrator can delete a policy.'); return; }
     if (!confirm('Are you sure you want to delete this policy? This action cannot be undone.')) return;
     
     const binder = amsGetBinderData();
