@@ -3168,7 +3168,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             p.agent = agent;
             p.updatedAt = Date.now(); // stamp the edit so the Binder Book cloud merge keeps it
             amsSave('binderData', _amsRnwBinder);
-            amsRenewalsRender();
+            _amsRnwRefreshViews();
             amsFlashBanner(`Renewal assigned to ${agent} ✓`);
         }
 
@@ -3355,15 +3355,24 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         async function amsRnwRenew(rowIdx, btnEl) {
-            if (!amsIsRenewalAdmin()) return; // admins / agency admins only
             const src = _amsRnwRows[rowIdx];
+            if (src) await _amsRnwRenewEntry(src, _amsRnwBinder, btnEl);
+        }
+
+        // Renew core — shared by the Renewals table and a client's policy row.
+        // `binder` is the array holding src, so the new term is saved alongside it.
+        async function _amsRnwRenewEntry(src, binder, btnEl) {
+            if (!amsIsRenewalAdmin()) return; // admins / agency admins only
             if (!src) return;
             if (!src.agent) {
-                alert('Assign this renewal to an agent first, then click Renew — the record is sent to that agent\'s Binder Book.');
+                alert('Assign this policy to an agent first, then click Renew — the record is sent to that agent\'s Binder Book.');
+                return;
+            }
+            if (!src.expirationDate) {
+                alert('This policy has no expiration date, so there is no new term to renew into. Add one on the policy first.');
                 return;
             }
             const newEff = src.expirationDate;
-            const binder = amsGetBinderData();
             // Already renewed locally. That can mean the cloud push failed
             // earlier (offline / database down), leaving the renewal stranded on
             // this device — so offer to re-send it instead of refusing outright.
@@ -3372,7 +3381,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 if (!confirm(`A renewal for ${src.customerName || 'this policy'} (term starting ${newEff}) already exists locally.\n\nRe-send it to ${src.agent}'s Binder Book? (Use this if an earlier attempt failed to sync.)`)) return;
                 if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Sending…'; }
                 const resent = await amsRnwPushToSupabase(existing);
-                amsRenewalsRender();
+                _amsRnwRefreshViews();
                 if (resent) amsFlashBanner(`Renewal re-sent to ${src.agent}'s Binder Book ✓`);
                 else alert(`Still could not reach the cloud — the renewal is saved on this device. Try again once the connection is back.`);
                 return;
@@ -3381,7 +3390,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 policyType:    'Renewal',
                 effectiveDate: newEff,
                 term:          _amsRnwTermMonths(src.effectiveDate, newEff),
-                notes:         'Renewal generated from the Renewals page — pending completion.'
+                notes:         'Renewal generated from the AMS — pending completion.'
             });
             // Save to the AMS's own store (Apps Script + localStorage) and re-render
             binder.push(entry);
@@ -3393,7 +3402,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             // Supabase directly (merged) or the agent never sees it.
             const ok = await amsRnwPushToSupabase(entry);
 
-            amsRenewalsRender();
+            _amsRnwRefreshViews();
             if (ok) amsFlashBanner(`Renewal sent to ${src.agent}'s Binder Book ✓`);
             else alert(`Saved locally, but the cloud sync to ${src.agent}'s Binder Book FAILED — check your connection and click Renew again.`);
         }
@@ -3434,6 +3443,12 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
 
         // ══════════════════════════════════════════════════════
         //  RENEWALS — Memos, Cancellations, and A→B Rewrites
+        //  ------------------------------------------------------
+        //  Driven from two places: the Renewals table and a client's
+        //  policy row. Both hand in the binder entry itself plus the
+        //  array holding it, so an edit lands on the client's actual
+        //  record either way — no id lookup, which the duplicate ids
+        //  left by batch imports would resolve to the wrong policy.
         // ══════════════════════════════════════════════════════
         const AMS_RNW_CANCEL_REASONS = ['Insured Request', 'Non-Payment', 'Replacement Coverage',
             'Sold Vehicle / Property', 'Rewritten with Another Carrier', 'Carrier / Underwriting', 'Other'];
@@ -3441,32 +3456,62 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function _amsRnwToday() { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
         function _amsRnwWho()   { return amsCurrentUser || 'Admin'; }
         function _amsRnwAttr(s) { return _rptEsc(s).replace(/"/g, '&quot;'); }
+        function _amsRnwMemos(p) { return Array.isArray(p.memos) ? p.memos : []; }
 
-        // Save an edited binder entry locally, then mirror it to the Supabase copy
-        // the agents' Binder Books read. Batch imports can stamp several entries
-        // with the same Date.now() id — an id-keyed cloud merge would then
-        // overwrite the wrong record, so skip the push when the id is not unique.
-        async function _amsRnwPersistEdit(entry) {
+        // Where the policy being acted on lives: {entry, list}. `list` is the
+        // array that must be written back for the edit to persist.
+        let _amsRnwCtx = null;
+
+        // Called from a Renewals table row.
+        function _amsRnwCtxFromRow(rowIdx) {
+            const entry = _amsRnwRows[rowIdx];
+            return entry ? { entry, list: _amsRnwBinder } : null;
+        }
+        // Called from a client's policy row — the client index holds references
+        // into amsBinderCache, so that is the array to save.
+        function _amsRnwCtxFromClient(clientKey, polIdx) {
+            const entry = amsClientIndex[clientKey]?.policies?.[polIdx];
+            return entry ? { entry, list: amsBinderCache } : null;
+        }
+
+        // Save the edited entry locally, then mirror it to the Supabase copy the
+        // agents' Binder Books read. Batch imports can stamp several entries with
+        // the same Date.now() id — an id-keyed cloud merge would then overwrite
+        // the wrong record, so skip the push when the id is not unique.
+        //   'ok'       — saved and pushed straight to the Binder Book copy
+        //   'deferred' — saved; the direct push was skipped, so it rides along
+        //                with the next ☁️ Cloud Sync backup of the whole book
+        //   'failed'   — saved locally, but the cloud could not be reached
+        async function _amsRnwPersistEdit(entry, list) {
             entry.updatedAt = Date.now();
-            amsSave('binderData', _amsRnwBinder);
-            if (_amsRnwBinder.filter(e => e && e.id === entry.id).length > 1) {
-                console.warn('Renewal cloud update skipped — duplicate local id', entry.id);
-                return false;
+            const arr = list || _amsRnwCtx?.list || _amsRnwBinder;
+            amsSave('binderData', arr);
+            if (arr.filter(e => e && e.id === entry.id).length > 1) {
+                console.warn('Renewal cloud push skipped — duplicate local id', entry.id);
+                return 'deferred';
             }
-            return await amsRnwPushToSupabase(entry);
+            return (await amsRnwPushToSupabase(entry)) ? 'ok' : 'failed';
+        }
+
+        // Rebuild everything that reads binderData so an edit shows up on the
+        // client's record, the renewals list and the policy table at once.
+        function _amsRnwRefreshViews() {
+            if (typeof amsBuildClientIndex === 'function') amsBuildClientIndex();
+            if (typeof amsRenewalsRender  === 'function') amsRenewalsRender();
+            if (typeof amsRenderPolicies  === 'function' && amsActiveKey) amsRenderPolicies(amsActiveKey);
+            if (typeof amsRenderClientList === 'function') amsRenderClientList();
         }
 
         // ── Memos ─────────────────────────────────────────────
         // A memo is {at:ISO, by:'agent name', text:'…'} kept on the binder entry,
         // so it travels with the policy into the agent's Binder Book.
-        let _amsRnwMemoEntry = null;
+        function amsRnwOpenMemo(rowIdx)               { _amsRnwOpenMemoCtx(_amsRnwCtxFromRow(rowIdx)); }
+        function amsPolicyMemo(clientKey, polIdx)     { _amsRnwOpenMemoCtx(_amsRnwCtxFromClient(clientKey, polIdx)); }
 
-        function _amsRnwMemos(p) { return Array.isArray(p.memos) ? p.memos : []; }
-
-        function amsRnwOpenMemo(rowIdx) {
-            const p = _amsRnwRows[rowIdx];
-            if (!p) return;
-            _amsRnwMemoEntry = p;
+        function _amsRnwOpenMemoCtx(ctx) {
+            if (!ctx) return;
+            _amsRnwCtx = ctx;
+            const p = ctx.entry;
             const sub = document.getElementById('amsRnwMemoSubtitle');
             if (sub) sub.textContent = [p.customerName || '—', p.company || '—',
                 p.policyNumber || 'no policy #', `exp ${p.expirationDate || '—'}`].join(' · ');
@@ -3479,12 +3524,13 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
 
         function amsRnwCloseMemo() {
             document.getElementById('amsRnwMemoModal')?.classList.remove('open');
-            _amsRnwMemoEntry = null;
+            _amsRnwCtx = null;
+            _amsRnwRefreshViews();
         }
 
         function amsRnwRenderMemoList() {
             const list = document.getElementById('amsRnwMemoList');
-            const p    = _amsRnwMemoEntry;
+            const p    = _amsRnwCtx?.entry;
             if (!list || !p) return;
             const memos = _amsRnwMemos(p);
             if (!memos.length) {
@@ -3508,25 +3554,25 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         async function amsRnwSaveMemo() {
-            const p    = _amsRnwMemoEntry;
+            const p    = _amsRnwCtx?.entry;
             const box  = document.getElementById('amsRnwMemoText');
             const text = (box?.value || '').trim();
             if (!p) return;
             if (!text) { alert('Type a memo first.'); box?.focus(); return; }
             p.memos = [..._amsRnwMemos(p), { at: new Date().toISOString(), by: _amsRnwWho(), text }];
             if (box) box.value = '';
-            const ok = await _amsRnwPersistEdit(p);
-            amsRenewalsRender();
+            const res = await _amsRnwPersistEdit(p);
             amsRnwRenderMemoList();
-            amsFlashBanner(ok ? 'Memo saved ✓' : 'Memo saved on this device — cloud sync pending');
+            amsFlashBanner(res === 'ok' ? 'Memo saved ✓'
+                : res === 'deferred' ? 'Memo saved ✓ — syncs with the next cloud backup'
+                : 'Memo saved on this device — cloud sync pending');
         }
 
         async function amsRnwDeleteMemo(i) {
-            const p = _amsRnwMemoEntry;
+            const p = _amsRnwCtx?.entry;
             if (!p || !confirm('Delete this memo?')) return;
             p.memos = _amsRnwMemos(p).filter((_, n) => n !== i);
             await _amsRnwPersistEdit(p);
-            amsRenewalsRender();
             amsRnwRenderMemoList();
         }
 
@@ -3534,13 +3580,13 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // A cancellation dated today or earlier drops the policy off the
         // renewals list; a future date leaves it listed with a pending badge so
         // the agent can still work it (or undo) before the date arrives.
-        let _amsRnwCancelEntry = null;
+        function amsRnwOpenCancel(rowIdx)             { _amsRnwOpenCancelCtx(_amsRnwCtxFromRow(rowIdx)); }
+        function amsPolicyCancel(clientKey, polIdx)   { _amsRnwOpenCancelCtx(_amsRnwCtxFromClient(clientKey, polIdx)); }
 
-        function amsRnwOpenCancel(rowIdx) {
-            if (!amsIsRenewalAdmin()) return;
-            const p = _amsRnwRows[rowIdx];
-            if (!p) return;
-            _amsRnwCancelEntry = p;
+        function _amsRnwOpenCancelCtx(ctx) {
+            if (!amsIsRenewalAdmin() || !ctx) return;
+            _amsRnwCtx = ctx;
+            const p = ctx.entry;
             const sub = document.getElementById('amsRnwCancelSubtitle');
             if (sub) sub.textContent = [p.customerName || '—', p.company || '—',
                 p.policyNumber || 'no policy #', `exp ${p.expirationDate || '—'}`].join(' · ');
@@ -3567,7 +3613,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
 
         function amsRnwCloseCancel() {
             document.getElementById('amsRnwCancelModal')?.classList.remove('open');
-            _amsRnwCancelEntry = null;
+            _amsRnwCtx = null;
         }
 
         function amsRnwCancelReasonChange() {
@@ -3577,7 +3623,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
 
         async function amsRnwConfirmCancel() {
             if (!amsIsRenewalAdmin()) return;
-            const p = _amsRnwCancelEntry;
+            const p = _amsRnwCtx?.entry;
             if (!p) return;
             const date   = document.getElementById('amsRnwCancelDate')?.value || '';
             const picked = document.getElementById('amsRnwCancelReason')?.value || '';
@@ -3599,16 +3645,17 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 at: new Date().toISOString(), by: _amsRnwWho(),
                 text: `${pending ? 'Cancellation scheduled' : 'Policy cancelled'} effective ${date} — ${reason}${note ? `. ${note}` : ''}`
             }];
-            const ok = await _amsRnwPersistEdit(p);
+            const res = await _amsRnwPersistEdit(p);
             amsRnwCloseCancel();
-            amsRenewalsRender();
-            if (ok) amsFlashBanner(pending ? `Cancellation scheduled for ${date} ✓` : `Policy cancelled ${date} ✓`);
-            else alert('Saved on this device, but the cloud sync FAILED — the agent\'s Binder Book still shows the policy as active. Check your connection and record it again.');
+            _amsRnwRefreshViews();
+            if (res === 'failed') alert('Saved on this device, but the cloud sync FAILED — the agent\'s Binder Book still shows the policy as active. Check your connection and record it again.');
+            else amsFlashBanner((pending ? `Cancellation scheduled for ${date} ✓` : `Policy cancelled ${date} ✓`) +
+                (res === 'deferred' ? ' — syncs with the next cloud backup' : ''));
         }
 
         async function amsRnwUndoCancel() {
             if (!amsIsRenewalAdmin()) return;
-            const p = _amsRnwCancelEntry;
+            const p = _amsRnwCtx?.entry;
             if (!p || !confirm('Remove the cancellation from this policy and put it back on the renewals list?')) return;
             const was = p.cancellationDate;
             delete p.cancellationDate;
@@ -3621,18 +3668,19 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             }];
             await _amsRnwPersistEdit(p);
             amsRnwCloseCancel();
-            amsRenewalsRender();
+            _amsRnwRefreshViews();
             amsFlashBanner('Cancellation reversed ✓');
         }
 
         // ── Renew A-B: rewrite the policy with a different carrier ──
         // Same idea as Renew, but the new term goes out under carrier B and is
         // filed in the agent's Binder Book as a Rewrite instead of a Renewal.
-        let _amsRnwAbEntry = null;
+        function amsRnwOpenAB(rowIdx)                 { _amsRnwOpenAbCtx(_amsRnwCtxFromRow(rowIdx)); }
+        function amsPolicyRenewAB(clientKey, polIdx)  { _amsRnwOpenAbCtx(_amsRnwCtxFromClient(clientKey, polIdx)); }
 
         function _amsRnwCarrierList() {
             const master = Object.keys(amsGetCarriers());
-            const used   = _amsRnwBinder.map(e => e && e.company).filter(Boolean);
+            const used   = (_amsRnwCtx?.list || _amsRnwBinder || []).map(e => e && e.company).filter(Boolean);
             return [...new Set([...master, ...used])].sort((a, b) => a.localeCompare(b));
         }
 
@@ -3645,15 +3693,14 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 (pol ? norm(e.renewalOfPolicy) === pol : (e.customerName || '') === (src.customerName || ''))) || null;
         }
 
-        function amsRnwOpenAB(rowIdx) {
-            if (!amsIsRenewalAdmin()) return;
-            const src = _amsRnwRows[rowIdx];
-            if (!src) return;
+        function _amsRnwOpenAbCtx(ctx) {
+            if (!amsIsRenewalAdmin() || !ctx) return;
+            const src = ctx.entry;
             if (!src.agent) {
-                alert('Assign this renewal to an agent first, then click Renew A-B — the rewrite is sent to that agent\'s Binder Book.');
+                alert('Assign this policy to an agent first, then use Renew A-B — the rewrite is sent to that agent\'s Binder Book.');
                 return;
             }
-            _amsRnwAbEntry = src;
+            _amsRnwCtx = ctx;
             const sub = document.getElementById('amsRnwAbSubtitle');
             if (sub) sub.textContent = `${src.customerName || '—'} · ${src.policyNumber || 'no policy #'} · ${src.agent}`;
             const fromEl = document.getElementById('amsRnwAbFrom');
@@ -3681,7 +3728,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
 
         function amsRnwCloseAB() {
             document.getElementById('amsRnwAbModal')?.classList.remove('open');
-            _amsRnwAbEntry = null;
+            _amsRnwCtx = null;
         }
 
         function amsRnwAbCarrierChange() {
@@ -3698,8 +3745,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
 
         async function amsRnwSubmitAB() {
             if (!amsIsRenewalAdmin()) return;
-            const src = _amsRnwAbEntry;
-            if (!src) return;
+            const src  = _amsRnwCtx?.entry;
+            const list = _amsRnwCtx?.list;
+            if (!src || !list) return;
             const picked  = document.getElementById('amsRnwAbTo')?.value || '';
             const other   = (document.getElementById('amsRnwAbToOther')?.value || '').trim();
             const carrier = picked === '__other' ? other : picked;
@@ -3714,55 +3762,60 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             if (carrier.trim().toUpperCase() === (src.company || '').trim().toUpperCase() &&
                 !confirm('The new carrier is the same as the current one. File it as a rewrite anyway?')) return;
 
-            // Work on _amsRnwBinder throughout: the rendered rows are references
-            // into that array, so saving a separately parsed copy over it would
-            // drop the memo left on the expiring policy below.
-            const existing = _amsRnwFindRewrite(_amsRnwBinder, src, eff);
+            const existing = _amsRnwFindRewrite(list, src, eff);
             const btn      = document.getElementById('amsRnwAbSubmitBtn');
             if (existing) {
-                if (!confirm(`A rewrite for ${src.customerName || 'this policy'} (term starting ${eff}) already exists locally.\n\nRe-send it to ${src.agent}'s Binder Book? (Use this if an earlier attempt failed to sync.)`)) return;
+                if (!confirm(`A rewrite for ${src.customerName || 'this policy'} (term starting ${eff}) already exists.\n\nRe-send it to ${src.agent}'s Binder Book? (Use this if an earlier attempt failed to sync.)`)) return;
                 if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending…'; }
                 const resent = await amsRnwPushToSupabase(existing);
                 if (btn) { btn.disabled = false; btn.textContent = '🔀 Send Rewrite'; }
                 amsRnwCloseAB();
-                amsRenewalsRender();
+                _amsRnwRefreshViews();
                 if (resent) amsFlashBanner(`Rewrite re-sent to ${src.agent}'s Binder Book ✓`);
                 else alert('Still could not reach the cloud — the rewrite is saved on this device. Try again once the connection is back.');
                 return;
             }
 
             const entry = _amsRnwBuildEntry(src, {
-                policyType:   'Rewrite',
+                policyType:    'Rewrite',
                 effectiveDate: eff,
                 term:          term,
                 company:       carrier,
                 mga:           mga,
                 policyNumber:  polNum,
                 premium:       premium,
-                notes:         `Rewrite generated from the Renewals page — ${src.company || 'prior carrier'} → ${carrier}. Pending completion.${memo ? ` ${memo}` : ''}`
+                notes:         `Rewrite generated from the AMS — ${src.company || 'prior carrier'} → ${carrier}. Pending completion.${memo ? ` ${memo}` : ''}`
             });
             entry.rewrittenFromCarrier = src.company || '';
             if (memo) entry.memos = [{ at: new Date().toISOString(), by: _amsRnwWho(), text: memo }];
 
-            // Leave the trail on the expiring policy too, so the row shows why it
-            // is being rewritten instead of straight-renewed.
+            // Leave the trail on the expiring policy too, so its row shows why it
+            // is being rewritten instead of straight-renewed. Both the new entry
+            // and the memo go into the one array, saved once.
             src.memos = [..._amsRnwMemos(src), {
                 at: new Date().toISOString(), by: _amsRnwWho(),
                 text: `Rewritten to ${carrier} effective ${eff}${memo ? ` — ${memo}` : ''}`
             }];
             src.updatedAt = Date.now();
-            _amsRnwBinder.push(entry);
-            amsSave('binderData', _amsRnwBinder);
+            list.push(entry);
+            amsSave('binderData', list);
 
             if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending…'; }
             const ok = await amsRnwPushToSupabase(entry);
-            await _amsRnwPersistEdit(src); // mirror the memo onto the cloud copy
+            await _amsRnwPersistEdit(src, list); // mirror the memo onto the cloud copy
             if (btn) { btn.disabled = false; btn.textContent = '🔀 Send Rewrite'; }
 
             amsRnwCloseAB();
-            amsRenewalsRender();
+            _amsRnwRefreshViews();
             if (ok) amsFlashBanner(`Rewrite (${src.company || '—'} → ${carrier}) sent to ${src.agent}'s Binder Book ✓`);
             else alert(`Saved locally, but the cloud sync to ${src.agent}'s Binder Book FAILED — check your connection and send the rewrite again.`);
+        }
+
+        // ── Renew from a client's policy row ──────────────────
+        // Same action as the Renewals table's Renew button.
+        async function amsPolicyRenew(clientKey, polIdx, btnEl) {
+            const ctx = _amsRnwCtxFromClient(clientKey, polIdx);
+            if (ctx) await _amsRnwRenewEntry(ctx.entry, ctx.list, btnEl);
         }
 
         function amsRnwOpenClient(key) {

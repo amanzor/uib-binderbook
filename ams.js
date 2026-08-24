@@ -212,6 +212,10 @@ let amsCurrentUser   = null;
 let amsCurrentRole   = null;
 let amsClientIndex   = {};   // key → { key, displayName, policies[], contact{} }
 let amsActiveKey     = null; // currently selected client key
+// The binder array the client index was built from. The index holds references
+// into it, so an edit made from a client's policy row can be saved by writing
+// this array back — no id lookup, which batch-imported duplicate ids would break.
+let amsBinderCache   = [];
 let amsFilteredKeys  = [];   // keys after search/filter
 let _amsSearchTimer  = null;
 
@@ -277,6 +281,7 @@ function amsBuildClientIndex() {
     const binder   = amsGetBinderData();
     const contacts = amsGetClientData();
     const index    = {};
+    amsBinderCache = binder;
 
     // Correct any Infinity/Kemper entries mislabeled as Homeowners, then persist.
     if (amsNormalizeRestrictedCarrierLOBs(binder) > 0) {
@@ -803,7 +808,7 @@ function amsRenderPolicies(key) {
         return;
     }
 
-    tbody.innerHTML = policies.map(p => {
+    tbody.innerHTML = policies.map((p, polIdx) => {
         const dateStr = p.entryDate
             ? new Date(p.entryDate + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
             : '—';
@@ -813,6 +818,17 @@ function amsRenderPolicies(key) {
         const status = amsGetPolicyStatus(p);
         const statusColor = amsGetStatusColor(status);
         const statusBg = amsGetStatusBackground(status);
+
+        const memoCount = Array.isArray(p.memos) ? p.memos.length : 0;
+        const lastMemo  = memoCount ? p.memos[memoCount - 1] : null;
+        const memoChip  = memoCount
+            ? `<div style="margin-top:4px;"><span title="${amsEscAttr(lastMemo.text || '')}"
+                style="background:#fef3c7;color:#92400e;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;cursor:default;">📝 ${memoCount}</span></div>`
+            : '';
+        const cancelChip = p.cancellationDate
+            ? `<div style="margin-top:4px;"><span title="${amsEscAttr(p.cancelReason || 'Cancellation recorded')}"
+                style="background:#fee2e2;color:#b91c1c;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;white-space:nowrap;">Cancels ${amsEscHtml(p.cancellationDate)}</span></div>`
+            : '';
 
         const txnHistory = p.transactionHistory || [];
         const hasCarrierData = txnHistory.length > 0 || p.al3SourceFile || p.al3TxnCode;
@@ -895,6 +911,7 @@ function amsRenderPolicies(key) {
                 <span class="policy-status" style="background:${statusBg};color:${statusColor};padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;display:inline-block;">
                     ${amsEscHtml(p.policyStatus || status)}
                 </span>
+                ${cancelChip}${memoChip}
             </td>
             <td style="white-space:nowrap;" onclick="event.stopPropagation()">
                 <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
@@ -903,8 +920,9 @@ function amsRenderPolicies(key) {
                         ? `<button class="btn-secondary btn-sm" onclick="amsEditPolicy(${p.id})" title="Edit policy">
                                <i data-lucide="pencil"></i>
                            </button>
-                           <button class="btn-secondary btn-sm" onclick="amsOpenPolicyActionMenu(event, ${p.id})" title="More actions">
-                               <i data-lucide="more-vertical"></i>
+                           <button class="btn-sm" onclick="amsOpenPolicyActionMenu(event, ${p.id}, '${amsEscJsAttr(key)}', ${polIdx})" title="Renew, rewrite, cancel, memo, status"
+                               style="background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                               ⚙ Actions ▾
                            </button>`
                         : '<span style="font-size:11px;color:var(--gray-300);">—</span>'}
                 </div>
@@ -1176,6 +1194,16 @@ function amsEscHtml(str) {
     return (str || '').toString()
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Safe inside a double-quoted HTML attribute (title="…").
+function amsEscAttr(str) { return amsEscHtml(str); }
+
+// Safe as a single-quoted JS string inside an HTML attribute
+// (onclick="fn('…')") — the backslash survives HTML decoding, so a name like
+// O'BRIEN does not terminate the string early.
+function amsEscJsAttr(str) {
+    return amsEscHtml(String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 }
 
 function amsFlashBanner(msg) {
@@ -1795,15 +1823,18 @@ function amsGetStatusBackground(status) {
 }
 
 // Open policy action menu
-function amsOpenPolicyActionMenu(event, policyId) {
+function amsOpenPolicyActionMenu(event, policyId, clientKey, polIdx) {
     event.stopPropagation();
     
     // Close any open menu
     const existing = document.getElementById('amsPolicyActionMenu');
     if (existing) existing.remove();
     
-    const binder = amsGetBinderData();
-    const policy = binder.find(p => p.id === policyId);
+    // Prefer the client index entry: it is the exact row that was clicked, while
+    // an id lookup picks the first match and batch imports can leave duplicates.
+    const policy = (clientKey != null && polIdx != null)
+        ? amsClientIndex[clientKey]?.policies?.[polIdx]
+        : amsGetBinderData().find(p => p.id === policyId);
     if (!policy) return;
     
     const currentStatus = amsGetPolicyStatus(policy);
@@ -1831,7 +1862,33 @@ function amsOpenPolicyActionMenu(event, policyId) {
     const statusOptions = ['Active', 'Pending Cancellation', 'Expired', 'Canceled'];
     
     let menuHTML = `<div style="padding:8px 0;">`;
-    
+
+    // ── Renewal actions — the same ones on the Renewals page, acting on this
+    //    client's policy. Renew / rewrite / cancel stay admin-only; memos are
+    //    open to the assigned agent as well.
+    if (clientKey != null && polIdx != null) {
+        const keyArg   = `'${amsEscJsAttr(clientKey)}', ${polIdx}`;
+        const isRnwAdm = typeof amsIsRenewalAdmin === 'function' && amsIsRenewalAdmin();
+        const memoCount = Array.isArray(policy.memos) ? policy.memos.length : 0;
+        const item = (label, onclick, color) => `
+            <button onclick="document.getElementById('amsPolicyActionMenu')?.remove();${onclick}" style="
+                width:100%;padding:8px 12px;border:none;background:transparent;color:${color || 'var(--navy)'};
+                text-align:left;cursor:pointer;font-size:13px;transition:background .15s;"
+                onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='transparent'">
+                ${label}
+            </button>`;
+
+        menuHTML += `<div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Renewal Actions</div>`;
+        if (isRnwAdm) {
+            menuHTML += item('🔄 Renew', `amsPolicyRenew(${keyArg});`);
+            menuHTML += item('🔀 Renew A-B (rewrite)', `amsPolicyRenewAB(${keyArg});`);
+            menuHTML += item(policy.cancellationDate ? '🚫 Edit cancellation' : '🚫 Cancel policy',
+                             `amsPolicyCancel(${keyArg});`, 'var(--red)');
+        }
+        menuHTML += item(memoCount ? `📝 Memos (${memoCount})` : '📝 Memo', `amsPolicyMemo(${keyArg});`);
+        menuHTML += `<div style="border-top:1px solid var(--gray-200);margin:4px 0;"></div>`;
+    }
+
     menuHTML += `<div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Change Status</div>`;
     
     statusOptions.forEach(status => {
