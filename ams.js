@@ -1750,6 +1750,9 @@ function amsCollectProperty() {
 // ── Policy Status Management ─────────────────────────────────
 // Determine policy status based on dates and explicit status field
 function amsGetPolicyStatus(policy) {
+    // The Renewals page writes 'Cancelled' (the spelling the Binder Book filters
+    // on) — fold both spellings into the one this app displays.
+    if (/^cancell?ed$/i.test(policy.policyStatus || '')) return 'Canceled';
     // If explicit status is set, use it
     if (policy.policyStatus && ['Active', 'Pending Cancellation', 'Expired', 'Canceled'].includes(policy.policyStatus)) {
         return policy.policyStatus;
