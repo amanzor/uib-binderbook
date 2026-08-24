@@ -1,5 +1,5 @@
 {
- "version": "2026-06-doral-1",
+ "version": "2026-06-doral-2",
  "source": "Doral Office — June 2026 monthly & detailed commission statements, cash receipts statement",
  "office": "Doral",
  "month": "June 2026",
@@ -73,8 +73,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 141.0,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "JULIO RAMIREZ",
@@ -90,8 +91,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 197.86,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "JAMIE JONES",
@@ -107,8 +109,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 431.9,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "YUDMILA CADENAS",
@@ -124,8 +127,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 107.1,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "YOANNY ALONSO M.",
@@ -141,8 +145,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 156.8,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "ANTHONY PATTERSON",
@@ -158,8 +163,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 167.4,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "CHRISTINA COSME",
@@ -175,8 +181,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 212.4,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "CARLOS TABOADA",
@@ -209,8 +216,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 199.4,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "AMARILLYS GONZALEZ",
@@ -1025,8 +1033,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 16.36,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "JEAN H. GUSTAVE",
@@ -1042,8 +1051,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 279.7,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "YADIER CORDERO G.",
@@ -1059,8 +1069,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 248.5,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "STEPHANIE VAZQUEZ",
@@ -1093,8 +1104,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 137.3,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "SANDRA ZAMBRANA",
@@ -1365,8 +1377,9 @@
    "policyNumber": "10033036901",
    "rate": 0,
    "commission": 0.0,
-   "agentMatch": "Amanda Montano",
-   "matchedBy": "binder-name"
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "binder-name",
+   "priorAgentMatch": "Amanda Montano"
   },
   {
    "clientName": "EMMANUEL AGUDELO",
@@ -1382,8 +1395,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 0.0,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "DARRELL JEROME HARTFIELD II",
@@ -1518,8 +1532,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 11.1,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "RAMON S. TORRES",
@@ -1535,8 +1550,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 3.7,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "BARBARA J HAUGHTON R.",
@@ -1671,8 +1687,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 93.4,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "TAURUS L. PRESSLEY",
@@ -1688,8 +1705,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 81.0,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "FELIPE GONZALEZ",
@@ -1705,8 +1723,9 @@
    "policyNumber": "",
    "rate": 0,
    "commission": 145.0,
-   "agentMatch": null,
-   "matchedBy": null
+   "agentMatch": "Jorge Castro",
+   "matchedBy": "statement-owner",
+   "priorAgentMatch": null
   },
   {
    "clientName": "LEVY DIAZ TORRES (no business name yet)",
@@ -2497,5 +2516,297 @@
   "totalUncollected": 4313.81,
   "netPosition": 288.44,
   "notes": "Uncollected items were supplied by the office. Five of the eight fall in July 2026 and one on June 9, so they sit outside the June commission period and do not change the June statement — its Cash Payments Owed line of $589.00 is a separate figure."
- }
+ },
+ "agentOfRecord": "Jorge Castro",
+ "agentNote": "The June 2026 Doral statements are Jorge Castro’s corrected commissions, so every line on them is his: the lines the Binder Book had under another agent were moved, and the lines it could not match at all were assigned rather than left unassigned.",
+ "amsClients": [
+  {
+   "name": "GREGORIO QUIROZ",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Progressive",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 141.0,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "JULIO RAMIREZ",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Progressive",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 197.86,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "JAMIE JONES",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Progressive",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 431.9,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "YUDMILA CADENAS",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Progressive",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 107.1,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "YOANNY ALONSO M.",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Progressive",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 156.8,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "ANTHONY PATTERSON",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Progressive",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 167.4,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "CHRISTINA COSME",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Progressive",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 212.4,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "BRIANNA IRISH",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Progressive",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 199.4,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "LUIS A. ORTIZ",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "United Auto",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 16.36,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "JEAN H. GUSTAVE",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "United Auto",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 279.7,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "YADIER CORDERO G.",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "United Auto",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 248.5,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "MICHAEL D. HOWARD",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "United Auto",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 137.3,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "EMMANUEL AGUDELO",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "United Auto",
+    "transaction": "Renewal",
+    "statementMonth": "June 2026",
+    "commission": 0.0,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "GABRIELA LIRIANO",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "United Auto",
+    "transaction": "Renewal",
+    "statementMonth": "June 2026",
+    "commission": 11.1,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "RAMON S. TORRES",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "United Auto",
+    "transaction": "Renewal",
+    "statementMonth": "June 2026",
+    "commission": 3.7,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "LIONEL JOHNSON",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Infinity",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 93.4,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "TAURUS L. PRESSLEY",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Infinity",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 81.0,
+    "policyNumber": "",
+    "premium": null
+   }
+  },
+  {
+   "name": "FELIPE GONZALEZ",
+   "assignedAgent": "Jorge Castro",
+   "clientStatus": "Active",
+   "clientSince": "2026-06-01",
+   "dealerLocation": "Doral",
+   "referral": "June 2026 commission statement",
+   "policy": {
+    "carrier": "Infinity",
+    "transaction": "New",
+    "statementMonth": "June 2026",
+    "commission": 145.0,
+    "policyNumber": "",
+    "premium": null
+   }
+  }
+ ]
 }

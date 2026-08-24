@@ -7341,6 +7341,62 @@ function renderCSCashReceipts() {
 // partial June uploads in place would double-count them.
 // ============================================================
 
+// AMS client records for insureds a statement names but the Binder Book has
+// never seen. Existing values are never overwritten — only blanks are filled —
+// so re-running the import can't clobber contact details entered by hand.
+function csUpsertAmsClients(clients) {
+    if (!Array.isArray(clients) || !clients.length) return { created: 0, updated: 0 };
+
+    let contacts;
+    try { contacts = JSON.parse(localStorage.getItem('amsClientData')) || {}; }
+    catch (e) { contacts = {}; }
+
+    let created = 0, updated = 0;
+    clients.forEach(c => {
+        const name = (c.name || '').trim();
+        const key  = name.toUpperCase().replace(/\s+/g, ' ');   // amsClientKey()
+        if (!key) return;
+
+        if (!contacts[key]) { contacts[key] = {}; created++; } else { updated++; }
+        const rec = contacts[key];
+
+        // Individuals only — a business name has no first/last to split.
+        if (!rec.firstName && !rec.lastName && !/\b(llc|inc|corp|dba|co\.?)\b/i.test(name)) {
+            const parts = name.split(/\s+/);
+            if (parts.length >= 2) { rec.firstName = parts.slice(0, -1).join(' '); rec.lastName = parts[parts.length - 1]; }
+            else rec.firstName = name;
+        }
+        ['assignedAgent', 'clientStatus', 'clientSince', 'dealerLocation', 'referral'].forEach(f => {
+            if (c[f] && !rec[f]) rec[f] = c[f];
+        });
+
+        // What the carrier statement actually says about the policy, plus what
+        // it does not say — so whoever completes the record knows what to chase.
+        const p = c.policy || {};
+        if (p.carrier) {
+            const noteText =
+                `Added from the ${p.statementMonth || ''} commission statement — ${p.carrier}` +
+                (p.transaction ? `, ${p.transaction}` : '') +
+                (p.commission != null ? `, commission ${_csFmt$(p.commission)}` : '') +
+                `. Policy number, premium and effective dates are not on the carrier statement and still need to be entered.`;
+            rec.notes = Array.isArray(rec.notes) ? rec.notes
+                      : (rec.notes ? [{ text: String(rec.notes), author: 'Import', date: '' }] : []);
+            if (!rec.notes.some(n => (n.text || '') === noteText)) {
+                rec.notes.push({
+                    text:   noteText,
+                    author: 'Commission Statement Import',
+                    date:   new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                });
+            }
+        }
+        rec.updatedAt = new Date().toISOString();
+    });
+
+    localStorage.setItem('amsClientData', JSON.stringify(contacts));
+    driveSet('amsClientData', contacts);
+    return { created, updated };
+}
+
 async function importDoralJune26Statement() {
     let data;
     try {
@@ -7363,7 +7419,10 @@ async function importDoralJune26Statement() {
         `• Gross commissions ${_csFmt$(data.grossTotal)}\n` +
         `• Royalty ${_csFmt$(s.royalty)}, expenses ${_csFmt$(s.expensesTotal)}, net to office ${_csFmt$(s.netToOffice)}\n` +
         `• Cash receipts ledger: ${(data.cashReceipts?.received || []).length} received, ` +
-        `${(data.cashReceipts?.uncollected || []).length} uncollected\n\n` +
+        `${(data.cashReceipts?.uncollected || []).length} uncollected\n` +
+        (data.agentOfRecord ? `• Every line booked to ${data.agentOfRecord}\n` : '') +
+        ((data.amsClients || []).length ? `• ${data.amsClients.length} insureds added to the AMS as active clients\n` : '') +
+        `\n` +
         (existing.length
             ? `⚠️ This REPLACES the ${existing.length} statement${existing.length > 1 ? 's' : ''} already stored for ${month}:\n` +
               existing.map(k => `   • ${k} (${_csFmt$(commissionStatements[k].grossTotal || 0)})`).join('\n') +
@@ -7397,16 +7456,30 @@ async function importDoralJune26Statement() {
         saveCashReceipts();
     }
 
+    const ams = csUpsertAmsClients(data.amsClients);
+
     _csSettlementDraft = null;
     _csSettlementFor   = null;
     csCurrentMonthKey  = data.month;
     loadCommissionStatementsList();
 
-    const unmatched = (data.entries || []).filter(e => !e.agentMatch).length;
+    const reassigned = (data.entries || []).filter(e => Object.prototype.hasOwnProperty.call(e, 'priorAgentMatch'));
+    const moved      = reassigned.filter(e => e.priorAgentMatch).length;
+    const claimed    = reassigned.length - moved;
+    const unmatched  = (data.entries || []).filter(e => !e.agentMatch).length;
     alert(
         `✅ ${data.month} imported.\n\n` +
         `• ${(data.entries || []).length} lines, gross ${_csFmt$(data.grossTotal)}\n` +
-        `• ${(data.entries || []).length - unmatched} matched to a Binder Book agent, ${unmatched} left unassigned for review\n` +
+        (data.agentOfRecord
+            ? `• All ${(data.entries || []).length} lines booked to ${data.agentOfRecord}` +
+              (moved || claimed
+                  ? ` — ${moved} moved from another agent, ${claimed} with no Binder Book match assigned`
+                  : '') + `\n`
+            : `• ${(data.entries || []).length - unmatched} matched to a Binder Book agent, ${unmatched} left unassigned for review\n`) +
+        (ams.created || ams.updated
+            ? `• AMS: ${ams.created} new active client${ams.created === 1 ? '' : 's'}` +
+              (ams.updated ? `, ${ams.updated} existing record${ams.updated === 1 ? '' : 's'} updated` : '') + `\n`
+            : '') +
         `• Net to office ${_csFmt$(s.netToOffice)}\n` +
         (existing.length ? `• ${existing.length} earlier ${month} statement${existing.length > 1 ? 's' : ''} replaced\n` : '')
     );
