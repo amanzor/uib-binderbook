@@ -855,6 +855,39 @@
                                 <option value="180">180 Days</option>
                             </select>
                         </div>
+                        <div style="display:flex;flex-direction:column;gap:5px;">
+                            <label style="font-size:11.5px;font-weight:700;color:var(--gray-500);">Carrier</label>
+                            <select id="amsRnwCarrier" onchange="amsRenewalsRender()"
+                                style="min-width:150px;padding:7px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;">
+                                <option value="">All Carriers</option>
+                            </select>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:5px;">
+                            <label style="font-size:11.5px;font-weight:700;color:var(--gray-500);">Line of Business</label>
+                            <select id="amsRnwLob" onchange="amsRenewalsRender()"
+                                style="min-width:150px;padding:7px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;">
+                                <option value="">All Lines</option>
+                            </select>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:5px;">
+                            <label style="font-size:11.5px;font-weight:700;color:var(--gray-500);">Premium</label>
+                            <div style="display:flex;gap:6px;align-items:center;">
+                                <input type="number" id="amsRnwPremMin" min="0" step="1" placeholder="Min" oninput="amsRnwDebouncedRender()"
+                                    style="width:80px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;">
+                                <span style="color:var(--gray-400);font-size:12px;">–</span>
+                                <input type="number" id="amsRnwPremMax" min="0" step="1" placeholder="Max" oninput="amsRnwDebouncedRender()"
+                                    style="width:80px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;">
+                            </div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:200px;">
+                            <label style="font-size:11.5px;font-weight:700;color:var(--gray-500);">Search</label>
+                            <input type="text" id="amsRnwSearch" placeholder="Client name or policy #…" oninput="amsRnwDebouncedRender()"
+                                style="padding:7px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;">
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:5px;justify-content:flex-end;">
+                            <button type="button" onclick="amsRnwClearFilters()" title="Clear all renewal filters"
+                                style="padding:7px 14px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);background:#fff;color:var(--gray-600);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;">Clear</button>
+                        </div>
                     </div>
 
                     <!-- Month view buttons -->
@@ -3152,6 +3185,51 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         //  RENEWALS PANEL — CRM-style upcoming renewals view
         // ══════════════════════════════════════════════════════
         let _amsRnwActiveMonth = ''; // 'YYYY-MM' month view, or '' = expiring-within-window view
+        let _amsRnwOpenYears   = null; // Set of expanded year strings; null until first render
+        let _amsRnwRenderTimer = null; // debounce for the text/number filter inputs
+
+        function amsRnwDebouncedRender() {
+            clearTimeout(_amsRnwRenderTimer);
+            _amsRnwRenderTimer = setTimeout(amsRenewalsRender, 180);
+        }
+
+        function amsRnwClearFilters() {
+            _amsRnwSelectedAgents.clear();
+            _amsRnwActiveMonth = '';
+            ['amsRnwCarrier','amsRnwLob','amsRnwPremMin','amsRnwPremMax','amsRnwSearch']
+                .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            const w = document.getElementById('amsRnwWindow'); if (w) w.value = '90';
+            amsRnwUpdateAgentBtnLabel();
+            amsRenewalsRender();
+        }
+
+        // Click a month to filter; click the active month again to clear it.
+        function amsRnwToggleMonth(monthKey) {
+            _amsRnwActiveMonth = (_amsRnwActiveMonth === monthKey) ? '' : monthKey;
+            amsRenewalsRender();
+        }
+
+        function amsRnwToggleYear(year) {
+            if (!_amsRnwOpenYears) _amsRnwOpenYears = new Set();
+            if (_amsRnwOpenYears.has(year)) _amsRnwOpenYears.delete(year);
+            else _amsRnwOpenYears.add(year);
+            amsRenewalsRender();
+        }
+
+        // Repopulate a filter <select> from the values present, keeping the
+        // current pick if it still exists (and adding it back if it doesn't, so
+        // a hand-picked filter never silently clears itself between renders).
+        function amsRnwFillFilterOptions(id, values) {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            const current = sel.value;
+            const opts = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+            if (current && !opts.includes(current)) opts.push(current);
+            const allLabel = sel.options[0] ? sel.options[0].textContent : 'All';
+            sel.innerHTML = `<option value="">${_rptEsc(allLabel)}</option>` +
+                opts.map(o => `<option value="${_amsRnwAttr(o)}">${_rptEsc(o)}</option>`).join('');
+            sel.value = current;
+        }
 
         // Who can manage renewals (assign + Renew): the password "Admin" login,
         // and the agency admins even when they sign in with their agent account.
@@ -3262,32 +3340,94 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             // Build the multi-select agent menu (empty selection = All Agents)
             amsRnwBuildAgentMenu(allAgents);
 
-            // All upcoming renewals (agent filter applied) — the base for both views
-            const upcoming = binder.filter(p => {
+            // Every non-cancelled upcoming renewal — the pool the dropdowns and
+            // both views draw from, before the middle filter bar is applied.
+            const pool = binder.filter(p => {
                 if (!p.expirationDate || (p.policyType || '').toLowerCase() === 'cancellation') return false;
                 if (/^cancel/i.test(p.policyStatus || '')) return false; // Cancelled / Canceled
-                if (_amsRnwSelectedAgents.size && !_amsRnwSelectedAgents.has(p.agent)) return false;
                 return p.expirationDate >= todayStr;
             });
 
-            // Month view buttons — the next 12 months that actually have renewals
+            // Carrier / LOB dropdowns are filled from what's actually in the pool.
+            amsRnwFillFilterOptions('amsRnwCarrier', pool.map(p => p.company));
+            amsRnwFillFilterOptions('amsRnwLob',     pool.map(p => p.lineOfBusiness));
+
+            const fCarrier = document.getElementById('amsRnwCarrier')?.value || '';
+            const fLob     = document.getElementById('amsRnwLob')?.value || '';
+            const fMin     = parseFloat(document.getElementById('amsRnwPremMin')?.value);
+            const fMax     = parseFloat(document.getElementById('amsRnwPremMax')?.value);
+            const fSearch  = (document.getElementById('amsRnwSearch')?.value || '').trim().toLowerCase();
+
+            // All upcoming renewals with the middle filter bar applied — the base
+            // for both the month accordion and the table.
+            const upcoming = pool.filter(p => {
+                if (_amsRnwSelectedAgents.size && !_amsRnwSelectedAgents.has(p.agent)) return false;
+                if (fCarrier && (p.company || '') !== fCarrier) return false;
+                if (fLob && (p.lineOfBusiness || '') !== fLob) return false;
+                const prem = parseFloat(p.totalPremium) || 0;
+                if (!isNaN(fMin) && prem < fMin) return false;
+                if (!isNaN(fMax) && prem > fMax) return false;
+                if (fSearch) {
+                    const hay = `${p.customerName || ''} ${p.policyNumber || ''}`.toLowerCase();
+                    if (!hay.includes(fSearch)) return false;
+                }
+                return true;
+            });
+
+            // Month accordion — every month with renewals, grouped under its
+            // year. A year expands to reveal its months; the active month stays
+            // highlighted. No "All" button — clearing the month (or the active
+            // month toggled off) falls back to the expiring-within-window view.
             const tabsEl = document.getElementById('amsRnwMonthTabs');
             if (tabsEl) {
-                const months = [];
-                for (let i = 0; i < 12; i++) {
-                    const m = new Date(today.getFullYear(), today.getMonth() + i, 1);
-                    const key = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
-                    const count = upcoming.filter(p => p.expirationDate.slice(0, 7) === key).length;
-                    if (count) months.push({ key, count, label: m.toLocaleString('en-US', { month: 'short', year: 'numeric' }) });
+                const byYear = {};
+                upcoming.forEach(p => {
+                    const key = p.expirationDate.slice(0, 7);       // YYYY-MM
+                    const yr  = key.slice(0, 4);
+                    (byYear[yr] = byYear[yr] || {});
+                    byYear[yr][key] = (byYear[yr][key] || 0) + 1;
+                });
+                const years = Object.keys(byYear).sort();
+
+                // Drop an active month that no longer exists under the filters.
+                if (_amsRnwActiveMonth && !years.some(y => byYear[y][_amsRnwActiveMonth])) _amsRnwActiveMonth = '';
+
+                // First render (or after a filter change): open the year of the
+                // active month, else the earliest year, so months are reachable.
+                if (_amsRnwOpenYears === null) {
+                    _amsRnwOpenYears = new Set();
+                    const seed = _amsRnwActiveMonth ? _amsRnwActiveMonth.slice(0, 4) : years[0];
+                    if (seed) _amsRnwOpenYears.add(seed);
                 }
-                if (_amsRnwActiveMonth && !months.some(m => m.key === _amsRnwActiveMonth)) _amsRnwActiveMonth = '';
-                const btn = (key, label, active) =>
-                    `<button onclick="amsRnwSelectMonth('${key}')"
-                        style="padding:7px 14px;border:1px solid ${active ? 'var(--blue)' : 'var(--gray-200)'};border-radius:8px;cursor:pointer;
-                               background:${active ? 'var(--blue)' : '#fff'};color:${active ? '#fff' : 'var(--gray-600)'};
-                               font-size:12.5px;font-weight:${active ? '700' : '500'};font-family:inherit;">${label}</button>`;
-                tabsEl.innerHTML = btn('', `All (${upcoming.filter(p => p.expirationDate <= cutoffStr).length})`, !_amsRnwActiveMonth) +
-                    months.map(m => btn(m.key, `${m.label} (${m.count})`, _amsRnwActiveMonth === m.key)).join('');
+                // Always keep the active month's year open.
+                if (_amsRnwActiveMonth) _amsRnwOpenYears.add(_amsRnwActiveMonth.slice(0, 4));
+
+                const monthName = key => new Date(key + '-01T12:00:00').toLocaleString('en-US', { month: 'short' });
+
+                tabsEl.innerHTML = years.map(yr => {
+                    const open  = _amsRnwOpenYears.has(yr);
+                    const total = Object.values(byYear[yr]).reduce((a, b) => a + b, 0);
+                    const header = `<button onclick="amsRnwToggleYear('${yr}')"
+                        style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;
+                               padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;cursor:pointer;
+                               background:${open ? 'var(--blue-pale)' : '#fff'};color:var(--navy);
+                               font-size:13px;font-weight:700;font-family:inherit;">
+                        <span>${yr} <span style="color:var(--gray-400);font-weight:600;">(${total})</span></span>
+                        <span style="color:var(--gray-400);font-size:11px;transition:transform .15s;transform:rotate(${open ? '90' : '0'}deg);">▶</span>
+                    </button>`;
+                    if (!open) return `<div style="margin-bottom:6px;">${header}</div>`;
+                    const months = Object.keys(byYear[yr]).sort().map(key => {
+                        const active = _amsRnwActiveMonth === key;
+                        return `<button onclick="amsRnwToggleMonth('${key}')"
+                            style="width:100%;text-align:left;padding:7px 12px 7px 22px;border:1px solid ${active ? 'var(--blue)' : 'var(--gray-100)'};
+                                   border-radius:7px;cursor:pointer;background:${active ? 'var(--blue)' : '#fff'};
+                                   color:${active ? '#fff' : 'var(--gray-600)'};font-size:12.5px;
+                                   font-weight:${active ? '700' : '500'};font-family:inherit;">
+                            ${monthName(key)} <span style="opacity:.7;">(${byYear[yr][key]})</span></button>`;
+                    }).join('');
+                    return `<div style="margin-bottom:6px;">${header}
+                        <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">${months}</div></div>`;
+                }).join('') || `<div style="padding:12px;color:var(--gray-400);font-size:12.5px;font-style:italic;">No upcoming renewals match these filters.</div>`;
             }
 
             const monthLabel = _amsRnwActiveMonth
