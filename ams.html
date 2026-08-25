@@ -148,6 +148,28 @@
             overflow: hidden; z-index: 100;
         }
 
+        /* The active panel's button set, parked in the sidebar's empty space:
+           Reports tabs, Accounting tabs, Renewals month buttons. Stacked full
+           width instead of wrapping across the top of the panel. */
+        .sidebar-panel-nav { display: none; flex-direction: column; overflow-y: auto; padding: 14px 12px; gap: 16px; }
+        .sidebar-panel-nav.open { display: flex; }
+        .sidebar-panel-nav .spn-title {
+            font-size: 11px; font-weight: 700; color: var(--gray-400);
+            text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px;
+        }
+        .sidebar-panel-nav .report-tabs-bar,
+        .sidebar-panel-nav .acct-tabs-bar,
+        .sidebar-panel-nav .rnw-month-tabs {
+            display: flex; flex-direction: column; flex-wrap: nowrap; gap: 6px;
+            padding: 0; margin: 0; background: transparent; border-bottom: none;
+        }
+        .sidebar-panel-nav .report-tab,
+        .sidebar-panel-nav .acct-tab,
+        .sidebar-panel-nav .rnw-month-tabs button {
+            width: 100%; text-align: left;
+        }
+        .rnw-month-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+
         .sidebar-toolbar {
             padding: 14px 12px 10px; border-bottom: 1px solid var(--gray-100);
             display: flex; flex-direction: column; gap: 8px;
@@ -513,6 +535,12 @@
             .ams-tabbar { padding: 0 10px; }
             .ams-tab-btn { padding: 8px 12px; font-size: 12px; }
             .ams-sidebar { width: 100%; position: relative; top: auto; bottom: auto; left: auto; height: auto; max-height: 45vh; border-right: none; border-bottom: 1px solid var(--gray-200); }
+            .sidebar-panel-nav .report-tabs-bar,
+            .sidebar-panel-nav .acct-tabs-bar,
+            .sidebar-panel-nav .rnw-month-tabs { flex-direction: row; flex-wrap: wrap; }
+            .sidebar-panel-nav .report-tab,
+            .sidebar-panel-nav .acct-tab,
+            .sidebar-panel-nav .rnw-month-tabs button { width: auto; }
             .ams-body { flex-direction: column; }
             .ams-main { margin-left: 0; padding: 16px 12px; }
             .ams-header .search-wrap { display: none; }
@@ -684,6 +712,9 @@
                 <div class="client-list" id="amsClientList">
                     <div class="no-results">Loading clients…</div>
                 </div>
+
+                <!-- Active panel's buttons live here — see amsMountPanelNav() -->
+                <div class="sidebar-panel-nav" id="amsPanelNav"></div>
             </aside>
 
             <!-- ── MAIN DETAIL ── -->
@@ -827,7 +858,7 @@
                     </div>
 
                     <!-- Month view buttons -->
-                    <div id="amsRnwMonthTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
+                    <div id="amsRnwMonthTabs" class="rnw-month-tabs"></div>
 
                     <!-- Renewals table -->
                     <div class="policies-table-wrap" style="background:#fff;">
@@ -845,7 +876,7 @@
 
                 <!-- Accounting panel -->
                 <div id="amsAccountingPanel" style="display:none;" class="reports-panel">
-                    <div class="acct-tabs-bar">
+                    <div class="acct-tabs-bar" id="acctTabsBar">
                         <button class="acct-tab" onclick="amsShowAccounting('overview')">💼 Overview</button>
                         <button class="acct-tab" onclick="amsShowAccounting('statements')">🧾 Commission Statement</button>
                         <button class="acct-tab" onclick="amsShowAccounting('ledger')">📋 Sales Ledger</button>
@@ -2029,6 +2060,38 @@
             if (_dashCharts[id]) { _dashCharts[id].destroy(); delete _dashCharts[id]; }
         }
 
+        // ── Panel navigation in the sidebar ──────────────────
+        // Each panel's button set is moved (not copied) into the sidebar the
+        // first time its panel is opened, so the existing onclick handlers and
+        // ids keep working. After that only visibility is toggled.
+        const AMS_PANEL_NAV = {
+            reports:    { el: 'reportTabsBar',   title: 'Reports' },
+            renewals:   { el: 'amsRnwMonthTabs', title: 'Renewal Months' },
+            accounting: { el: 'acctTabsBar',     title: 'Accounting' }
+        };
+
+        function amsMountPanelNav(section) {
+            const host = document.getElementById('amsPanelNav');
+            if (!host) return;
+            Object.entries(AMS_PANEL_NAV).forEach(([sec, cfg]) => {
+                const el = document.getElementById(cfg.el);
+                if (!el) return;
+                let group = el.closest('.spn-group');
+                if (!group) {
+                    group = document.createElement('div');
+                    group.className = 'spn-group';
+                    const title = document.createElement('div');
+                    title.className = 'spn-title';
+                    title.textContent = cfg.title;
+                    group.appendChild(title);
+                    group.appendChild(el);   // moves the real element out of the panel
+                    host.appendChild(group);
+                }
+                group.style.display = sec === section ? '' : 'none';
+            });
+            host.classList.toggle('open', !!AMS_PANEL_NAV[section]);
+        }
+
         function amsSidebarNav(section) {
             // 'search' has no tab button of its own — it's reached via the header
             // search box (onfocus) — so it's excluded from the active-tab toggle.
@@ -2049,6 +2112,8 @@
             const rtPanel       = document.getElementById('amsRealtimePanel');
             const welcome       = document.getElementById('amsWelcome');
             const detail        = document.getElementById('amsClientDetail');
+
+            amsMountPanelNav(section);
 
             toolbar.style.display      = 'none';
             clientList.style.display   = 'none';
