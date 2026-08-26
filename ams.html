@@ -707,6 +707,10 @@
                         Include related clients
                     </label>
                     <div class="sidebar-stat" id="amsClientCount">0 clients</div>
+                    <button class="btn-secondary" id="amsMergeBtn" onclick="amsOpenMergeModal()"
+                        style="display:none;width:100%;margin-top:8px;padding:7px 10px;font-size:12px;justify-content:center;gap:6px;">
+                        <i data-lucide="git-merge" style="width:13px;height:13px;"></i> Merge Clients
+                    </button>
                 </div><!-- /sidebar-toolbar -->
 
                 <div class="client-list" id="amsClientList">
@@ -1871,6 +1875,28 @@
         </div>
     </div>
 
+
+    <!-- ═══════════════════════════════════════════════════════════
+         MODAL: Merge Clients — fold duplicate client records into one
+    ════════════════════════════════════════════════════════════ -->
+    <div class="ams-modal" id="amsMergeModal">
+        <div class="ams-modal-box" style="max-width:560px;">
+            <h3><i data-lucide="git-merge"></i> Merge Clients</h3>
+            <p style="font-size:12.5px;color:var(--gray-500);margin:-12px 0 16px;line-height:1.5;">
+                Select two or more client records to combine, then choose which one to <strong>keep</strong>.
+                All policies, notes, contact details, forms, and documents from the others are moved into the
+                client you keep, and the duplicate records are removed. This cannot be undone.
+            </p>
+            <div id="amsMergeList" style="max-height:340px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:var(--radius-sm);"></div>
+            <div id="amsMergeSummary" style="font-size:12px;color:var(--gray-500);margin-top:12px;"></div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="amsCloseMergeModal()">Cancel</button>
+                <button class="btn-success" id="amsMergeConfirmBtn" onclick="amsConfirmMerge()" disabled>
+                    <i data-lucide="git-merge"></i> Merge Selected
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          MODAL: Renew A-B — rewrite the policy with a new carrier
