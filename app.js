@@ -7208,6 +7208,8 @@ function prodRenderTable(data) {
         const tp   = parseFloat(d.totalPremium) || 0;
         const date = (d.entryDate || '').slice(0,10);
         const disp = date ? new Date(date + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+        const effRaw  = (d.effDate || d.effectiveDate || '').slice(0,10);
+        const effDisp = effRaw ? new Date(effRaw + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
         const pnum = d.policyNumber || d.binderNumber || '—';
         const lobBadge = d.lineOfBusiness
             ? `<span style="background:#eff6ff;color:#1e40af;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;">${d.lineOfBusiness}</span>`
@@ -7221,7 +7223,10 @@ function prodRenderTable(data) {
 
         return `<tr style="border-bottom:1px solid #f1f5f9;"
             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-            <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;">${disp}</td>
+            <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;">
+                <div>${disp}</div>
+                ${effDisp ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Eff: ${effDisp}</div>` : ''}
+            </td>
             <td style="padding:9px 12px;font-size:13px;font-weight:600;color:#1e40af;">${d.agent||'—'}</td>
             <td style="padding:9px 12px;font-size:13px;">${d.customerName||'—'}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;font-family:monospace;">${pnum}</td>
@@ -7631,6 +7636,8 @@ function apdRenderTable(data) {
         const tp   = parseFloat(d.totalPremium) || 0;
         const date = (d.entryDate || '').slice(0,10);
         const disp = date ? new Date(date + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+        const effRaw  = (d.effDate || d.effectiveDate || '').slice(0,10);
+        const effDisp = effRaw ? new Date(effRaw + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
         const pnum = d.policyNumber || d.binderNumber || '—';
         const lobBadge = d.lineOfBusiness
             ? `<span style="background:#eff6ff;color:#1e40af;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;">${d.lineOfBusiness}</span>`
@@ -7643,7 +7650,10 @@ function apdRenderTable(data) {
             : '—';
         return `<tr style="border-bottom:1px solid #f1f5f9;"
             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-            <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;">${disp}</td>
+            <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;">
+                <div>${disp}</div>
+                ${effDisp ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Eff: ${effDisp}</div>` : ''}
+            </td>
             <td style="padding:9px 12px;font-size:13px;font-weight:600;color:#1e40af;">${d.agent||'—'}</td>
             <td style="padding:9px 12px;font-size:13px;">${d.customerName||'—'}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;font-family:monospace;">${pnum}</td>
