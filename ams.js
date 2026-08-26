@@ -62,6 +62,16 @@ function amsDBDeleteFile(id) {
     });
 }
 
+function amsDBPutFile(record) {
+    return new Promise((resolve, reject) => {
+        if (!amsDB) { reject('DB not ready'); return; }
+        const tx  = amsDB.transaction('files', 'readwrite');
+        const req = tx.objectStore('files').put(record);
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror   = e => reject(e.target.error);
+    });
+}
+
 // ── Supabase Storage — cloud files (shared with Binder Book) ──
 const AMS_SB_URL    = 'https://jgjmobktucyimupelfxd.supabase.co';
 const AMS_SB_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
@@ -770,6 +780,8 @@ function amsRenderClientList(relatedCount = 0) {
             : `${total} client${total !== 1 ? 's' : ''}`;
     }
 
+    amsUpdateMergeButton();
+
     if (!amsFilteredKeys.length) {
         container.innerHTML = '<div class="no-results">No clients found.</div>';
         return;
@@ -807,6 +819,221 @@ function amsRenderClientList(relatedCount = 0) {
             </div>
         </div>`;
     }).join('');
+}
+
+// ── Merge clients ────────────────────────────────────────────
+// Fold two or more duplicate client records into one. Policies, contact
+// details, notes, ACORD forms, and documents (local + cloud) from the
+// "source" records are moved onto the "primary" record the user keeps.
+let _amsMergeKeys       = [];   // index → client key, for the open modal
+let _amsMergePrimaryIdx = -1;   // index of the record to keep
+
+function amsUpdateMergeButton() {
+    const btn = document.getElementById('amsMergeBtn');
+    if (btn) btn.style.display = amsFilteredKeys.length >= 2 ? 'inline-flex' : 'none';
+}
+
+function amsOpenMergeModal() {
+    _amsMergeKeys = amsFilteredKeys.slice();
+    if (_amsMergeKeys.length < 2) {
+        alert('Need at least two clients in the list to merge. Adjust your search or filters first.');
+        return;
+    }
+    _amsMergePrimaryIdx = -1;
+
+    document.getElementById('amsMergeList').innerHTML = _amsMergeKeys.map((key, i) => {
+        const c = amsClientIndex[key];
+        const n = c.policies.length;
+        const phone = c.contact && c.contact.phone1 ? ' · ' + amsEscHtml(c.contact.phone1) : '';
+        return `
+        <div class="ams-merge-row" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--gray-100);">
+            <input type="checkbox" class="ams-merge-check" data-idx="${i}" onchange="amsMergeSelectionChanged()" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;">
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;font-size:13px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${amsEscHtml(c.displayName)}</div>
+                <div style="font-size:11px;color:var(--gray-500);">${n} polic${n !== 1 ? 'ies' : 'y'}${phone}</div>
+            </div>
+            <label class="ams-merge-keep" style="display:none;align-items:center;gap:5px;font-size:11px;color:var(--blue-mid);font-weight:700;white-space:nowrap;cursor:pointer;">
+                <input type="radio" name="amsMergePrimary" data-idx="${i}" onchange="amsMergePrimaryChanged(${i})"> keep
+            </label>
+        </div>`;
+    }).join('');
+
+    document.getElementById('amsMergeSummary').textContent = 'Select at least two clients.';
+    document.getElementById('amsMergeConfirmBtn').disabled = true;
+    document.getElementById('amsMergeModal').classList.add('open');
+    if (window.lucide) lucide.createIcons();
+}
+
+function amsCloseMergeModal() {
+    document.getElementById('amsMergeModal').classList.remove('open');
+}
+
+function amsMergeSelectionChanged() {
+    const checks = [...document.querySelectorAll('.ams-merge-check')];
+    const checkedIdx = checks.filter(c => c.checked).map(c => +c.dataset.idx);
+
+    // Show the "keep" control only on checked rows
+    checks.forEach(chk => {
+        const keepWrap = chk.closest('.ams-merge-row').querySelector('.ams-merge-keep');
+        keepWrap.style.display = chk.checked ? 'inline-flex' : 'none';
+    });
+
+    // Default the primary to the checked record with the most policies
+    if (checkedIdx.length >= 2 && !checkedIdx.includes(_amsMergePrimaryIdx)) {
+        _amsMergePrimaryIdx = checkedIdx.slice().sort((a, b) =>
+            amsClientIndex[_amsMergeKeys[b]].policies.length -
+            amsClientIndex[_amsMergeKeys[a]].policies.length)[0];
+    }
+    if (checkedIdx.length < 2) _amsMergePrimaryIdx = -1;
+
+    // Reflect the primary selection in the radios
+    checks.forEach(chk => {
+        const radio = chk.closest('.ams-merge-row').querySelector('input[type=radio]');
+        radio.checked = (+chk.dataset.idx === _amsMergePrimaryIdx);
+    });
+
+    amsUpdateMergeSummary(checkedIdx);
+}
+
+function amsMergePrimaryChanged(idx) {
+    _amsMergePrimaryIdx = +idx;
+    const checkedIdx = [...document.querySelectorAll('.ams-merge-check:checked')].map(c => +c.dataset.idx);
+    amsUpdateMergeSummary(checkedIdx);
+}
+
+function amsUpdateMergeSummary(checkedIdx) {
+    const summary = document.getElementById('amsMergeSummary');
+    const btn     = document.getElementById('amsMergeConfirmBtn');
+    if (checkedIdx.length < 2) {
+        summary.textContent = 'Select at least two clients.';
+        btn.disabled = true;
+        return;
+    }
+    if (_amsMergePrimaryIdx < 0 || !checkedIdx.includes(_amsMergePrimaryIdx)) {
+        summary.textContent = 'Choose which client to keep.';
+        btn.disabled = true;
+        return;
+    }
+    const primaryName    = amsClientIndex[_amsMergeKeys[_amsMergePrimaryIdx]].displayName;
+    const totalPolicies  = checkedIdx.reduce((s, i) => s + amsClientIndex[_amsMergeKeys[i]].policies.length, 0);
+    summary.innerHTML = `Keeping <strong>${amsEscHtml(primaryName)}</strong> — ${checkedIdx.length} records, ${totalPolicies} total polic${totalPolicies !== 1 ? 'ies' : 'y'} combined.`;
+    btn.disabled = false;
+}
+
+function amsConfirmMerge() {
+    const checkedIdx = [...document.querySelectorAll('.ams-merge-check:checked')].map(c => +c.dataset.idx);
+    if (checkedIdx.length < 2) { alert('Select at least two clients to merge.'); return; }
+    if (_amsMergePrimaryIdx < 0 || !checkedIdx.includes(_amsMergePrimaryIdx)) {
+        alert('Choose which client to keep.'); return;
+    }
+
+    const primaryKey = _amsMergeKeys[_amsMergePrimaryIdx];
+    const sourceKeys = checkedIdx.map(i => _amsMergeKeys[i]).filter(k => k !== primaryKey);
+    const primaryName = amsClientIndex[primaryKey].displayName;
+    const names = sourceKeys.map(k => amsClientIndex[k].displayName).join(', ');
+
+    if (!confirm(
+        `Merge ${sourceKeys.length} client${sourceKeys.length !== 1 ? 's' : ''} (${names}) into "${primaryName}"?\n\n` +
+        `All their policies, notes, contact info, forms, and documents will move into "${primaryName}" and the ` +
+        `duplicate record${sourceKeys.length !== 1 ? 's' : ''} will be removed. This cannot be undone.`
+    )) return;
+
+    const btn = document.getElementById('amsMergeConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = 'Merging…';
+    amsPerformMerge(primaryKey, sourceKeys)
+        .catch(err => {
+            alert('Merge failed: ' + (err && err.message ? err.message : err));
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="git-merge"></i> Merge Selected';
+            if (window.lucide) lucide.createIcons();
+        });
+}
+
+async function amsPerformMerge(primaryKey, sourceKeys) {
+    const primaryName = amsClientIndex[primaryKey].displayName;
+    const sourceSet   = new Set(sourceKeys);
+
+    // 1) Repoint every policy owned by a source client to the primary's name,
+    //    so the rebuilt index groups them under the primary key.
+    const binder = amsGetBinderData();
+    let movedPolicies = 0;
+    binder.forEach(entry => {
+        if (sourceSet.has(amsClientKey(entry.customerName))) {
+            entry.customerName = primaryName;
+            entry.updatedAt = Date.now();
+            movedPolicies++;
+        }
+    });
+    amsSave('binderData', binder);
+
+    // 2) Merge contact fields (primary wins; blanks filled from sources) and
+    //    concatenate notes, then drop the source contact records.
+    const contacts = amsGetClientData();
+    const target   = contacts[primaryKey] || {};
+    const contactFields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
+        'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
+        'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
+    sourceKeys.forEach(sk => {
+        const src = contacts[sk] || {};
+        contactFields.forEach(f => { if (!target[f] && src[f]) target[f] = src[f]; });
+        if (Array.isArray(src.notes) && src.notes.length) {
+            target.notes = (target.notes || []).concat(src.notes);
+        }
+        delete contacts[sk];
+    });
+    target.updatedAt = new Date().toISOString();
+    contacts[primaryKey] = target;
+    amsSave('amsClientData', contacts);
+
+    // 3) Re-key saved ACORD forms (`${clientKey}_${formId}`) onto the primary.
+    try {
+        const forms = JSON.parse(localStorage.getItem('acordSavedForms') || '{}');
+        let changed = false;
+        Object.keys(forms).forEach(k => {
+            for (const sk of sourceKeys) {
+                if (k.startsWith(sk + '_')) {
+                    const newKey = primaryKey + k.slice(sk.length);
+                    if (!(newKey in forms)) forms[newKey] = forms[k];
+                    delete forms[k];
+                    changed = true;
+                    break;
+                }
+            }
+        });
+        if (changed) localStorage.setItem('acordSavedForms', JSON.stringify(forms));
+    } catch (e) { /* forms are best-effort */ }
+
+    // 4) Move local (IndexedDB) documents onto the primary key.
+    try {
+        for (const sk of sourceKeys) {
+            const files = await amsDBGetFilesForClient(sk);
+            for (const f of files) {
+                f.clientKey = primaryKey;
+                await amsDBPutFile(f);
+            }
+        }
+    } catch (e) { /* local docs are best-effort */ }
+
+    // 5) Move cloud (Supabase) document rows onto the primary key. Storage paths
+    //    are unchanged (downloads use the path directly), only the owning key.
+    try {
+        for (const sk of sourceKeys) {
+            await fetch(`${AMS_SB_URL}/rest/v1/documents?client_key=eq.${encodeURIComponent(sk)}`, {
+                method: 'PATCH',
+                headers: Object.assign({}, AMS_SB_HEADERS, { 'Prefer': 'return=minimal' }),
+                body: JSON.stringify({ client_key: primaryKey })
+            });
+        }
+    } catch (e) { /* cloud docs are best-effort */ }
+
+    // Rebuild, refresh the list, and open the merged client.
+    amsBuildClientIndex();
+    amsActiveKey = primaryKey;
+    amsApplyFilters();
+    amsCloseMergeModal();
+    amsLoadClientDetail(primaryKey);
+    amsFlashBanner(`Merged ${sourceKeys.length + 1} clients into ${primaryName} · ${movedPolicies} polic${movedPolicies !== 1 ? 'ies' : 'y'} moved ✓`);
 }
 
 // ── Load & render client detail ──────────────────────────────

@@ -7188,6 +7188,9 @@ function prodRenderTable(data) {
         if (_prodSortCol === 'totalPremium' || _prodSortCol === 'basePremium') {
             va = parseFloat(a[_prodSortCol]) || 0;
             vb = parseFloat(b[_prodSortCol]) || 0;
+        } else if (_prodSortCol === 'effDate') {
+            va = (a.effDate || a.effectiveDate || '').toString();
+            vb = (b.effDate || b.effectiveDate || '').toString();
         } else {
             va = (a[_prodSortCol] || '').toString().toLowerCase();
             vb = (b[_prodSortCol] || '').toString().toLowerCase();
@@ -7202,6 +7205,14 @@ function prodRenderTable(data) {
         return `<th onclick="prodSort('${col}')"
             style="padding:10px 12px;text-align:${align||'left'};font-weight:600;color:#334155;cursor:pointer;white-space:nowrap;user-select:none;font-size:12px;">
             ${lbl}${arrow}</th>`;
+    };
+
+    // Date header carries two sort targets: entry date (top) and effective date (bottom)
+    const dateTh = () => {
+        const arr = c => _prodSortCol === c ? (_prodSortDir === -1 ? ' ↓' : ' ↑') : ' <span style="opacity:.25">↕</span>';
+        return `<th style="padding:10px 12px;text-align:left;font-weight:600;color:#334155;white-space:nowrap;user-select:none;font-size:12px;">
+            <span onclick="prodSort('entryDate')" style="cursor:pointer;">Date${arr('entryDate')}</span><br>
+            <span onclick="prodSort('effDate')" style="cursor:pointer;font-size:11px;color:#94a3b8;font-weight:600;">Eff${arr('effDate')}</span></th>`;
     };
 
     const rows = sorted.map(d => {
@@ -7248,7 +7259,7 @@ function prodRenderTable(data) {
             <table style="width:100%;border-collapse:collapse;min-width:1000px;">
                 <thead>
                     <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
-                        ${th('entryDate','Date')}
+                        ${dateTh()}
                         ${th('agent','Agent')}
                         ${th('customerName','Client Name')}
                         ${th('policyNumber','Policy #')}
@@ -7279,7 +7290,7 @@ function prodSort(col) {
         _prodSortDir *= -1;
     } else {
         _prodSortCol = col;
-        _prodSortDir = (col === 'totalPremium' || col === 'basePremium' || col === 'entryDate') ? -1 : 1;
+        _prodSortDir = (col === 'totalPremium' || col === 'basePremium' || col === 'entryDate' || col === 'effDate') ? -1 : 1;
     }
     prodRenderTable(prodGetFilteredData());
 }
@@ -7409,9 +7420,10 @@ function prodExportCSV() {
     const data = prodGetFilteredData();
     if (data.length === 0) { alert('No data to export for this period.'); return; }
 
-    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
+    const headers = ['Date','Effective Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
     const rows = data.map(d => [
         d.entryDate         || '',
+        d.effDate || d.effectiveDate || '',
         d.agent             || '',
         d.customerName      || '',
         d.policyNumber      || '',
@@ -7616,6 +7628,9 @@ function apdRenderTable(data) {
         if (_apdSortCol === 'totalPremium' || _apdSortCol === 'basePremium') {
             va = parseFloat(a[_apdSortCol]) || 0;
             vb = parseFloat(b[_apdSortCol]) || 0;
+        } else if (_apdSortCol === 'effDate') {
+            va = (a.effDate || a.effectiveDate || '').toString();
+            vb = (b.effDate || b.effectiveDate || '').toString();
         } else {
             va = (a[_apdSortCol] || '').toString().toLowerCase();
             vb = (b[_apdSortCol] || '').toString().toLowerCase();
@@ -7630,6 +7645,14 @@ function apdRenderTable(data) {
         return `<th onclick="apdSort('${col}')"
             style="padding:10px 12px;text-align:${align||'left'};font-weight:600;color:#334155;cursor:pointer;white-space:nowrap;user-select:none;font-size:12px;">
             ${lbl}${arrow}</th>`;
+    };
+
+    // Date header carries two sort targets: entry date (top) and effective date (bottom)
+    const dateTh = () => {
+        const arr = c => _apdSortCol === c ? (_apdSortDir === -1 ? ' ↓' : ' ↑') : ' <span style="opacity:.25">↕</span>';
+        return `<th style="padding:10px 12px;text-align:left;font-weight:600;color:#334155;white-space:nowrap;user-select:none;font-size:12px;">
+            <span onclick="apdSort('entryDate')" style="cursor:pointer;">Date${arr('entryDate')}</span><br>
+            <span onclick="apdSort('effDate')" style="cursor:pointer;font-size:11px;color:#94a3b8;font-weight:600;">Eff${arr('effDate')}</span></th>`;
     };
 
     const rows = sorted.map(d => {
@@ -7675,7 +7698,7 @@ function apdRenderTable(data) {
             <table style="width:100%;border-collapse:collapse;min-width:1000px;">
                 <thead>
                     <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
-                        ${th('entryDate','Date')}
+                        ${dateTh()}
                         ${th('agent','Agent')}
                         ${th('customerName','Client Name')}
                         ${th('policyNumber','Policy #')}
@@ -7706,7 +7729,7 @@ function apdSort(col) {
         _apdSortDir *= -1;
     } else {
         _apdSortCol = col;
-        _apdSortDir = (col === 'totalPremium' || col === 'basePremium' || col === 'entryDate') ? -1 : 1;
+        _apdSortDir = (col === 'totalPremium' || col === 'basePremium' || col === 'entryDate' || col === 'effDate') ? -1 : 1;
     }
     apdRenderTable(apdGetFilteredData());
 }
@@ -7828,9 +7851,10 @@ function apdExportCSV() {
     const data = apdGetFilteredData();
     if (data.length === 0) { alert('No data to export for this period.'); return; }
 
-    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
+    const headers = ['Date','Effective Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
     const rows = data.map(d => [
         d.entryDate         || '',
+        d.effDate || d.effectiveDate || '',
         d.agent             || '',
         d.customerName      || '',
         d.policyNumber      || '',
