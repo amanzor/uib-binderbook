@@ -6247,6 +6247,21 @@ function previewCSSheet() {
     const parsed = csParseSheetRows(rows);
     csParsedPreview = { sheetName, ...parsed };
 
+    // Nothing parsed — the sheet doesn't use the layout this parser reads.
+    // Saving it would file an empty month under the sheet's name, so refuse
+    // here and say what the parser was looking for.
+    if (!parsed.entries.length) {
+        document.getElementById('csPreviewInfo').innerHTML =
+            `<strong style="color:#b45309;">No commission rows found in “${_claudeEsc(sheetName)}”.</strong><br>` +
+            `<span style="font-size:12px;color:var(--gray-500);">This sheet doesn't use the monthly layout the importer reads ` +
+            `(client name in column B, commission amount in column P, carrier as a section header). Pick a month sheet, ` +
+            `or use <strong>Import Doral Jun 2026</strong> for a statement already prepared for the console.</span>`;
+        document.getElementById('csPreviewTable').innerHTML = '';
+        previewArea.style.display = 'block';
+        if (importBtn) { importBtn.disabled = true; importBtn.style.opacity = '0.5'; }
+        return;
+    }
+
     // Info bar
     const carrierList = Object.keys(parsed.carrierTotals);
     document.getElementById('csPreviewInfo').innerHTML =
@@ -6279,6 +6294,10 @@ function previewCSSheet() {
 
 function importSelectedSheet() {
     if (!csParsedPreview) { alert('Please select a month sheet first.'); return; }
+    if (!csParsedPreview.entries.length) {
+        alert(`No commission rows were found in “${csParsedPreview.sheetName}” — nothing to import.`);
+        return;
+    }
 
     const { sheetName, entries, carrierTotals, grossTotal } = csParsedPreview;
     const monthLabel = csNormalizeSheetName(sheetName);
