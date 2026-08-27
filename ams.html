@@ -1327,6 +1327,7 @@
                         <button class="ams-tab active" data-tab="contact"   onclick="amsShowTab('contact')"><i data-lucide="user"></i> Contact Info</button>
                         <button class="ams-tab"         data-tab="policies" onclick="amsShowTab('policies')"><i data-lucide="file-text"></i> Policies</button>
                         <button class="ams-tab"         data-tab="notes"    onclick="amsShowTab('notes')"><i data-lucide="message-square"></i> Notes</button>
+                        <button class="ams-tab"         data-tab="communications" onclick="amsShowTab('communications')"><i data-lucide="phone-call"></i> Communications <span id="commTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="documents" onclick="amsShowTab('documents')"><i data-lucide="folder-open"></i> Documents <span id="docTabBadge" style="display:none;background:var(--blue);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="forms" onclick="amsShowTab('forms')"><i data-lucide="clipboard-list"></i> Forms</button>
                     </div>
@@ -1565,6 +1566,9 @@
                         </div>
                         <div id="amsNotesList"></div>
                     </div><!-- /tabNotes -->
+
+                    <!-- ── TAB: Communications ── -->
+                    <div id="tabCommunications" style="display:none;"></div><!-- /tabCommunications -->
 
                     <!-- ── TAB: Documents ── -->
                     <div id="tabDocuments" style="display:none;">
@@ -2130,7 +2134,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20260723a"></script>
+    <script src="ams.js?v=20260827a"></script>
     <script src="supabase.js?v=20260727b"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
@@ -3904,6 +3908,126 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             p.callLog = _amsRnwCalls(p).filter((_, n) => n !== i);
             await _amsRnwPersistEdit(p);
             amsRnwRenderCallList();
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  COMMUNICATIONS TAB — one client-level log of every call, from
+        //  the renewals "# of Calls" tracker (stored per policy on the
+        //  binder entry) PLUS general calls logged here (stored on the
+        //  contact record, amsClientData[key].callLog).
+        // ══════════════════════════════════════════════════════════
+        let _amsCommLast = [];   // last aggregated+sorted list, for delete-by-index
+
+        function amsCommGather(key) {
+            const client = amsClientIndex[key];
+            if (!client) return [];
+            const out = [];
+            const contacts = (typeof amsGetClientData === 'function') ? amsGetClientData() : {};
+            const gen = (contacts[key] && Array.isArray(contacts[key].callLog)) ? contacts[key].callLog : [];
+            gen.forEach((c, i) => out.push({ at: c.at, by: c.by, note: c.note || '', kind: 'general', callIdx: i, ctxLabel: 'General call' }));
+            (client.policies || []).forEach((p, polIdx) => {
+                (Array.isArray(p.callLog) ? p.callLog : []).forEach((c, i) => out.push({
+                    at: c.at, by: c.by, note: c.note || '', kind: 'policy', polIdx, callIdx: i,
+                    ctxLabel: `${p.company || 'Policy'}${p.policyNumber ? ' · ' + p.policyNumber : ''}${p.lineOfBusiness ? ' · ' + p.lineOfBusiness : ''}`
+                }));
+            });
+            out.sort((a, b) => (b.at || '').localeCompare(a.at || ''));   // newest first
+            return out;
+        }
+
+        function amsUpdateCommBadge(key) {
+            const badge = document.getElementById('commTabBadge');
+            if (!badge) return;
+            const n = amsCommGather(key).length;
+            if (n) { badge.textContent = n; badge.style.display = 'inline'; }
+            else badge.style.display = 'none';
+        }
+
+        function amsRenderCommunications(key) {
+            const host = document.getElementById('tabCommunications');
+            if (!host) return;
+            const calls = amsCommGather(key);
+            _amsCommLast = calls;
+            amsUpdateCommBadge(key);
+            const client = amsClientIndex[key];
+            const name = (client && client.displayName) || 'this client';
+
+            const rows = calls.map((c, i) => {
+                const when = c.at ? new Date(c.at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+                const tag = c.kind === 'policy'
+                    ? `<span style="background:#ecfeff;color:#0e7490;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:700;">📄 ${_rptEsc(c.ctxLabel)}</span>`
+                    : `<span style="background:#eef2ff;color:#4338ca;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:700;">📞 General</span>`;
+                return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border:1px solid var(--gray-200);border-left:3px solid #0891b2;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;">
+                    <div style="min-width:0;">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+                            <strong style="font-size:12.5px;color:var(--navy);">Call ${calls.length - i}</strong> ${tag}
+                        </div>
+                        <div style="font-size:12px;color:var(--gray-500);">${_rptEsc(when)} · by ${_rptEsc(c.by || 'Unknown')}</div>
+                        ${c.note ? `<div style="font-size:12.5px;color:var(--gray-700);margin-top:4px;white-space:pre-wrap;">${_rptEsc(c.note)}</div>` : ''}
+                    </div>
+                    <button onclick="amsCommDelete(${i})" title="Remove this call" style="background:none;border:none;color:var(--gray-400);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;flex-shrink:0;">✕</button>
+                </div>`;
+            }).join('');
+
+            host.innerHTML = `
+                <div class="info-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+                        <div>
+                            <h3 style="margin:0;"><i data-lucide="phone-call"></i> Communications</h3>
+                            <div style="font-size:12.5px;color:var(--gray-500);margin-top:2px;">Every call logged to ${_rptEsc(name)} — from the renewals list and general outreach.</div>
+                        </div>
+                        <div style="text-align:center;background:#ecfeff;border:1px solid #a5f3fc;border-radius:10px;padding:8px 18px;">
+                            <div style="font-size:26px;font-weight:800;color:#0e7490;line-height:1;">${calls.length}</div>
+                            <div style="font-size:10px;color:#0891b2;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">total calls</div>
+                        </div>
+                    </div>
+                    <div style="background:var(--gray-50,#f9fafb);border:1px solid var(--gray-200);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+                        <div style="font-size:12.5px;font-weight:700;color:var(--navy);margin-bottom:6px;">Log a call</div>
+                        <textarea id="amsCommNote" rows="2" placeholder="Optional note — what was discussed, voicemail left, callback time…" style="width:100%;box-sizing:border-box;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+                        <div style="margin-top:8px;"><button class="btn-success btn-sm" onclick="amsCommLogCall()" style="background:linear-gradient(135deg,#0e7490,#0891b2);border:none;color:#fff;"><i data-lucide="phone-outgoing"></i> Log a Call</button></div>
+                    </div>
+                    <div>${rows || `<div style="text-align:center;padding:24px;color:var(--gray-400);font-style:italic;font-size:13px;">No calls logged yet. Use “Log a Call” above, or the 📞 button on the Renewals list.</div>`}</div>
+                </div>`;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        async function amsCommLogCall() {
+            const key = amsActiveKey;
+            if (!key) return;
+            const note = (document.getElementById('amsCommNote')?.value || '').trim();
+            const contacts = amsGetClientData();
+            if (!contacts[key]) contacts[key] = {};
+            if (!Array.isArray(contacts[key].callLog)) contacts[key].callLog = [];
+            contacts[key].callLog.push({ at: new Date().toISOString(), by: _amsRnwWho(), note });
+            contacts[key].updatedAt = new Date().toISOString();
+            amsSave('amsClientData', contacts);
+            amsRenderCommunications(key);
+            if (typeof amsFlashBanner === 'function') amsFlashBanner('Call logged ✓');
+        }
+
+        async function amsCommDelete(i) {
+            const key = amsActiveKey;
+            const rec = _amsCommLast[i];
+            if (!key || !rec) return;
+            if (!confirm('Remove this call from the communications log?')) return;
+            if (rec.kind === 'general') {
+                const contacts = amsGetClientData();
+                if (contacts[key] && Array.isArray(contacts[key].callLog)) {
+                    contacts[key].callLog.splice(rec.callIdx, 1);
+                    contacts[key].updatedAt = new Date().toISOString();
+                    amsSave('amsClientData', contacts);
+                }
+            } else {
+                // Policy call — edit the binder entry and persist so the count
+                // stays in sync with the renewals list and the agent's Binder Book.
+                const ctx = _amsRnwCtxFromClient(key, rec.polIdx);
+                if (ctx && ctx.entry) {
+                    ctx.entry.callLog = _amsRnwCalls(ctx.entry).filter((_, n) => n !== rec.callIdx);
+                    _amsRnwCtx = ctx;
+                    await _amsRnwPersistEdit(ctx.entry, ctx.list);
+                }
+            }
+            amsRenderCommunications(key);
         }
 
         // ── Cancel ────────────────────────────────────────────

@@ -1091,6 +1091,7 @@ function amsLoadClientDetail(key) {
     amsRenderPolicies(key);
     amsRenderNotes(key);
     amsUpdateDocBadge();
+    if (typeof amsUpdateCommBadge === 'function') amsUpdateCommBadge(key);
     amsShowTab('contact');
     lucide.createIcons();
 }
@@ -1258,13 +1259,14 @@ function amsRenderNotes(key) {
 
 // ── Tabs ─────────────────────────────────────────────────────
 function amsShowTab(tab) {
-    ['contact','policies','notes','documents','forms'].forEach(t => {
+    ['contact','policies','notes','communications','documents','forms'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         if (el) el.style.display = t === tab ? 'block' : 'none';
         document.querySelector(`.ams-tab[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
     });
     if (tab === 'documents' && amsActiveKey) amsRenderFileGrid();
     if (tab === 'forms' && amsActiveKey) acordRenderFormsList();
+    if (tab === 'communications' && amsActiveKey && typeof amsRenderCommunications === 'function') amsRenderCommunications(amsActiveKey);
 }
 
 // ── Save contact info ────────────────────────────────────────
