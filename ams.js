@@ -5282,7 +5282,12 @@ EXTRACTION TIPS:
 }
 
 // ── API call (same proxy as Binder Book) ─────────────────────
-async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
+// Requests streaming (stream:true) so the Edge Function forwards Claude's
+// server-sent events as they arrive. That keeps bytes flowing and avoids the
+// Supabase 150s idle timeout that used to kill long renewal-report extractions.
+// Falls back to plain-JSON parsing so it still works against a proxy that
+// hasn't been redeployed yet, and for error responses (which are always JSON).
+async function aiCallAPI(systemPrompt, messages, maxTokens = 16000) {
     const res = await fetch(AI_PROXY_URL, {
         method: 'POST',
         headers: {
@@ -5290,9 +5295,17 @@ async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
             'apikey': AMS_SB_KEY,
             'Authorization': 'Bearer ' + AMS_SB_KEY
         },
-        body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens, system: systemPrompt, messages })
+        body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens, system: systemPrompt, messages, stream: true })
     });
+
     const raw = await res.text();
+
+    // Streamed (SSE) response → accumulate the text deltas.
+    if (raw.startsWith('event:') || raw.startsWith('data:')) {
+        return aiParseSSE(raw);
+    }
+
+    // Buffered JSON response (old proxy, or an error).
     let data;
     try { data = JSON.parse(raw); }
     catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`); }
@@ -5304,6 +5317,34 @@ async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
     if (!data.content || !data.content.length) throw new Error(`Empty response from Claude. Raw: ${raw.slice(0, 300)}`);
     const tb = data.content.find(b => b.type === 'text');
     return { text: tb ? tb.text : '', stopReason: data.stop_reason || null };
+}
+
+// Parse an Anthropic SSE stream (as text) into the same { text, stopReason }
+// shape the buffered path returns, so callers don't care which path ran.
+function aiParseSSE(raw) {
+    let text = '', stopReason = null, errType = null, errMsg = null;
+    raw.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line.startsWith('data:')) return;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') return;
+        let evt;
+        try { evt = JSON.parse(payload); } catch (e) { return; }
+        if (evt.type === 'content_block_delta' && evt.delta && evt.delta.type === 'text_delta') {
+            text += evt.delta.text || '';
+        } else if (evt.type === 'message_delta' && evt.delta && evt.delta.stop_reason) {
+            stopReason = evt.delta.stop_reason;
+        } else if (evt.type === 'error' && evt.error) {
+            errType = evt.error.type || '';
+            errMsg  = evt.error.message || JSON.stringify(evt.error);
+        }
+    });
+    if (errMsg) {
+        if (errType === 'authentication_error') throw new Error('Claude API: invalid API key. Set the ANTHROPIC_API_KEY secret in Supabase Edge Functions.');
+        throw new Error(`Claude API ${errType}: ${errMsg}`);
+    }
+    if (!text) throw new Error('Empty response from Claude (the stream produced no text).');
+    return { text, stopReason };
 }
 
 // ── Send ─────────────────────────────────────────────────────
@@ -5703,7 +5744,7 @@ async function rnwSendMessage() {
     const loading = rnwAddMessage('assistant', hasPdfs ? '✨ Reading renewal report(s) and matching against the AMS…' : '✨ Thinking…');
 
     try {
-        const reply = await aiCallAPI(rnwBuildSystemPrompt(hasPdfs), _rnwMessages, hasPdfs ? 16000 : 4096);
+        const reply = await aiCallAPI(rnwBuildSystemPrompt(hasPdfs), _rnwMessages, hasPdfs ? 32000 : 4096);
         loading.remove();
         let replyText = reply.text || '(no response)';
         _rnwMessages.push({ role: 'assistant', content: replyText });

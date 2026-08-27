@@ -40,12 +40,20 @@ Deno.serve(async (req) => {
     // Accept both the direct shape {model,...} and the legacy {action,body}.
     const p = incoming.body || incoming;
 
+    // Callers opt into streaming with {stream:true}. Streaming forwards
+    // Anthropic's server-sent events straight to the browser as they are
+    // produced, so bytes keep flowing and Supabase's 150-second idle timeout
+    // never fires on long PDF extractions. Non-streaming callers (e.g. the
+    // Binder Book app) keep the original buffered-JSON behavior unchanged.
+    const wantStream = p.stream === true;
+
     const payload: Record<string, unknown> = {
       model: p.model || "claude-sonnet-4-6",
       max_tokens: p.max_tokens || 4096,
       messages: p.messages || [],
     };
     if (p.system) payload.system = p.system;
+    if (wantStream) payload.stream = true;
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -57,7 +65,16 @@ Deno.serve(async (req) => {
       body: JSON.stringify(payload),
     });
 
-    // Pass Anthropic's response straight back to the browser.
+    // Streaming request that Anthropic accepted → pipe the SSE body through.
+    if (wantStream && r.ok && r.body) {
+      return new Response(r.body, {
+        status: 200,
+        headers: { ...CORS, "content-type": "text/event-stream", "cache-control": "no-cache" },
+      });
+    }
+
+    // Non-streaming callers, and every error response (always JSON), pass
+    // straight back to the browser as before.
     const text = await r.text();
     return new Response(text, {
       status: r.status,
