@@ -1,0 +1,12 @@
+# Source inputs and intermediates are not committed (same as the June folder):
+# the master binder book carries client PII, the carrier statements are the
+# office's source documents, and the *.json files are regenerable by the pipeline.
+Doral_Office_Binder_Book.xlsx
+Progressive_Detailed_July_2026.pdf
+GEICO_July_2026.pdf
+Kemper_Infinity_July_2026.pdf
+National_General_July_2026.pdf
+Ocean_Harbor_July_2026.pdf
+AmWins_July_2026.pdf
+United_Auto_July_2026.pdf
+*.json
