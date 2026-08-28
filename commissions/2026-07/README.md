@@ -23,11 +23,11 @@ transaction. Matching is by **policy number**, cross-checked on surname.
 | Gross Commissions | $9,462.56 |
 | Royalty (15%) | ($1,419.38) |
 | **Paid to Doral** | **$8,043.18** |
-| 220 License Rent *(placeholder)* | ($500.00) |
-| Systems *(placeholder)* | ($224.00) |
+| 220 License Rent | ($500.00) |
+| Systems | ($224.00) |
 | MVRs | ($8.36) |
-| Cash Payments Owed *(placeholder)* | ($589.00) |
-| **Net to Doral** | **$6,721.82** |
+| Cash Payments Owed | ($224.00) |
+| **Net to Doral** | **$7,086.82** |
 
 ## Commission summary by carrier
 
@@ -73,9 +73,9 @@ $23.92 agency-wide, is excluded); AmWins earns 10% of the net cash it collected.
    Doral's Pearl statement (producer 6883) but their policy numbers are not in
    the binder book, so by the policy-number rule they are excluded (net
    +$54.04). Include them if producer code 6883 is Doral-exclusive.
-3. **Office-only expense lines** (220 License Rent, Systems, Cash Payments Owed)
-   carry June's figures forward as placeholders — they appear on no carrier
-   statement. Confirm the July amounts.
+3. **Office-only expense lines** — 220 License Rent ($500), Systems ($224) and
+   Cash Payments Owed ($224) are the office figures provided for July; they
+   appear on no carrier statement.
 
 ## Binder policies with no carrier commission this month ($0)
 

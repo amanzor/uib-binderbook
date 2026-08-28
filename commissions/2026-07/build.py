@@ -51,7 +51,7 @@ for c in range(1, 5):
     if c > 1:
         money(ws, ws.cell(r, c).coordinate)
 gross = D['gross']; roy = round(gross * 0.15, 2); paid = round(gross - roy, 2)
-EXP = [('220 License Rent', -500.0), ('Systems', -224.0), ('MVRs', D['adj_total']), ('Cash Payments Owed', -589.0)]
+EXP = [('220 License Rent', -500.0), ('Systems', -224.0), ('MVRs', D['adj_total']), ('Cash Payments Owed', -224.0)]
 net = round(paid + sum(v for _, v in EXP), 2)
 r += 2
 for label, val, bold in [('Gross Commissions', gross, 0), ('Royalty (15%)', -roy, 0), ('Paid to Doral', paid, 1)] \

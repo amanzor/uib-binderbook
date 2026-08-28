@@ -13,7 +13,7 @@ from reportlab.lib.enums import TA_CENTER
 
 D = json.load(open('pdf_data.json'))
 # Office-only figures carried from June as placeholders (no carrier source).
-OFFICE = [('220 License Rent', -500.00), ('Systems', -224.00), ('Cash Payments Owed', -589.00)]
+OFFICE = [('220 License Rent', -500.00), ('Systems', -224.00), ('Cash Payments Owed', -224.00)]
 EXPENSES = [OFFICE[0], OFFICE[1], ('MVRs', round(D['adj_total'], 2)), OFFICE[2]]
 
 
@@ -104,8 +104,8 @@ story += [Spacer(1, 10), Paragraph(
     '<b>MVRs</b> of $8.36 is carrier-charged (an Ocean Harbor / Pearl MVR cost on Doral’s own producer-6883 statement) '
     'and is shown as an operating expense rather than inside the carrier sections above, so it is not counted twice. '
     'Kemper UW-report fees ($42.15) and a Progressive MVR chargeback ($6.40) sit on the whole-agency statements and are '
-    'not attributed to Doral. <b>220 License Rent, Systems and Cash Payments Owed</b> carry June’s figures forward as '
-    'placeholders — they appear on no carrier statement; confirm the July amounts.', note)]
+    'not attributed to Doral. <b>220 License Rent ($500), Systems ($224) and Cash Payments Owed ($224)</b> are office '
+    'figures provided for July and appear on no carrier statement.', note)]
 doc.build(story)
 print("DETAIL  grand total:", m(grand), " net to Doral:", m(netd))
 
@@ -161,7 +161,7 @@ s2 += [Spacer(1, 12), Paragraph(
     Spacer(1, 6), Paragraph(
     '<b>Operating expenses.</b> MVRs of $8.36 is carrier-charged (an Ocean Harbor / Pearl MVR cost on Doral’s own '
     'producer-6883 statement) and is shown here rather than inside the carrier figures above so it is not counted '
-    'twice. 220 License Rent, Systems and Cash Payments Owed carry June’s figures forward as placeholders and appear '
-    'on no carrier statement; confirm the July amounts.', note)]
+    'twice. 220 License Rent ($500), Systems ($224) and Cash Payments Owed ($224) are office figures provided for July '
+    'and appear on no carrier statement.', note)]
 doc2.build(s2)
 print("MONTHLY gross:", m(gross), " royalty:", m(mroy), " paid:", m(mpaid), " net to Doral:", m(mnet))
