@@ -8159,6 +8159,70 @@ async function binderCloudDownload(docId) {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+// Preview a cloud file in place instead of downloading it. PDFs render in an
+// iframe, images in an <img>, plain text/CSV in a <pre>; anything else (xlsx
+// and friends) has no browser viewer, so the modal offers the download.
+async function binderCloudPreview(docId) {
+    const f = _binderCloudFiles[docId];
+    if (!f) return;
+    const name = f.name || 'document';
+    const ext  = (name.split('.').pop() || '').toLowerCase();
+    document.getElementById('binderPreviewModal')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'binderPreviewModal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:100002;display:flex;align-items:center;justify-content:center;padding:22px;';
+    overlay.onclick = e => { if (e.target === overlay) _binderClosePreview(); };
+    overlay.innerHTML = `<div style="background:#fff;border-radius:14px;width:100%;max-width:980px;height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4);">
+        <div style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <strong style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📄 ${escHtml(name)}</strong>
+            <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+                <button onclick="binderCloudDownload('${escHtml(String(docId))}')"
+                    style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:#fff;padding:5px 12px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;">⬇ Download</button>
+                <button onclick="_binderClosePreview()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+            </div>
+        </div>
+        <div id="binderPreviewBody" style="flex:1;overflow:auto;background:#f3f4f6;display:flex;align-items:center;justify-content:center;">
+            <div style="color:#6b7280;font-style:italic;">Loading preview…</div>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const body = document.getElementById('binderPreviewBody');
+    if (!['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt', 'csv'].includes(ext)) {
+        body.innerHTML = `<div style="text-align:center;color:#6b7280;padding:30px;">
+            <div style="font-size:44px;margin-bottom:10px;">📄</div>
+            <p style="font-size:14px;margin-bottom:6px;"><strong>${escHtml(name)}</strong></p>
+            <p style="font-size:13px;">This file type can't be previewed in the browser.<br>Use Download to open it.</p></div>`;
+        return;
+    }
+    try {
+        const res = await fetch(_binderStorageUrl(f.path), {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+        });
+        if (!res.ok) { body.innerHTML = `<div style="color:#dc2626;padding:30px;">Could not load this file (HTTP ${res.status}).</div>`; return; }
+        if (ext === 'txt' || ext === 'csv') {
+            const text = await res.text();
+            body.style.alignItems = 'stretch';
+            body.innerHTML = `<pre style="margin:0;padding:18px;font-size:12.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;width:100%;">${escHtml(text.slice(0, 200000))}</pre>`;
+            return;
+        }
+        const type = ext === 'pdf' ? 'application/pdf' : ('image/' + (ext === 'jpg' ? 'jpeg' : ext));
+        const url  = URL.createObjectURL(new Blob([await res.arrayBuffer()], { type }));
+        overlay.dataset.blobUrl = url;
+        body.style.alignItems = ext === 'pdf' ? 'stretch' : 'center';
+        body.innerHTML = ext === 'pdf'
+            ? `<iframe src="${url}" style="width:100%;height:100%;border:none;"></iframe>`
+            : `<img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain;" alt="${escHtml(name)}">`;
+    } catch (e) {
+        body.innerHTML = `<div style="color:#dc2626;padding:30px;">Could not load this file — ${escHtml(String(e.message || e))}</div>`;
+    }
+}
+
+function _binderClosePreview() {
+    const m = document.getElementById('binderPreviewModal');
+    if (m?.dataset.blobUrl) URL.revokeObjectURL(m.dataset.blobUrl);
+    m?.remove();
+}
+
 async function binderCloudDelete(docId) {
     const f = _binderCloudFiles[docId];
     if (!f) return;
@@ -8195,6 +8259,7 @@ async function binderLoadFileList() {
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.file_name)}">☁️ ${escHtml(f.file_name)}</span>
             <span style="color:#6b7280;font-size:12px;white-space:nowrap;padding:2px 6px;background:#f3f4f6;border-radius:4px;">${escHtml(f.category || 'Other')}</span>
             <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploaded_at).toLocaleDateString()}</span>
+            <button class="btn-secondary btn-sm" onclick="binderCloudPreview('${escHtml(f.id)}')" style="padding:3px 8px;font-size:11px;" title="Preview in the browser">👁️</button>
             <button class="btn-primary btn-sm" onclick="binderCloudDownload('${escHtml(f.id)}')" style="padding:3px 8px;font-size:11px;" title="Download">⬇️</button>
             <button class="btn-danger btn-sm" onclick="binderCloudDelete('${escHtml(f.id)}')" style="padding:3px 8px;font-size:11px;" title="Delete">🗑️</button>
         </div>
@@ -11058,6 +11123,7 @@ async function mdocLoadFileList() {
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.file_name)}">📄 ${escHtml(f.file_name)}</span>
             <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${f.size_bytes ? (f.size_bytes / 1024 / 1024).toFixed(2) + ' MB' : ''}</span>
             <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploaded_at).toLocaleDateString()}</span>
+            <button class="btn-secondary btn-sm" onclick="binderCloudPreview('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Preview in the browser">👁️</button>
             <button class="btn-primary btn-sm" onclick="binderCloudDownload('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Download">⬇️</button>
             <button class="btn-danger btn-sm" onclick="mdocDeleteFile('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Delete">🗑️</button>
         </div>`).join('');
