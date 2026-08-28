@@ -62,6 +62,16 @@ function amsDBDeleteFile(id) {
     });
 }
 
+function amsDBPutFile(record) {
+    return new Promise((resolve, reject) => {
+        if (!amsDB) { reject('DB not ready'); return; }
+        const tx  = amsDB.transaction('files', 'readwrite');
+        const req = tx.objectStore('files').put(record);
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror   = e => reject(e.target.error);
+    });
+}
+
 // ── Supabase Storage — cloud files (shared with Binder Book) ──
 const AMS_SB_URL    = 'https://jgjmobktucyimupelfxd.supabase.co';
 const AMS_SB_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
@@ -212,6 +222,10 @@ let amsCurrentUser   = null;
 let amsCurrentRole   = null;
 let amsClientIndex   = {};   // key → { key, displayName, policies[], contact{} }
 let amsActiveKey     = null; // currently selected client key
+// The binder array the client index was built from. The index holds references
+// into it, so an edit made from a client's policy row can be saved by writing
+// this array back — no id lookup, which batch-imported duplicate ids would break.
+let amsBinderCache   = [];
 let amsFilteredKeys  = [];   // keys after search/filter
 let _amsSearchTimer  = null;
 
@@ -233,26 +247,32 @@ async function amsSyncToDrive(key, value) {
     } catch (e) { /* Drive unavailable */ }
 }
 
+// The Admin login. Setting, clearing or changing the agent on a record, and
+// deleting a policy, are restricted to it — an agent signed in with their own
+// account can never reassign a record or delete one, whatever the UI shows.
+function amsIsAdminUser() { return amsCurrentRole === 'admin'; }
+
 // Lock or unlock an agent <select> based on current role.
 // Agents see their own name locked; only admin can change it.
 function amsLockAgentField(sel) {
     if (!sel) return;
-    if (amsCurrentRole !== 'admin') {
+    if (!amsIsAdminUser()) {
         sel.disabled = true;
         sel.title    = '🔒 Only Admin can change the assigned agent';
         sel.style.background   = '#f3f4f6';
         sel.style.cursor       = 'not-allowed';
         sel.style.borderColor  = '#d1d5db';
         sel.style.color        = '#6b7280';
-        // Add a lock label next to the field if not already there
-        const parent = sel.parentElement;
-        if (parent && !parent.querySelector('.ams-agent-lock-badge')) {
+        // Badge this field's own label — not a neighbour's, which is where
+        // previousElementSibling lands when the field sits in a grid.
+        const field = sel.closest('.info-field, .form-group') || sel.parentElement;
+        const label = field?.querySelector('label');
+        if (label && !label.querySelector('.ams-agent-lock-badge')) {
             const badge = document.createElement('span');
             badge.className = 'ams-agent-lock-badge';
             badge.textContent = '🔒 Admin only';
             badge.style.cssText = 'font-size:11px;color:#dc2626;font-weight:700;margin-left:8px;';
-            const label = parent.previousElementSibling || parent.querySelector('label');
-            if (label) label.appendChild(badge);
+            label.appendChild(badge);
         }
     } else {
         sel.disabled = false;
@@ -262,7 +282,7 @@ function amsLockAgentField(sel) {
         sel.style.borderColor = '';
         sel.style.color       = '';
         // Remove lock badge if present
-        sel.closest('.info-field, .form-group, div')
+        (sel.closest('.info-field, .form-group') || sel.parentElement)
             ?.querySelectorAll('.ams-agent-lock-badge')
             .forEach(b => b.remove());
     }
@@ -277,6 +297,7 @@ function amsBuildClientIndex() {
     const binder   = amsGetBinderData();
     const contacts = amsGetClientData();
     const index    = {};
+    amsBinderCache = binder;
 
     // Correct any Infinity/Kemper entries mislabeled as Homeowners, then persist.
     if (amsNormalizeRestrictedCarrierLOBs(binder) > 0) {
@@ -532,6 +553,7 @@ function amsLaunchApp() {
     amsInitDB().then(async () => {
         await amsSyncDataFromDrive();
         amsBuildClientIndex();
+        amsBackfillAgentOnRecord();
         amsPopulateAgentFilter();
         amsPopulateCarrierFilter();
         amsRenderClientList();
@@ -611,16 +633,69 @@ function amsPopulateModalDropdowns() {
         });
     }
 
-    // Contact: assigned agent — admin only
-    const ciAgent = document.getElementById('ci_assignedAgent');
-    if (ciAgent) {
-        ciAgent.innerHTML = '<option value="">— Select Agent —</option>';
-        const creds = amsGetCredentials();
-        Object.keys(creds).sort().forEach(a => {
-            const o = document.createElement('option'); o.value = a; o.textContent = a; ciAgent.appendChild(o);
+    // Contact: assigned agent + agent on record — both admin only
+    ['ci_assignedAgent', 'ci_csrName'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const current = sel.value;
+        sel.innerHTML = '<option value="">— Select Agent —</option>';
+        const names = new Set(Object.keys(amsGetCredentials()));
+        // Keep a name already on the record even if that login is gone, so
+        // opening a client never silently blanks its agent on record.
+        if (current) names.add(current);
+        [...names].sort().forEach(a => {
+            const o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o);
         });
-        amsLockAgentField(ciAgent);
+        sel.value = current;
+        amsLockAgentField(sel);
+    });
+}
+
+// ── Agent On Record ──────────────────────────────────────────
+// The field used to be a free-text "CSR Name". It now records which agent owns
+// the client, so seed it from the agent on their most recent policy (falling
+// back to the assigned agent). Any old CSR text is kept in csrNameLegacy rather
+// than thrown away. Runs once per browser; re-runs only fill in blanks.
+const AMS_AOR_BACKFILL_KEY = 'amsAgentOnRecordBackfill_v1';
+
+function amsClientCurrentAgent(client) {
+    const dated = (client?.policies || []).filter(p => p && p.agent);
+    if (dated.length) {
+        const newest = dated.slice().sort((a, b) =>
+            String(b.expirationDate || b.effectiveDate || b.entryDate || '')
+                .localeCompare(String(a.expirationDate || a.effectiveDate || a.entryDate || '')))[0];
+        if (newest?.agent) return newest.agent;
     }
+    return client?.contact?.assignedAgent || '';
+}
+
+function amsBackfillAgentOnRecord() {
+    const firstRun = !localStorage.getItem(AMS_AOR_BACKFILL_KEY);
+    const contacts = amsGetClientData();
+    let changed = 0;
+
+    Object.values(amsClientIndex).forEach(client => {
+        const agent = amsClientCurrentAgent(client);
+        if (!agent) return;
+        const rec = contacts[client.key] || (contacts[client.key] = {});
+        // First run replaces the old CSR text; later runs only fill blanks.
+        if (!firstRun && rec.csrName) return;
+        if (rec.csrName === agent) return;
+        if (firstRun && rec.csrName && rec.csrName !== agent && !rec.csrNameLegacy) {
+            rec.csrNameLegacy = rec.csrName;
+        }
+        rec.csrName   = agent;
+        rec.updatedAt = new Date().toISOString();
+        changed++;
+    });
+
+    if (changed) amsSave('amsClientData', contacts);
+    if (firstRun) localStorage.setItem(AMS_AOR_BACKFILL_KEY, new Date().toISOString());
+    if (changed) {
+        amsBuildClientIndex();
+        console.log(`Agent On Record set on ${changed} client${changed === 1 ? '' : 's'}.`);
+    }
+    return changed;
 }
 
 // ── Search & Filter ──────────────────────────────────────────
@@ -705,6 +780,8 @@ function amsRenderClientList(relatedCount = 0) {
             : `${total} client${total !== 1 ? 's' : ''}`;
     }
 
+    amsUpdateMergeButton();
+
     if (!amsFilteredKeys.length) {
         container.innerHTML = '<div class="no-results">No clients found.</div>';
         return;
@@ -742,6 +819,221 @@ function amsRenderClientList(relatedCount = 0) {
             </div>
         </div>`;
     }).join('');
+}
+
+// ── Merge clients ────────────────────────────────────────────
+// Fold two or more duplicate client records into one. Policies, contact
+// details, notes, ACORD forms, and documents (local + cloud) from the
+// "source" records are moved onto the "primary" record the user keeps.
+let _amsMergeKeys       = [];   // index → client key, for the open modal
+let _amsMergePrimaryIdx = -1;   // index of the record to keep
+
+function amsUpdateMergeButton() {
+    const btn = document.getElementById('amsMergeBtn');
+    if (btn) btn.style.display = amsFilteredKeys.length >= 2 ? 'inline-flex' : 'none';
+}
+
+function amsOpenMergeModal() {
+    _amsMergeKeys = amsFilteredKeys.slice();
+    if (_amsMergeKeys.length < 2) {
+        alert('Need at least two clients in the list to merge. Adjust your search or filters first.');
+        return;
+    }
+    _amsMergePrimaryIdx = -1;
+
+    document.getElementById('amsMergeList').innerHTML = _amsMergeKeys.map((key, i) => {
+        const c = amsClientIndex[key];
+        const n = c.policies.length;
+        const phone = c.contact && c.contact.phone1 ? ' · ' + amsEscHtml(c.contact.phone1) : '';
+        return `
+        <div class="ams-merge-row" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--gray-100);">
+            <input type="checkbox" class="ams-merge-check" data-idx="${i}" onchange="amsMergeSelectionChanged()" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;">
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;font-size:13px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${amsEscHtml(c.displayName)}</div>
+                <div style="font-size:11px;color:var(--gray-500);">${n} polic${n !== 1 ? 'ies' : 'y'}${phone}</div>
+            </div>
+            <label class="ams-merge-keep" style="display:none;align-items:center;gap:5px;font-size:11px;color:var(--blue-mid);font-weight:700;white-space:nowrap;cursor:pointer;">
+                <input type="radio" name="amsMergePrimary" data-idx="${i}" onchange="amsMergePrimaryChanged(${i})"> keep
+            </label>
+        </div>`;
+    }).join('');
+
+    document.getElementById('amsMergeSummary').textContent = 'Select at least two clients.';
+    document.getElementById('amsMergeConfirmBtn').disabled = true;
+    document.getElementById('amsMergeModal').classList.add('open');
+    if (window.lucide) lucide.createIcons();
+}
+
+function amsCloseMergeModal() {
+    document.getElementById('amsMergeModal').classList.remove('open');
+}
+
+function amsMergeSelectionChanged() {
+    const checks = [...document.querySelectorAll('.ams-merge-check')];
+    const checkedIdx = checks.filter(c => c.checked).map(c => +c.dataset.idx);
+
+    // Show the "keep" control only on checked rows
+    checks.forEach(chk => {
+        const keepWrap = chk.closest('.ams-merge-row').querySelector('.ams-merge-keep');
+        keepWrap.style.display = chk.checked ? 'inline-flex' : 'none';
+    });
+
+    // Default the primary to the checked record with the most policies
+    if (checkedIdx.length >= 2 && !checkedIdx.includes(_amsMergePrimaryIdx)) {
+        _amsMergePrimaryIdx = checkedIdx.slice().sort((a, b) =>
+            amsClientIndex[_amsMergeKeys[b]].policies.length -
+            amsClientIndex[_amsMergeKeys[a]].policies.length)[0];
+    }
+    if (checkedIdx.length < 2) _amsMergePrimaryIdx = -1;
+
+    // Reflect the primary selection in the radios
+    checks.forEach(chk => {
+        const radio = chk.closest('.ams-merge-row').querySelector('input[type=radio]');
+        radio.checked = (+chk.dataset.idx === _amsMergePrimaryIdx);
+    });
+
+    amsUpdateMergeSummary(checkedIdx);
+}
+
+function amsMergePrimaryChanged(idx) {
+    _amsMergePrimaryIdx = +idx;
+    const checkedIdx = [...document.querySelectorAll('.ams-merge-check:checked')].map(c => +c.dataset.idx);
+    amsUpdateMergeSummary(checkedIdx);
+}
+
+function amsUpdateMergeSummary(checkedIdx) {
+    const summary = document.getElementById('amsMergeSummary');
+    const btn     = document.getElementById('amsMergeConfirmBtn');
+    if (checkedIdx.length < 2) {
+        summary.textContent = 'Select at least two clients.';
+        btn.disabled = true;
+        return;
+    }
+    if (_amsMergePrimaryIdx < 0 || !checkedIdx.includes(_amsMergePrimaryIdx)) {
+        summary.textContent = 'Choose which client to keep.';
+        btn.disabled = true;
+        return;
+    }
+    const primaryName    = amsClientIndex[_amsMergeKeys[_amsMergePrimaryIdx]].displayName;
+    const totalPolicies  = checkedIdx.reduce((s, i) => s + amsClientIndex[_amsMergeKeys[i]].policies.length, 0);
+    summary.innerHTML = `Keeping <strong>${amsEscHtml(primaryName)}</strong> — ${checkedIdx.length} records, ${totalPolicies} total polic${totalPolicies !== 1 ? 'ies' : 'y'} combined.`;
+    btn.disabled = false;
+}
+
+function amsConfirmMerge() {
+    const checkedIdx = [...document.querySelectorAll('.ams-merge-check:checked')].map(c => +c.dataset.idx);
+    if (checkedIdx.length < 2) { alert('Select at least two clients to merge.'); return; }
+    if (_amsMergePrimaryIdx < 0 || !checkedIdx.includes(_amsMergePrimaryIdx)) {
+        alert('Choose which client to keep.'); return;
+    }
+
+    const primaryKey = _amsMergeKeys[_amsMergePrimaryIdx];
+    const sourceKeys = checkedIdx.map(i => _amsMergeKeys[i]).filter(k => k !== primaryKey);
+    const primaryName = amsClientIndex[primaryKey].displayName;
+    const names = sourceKeys.map(k => amsClientIndex[k].displayName).join(', ');
+
+    if (!confirm(
+        `Merge ${sourceKeys.length} client${sourceKeys.length !== 1 ? 's' : ''} (${names}) into "${primaryName}"?\n\n` +
+        `All their policies, notes, contact info, forms, and documents will move into "${primaryName}" and the ` +
+        `duplicate record${sourceKeys.length !== 1 ? 's' : ''} will be removed. This cannot be undone.`
+    )) return;
+
+    const btn = document.getElementById('amsMergeConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = 'Merging…';
+    amsPerformMerge(primaryKey, sourceKeys)
+        .catch(err => {
+            alert('Merge failed: ' + (err && err.message ? err.message : err));
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="git-merge"></i> Merge Selected';
+            if (window.lucide) lucide.createIcons();
+        });
+}
+
+async function amsPerformMerge(primaryKey, sourceKeys) {
+    const primaryName = amsClientIndex[primaryKey].displayName;
+    const sourceSet   = new Set(sourceKeys);
+
+    // 1) Repoint every policy owned by a source client to the primary's name,
+    //    so the rebuilt index groups them under the primary key.
+    const binder = amsGetBinderData();
+    let movedPolicies = 0;
+    binder.forEach(entry => {
+        if (sourceSet.has(amsClientKey(entry.customerName))) {
+            entry.customerName = primaryName;
+            entry.updatedAt = Date.now();
+            movedPolicies++;
+        }
+    });
+    amsSave('binderData', binder);
+
+    // 2) Merge contact fields (primary wins; blanks filled from sources) and
+    //    concatenate notes, then drop the source contact records.
+    const contacts = amsGetClientData();
+    const target   = contacts[primaryKey] || {};
+    const contactFields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
+        'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
+        'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
+    sourceKeys.forEach(sk => {
+        const src = contacts[sk] || {};
+        contactFields.forEach(f => { if (!target[f] && src[f]) target[f] = src[f]; });
+        if (Array.isArray(src.notes) && src.notes.length) {
+            target.notes = (target.notes || []).concat(src.notes);
+        }
+        delete contacts[sk];
+    });
+    target.updatedAt = new Date().toISOString();
+    contacts[primaryKey] = target;
+    amsSave('amsClientData', contacts);
+
+    // 3) Re-key saved ACORD forms (`${clientKey}_${formId}`) onto the primary.
+    try {
+        const forms = JSON.parse(localStorage.getItem('acordSavedForms') || '{}');
+        let changed = false;
+        Object.keys(forms).forEach(k => {
+            for (const sk of sourceKeys) {
+                if (k.startsWith(sk + '_')) {
+                    const newKey = primaryKey + k.slice(sk.length);
+                    if (!(newKey in forms)) forms[newKey] = forms[k];
+                    delete forms[k];
+                    changed = true;
+                    break;
+                }
+            }
+        });
+        if (changed) localStorage.setItem('acordSavedForms', JSON.stringify(forms));
+    } catch (e) { /* forms are best-effort */ }
+
+    // 4) Move local (IndexedDB) documents onto the primary key.
+    try {
+        for (const sk of sourceKeys) {
+            const files = await amsDBGetFilesForClient(sk);
+            for (const f of files) {
+                f.clientKey = primaryKey;
+                await amsDBPutFile(f);
+            }
+        }
+    } catch (e) { /* local docs are best-effort */ }
+
+    // 5) Move cloud (Supabase) document rows onto the primary key. Storage paths
+    //    are unchanged (downloads use the path directly), only the owning key.
+    try {
+        for (const sk of sourceKeys) {
+            await fetch(`${AMS_SB_URL}/rest/v1/documents?client_key=eq.${encodeURIComponent(sk)}`, {
+                method: 'PATCH',
+                headers: Object.assign({}, AMS_SB_HEADERS, { 'Prefer': 'return=minimal' }),
+                body: JSON.stringify({ client_key: primaryKey })
+            });
+        }
+    } catch (e) { /* cloud docs are best-effort */ }
+
+    // Rebuild, refresh the list, and open the merged client.
+    amsBuildClientIndex();
+    amsActiveKey = primaryKey;
+    amsApplyFilters();
+    amsCloseMergeModal();
+    amsLoadClientDetail(primaryKey);
+    amsFlashBanner(`Merged ${sourceKeys.length + 1} clients into ${primaryName} · ${movedPolicies} polic${movedPolicies !== 1 ? 'ies' : 'y'} moved ✓`);
 }
 
 // ── Load & render client detail ──────────────────────────────
@@ -783,12 +1075,23 @@ function amsLoadClientDetail(key) {
                     'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
     fields.forEach(f => {
         const el = document.getElementById(`ci_${f}`);
-        if (el) el.value = contact[f] || '';
+        if (!el) return;
+        const val = contact[f] || '';
+        // A name no longer in the agent list (a departed agent, or the old CSR
+        // text this field used to hold) would vanish from a <select>. Keep it as
+        // an option so opening a client never blanks what is on record.
+        if (el.tagName === 'SELECT' && val && ![...el.options].some(o => o.value === val)) {
+            const o = document.createElement('option');
+            o.value = val; o.textContent = val;
+            el.appendChild(o);
+        }
+        el.value = val;
     });
 
     amsRenderPolicies(key);
     amsRenderNotes(key);
     amsUpdateDocBadge();
+    if (typeof amsUpdateCommBadge === 'function') amsUpdateCommBadge(key);
     amsShowTab('contact');
     lucide.createIcons();
 }
@@ -803,7 +1106,7 @@ function amsRenderPolicies(key) {
         return;
     }
 
-    tbody.innerHTML = policies.map(p => {
+    tbody.innerHTML = policies.map((p, polIdx) => {
         const dateStr = p.entryDate
             ? new Date(p.entryDate + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
             : '—';
@@ -813,6 +1116,17 @@ function amsRenderPolicies(key) {
         const status = amsGetPolicyStatus(p);
         const statusColor = amsGetStatusColor(status);
         const statusBg = amsGetStatusBackground(status);
+
+        const memoCount = Array.isArray(p.memos) ? p.memos.length : 0;
+        const lastMemo  = memoCount ? p.memos[memoCount - 1] : null;
+        const memoChip  = memoCount
+            ? `<div style="margin-top:4px;"><span title="${amsEscAttr(lastMemo.text || '')}"
+                style="background:#fef3c7;color:#92400e;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;cursor:default;">📝 ${memoCount}</span></div>`
+            : '';
+        const cancelChip = p.cancellationDate
+            ? `<div style="margin-top:4px;"><span title="${amsEscAttr(p.cancelReason || 'Cancellation recorded')}"
+                style="background:#fee2e2;color:#b91c1c;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;white-space:nowrap;">Cancels ${amsEscHtml(p.cancellationDate)}</span></div>`
+            : '';
 
         const txnHistory = p.transactionHistory || [];
         const hasCarrierData = txnHistory.length > 0 || p.al3SourceFile || p.al3TxnCode;
@@ -895,6 +1209,7 @@ function amsRenderPolicies(key) {
                 <span class="policy-status" style="background:${statusBg};color:${statusColor};padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;display:inline-block;">
                     ${amsEscHtml(p.policyStatus || status)}
                 </span>
+                ${cancelChip}${memoChip}
             </td>
             <td style="white-space:nowrap;" onclick="event.stopPropagation()">
                 <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
@@ -903,8 +1218,9 @@ function amsRenderPolicies(key) {
                         ? `<button class="btn-secondary btn-sm" onclick="amsEditPolicy(${p.id})" title="Edit policy">
                                <i data-lucide="pencil"></i>
                            </button>
-                           <button class="btn-secondary btn-sm" onclick="amsOpenPolicyActionMenu(event, ${p.id})" title="More actions">
-                               <i data-lucide="more-vertical"></i>
+                           <button class="btn-sm" onclick="amsOpenPolicyActionMenu(event, ${p.id}, '${amsEscJsAttr(key)}', ${polIdx})" title="Renew, rewrite, cancel, memo, status"
+                               style="background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                               ⚙ Actions ▾
                            </button>`
                         : '<span style="font-size:11px;color:var(--gray-300);">—</span>'}
                 </div>
@@ -943,13 +1259,14 @@ function amsRenderNotes(key) {
 
 // ── Tabs ─────────────────────────────────────────────────────
 function amsShowTab(tab) {
-    ['contact','policies','notes','documents','forms'].forEach(t => {
+    ['contact','policies','notes','communications','documents','forms'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         if (el) el.style.display = t === tab ? 'block' : 'none';
         document.querySelector(`.ams-tab[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
     });
     if (tab === 'documents' && amsActiveKey) amsRenderFileGrid();
     if (tab === 'forms' && amsActiveKey) acordRenderFormsList();
+    if (tab === 'communications' && amsActiveKey && typeof amsRenderCommunications === 'function') amsRenderCommunications(amsActiveKey);
 }
 
 // ── Save contact info ────────────────────────────────────────
@@ -961,9 +1278,24 @@ function amsSaveContact() {
     const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
                     'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
                     'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
+    // Assigned agent is the Admin login's to set — an agent saving the contact
+    // tab keeps whatever it was, even if the locked field was tampered with.
+    const priorAgents = { assignedAgent: contacts[amsActiveKey].assignedAgent || '',
+                          csrName:       contacts[amsActiveKey].csrName       || '' };
     fields.forEach(f => {
         contacts[amsActiveKey][f] = document.getElementById(`ci_${f}`)?.value || '';
     });
+    if (!amsIsAdminUser()) {
+        let blocked = false;
+        Object.keys(priorAgents).forEach(f => {
+            if (contacts[amsActiveKey][f] === priorAgents[f]) return;
+            contacts[amsActiveKey][f] = priorAgents[f];
+            const el = document.getElementById(`ci_${f}`);
+            if (el) el.value = priorAgents[f];
+            blocked = true;
+        });
+        if (blocked) alert('Only an administrator can change the assigned agent or the agent on record. The rest of your changes were saved.');
+    }
     contacts[amsActiveKey].updatedAt = new Date().toISOString();
 
     amsSave('amsClientData', contacts);
@@ -1089,7 +1421,7 @@ function amsClosePolicyModal() {
 }
 
 function amsSavePolicyModal() {
-    const agent      = document.getElementById('mp_agent')?.value      || '';
+    let   agent      = document.getElementById('mp_agent')?.value      || '';
     const policyType = document.getElementById('mp_policyType')?.value || '';
     const lob        = document.getElementById('mp_lob')?.value        || '';
     const carrier    = document.getElementById('mp_carrier')?.value    || '';
@@ -1105,6 +1437,22 @@ function amsSavePolicyModal() {
 
     const editId = parseInt(document.getElementById('amsPolicyEditId')?.value) || null;
     let binder   = amsGetBinderData();
+
+    // Only the Admin login decides who a record belongs to. An agent editing a
+    // record keeps whatever agent it already had; a record they create is theirs.
+    if (!amsIsAdminUser()) {
+        const original = editId ? binder.find(p => p.id === editId) : null;
+        const forced   = original ? (original.agent || amsCurrentUser || '') : (amsCurrentUser || '');
+        if (agent !== forced) {
+            const sel = document.getElementById('mp_agent');
+            if (sel) sel.value = forced;
+            if (original && original.agent && agent) {
+                alert('Only an administrator can change the agent on a record. Saving it under ' + original.agent + '.');
+            }
+        }
+        agent = forced;
+        if (!agent) { alert('Your login has no agent name, so this record cannot be saved. Ask an administrator.'); return; }
+    }
 
     const v = id => document.getElementById(id)?.value || '';
     const n = id => parseFloat(document.getElementById(id)?.value) || 0;
@@ -1176,6 +1524,16 @@ function amsEscHtml(str) {
     return (str || '').toString()
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Safe inside a double-quoted HTML attribute (title="…").
+function amsEscAttr(str) { return amsEscHtml(str); }
+
+// Safe as a single-quoted JS string inside an HTML attribute
+// (onclick="fn('…')") — the backslash survives HTML decoding, so a name like
+// O'BRIEN does not terminate the string early.
+function amsEscJsAttr(str) {
+    return amsEscHtml(String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 }
 
 function amsFlashBanner(msg) {
@@ -1750,6 +2108,9 @@ function amsCollectProperty() {
 // ── Policy Status Management ─────────────────────────────────
 // Determine policy status based on dates and explicit status field
 function amsGetPolicyStatus(policy) {
+    // The Renewals page writes 'Cancelled' (the spelling the Binder Book filters
+    // on) — fold both spellings into the one this app displays.
+    if (/^cancell?ed$/i.test(policy.policyStatus || '')) return 'Canceled';
     // If explicit status is set, use it
     if (policy.policyStatus && ['Active', 'Pending Cancellation', 'Expired', 'Canceled'].includes(policy.policyStatus)) {
         return policy.policyStatus;
@@ -1792,15 +2153,18 @@ function amsGetStatusBackground(status) {
 }
 
 // Open policy action menu
-function amsOpenPolicyActionMenu(event, policyId) {
+function amsOpenPolicyActionMenu(event, policyId, clientKey, polIdx) {
     event.stopPropagation();
     
     // Close any open menu
     const existing = document.getElementById('amsPolicyActionMenu');
     if (existing) existing.remove();
     
-    const binder = amsGetBinderData();
-    const policy = binder.find(p => p.id === policyId);
+    // Prefer the client index entry: it is the exact row that was clicked, while
+    // an id lookup picks the first match and batch imports can leave duplicates.
+    const policy = (clientKey != null && polIdx != null)
+        ? amsClientIndex[clientKey]?.policies?.[polIdx]
+        : amsGetBinderData().find(p => p.id === policyId);
     if (!policy) return;
     
     const currentStatus = amsGetPolicyStatus(policy);
@@ -1828,7 +2192,33 @@ function amsOpenPolicyActionMenu(event, policyId) {
     const statusOptions = ['Active', 'Pending Cancellation', 'Expired', 'Canceled'];
     
     let menuHTML = `<div style="padding:8px 0;">`;
-    
+
+    // ── Renewal actions — the same ones on the Renewals page, acting on this
+    //    client's policy. Renew / rewrite / cancel stay admin-only; memos are
+    //    open to the assigned agent as well.
+    if (clientKey != null && polIdx != null) {
+        const keyArg   = `'${amsEscJsAttr(clientKey)}', ${polIdx}`;
+        const isRnwAdm = typeof amsIsRenewalAdmin === 'function' && amsIsRenewalAdmin();
+        const memoCount = Array.isArray(policy.memos) ? policy.memos.length : 0;
+        const item = (label, onclick, color) => `
+            <button onclick="document.getElementById('amsPolicyActionMenu')?.remove();${onclick}" style="
+                width:100%;padding:8px 12px;border:none;background:transparent;color:${color || 'var(--navy)'};
+                text-align:left;cursor:pointer;font-size:13px;transition:background .15s;"
+                onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='transparent'">
+                ${label}
+            </button>`;
+
+        menuHTML += `<div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Renewal Actions</div>`;
+        if (isRnwAdm) {
+            menuHTML += item('🔄 Renew', `amsPolicyRenew(${keyArg});`);
+            menuHTML += item('🔀 Renew A-B (rewrite)', `amsPolicyRenewAB(${keyArg});`);
+            menuHTML += item(policy.cancellationDate ? '🚫 Edit cancellation' : '🚫 Cancel policy',
+                             `amsPolicyCancel(${keyArg});`, 'var(--red)');
+        }
+        menuHTML += item(memoCount ? `📝 Memos (${memoCount})` : '📝 Memo', `amsPolicyMemo(${keyArg});`);
+        menuHTML += `<div style="border-top:1px solid var(--gray-200);margin:4px 0;"></div>`;
+    }
+
     menuHTML += `<div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Change Status</div>`;
     
     statusOptions.forEach(status => {
@@ -1873,7 +2263,7 @@ function amsOpenPolicyActionMenu(event, policyId) {
         <i data-lucide="pencil" style="width:14px;height:14px;display:inline;margin-right:6px;"></i> Edit Policy
     </button>`;
     
-    menuHTML += `<button onclick="amsDeletePolicy(${policyId});document.getElementById('amsPolicyActionMenu').remove();" style="
+    if (amsIsAdminUser()) menuHTML += `<button onclick="amsDeletePolicy(${policyId});document.getElementById('amsPolicyActionMenu').remove();" style="
         width: 100%;
         padding: 8px 12px;
         border: none;
@@ -1924,6 +2314,7 @@ function amsChangePolicyStatus(policyId, newStatus) {
 
 // Delete policy
 function amsDeletePolicy(policyId) {
+    if (!amsIsAdminUser()) { alert('Only an administrator can delete a policy.'); return; }
     if (!confirm('Are you sure you want to delete this policy? This action cannot be undone.')) return;
     
     const binder = amsGetBinderData();
@@ -4893,7 +5284,12 @@ EXTRACTION TIPS:
 }
 
 // ── API call (same proxy as Binder Book) ─────────────────────
-async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
+// Requests streaming (stream:true) so the Edge Function forwards Claude's
+// server-sent events as they arrive. That keeps bytes flowing and avoids the
+// Supabase 150s idle timeout that used to kill long renewal-report extractions.
+// Falls back to plain-JSON parsing so it still works against a proxy that
+// hasn't been redeployed yet, and for error responses (which are always JSON).
+async function aiCallAPI(systemPrompt, messages, maxTokens = 16000) {
     const res = await fetch(AI_PROXY_URL, {
         method: 'POST',
         headers: {
@@ -4901,9 +5297,17 @@ async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
             'apikey': AMS_SB_KEY,
             'Authorization': 'Bearer ' + AMS_SB_KEY
         },
-        body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens, system: systemPrompt, messages })
+        body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens, system: systemPrompt, messages, stream: true })
     });
+
     const raw = await res.text();
+
+    // Streamed (SSE) response → accumulate the text deltas.
+    if (raw.startsWith('event:') || raw.startsWith('data:')) {
+        return aiParseSSE(raw);
+    }
+
+    // Buffered JSON response (old proxy, or an error).
     let data;
     try { data = JSON.parse(raw); }
     catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`); }
@@ -4915,6 +5319,34 @@ async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
     if (!data.content || !data.content.length) throw new Error(`Empty response from Claude. Raw: ${raw.slice(0, 300)}`);
     const tb = data.content.find(b => b.type === 'text');
     return { text: tb ? tb.text : '', stopReason: data.stop_reason || null };
+}
+
+// Parse an Anthropic SSE stream (as text) into the same { text, stopReason }
+// shape the buffered path returns, so callers don't care which path ran.
+function aiParseSSE(raw) {
+    let text = '', stopReason = null, errType = null, errMsg = null;
+    raw.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line.startsWith('data:')) return;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') return;
+        let evt;
+        try { evt = JSON.parse(payload); } catch (e) { return; }
+        if (evt.type === 'content_block_delta' && evt.delta && evt.delta.type === 'text_delta') {
+            text += evt.delta.text || '';
+        } else if (evt.type === 'message_delta' && evt.delta && evt.delta.stop_reason) {
+            stopReason = evt.delta.stop_reason;
+        } else if (evt.type === 'error' && evt.error) {
+            errType = evt.error.type || '';
+            errMsg  = evt.error.message || JSON.stringify(evt.error);
+        }
+    });
+    if (errMsg) {
+        if (errType === 'authentication_error') throw new Error('Claude API: invalid API key. Set the ANTHROPIC_API_KEY secret in Supabase Edge Functions.');
+        throw new Error(`Claude API ${errType}: ${errMsg}`);
+    }
+    if (!text) throw new Error('Empty response from Claude (the stream produced no text).');
+    return { text, stopReason };
 }
 
 // ── Send ─────────────────────────────────────────────────────
@@ -5314,7 +5746,7 @@ async function rnwSendMessage() {
     const loading = rnwAddMessage('assistant', hasPdfs ? '✨ Reading renewal report(s) and matching against the AMS…' : '✨ Thinking…');
 
     try {
-        const reply = await aiCallAPI(rnwBuildSystemPrompt(hasPdfs), _rnwMessages, hasPdfs ? 16000 : 4096);
+        const reply = await aiCallAPI(rnwBuildSystemPrompt(hasPdfs), _rnwMessages, hasPdfs ? 32000 : 4096);
         loading.remove();
         let replyText = reply.text || '(no response)';
         _rnwMessages.push({ role: 'assistant', content: replyText });
