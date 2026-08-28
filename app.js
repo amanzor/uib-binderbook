@@ -6497,106 +6497,92 @@ function csSelectMonth(monthKey) {
     loadCommissionStatementsList();
 }
 
+// Sorted list of every month that has a commission statement.
+function csAllMonths() {
+    const months = [...new Set(Object.keys(commissionStatements).map(csMonthOf))];
+    const MO_IDX = {january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12};
+    months.sort((a, b) => {
+        const parse = s => { const p = s.split(' '); return parseInt(p[1] || 0)*13 + (MO_IDX[p[0].toLowerCase()] || 0); };
+        return parse(a) - parse(b);
+    });
+    return months;
+}
+
+// An array of month buttons — the primary month picker on the page.
+function renderCSMonthButtons() {
+    const wrap = document.getElementById('csMonthButtons');
+    if (!wrap) return;
+    wrap.innerHTML = csAllMonths().map(m => {
+        const active = m === csCurrentMonthKey;
+        const nSrc = csKeysForMonth(m).length;
+        const esc = m.replace(/'/g, "\\'");
+        return `<button onclick="csSelectMonth('${esc}')" style="padding:8px 16px;border-radius:9px;cursor:pointer;white-space:nowrap;font-size:13px;
+            border:1.5px solid ${active ? 'var(--navy)' : 'var(--gray-200)'};
+            background:${active ? 'var(--navy)' : '#fff'};color:${active ? '#fff' : 'var(--gray-700)'};
+            font-weight:${active ? '700' : '600'};box-shadow:${active ? '0 2px 6px rgba(15,32,60,.25)' : 'none'};">
+            ${m}${nSrc > 1 ? ` <span style="opacity:.7;font-weight:500;">· ${nSrc}</span>` : ''}
+        </button>`;
+    }).join('');
+}
+
+// A card per agent for the selected month — click to open that agent's statement.
+function renderCSAgentCards(monthKey) {
+    const stmt = csGetCombined(monthKey);
+    const wrap = document.getElementById('csAgentCards');
+    if (!stmt || !wrap) return;
+    const groups = _csGroupByAgent(stmt);
+    if (!groups.length) {
+        wrap.innerHTML = '<div style="color:var(--gray-400);font-size:13px;padding:12px;">No agents in this statement.</div>';
+        return;
+    }
+    const gross = stmt.grossTotal || 0;
+    wrap.innerHTML = groups.map(g => {
+        const isUn = g.agent === '__UNASSIGNED__';
+        const active = g.agent === csSelectedAgentKey;
+        const label = isUn ? '⚠️ Unassigned' : g.agent;
+        const pct = gross !== 0 ? (g.total / gross) * 100 : 0;
+        const barW = Math.min(Math.abs(pct), 100);
+        const totColor = g.total >= 0 ? '#059669' : '#dc2626';
+        const esc = g.agent.replace(/'/g, "\\'");
+        return `<button onclick="csSelectAgentInReport('${esc}')" style="text-align:left;padding:12px 14px;border-radius:10px;cursor:pointer;
+            border:1.5px solid ${active ? (isUn ? '#f59e0b' : 'var(--navy)') : 'var(--gray-200)'};
+            background:${active ? (isUn ? '#fffbeb' : '#f5f8ff') : (isUn ? '#fffbeb' : '#fff')};
+            box-shadow:${active ? '0 2px 8px rgba(15,32,60,.15)' : 'none'};">
+            <div style="font-size:13px;font-weight:700;color:${isUn ? '#92400e' : 'var(--navy)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;">
+                <span style="font-size:16px;font-weight:800;color:${totColor};">$${g.total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                <span style="font-size:11px;color:var(--gray-400);">${g.entries.length} txns</span>
+            </div>
+            <div style="height:5px;background:var(--gray-100);border-radius:999px;overflow:hidden;margin-top:8px;">
+                <div style="height:100%;width:${barW}%;background:${isUn ? '#f59e0b' : '#059669'};border-radius:999px;"></div>
+            </div>
+            <div style="font-size:10.5px;color:var(--gray-400);margin-top:3px;">${pct.toFixed(1)}% of month</div>
+        </button>`;
+    }).join('');
+}
+
 function renderCSMonthDetail(monthKey) {
     const stmt = csGetCombined(monthKey);
     if (!stmt) return;
 
     document.getElementById('csDetail').style.display = 'block';
 
-    const matchedCount = stmt.entries.filter(e => e.agentMatch).length;
-    const newCount     = stmt.entries.filter(e => /^new/i.test((e.transaction||'').trim())).length;
-    const renewalCount = stmt.entries.filter(e => /renew/i.test(e.transaction)).length;
-    const adjEntries   = stmt.entries.filter(_csIsAdjustment);
-    const adjCount     = adjEntries.length;
-
-    // Summary now lives inside the Agent Commission Statement panel header
-    // (the old stat-card row and month tabs were removed).
+    // Month picker buttons + month labels
+    renderCSMonthButtons();
+    const lbl = document.getElementById('csAgentsMonthLabel');
+    if (lbl) lbl.textContent = '— ' + monthKey;
     const monthEl = document.getElementById('csAgentPanelMonth');
     if (monthEl) monthEl.textContent = '— ' + monthKey;
-    const statsEl = document.getElementById('csAgentPanelStats');
-    if (statsEl) {
-        const chip = (label, value, color) =>
-            `<span style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:4px 12px;font-size:11.5px;display:inline-flex;gap:6px;align-items:baseline;">
-                <span style="opacity:.75;">${label}</span>
-                <strong style="font-size:13px;${color ? 'color:' + color + ';' : ''}">${value}</strong>
-            </span>`;
-        statsEl.innerHTML =
-            chip('Gross Commission', '$' + stmt.grossTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}), stmt.grossTotal >= 0 ? '#6ee7b7' : '#fca5a5') +
-            chip('Transactions', stmt.entryCount) +
-            chip('Carriers', Object.keys(stmt.carrierTotals).length) +
-            chip('New', newCount) +
-            chip('Renewals', renewalCount) +
-            chip('Adjustments', adjCount) +
-            chip('Agent Matches', matchedCount);
+
+    // Default the selected agent to the top earner for this month.
+    const groups = _csGroupByAgent(stmt);
+    if (!csSelectedAgentKey || !groups.some(g => g.agent === csSelectedAgentKey)) {
+        csSelectedAgentKey = groups.length ? groups[0].agent : null;
     }
 
-    // Legacy stat-card IDs (removed from the page) — guarded for safety.
-    const _set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    _set('csGrossTotal', '$' + stmt.grossTotal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
-    _set('csPolicyCount', stmt.entryCount);
-    _set('csCarrierCount2', Object.keys(stmt.carrierTotals).length);
-    _set('csMatchedCount', matchedCount);
-    _set('csNewCount', newCount);
-    _set('csRenewalCount', renewalCount);
-    _set('csAdjCount', adjCount);
-
-    // Carrier breakdown
-    const breakdownBody = document.getElementById('csCarrierBreakdownBody');
-    breakdownBody.innerHTML = Object.entries(stmt.carrierTotals)
-        .sort((a, b) => b[1] - a[1])
-        .map(([carrier, total]) => {
-            const cnt = stmt.entries.filter(e => e.carrier === carrier).length;
-            const pct = stmt.grossTotal !== 0 ? ((total / stmt.grossTotal) * 100).toFixed(1) : '0.0';
-            const barW = Math.abs(pct);
-            return `<tr style="border-bottom:1px solid var(--gray-100);">
-                <td style="padding:9px 12px;font-weight:600;">${carrier}</td>
-                <td style="padding:9px 12px;text-align:center;">${cnt}</td>
-                <td style="padding:9px 12px;text-align:right;font-weight:700;color:${total>=0?'#059669':'#dc2626'};">
-                    $${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
-                </td>
-                <td style="padding:9px 12px;min-width:120px;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <div style="flex:1;height:8px;background:var(--gray-100);border-radius:999px;overflow:hidden;">
-                            <div style="height:100%;width:${barW}%;background:#059669;border-radius:999px;"></div>
-                        </div>
-                        <span style="font-size:11px;color:var(--gray-500);white-space:nowrap;">${pct}%</span>
-                    </div>
-                </td>
-            </tr>`;
-        }).join('');
-
-    // Agent breakdown + per-agent statement (true binder agent, not the carrier's producer)
-    renderCSAgentBreakdown(monthKey);
-    renderCSAgentReport(monthKey);
-    renderCSAdjustments(monthKey);
-
-    // Reset filters
-    const csCarrFilter = document.getElementById('csCarrierFilter');
-    csCarrFilter.innerHTML = '<option value="">All Carriers</option>';
-    Object.keys(stmt.carrierTotals).sort().forEach(c => {
-        const o = document.createElement('option'); o.value = c; o.textContent = c;
-        csCarrFilter.appendChild(o);
-    });
-
-    const csTxnFilt = document.getElementById('csTxnFilter');
-    csTxnFilt.innerHTML = '<option value="">All Types</option>';
-    [...new Set(stmt.entries.map(e => e.transaction).filter(Boolean))].sort().forEach(t => {
-        const o = document.createElement('option'); o.value = t; o.textContent = t;
-        csTxnFilt.appendChild(o);
-    });
-
-    const csAgentFilt = document.getElementById('csAgentFilter');
-    if (csAgentFilt) {
-        const cur = csAgentFilt.value;
-        const agents = [...new Set(stmt.entries.map(e => e.agentMatch).filter(Boolean))].sort();
-        const hasUnassigned = stmt.entries.some(e => !e.agentMatch);
-        csAgentFilt.innerHTML = '<option value="">All Agents</option>' +
-            agents.map(a => `<option value="${a}"${a === cur ? ' selected' : ''}>${a}</option>`).join('') +
-            (hasUnassigned ? `<option value="__UNASSIGNED__"${cur === '__UNASSIGNED__' ? ' selected' : ''}>⚠️ Unassigned / Needs Review</option>` : '');
-    }
-
-    renderCSEntries(monthKey);
-    if (window.UIBMotion) UIBMotion.animateStatCards();
+    // All agents (cards) + the selected agent's statement.
+    renderCSAgentCards(monthKey);
+    renderCSAgentDetail(monthKey);
     refreshIcons();
 }
 
@@ -6760,8 +6746,11 @@ function renderCSAgentNav(monthKey) {
 
 function csSelectAgentInReport(agentKey) {
     csSelectedAgentKey = agentKey;
-    renderCSAgentNav(csCurrentMonthKey);
+    renderCSAgentCards(csCurrentMonthKey);
     renderCSAgentDetail(csCurrentMonthKey);
+    // Bring the statement into view when picking an agent from the cards.
+    const panel = document.getElementById('csAgentReportBody');
+    if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function renderCSAgentDetail(monthKey) {
