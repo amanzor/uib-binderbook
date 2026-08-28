@@ -2817,11 +2817,70 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <span style="font-size:11px;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:1px 8px;white-space:nowrap;">${amsEscHtml((f.category || '').replace('Commission Statement — ', '') || 'Statement')}</span>
                     <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${f.size_bytes ? (f.size_bytes / 1024 / 1024).toFixed(2) + ' MB' : ''}</span>
                     <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${f.uploaded_at ? new Date(f.uploaded_at).toLocaleDateString('en-US') : ''}</span>
+                    <button class="btn-secondary btn-sm" style="padding:3px 9px;font-size:11px;" title="Preview in the browser"
+                        onclick="_commMdocPreview('${amsEscHtml(f.storage_path)}','${amsEscHtml(f.file_name)}')">👁️</button>
                     <button class="btn-primary btn-sm" style="padding:3px 9px;font-size:11px;" title="Download"
                         onclick="amsCloudDownloadFile('${amsEscHtml(String(f.id))}','${amsEscHtml(f.storage_path)}','${amsEscHtml(f.file_name)}','${amsEscHtml(f.mime_type || '')}')">⬇️</button>
                     <button class="btn-danger btn-sm" style="padding:3px 9px;font-size:11px;" title="Delete"
                         onclick="_commMdocDelete('${amsEscHtml(String(f.id))}','${amsEscHtml(f.storage_path)}','${amsEscHtml(f.file_name)}')">🗑️</button>
                 </div>`).join('');
+        }
+
+        // Preview a monthly document in place. PDFs render in an iframe, images
+        // in an <img>, text/CSV in a <pre>; spreadsheets have no browser viewer
+        // so the modal points at Download instead.
+        async function _commMdocPreview(storagePath, fileName) {
+            const ext = (String(fileName).split('.').pop() || '').toLowerCase();
+            document.getElementById('commMdocPreview')?.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'commMdocPreview';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:100003;display:flex;align-items:center;justify-content:center;padding:22px;';
+            overlay.onclick = e => { if (e.target === overlay) _commMdocClosePreview(); };
+            overlay.innerHTML = `<div style="background:#fff;border-radius:14px;width:100%;max-width:980px;height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4);">
+                <div style="background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                    <strong style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📄 ${amsEscHtml(fileName)}</strong>
+                    <button onclick="_commMdocClosePreview()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+                </div>
+                <div id="commMdocPreviewBody" style="flex:1;overflow:auto;background:#f3f4f6;display:flex;align-items:center;justify-content:center;">
+                    <div style="color:#6b7280;font-style:italic;">Loading preview…</div>
+                </div>
+            </div>`;
+            document.body.appendChild(overlay);
+            const body = document.getElementById('commMdocPreviewBody');
+            if (!['pdf','png','jpg','jpeg','gif','webp','txt','csv'].includes(ext)) {
+                body.innerHTML = `<div style="text-align:center;color:#6b7280;padding:30px;">
+                    <div style="font-size:44px;margin-bottom:10px;">📄</div>
+                    <p style="font-size:14px;margin-bottom:6px;"><strong>${amsEscHtml(fileName)}</strong></p>
+                    <p style="font-size:13px;">This file type can't be previewed in the browser.<br>Use the ⬇️ button to download it.</p></div>`;
+                return;
+            }
+            try {
+                const res = await fetch(_amsStorageUrl(storagePath), {
+                    headers: { 'apikey': AMS_SB_KEY, 'Authorization': 'Bearer ' + AMS_SB_KEY }
+                });
+                if (!res.ok) { body.innerHTML = `<div style="color:#dc2626;padding:30px;">Could not load this file (HTTP ${res.status}).</div>`; return; }
+                if (ext === 'txt' || ext === 'csv') {
+                    const text = await res.text();
+                    body.style.alignItems = 'stretch';
+                    body.innerHTML = `<pre style="margin:0;padding:18px;font-size:12.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;width:100%;">${amsEscHtml(text.slice(0, 200000))}</pre>`;
+                    return;
+                }
+                const type = ext === 'pdf' ? 'application/pdf' : ('image/' + (ext === 'jpg' ? 'jpeg' : ext));
+                const url = URL.createObjectURL(new Blob([await res.arrayBuffer()], { type }));
+                overlay.dataset.blobUrl = url;
+                body.style.alignItems = ext === 'pdf' ? 'stretch' : 'center';
+                body.innerHTML = ext === 'pdf'
+                    ? `<iframe src="${url}" style="width:100%;height:100%;border:none;"></iframe>`
+                    : `<img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain;" alt="${amsEscHtml(fileName)}">`;
+            } catch (e) {
+                body.innerHTML = `<div style="color:#dc2626;padding:30px;">Could not load this file — ${amsEscHtml(String(e.message || e))}</div>`;
+            }
+        }
+
+        function _commMdocClosePreview() {
+            const m = document.getElementById('commMdocPreview');
+            if (m?.dataset.blobUrl) URL.revokeObjectURL(m.dataset.blobUrl);
+            m?.remove();
         }
 
         async function _commMdocDelete(docId, storagePath, fileName) {
