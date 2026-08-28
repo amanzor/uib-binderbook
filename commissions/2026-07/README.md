@@ -11,8 +11,8 @@ transaction. Matching is by **policy number**, cross-checked on surname.
 | | Policies | Commission |
 |---|---:|---:|
 | New Business (binder sheet) | 21 | $3,057.29 |
-| Renewals & Adjustments | 49 renewals + wider-book activity | $6,405.27 |
-| **Total Gross Commission** | | **$9,462.56** |
+| Renewals & Adjustments | 49 renewals + wider-book activity | $6,459.31 |
+| **Total Gross Commission** | | **$9,516.60** |
 
 159 carrier transactions matched the Doral book (71 on the July binder sheet,
 88 wider-book); 277 more belonged to the agency's other offices and are excluded.
@@ -20,14 +20,13 @@ transaction. Matching is by **policy number**, cross-checked on surname.
 
 | | |
 |---|---:|
-| Gross Commissions | $9,462.56 |
-| Royalty (15%) | ($1,419.38) |
-| **Paid to Doral** | **$8,043.18** |
+| Gross Commissions | $9,516.60 |
+| Royalty (15%) | ($1,427.49) |
+| **Paid to Doral** | **$8,089.11** |
 | 220 License Rent | ($500.00) |
 | Systems | ($224.00) |
 | MVRs | ($8.36) |
-| Cash Payments Owed | ($224.00) |
-| **Net to Doral** | **$7,086.82** |
+| **Net to Doral** | **$7,356.75** |
 
 ## Commission summary by carrier
 
@@ -39,8 +38,8 @@ transaction. Matching is by **policy number**, cross-checked on surname.
 | National General | $164.50 | ($106.28) | $58.22 | $658.32 |
 | GEICO | $577.91 | $100.32 | $678.23 | $9,009.15 |
 | AmWins | $0.00 | $37.93 | $37.93 | $78.74 |
-| Ocean Harbor | $173.16 | $22.88 | $196.04 | $250.08 |
-| **Total** | **$3,057.29** | **$6,405.27** | **$9,462.56** | |
+| Ocean Harbor | $173.16 | $76.92 | $250.08 | $250.08 |
+| **Total** | **$3,057.29** | **$6,459.31** | **$9,516.60** | |
 
 "Statement total" is what each carrier prints for the whole agency; the Doral
 columns are this office's share, matched by policy number.
@@ -69,13 +68,12 @@ $23.92 agency-wide, is excluded); AmWins earns 10% of the net cash it collected.
    (−$1,227 at 12% = −$147.24). She earned +$147.24 on it in June, so it nets to
    zero across the two months. Shown at the carrier figure (−$147.24); confirm
    the binder status.
-2. **Ocean Harbor Ertas Meral (+$118.91) and Morin George (−$64.87)** are on
-   Doral's Pearl statement (producer 6883) but their policy numbers are not in
-   the binder book, so by the policy-number rule they are excluded (net
-   +$54.04). Include them if producer code 6883 is Doral-exclusive.
-3. **Office-only expense lines** — 220 License Rent ($500), Systems ($224) and
-   Cash Payments Owed ($224) are the office figures provided for July; they
-   appear on no carrier statement.
+2. **Ocean Harbor** is recorded in full as its producer-6883 statement shows —
+   all five lines, including Ertas Meral (+$118.91) and Morin George (−$64.87) —
+   so the section foots to the statement's $250.08 Commission Due.
+3. **Office-only expense lines** — 220 License Rent ($500) and Systems ($224) are
+   the office figures provided for July; the Cash Payments Owed line is removed
+   for now. They appear on no carrier statement.
 
 ## Binder policies with no carrier commission this month ($0)
 

@@ -51,7 +51,7 @@ for c in range(1, 5):
     if c > 1:
         money(ws, ws.cell(r, c).coordinate)
 gross = D['gross']; roy = round(gross * 0.15, 2); paid = round(gross - roy, 2)
-EXP = [('220 License Rent', -500.0), ('Systems', -224.0), ('MVRs', D['adj_total']), ('Cash Payments Owed', -224.0)]
+EXP = [('220 License Rent', -500.0), ('Systems', -224.0), ('MVRs', D['adj_total'])]
 net = round(paid + sum(v for _, v in EXP), 2)
 r += 2
 for label, val, bold in [('Gross Commissions', gross, 0), ('Royalty (15%)', -roy, 0), ('Paid to Doral', paid, 1)] \
@@ -136,11 +136,10 @@ notes = [
     ('1. Melissa A Taylor (Progressive 876394907): the binder lists her as active New ($1,404), but Progressive\'s July', False),
     ('   statement shows a full cancellation (−$1,227 at 12% = −$147.24). She earned +$147.24 on it in June, so it nets', False),
     ('   to zero across the two months. Shown here at the carrier figure (−$147.24). Confirm the binder status.', False),
-    ('2. Ocean Harbor Ertas Meral (+$118.91) and Morin George (−$64.87) are on Doral\'s Pearl statement (producer 6883)', False),
-    ('   but their policy numbers are not in the binder book, so by the policy-number rule they are excluded (net', False),
-    ('   +$54.04). Include them if producer code 6883 is Doral-exclusive.', False),
-    ('3. Office-only expense lines (220 License Rent, Systems, Cash Payments Owed) carry June\'s figures forward as', False),
-    ('   placeholders — they appear on no carrier statement. Confirm the July amounts.', False),
+    ('2. Ocean Harbor is recorded in full as its producer-6883 statement shows: all five lines including Ertas Meral', False),
+    ('   (+$118.91) and Morin George (−$64.87), so the section foots to the statement\'s $250.08 Commission Due.', False),
+    ('3. Office-only expense lines are 220 License Rent ($500) and Systems ($224), provided for July; the Cash Payments', False),
+    ('   Owed line has been removed for now. They appear on no carrier statement.', False),
     ('', False),
     ('BINDER POLICIES WITH NO CARRIER COMMISSION THIS MONTH ($0 — likely billed in an adjacent statement period):', True),
 ]

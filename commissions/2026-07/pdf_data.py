@@ -12,7 +12,13 @@ Both are booked on the monthly as-collected basis, not on gross written premium.
 import json, re, collections
 
 BINDER = json.load(open('binder.json'))
-BM = json.load(open('bookmatch.json'))['matched']
+_bm = json.load(open('bookmatch.json'))
+BM = _bm['matched']
+UNMATCHED = _bm['unmatched']
+# Ocean Harbor is Doral's own producer-6883 statement, so record every line it
+# prints — including transactions whose policy number is not yet in the binder
+# book — so the Ocean Harbor section foots to the statement's $250.08.
+RECORD_UNMATCHED_CARRIERS = {'Ocean Harbor'}
 
 ORDER = ['Progressive', 'United Auto', 'Infinity', 'National General', 'GEICO', 'AmWins', 'Ocean Harbor']
 LABEL = {'Progressive': 'PROGRESSIVE', 'United Auto': 'UNITED AUTO', 'Infinity': 'INFINITY',
@@ -87,6 +93,12 @@ for b in BINDER:
     rows[carr].append((b['name'], amt, bucket))
 for (carr, _pol), v in wider.items():
     rows[carr].append((wider_name[(carr, _pol)], round(v, 2), 'ren'))
+
+# record whole-statement carriers (Ocean Harbor) in full, as the statement shows
+for t in UNMATCHED:
+    if t.get('promo') or t['carrier'] not in RECORD_UNMATCHED_CARRIERS:
+        continue
+    rows[t['carrier']].append((t['name'], round(t['comm'], 2), 'ren'))
 
 # --- carrier-charged MVR / fee adjustments (operating-expense "MVRs" line) ---
 # Only costs on Doral's OWN carrier statements count; whole-agency fees do not.
