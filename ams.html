@@ -2207,8 +2207,10 @@
                 <button class="btn-secondary btn-sm" onclick="_commStExportCSV()" ${rows.length ? '' : 'disabled'}>⬇ Export CSV</button>
                 <button class="btn-secondary btn-sm" onclick="_commStPrint()" ${_commStAgent && rows.length ? '' : 'disabled'}
                     title="${_commStAgent ? 'Print this agent\'s commission statement' : 'Select an agent first'}">🖨 Print Agent Statement</button>
+                <button class="btn-secondary btn-sm" onclick="_commMdocOpen()"
+                    title="Monthly carrier commission statements — browse every month and upload each carrier's statement">📁 Documents</button>
                 ${_commStKey && (_amsCommStatements[_commStKey]?.documents || []).length
-                    ? `<button class="btn-secondary btn-sm" onclick="_commStOpenDocs(decodeURIComponent('${encodeURIComponent(_commStKey).replace(/'/g, '%27')}'))">📄 Documents (${_amsCommStatements[_commStKey].documents.length})</button>`
+                    ? `<button class="btn-secondary btn-sm" onclick="_commStOpenDocs(decodeURIComponent('${encodeURIComponent(_commStKey).replace(/'/g, '%27')}'))">📄 This Statement (${_amsCommStatements[_commStKey].documents.length})</button>`
                     : ''}
             </div>`;
 
@@ -2665,6 +2667,174 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 } catch (e) { console.warn(`Statement PDF upload failed for ${pdf.name}:`, e); }
             }
             return docs;
+        }
+
+        // ── Monthly carrier documents (AMS) ──────────────────────
+        // Mirrors the Binder Book's Documents section: a year of month
+        // buttons, and inside each month the carrier commission statements
+        // for it. Same storage as the Binder Book — the client-files bucket
+        // under MonthlyDocs_<year>_<Month> with rows in `documents` — so a
+        // file uploaded on either side shows up on both.
+        const _COMM_MDOC_CARRIERS = ['Progressive','United Auto','Infinity / Kemper','Ocean Harbor / Pearl',
+                                     'National General','AmWins','Geico','Bristol West','Other'];
+        let _commMdocYear = null, _commMdocMonth = null;
+
+        function _commMdocOpen() {
+            _commMdocYear = _commMdocYear || new Date().getFullYear();
+            _commMdocMonth = null;
+            document.getElementById('commMdocModal')?.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'commMdocModal';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100001;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto;';
+            overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+            const now = new Date().getFullYear();
+            const years = [];
+            for (let y = now + 1; y >= now - 4; y--) years.push(y);
+            overlay.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:860px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+                <div style="background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-radius:14px 14px 0 0;gap:12px;flex-wrap:wrap;">
+                    <strong style="font-size:15px;">📁 Carrier Commission Statements by Month</strong>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <select id="commMdocYear" onchange="_commMdocYearChanged()"
+                            style="padding:5px 9px;border-radius:7px;border:none;font-size:13px;font-weight:600;">
+                            ${years.map(y => `<option value="${y}" ${y === _commMdocYear ? 'selected' : ''}>${y}</option>`).join('')}
+                        </select>
+                        <button onclick="document.getElementById('commMdocModal').remove()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+                    </div>
+                </div>
+                <div style="padding:16px 18px;">
+                    <div id="commMdocGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px;"></div>
+                    <div id="commMdocDetail" style="display:none;margin-top:18px;border-top:1px solid var(--gray-200);padding-top:16px;"></div>
+                </div>
+            </div>`;
+            document.body.appendChild(overlay);
+            _commMdocRenderGrid();
+        }
+
+        function _commMdocYearChanged() {
+            _commMdocYear = parseInt(document.getElementById('commMdocYear').value, 10);
+            _commMdocMonth = null;
+            const d = document.getElementById('commMdocDetail');
+            if (d) { d.style.display = 'none'; d.innerHTML = ''; }
+            _commMdocRenderGrid();
+        }
+
+        async function _commMdocRenderGrid() {
+            const grid = document.getElementById('commMdocGrid');
+            if (!grid) return;
+            grid.innerHTML = _COMM_MDOC_MONTHS.map(m => {
+                const on = m === _commMdocMonth;
+                return `<button onclick="_commMdocSelect('${m}')" id="commMdocBtn_${m}"
+                    style="padding:14px 8px;border-radius:11px;cursor:pointer;text-align:center;transition:all .15s;
+                           border:2px solid ${on ? '#1d4ed8' : 'var(--gray-200)'};
+                           background:${on ? 'linear-gradient(135deg,var(--navy),var(--blue))' : '#fff'};
+                           color:${on ? '#fff' : 'var(--gray-700)'};font-weight:700;font-size:13.5px;">
+                    📅 ${m}
+                    <span id="commMdocCount_${m}" style="display:block;margin-top:4px;font-size:11px;font-weight:600;color:${on ? 'rgba(255,255,255,.75)' : 'var(--gray-400)'};">&nbsp;</span>
+                </button>`;
+            }).join('');
+            try {
+                const res = await fetch(`${AMS_SB_URL}/rest/v1/documents?select=client_key&client_key=like.MonthlyDocs_${_commMdocYear}_*`, { headers: AMS_SB_HEADERS });
+                if (!res.ok) return;
+                const counts = {};
+                (await res.json()).forEach(r => {
+                    const m = String(r.client_key || '').split('_')[2];
+                    if (m) counts[m] = (counts[m] || 0) + 1;
+                });
+                _COMM_MDOC_MONTHS.forEach(m => {
+                    const el = document.getElementById('commMdocCount_' + m);
+                    if (el && counts[m]) el.textContent = counts[m] + ' file' + (counts[m] > 1 ? 's' : '');
+                });
+            } catch (e) { /* offline — counts are cosmetic */ }
+        }
+
+        function _commMdocSelect(month) {
+            _commMdocMonth = month;
+            _COMM_MDOC_MONTHS.forEach(mm => {
+                const b = document.getElementById('commMdocBtn_' + mm);
+                if (!b) return;
+                const on = mm === month;
+                b.style.border = '2px solid ' + (on ? '#1d4ed8' : 'var(--gray-200)');
+                b.style.background = on ? 'linear-gradient(135deg,var(--navy),var(--blue))' : '#fff';
+                b.style.color = on ? '#fff' : 'var(--gray-700)';
+                const c = document.getElementById('commMdocCount_' + mm);
+                if (c) c.style.color = on ? 'rgba(255,255,255,.75)' : 'var(--gray-400)';
+            });
+            const d = document.getElementById('commMdocDetail');
+            d.style.display = 'block';
+            d.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+                    <strong style="font-size:15px;color:var(--navy);">📅 ${month} ${_commMdocYear}</strong>
+                    <span style="font-size:11.5px;color:var(--gray-400);">Shared with the Binder Book Documents section</span>
+                </div>
+                <div style="border:1px dashed var(--gray-300);border-radius:11px;padding:14px;background:#f9fafb;margin-bottom:14px;">
+                    <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;">
+                        <select id="commMdocCarrier" style="padding:7px 10px;border:1px solid var(--gray-200);border-radius:7px;font-size:13px;">
+                            ${_COMM_MDOC_CARRIERS.map(c => `<option value="${amsEscHtml(c)}">${amsEscHtml(c)}</option>`).join('')}
+                        </select>
+                        <input type="file" id="commMdocFiles" multiple accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg"
+                            style="font-size:12.5px;flex:1;min-width:200px;">
+                        <button class="btn-primary btn-sm" onclick="_commMdocUpload()">⬆ Upload</button>
+                    </div>
+                    <div id="commMdocStatus" style="font-size:12px;color:var(--gray-500);margin-top:8px;"></div>
+                </div>
+                <div id="commMdocFileList" style="border:1px solid var(--gray-200);border-radius:11px;overflow:hidden;"></div>`;
+            _commMdocList();
+        }
+
+        async function _commMdocUpload() {
+            const input = document.getElementById('commMdocFiles');
+            const files = [...(input?.files || [])];
+            const status = document.getElementById('commMdocStatus');
+            if (!files.length) { if (status) status.textContent = 'Choose one or more files first.'; return; }
+            const carrier = document.getElementById('commMdocCarrier')?.value || 'Other';
+            const key = `MonthlyDocs_${_commMdocYear}_${_commMdocMonth}`;
+            let done = 0, failed = 0;
+            for (const f of files) {
+                if (status) status.textContent = `☁️ Uploading ${done + failed + 1}/${files.length}: ${f.name}…`;
+                try { await amsCloudUpload(f, key, 'Commission Statement — ' + carrier); done++; }
+                catch (e) { failed++; console.warn('Monthly doc upload failed:', e); }
+            }
+            input.value = '';
+            if (status) status.textContent = failed
+                ? `⚠️ Uploaded ${done} file${done !== 1 ? 's' : ''}, ${failed} failed — check your connection and try again.`
+                : `✅ Uploaded ${done} file${done !== 1 ? 's' : ''} for ${_commMdocMonth} ${_commMdocYear}.`;
+            _commMdocList();
+            _commMdocRenderGrid();
+        }
+
+        async function _commMdocList() {
+            const box = document.getElementById('commMdocFileList');
+            if (!box) return;
+            box.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:16px;">Loading files…</div>';
+            const files = await amsCloudList(`MonthlyDocs_${_commMdocYear}_${_commMdocMonth}`);
+            if (!files.length) {
+                box.innerHTML = `<div style="color:#9ca3af;font-style:italic;text-align:center;padding:16px;">No statements uploaded for ${_commMdocMonth} ${_commMdocYear} yet.</div>`;
+                return;
+            }
+            box.innerHTML = files.map(f => `
+                <div style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-bottom:1px solid var(--gray-100);font-size:13px;">
+                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${amsEscHtml(f.file_name)}">📄 ${amsEscHtml(f.file_name)}</span>
+                    <span style="font-size:11px;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:1px 8px;white-space:nowrap;">${amsEscHtml((f.category || '').replace('Commission Statement — ', '') || 'Statement')}</span>
+                    <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${f.size_bytes ? (f.size_bytes / 1024 / 1024).toFixed(2) + ' MB' : ''}</span>
+                    <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${f.uploaded_at ? new Date(f.uploaded_at).toLocaleDateString('en-US') : ''}</span>
+                    <button class="btn-primary btn-sm" style="padding:3px 9px;font-size:11px;" title="Download"
+                        onclick="amsCloudDownloadFile('${amsEscHtml(String(f.id))}','${amsEscHtml(f.storage_path)}','${amsEscHtml(f.file_name)}','${amsEscHtml(f.mime_type || '')}')">⬇️</button>
+                    <button class="btn-danger btn-sm" style="padding:3px 9px;font-size:11px;" title="Delete"
+                        onclick="_commMdocDelete('${amsEscHtml(String(f.id))}','${amsEscHtml(f.storage_path)}','${amsEscHtml(f.file_name)}')">🗑️</button>
+                </div>`).join('');
+        }
+
+        async function _commMdocDelete(docId, storagePath, fileName) {
+            if (!confirm('Delete "' + fileName + '" from the cloud? This cannot be undone.')) return;
+            try {
+                await fetch(_amsStorageUrl(storagePath), {
+                    method: 'DELETE',
+                    headers: { 'apikey': AMS_SB_KEY, 'Authorization': 'Bearer ' + AMS_SB_KEY }
+                });
+                await fetch(`${AMS_SB_URL}/rest/v1/documents?id=eq.${encodeURIComponent(docId)}`, { method: 'DELETE', headers: AMS_SB_HEADERS });
+            } catch (e) { console.warn('Monthly doc delete failed:', e); }
+            _commMdocList();
+            _commMdocRenderGrid();
         }
 
         // ── Statement documents viewer (AMS) ─────────────────────
