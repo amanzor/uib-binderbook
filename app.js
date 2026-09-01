@@ -13,6 +13,105 @@ const _SB_HEADERS = {
     'Content-Type': 'application/json'
 };
 
+// ============================================================
+//  APP VERSION GUARD  — stop a stale device from wiping data
+//  ------------------------------------------------------------
+//  A tab left open from before a deploy keeps running the OLD app.js
+//  in memory. Older builds pushed the whole binderData array over the
+//  cloud instead of merging — so that stale tab silently deleted
+//  entries other PCs had just saved ("this is how transactions kept
+//  vanishing"). This guard makes such a tab notice a newer build in
+//  the cloud, REFUSE to write until it updates, and reload itself to
+//  pick up the current code.
+//
+//  DEPLOY RULE: bump APP_BUILD *and* the `?v=` on <script src="app.js">
+//  in every HTML page together, so a forced reload actually fetches
+//  the new file. APP_BUILD must be a monotonically increasing integer
+//  (yyyymmdd, plus a trailing digit if you ship twice in a day).
+// ============================================================
+const APP_BUILD = 202609010;
+
+let _appOutdated = false;          // true once we KNOW the cloud has a newer build
+let _versionEnforcing = false;     // guards against overlapping checks
+
+// Read the latest build the fleet has advertised.
+//   { ok:false }            → cloud unreachable (never gate writes on this)
+//   { ok:true, build:null } → reached, but no build advertised yet
+//   { ok:true, build:<n> }  → the fleet's latest advertised build
+async function _cloudAppBuild() {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=value&key=eq.appBuild`, { headers: _SB_HEADERS });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const rows = await res.json();
+        if (!rows.length || rows[0].value == null) return { ok: true, build: null };
+        const n = parseInt(rows[0].value, 10);
+        return { ok: true, build: Number.isFinite(n) ? n : null };
+    } catch (e) {
+        return { ok: false, build: null }; // offline / not ready — "unknown", not "outdated"
+    }
+}
+
+// Advertise this build as the fleet's latest (only ever raises the number).
+async function _publishAppBuild() {
+    try {
+        await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+            method: 'POST',
+            headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+            body: JSON.stringify([{ key: 'appBuild', value: APP_BUILD, updated_at: new Date().toISOString() }])
+        });
+    } catch (e) { /* best effort */ }
+}
+
+// Called at load and on every sync tick. When the cloud build is newer than
+// ours, gate all cloud writes and force a one-time cache-busting reload so
+// this device picks up the current code instead of clobbering the fleet.
+async function enforceAppVersion() {
+    if (_versionEnforcing) return;
+    _versionEnforcing = true;
+    try {
+        const { ok, build: cloudBuild } = await _cloudAppBuild();
+        if (!ok) return;                           // cloud unreachable — leave state as-is
+        if (cloudBuild != null && cloudBuild > APP_BUILD) {
+            _appOutdated = true;                    // stop writes immediately
+            _showOutdatedBanner();
+            // Reload once per target build so we never loop if the cache is
+            // stubborn (bad proxy, offline). If a reload didn't lift us to the
+            // required build, we keep writes gated and leave the banner up.
+            const already = sessionStorage.getItem('uibReloadedForBuild');
+            if (already === null || parseInt(already, 10) < cloudBuild) {
+                sessionStorage.setItem('uibReloadedForBuild', String(cloudBuild));
+                setTimeout(() => { try { location.reload(); } catch (e) {} }, 1500);
+            }
+            return;
+        }
+        // We're current (or ahead). Clear any prior gating and make sure the
+        // fleet's advertised build is at least ours (also seeds it the first
+        // time, when no build has been advertised yet).
+        _appOutdated = false;
+        _hideOutdatedBanner();
+        if (cloudBuild == null || cloudBuild < APP_BUILD) await _publishAppBuild();
+    } finally {
+        _versionEnforcing = false;
+    }
+}
+
+function _showOutdatedBanner() {
+    if (document.getElementById('uibOutdatedBanner')) return;
+    const el = document.createElement('div');
+    el.id = 'uibOutdatedBanner';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
+        'background:#b91c1c;color:#fff;padding:12px 16px;text-align:center;' +
+        'font:600 14px system-ui,Arial,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.3);';
+    el.textContent = 'A newer version of the Binder Book is available. Updating this device… ' +
+        'If this message stays, press Ctrl+Shift+R (Cmd+Shift+R on Mac) to refresh.';
+    (document.body || document.documentElement).appendChild(el);
+}
+
+function _hideOutdatedBanner() {
+    const el = document.getElementById('uibOutdatedBanner');
+    if (el) el.remove();
+}
+
 // Cloud freshness stamps — the updated_at we last saw for each key. A sync
 // cycle asks for stamps alone first (a few hundred bytes for every key) and
 // only downloads a key's value when its stamp moved, instead of re-pulling
@@ -178,6 +277,16 @@ async function _syncTombstones(stamps) {
 }
 
 async function driveSet(key, value) {
+    // This device is running stale code that the cloud has superseded. Refuse
+    // to publish anything — an old build merges/writes destructively and would
+    // clobber entries newer builds saved. The dirty flag below stays set, so
+    // the write is retried automatically after the forced reload lands us on
+    // the current code.
+    if (_appOutdated) {
+        try { _origSetItem(_dirtyKey(key), (++_driveSeq) + '.' + Date.now()); } catch (e) {}
+        console.warn(`Skipping cloud write for ${key} — this device is running an outdated version.`);
+        return false;
+    }
     const seq = (++_driveSeq) + '.' + Date.now();
     try { _origSetItem(_dirtyKey(key), seq); } catch (e) {}
     try {
@@ -253,6 +362,10 @@ async function driveSet(key, value) {
 const DRIVE_PULL_SKIP = new Set([]);
 
 async function syncFromDrive() {
+    // Version gate first: if a newer build exists, this stops writes and
+    // triggers a reload. Never sync (and risk a destructive push) while stale.
+    await enforceAppVersion();
+    if (_appOutdated) return;
     const banner = document.getElementById('syncBanner');
     if (banner) banner.style.display = 'flex';
     // One tiny stamp query decides which keys actually need downloading.
