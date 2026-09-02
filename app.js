@@ -5,7 +5,7 @@ const SUPABASE_URL = "https://jgjmobktucyimupelfxd.supabase.co";
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
 // Old Apps Script URL — kept ONLY for email notifications (sendEmail action).
 const DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
-const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'agentCredentials', 'prospectData', 'verificationLogs', 'commissionStatements'];
+const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'agentCredentials', 'prospectData', 'verificationLogs', 'commissionStatements', 'cashReceipts'];
 
 const _SB_HEADERS = {
     'apikey': SUPABASE_ANON_KEY,
@@ -6203,6 +6203,7 @@ function initializeCommissionStatements() {
     const stored = localStorage.getItem('commissionStatements');
     commissionStatements = stored ? JSON.parse(stored) : {};
     normalizeCommissionStatements();
+    initializeCashReceipts();
 }
 
 // AI-saved statements used to store the insured under `customerName` while
@@ -6359,6 +6360,21 @@ function previewCSSheet() {
     const parsed = csParseSheetRows(rows);
     csParsedPreview = { sheetName, ...parsed };
 
+    // Nothing parsed — the sheet doesn't use the layout this parser reads.
+    // Saving it would file an empty month under the sheet's name, so refuse
+    // here and say what the parser was looking for.
+    if (!parsed.entries.length) {
+        document.getElementById('csPreviewInfo').innerHTML =
+            `<strong style="color:#b45309;">No commission rows found in “${_claudeEsc(sheetName)}”.</strong><br>` +
+            `<span style="font-size:12px;color:var(--gray-500);">This sheet doesn't use the monthly layout the importer reads ` +
+            `(client name in column B, commission amount in column P, carrier as a section header). Pick a month sheet, ` +
+            `or use <strong>Import Doral Jun 2026</strong> for a statement already prepared for the console.</span>`;
+        document.getElementById('csPreviewTable').innerHTML = '';
+        previewArea.style.display = 'block';
+        if (importBtn) { importBtn.disabled = true; importBtn.style.opacity = '0.5'; }
+        return;
+    }
+
     // Info bar
     const carrierList = Object.keys(parsed.carrierTotals);
     document.getElementById('csPreviewInfo').innerHTML =
@@ -6391,6 +6407,10 @@ function previewCSSheet() {
 
 function importSelectedSheet() {
     if (!csParsedPreview) { alert('Please select a month sheet first.'); return; }
+    if (!csParsedPreview.entries.length) {
+        alert(`No commission rows were found in “${csParsedPreview.sheetName}” — nothing to import.`);
+        return;
+    }
 
     const { sheetName, entries, carrierTotals, grossTotal } = csParsedPreview;
     const monthLabel = csNormalizeSheetName(sheetName);
@@ -6547,6 +6567,10 @@ function csGetCombined(monthLabel) {
     };
     keys.forEach(k => {
         const s = commissionStatements[k];
+        // The settlement is the month's single bottom line — it lives on one
+        // statement and is carried, not summed, into the combined view.
+        if (s.settlement && !combined.settlement) combined.settlement = s.settlement;
+        if (s.carrierSplit) combined.carrierSplit = Object.assign(combined.carrierSplit || {}, s.carrierSplit);
         (s.entries || []).forEach(e => combined.entries.push(e));
         Object.entries(s.carrierTotals || {}).forEach(([c, t]) => {
             combined.carrierTotals[c] = parseFloat(((combined.carrierTotals[c] || 0) + (parseFloat(t) || 0)).toFixed(2));
@@ -6661,8 +6685,14 @@ function renderCSMonthDetail(monthKey) {
             const cnt = stmt.entries.filter(e => e.carrier === carrier).length;
             const pct = stmt.grossTotal !== 0 ? ((total / stmt.grossTotal) * 100).toFixed(1) : '0.0';
             const barW = Math.abs(pct);
+            const sp = (stmt.carrierSplit || {})[carrier];
+            const splitLine = sp
+                ? `<div style="font-size:11px;font-weight:400;color:var(--gray-400);margin-top:2px;">
+                       New ${_csFmt$(sp.newBusiness)} &nbsp;·&nbsp; Ren &amp; Adj. ${_csFmt$(sp.renewalsAdj)}
+                   </div>`
+                : '';
             return `<tr style="border-bottom:1px solid var(--gray-100);">
-                <td style="padding:9px 12px;font-weight:600;">${carrier}</td>
+                <td style="padding:9px 12px;font-weight:600;">${carrier}${splitLine}</td>
                 <td style="padding:9px 12px;text-align:center;">${cnt}</td>
                 <td style="padding:9px 12px;text-align:right;font-weight:700;color:${total>=0?'#059669':'#dc2626'};">
                     $${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
@@ -6682,6 +6712,8 @@ function renderCSMonthDetail(monthKey) {
     renderCSAgentBreakdown(monthKey);
     renderCSAgentReport(monthKey);
     renderCSAdjustments(monthKey);
+    renderCSSettlement(monthKey);
+    renderCSCashReceipts();
 
     // Reset filters
     const csCarrFilter = document.getElementById('csCarrierFilter');
@@ -7135,6 +7167,454 @@ function deleteCSStatement(monthKey) {
     saveCommissionStatements();
     csCurrentMonthKey = null;
     loadCommissionStatementsList();
+}
+
+// ============================================================
+// STATEMENT SETTLEMENT — royalty, operating expenses, net to office
+// ------------------------------------------------------------
+// A carrier statement stops at gross commission. The office statement
+// keeps going: royalty off the top, then the operating expenses that
+// appear on no carrier statement, down to the net the office is paid.
+// The settlement rides on whichever stored statement for the month
+// carries it, so a month assembled from several carrier uploads still
+// has exactly one bottom line.
+// ============================================================
+
+const CS_DEFAULT_EXPENSE_LABELS = ['220 License Rent', 'Systems', 'MVRs', 'Cash Payments Owed'];
+
+// Working copy the settlement panel edits; committed by saveCSSettlement().
+let _csSettlementDraft = null;
+let _csSettlementFor   = null;
+
+function _csFmt$(n) {
+    const v = parseFloat(n) || 0;
+    return (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// The stored statement key that holds this month's settlement (if any).
+function csSettlementKeyFor(monthLabel) {
+    return csKeysForMonth(monthLabel).find(k => commissionStatements[k] && commissionStatements[k].settlement) || null;
+}
+
+function csDefaultSettlement() {
+    return {
+        royaltyRate: 0.15,
+        expenses: CS_DEFAULT_EXPENSE_LABELS.map(label => ({ label, amount: 0, note: '' })),
+        notes: ''
+    };
+}
+
+// Single source of truth for the arithmetic. Royalty and expenses are held
+// as negative numbers so every line reads the way it does on the statement.
+function csComputeSettlement(settlement, grossTotal) {
+    const gross   = parseFloat(grossTotal) || 0;
+    const rate    = parseFloat(settlement.royaltyRate) || 0;
+    const royalty = -parseFloat((gross * rate).toFixed(2));
+    const paid    = parseFloat((gross + royalty).toFixed(2));
+    const expenses = (settlement.expenses || []).map(x => ({
+        label: x.label || '', amount: parseFloat(x.amount) || 0, note: x.note || ''
+    }));
+    const expensesTotal = parseFloat(expenses.reduce((s, x) => s + x.amount, 0).toFixed(2));
+    return {
+        ...settlement,
+        grossCommissions: gross,
+        royaltyRate: rate,
+        royalty,
+        paidToOffice: paid,
+        expenses,
+        expensesTotal,
+        netToOffice: parseFloat((paid + expensesTotal).toFixed(2))
+    };
+}
+
+function renderCSSettlement(monthKey) {
+    const panel = document.getElementById('csSettlementPanel');
+    const body  = document.getElementById('csSettlementBody');
+    if (!panel || !body) return;
+
+    const stmt = csGetCombined(monthKey);
+    if (!stmt) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+
+    // Re-seed the draft whenever the month changes; keep in-flight edits otherwise.
+    if (_csSettlementFor !== monthKey || !_csSettlementDraft) {
+        const key   = csSettlementKeyFor(monthKey);
+        const saved = key ? commissionStatements[key].settlement : null;
+        _csSettlementDraft = JSON.parse(JSON.stringify(saved || csDefaultSettlement()));
+        _csSettlementFor   = monthKey;
+    }
+
+    const s = csComputeSettlement(_csSettlementDraft, stmt.grossTotal);
+    const saved = csSettlementKeyFor(monthKey);
+
+    const line = (label, value, opts = {}) => `
+        <tr style="border-bottom:1px solid var(--gray-100);${opts.strong ? 'background:var(--gray-50);' : ''}">
+            <td style="padding:9px 12px;${opts.strong ? 'font-weight:700;' : ''}">${label}
+                ${opts.note ? `<div style="font-size:11px;color:var(--gray-400);font-weight:400;margin-top:2px;max-width:520px;">${opts.note}</div>` : ''}
+            </td>
+            <td style="padding:9px 12px;text-align:right;font-weight:${opts.strong ? '800' : '700'};font-size:${opts.strong ? '14px' : '13px'};color:${value >= 0 ? '#059669' : '#dc2626'};">
+                ${_csFmt$(value)}
+            </td>
+            <td style="padding:9px 12px;width:150px;">${opts.control || ''}</td>
+        </tr>`;
+
+    const expenseRows = s.expenses.map((x, i) => `
+        <tr style="border-bottom:1px solid var(--gray-100);">
+            <td style="padding:7px 12px;">
+                <input type="text" value="${(x.label || '').replace(/"/g, '&quot;')}" oninput="csSettlementEdit(${i},'label',this.value)"
+                    style="width:100%;max-width:280px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:12.5px;font-family:inherit;">
+                ${x.note ? `<div style="font-size:11px;color:var(--gray-400);margin-top:3px;max-width:520px;">${x.note}</div>` : ''}
+            </td>
+            <td style="padding:7px 12px;text-align:right;font-weight:700;color:#dc2626;">${_csFmt$(x.amount)}</td>
+            <td style="padding:7px 12px;white-space:nowrap;">
+                <input type="number" step="0.01" min="0" value="${Math.abs(x.amount) || ''}" placeholder="0.00"
+                    onchange="csSettlementEdit(${i},'amount',this.value)"
+                    title="Amount deducted"
+                    style="width:96px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:12.5px;text-align:right;">
+                <button onclick="csSettlementRemoveExpense(${i})" title="Remove this line"
+                    style="margin-left:4px;background:#fff;border:1px solid var(--gray-200);color:#dc2626;border-radius:6px;cursor:pointer;padding:4px 7px;font-size:12px;">✕</button>
+            </td>
+        </tr>`).join('');
+
+    const rateControl = `<input type="number" step="0.5" min="0" max="100" value="${(s.royaltyRate * 100).toFixed(2).replace(/\.?0+$/, '')}"
+        onchange="csSettlementEdit(null,'royaltyRate',this.value)"
+        style="width:76px;padding:5px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:12.5px;text-align:right;"> <span style="font-size:12px;color:var(--gray-500);">%</span>`;
+
+    const grossMismatch = saved && _csSettlementDraft.grossCommissions != null &&
+        Math.abs(parseFloat(_csSettlementDraft.grossCommissions) - stmt.grossTotal) > 0.005;
+
+    body.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <tbody>
+                ${line('Gross Commissions', s.grossCommissions, { strong: true, note: 'Sum of every carrier line in this month — recalculated from the entries below.' })}
+                ${line('Royalty', s.royalty, { control: rateControl })}
+                ${line('Paid to Office', s.paidToOffice, { strong: true })}
+                <tr><td colspan="3" style="padding:12px 12px 4px;font-size:11.5px;font-weight:700;letter-spacing:.4px;color:var(--gray-500);text-transform:uppercase;">Operating Expenses</td></tr>
+                ${expenseRows || '<tr><td colspan="3" style="padding:10px 12px;color:var(--gray-400);font-size:12.5px;">No operating expenses recorded.</td></tr>'}
+                <tr><td colspan="3" style="padding:4px 12px 10px;">
+                    <button onclick="csSettlementAddExpense()" style="background:#fff;border:1px dashed var(--gray-300);color:var(--gray-600);border-radius:7px;cursor:pointer;padding:5px 12px;font-size:12px;font-weight:600;">+ Add expense line</button>
+                </td></tr>
+                ${line('Expenses Total', s.expensesTotal)}
+                ${line('Net to Office', s.netToOffice, { strong: true })}
+            </tbody>
+        </table>
+        ${s.notes ? `<p style="margin:12px 2px 0;font-size:11.5px;color:var(--gray-500);line-height:1.55;">${s.notes}</p>` : ''}
+        ${grossMismatch ? `<p style="margin:10px 2px 0;font-size:12px;color:#b45309;font-weight:600;">⚠ Gross on the saved settlement was ${_csFmt$(_csSettlementDraft.grossCommissions)}; the entries now total ${_csFmt$(stmt.grossTotal)}. Save to bring the settlement back in line.</p>` : ''}
+        ${!saved ? `<p style="margin:10px 2px 0;font-size:12px;color:var(--gray-500);">No settlement saved for ${monthKey} yet — enter the royalty rate and this month's expenses, then Save.</p>` : ''}`;
+}
+
+function csSettlementEdit(index, field, value) {
+    if (!_csSettlementDraft) return;
+    if (field === 'royaltyRate') {
+        _csSettlementDraft.royaltyRate = (parseFloat(value) || 0) / 100;
+    } else if (field === 'label') {
+        _csSettlementDraft.expenses[index].label = value;
+        return;   // no arithmetic changed — don't redraw and lose the caret
+    } else if (field === 'amount') {
+        // Entered as a positive "amount deducted"; stored negative.
+        _csSettlementDraft.expenses[index].amount = -Math.abs(parseFloat(value) || 0);
+    }
+    renderCSSettlement(csCurrentMonthKey);
+}
+
+function csSettlementAddExpense() {
+    if (!_csSettlementDraft) return;
+    _csSettlementDraft.expenses = _csSettlementDraft.expenses || [];
+    _csSettlementDraft.expenses.push({ label: '', amount: 0, note: '' });
+    renderCSSettlement(csCurrentMonthKey);
+}
+
+function csSettlementRemoveExpense(i) {
+    if (!_csSettlementDraft) return;
+    _csSettlementDraft.expenses.splice(i, 1);
+    renderCSSettlement(csCurrentMonthKey);
+}
+
+function saveCSSettlement() {
+    const monthKey = csCurrentMonthKey;
+    const stmt = csGetCombined(monthKey);
+    if (!stmt || !_csSettlementDraft) return;
+
+    // Land it on the statement that already carries the settlement, else on
+    // the month's first stored statement — never on the virtual combined view.
+    const key = csSettlementKeyFor(monthKey) || csKeysForMonth(monthKey)[0];
+    if (!key) { alert('No stored statement for ' + monthKey + ' to attach the settlement to.'); return; }
+
+    const computed = csComputeSettlement(_csSettlementDraft, stmt.grossTotal);
+    computed.updatedAt = new Date().toISOString();
+    commissionStatements[key].settlement = computed;
+    _csSettlementDraft = JSON.parse(JSON.stringify(computed));
+    saveCommissionStatements();
+    renderCSSettlement(monthKey);
+    alert(`✅ Settlement saved for ${monthKey}.\n\n` +
+          `Gross Commissions   ${_csFmt$(computed.grossCommissions)}\n` +
+          `Royalty (${(computed.royaltyRate * 100).toFixed(2).replace(/\.?0+$/, '')}%)        ${_csFmt$(computed.royalty)}\n` +
+          `Paid to Office      ${_csFmt$(computed.paidToOffice)}\n` +
+          `Operating Expenses  ${_csFmt$(computed.expensesTotal)}\n` +
+          `Net to Office       ${_csFmt$(computed.netToOffice)}`);
+}
+
+// ============================================================
+// CASH RECEIPTS — office-wide ledger of what came in and what
+// is still owed. Spans every period, so it sits outside the
+// month tabs and is stored under its own key.
+// ============================================================
+
+let cashReceiptsData = null;
+
+function initializeCashReceipts() {
+    try { cashReceiptsData = JSON.parse(localStorage.getItem('cashReceipts')) || null; }
+    catch (e) { cashReceiptsData = null; }
+    return cashReceiptsData;
+}
+
+function saveCashReceipts() {
+    localStorage.setItem('cashReceipts', JSON.stringify(cashReceiptsData));
+    driveSet('cashReceipts', cashReceiptsData);
+}
+
+function renderCSCashReceipts() {
+    const panel = document.getElementById('csCashReceiptsPanel');
+    const body  = document.getElementById('csCashReceiptsBody');
+    if (!panel || !body) return;
+
+    const d = cashReceiptsData || initializeCashReceipts();
+    if (!d || (!(d.received || []).length && !(d.uncollected || []).length)) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = '';
+
+    const received    = d.received || [];
+    const uncollected = d.uncollected || [];
+    const totalReceived = parseFloat(received.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0).toFixed(2));
+    const totalUncoll   = parseFloat(uncollected.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0).toFixed(2));
+    const net = parseFloat((totalReceived - totalUncoll).toFixed(2));
+
+    const years = [...new Set(received.map(r => r.year || (r.date || '').slice(-4)))].sort();
+    const byYear = years.map(y => {
+        const rows = received.filter(r => String(r.year || (r.date || '').slice(-4)) === String(y));
+        const tot = parseFloat(rows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0).toFixed(2));
+        return { year: y, rows, tot };
+    });
+
+    const kpi = (label, value, color) => `
+        <div style="flex:1;min-width:150px;background:#fff;border:1px solid var(--gray-200);border-radius:10px;padding:11px 14px;">
+            <div style="font-size:11px;color:var(--gray-500);font-weight:600;text-transform:uppercase;letter-spacing:.3px;">${label}</div>
+            <div style="font-size:19px;font-weight:800;color:${color};margin-top:3px;">${_csFmt$(value)}</div>
+        </div>`;
+
+    const receivedTables = byYear.map(g => `
+        <div style="margin-bottom:14px;">
+            <div style="font-size:12.5px;font-weight:700;color:var(--navy);margin-bottom:6px;">${g.year} &nbsp;<span style="color:#059669;">${_csFmt$(g.tot)}</span></div>
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+                <thead><tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200);">
+                    <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Date</th>
+                    <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Payer</th>
+                    <th style="padding:6px 10px;text-align:right;font-weight:600;color:var(--gray-600);">Amount</th>
+                </tr></thead>
+                <tbody>${g.rows.map((r, i) => `
+                    <tr style="border-bottom:1px solid var(--gray-100);${i % 2 ? 'background:#f9fafb;' : ''}">
+                        <td style="padding:6px 10px;color:var(--gray-600);">${_claudeEsc(r.date || '')}</td>
+                        <td style="padding:6px 10px;">${_claudeEsc(r.payer || '')}</td>
+                        <td style="padding:6px 10px;text-align:right;font-weight:700;color:#059669;">${_csFmt$(r.amount)}</td>
+                    </tr>`).join('')}</tbody>
+            </table>
+        </div>`).join('');
+
+    const uncollectedTable = `
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+            <thead><tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200);">
+                <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Date</th>
+                <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Payer</th>
+                <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Policy #</th>
+                <th style="padding:6px 10px;text-align:left;font-weight:600;color:var(--gray-600);">Insured</th>
+                <th style="padding:6px 10px;text-align:right;font-weight:600;color:var(--gray-600);">Amount</th>
+            </tr></thead>
+            <tbody>${uncollected.map((r, i) => `
+                <tr style="border-bottom:1px solid var(--gray-100);${r.flag ? 'background:#fffbeb;' : (i % 2 ? 'background:#f9fafb;' : '')}" ${r.flag ? `title="${_claudeEsc(r.flag)}"` : ''}>
+                    <td style="padding:6px 10px;color:var(--gray-600);">${_claudeEsc(r.date || '')}</td>
+                    <td style="padding:6px 10px;">${_claudeEsc(r.payer || '')}</td>
+                    <td style="padding:6px 10px;font-family:monospace;color:var(--gray-600);">${_claudeEsc(r.policyNumber || '—')}</td>
+                    <td style="padding:6px 10px;">${_claudeEsc(r.insured || '—')}${r.flag ? ` <span style="color:#b45309;font-weight:700;" title="${_claudeEsc(r.flag)}">⚠</span>` : ''}</td>
+                    <td style="padding:6px 10px;text-align:right;font-weight:700;color:#dc2626;">${_csFmt$(r.amount)}</td>
+                </tr>`).join('')}</tbody>
+        </table>
+        ${uncollected.some(r => r.flag) ? `<ul style="margin:8px 0 0 18px;padding:0;font-size:11.5px;color:#b45309;line-height:1.6;">
+            ${uncollected.filter(r => r.flag).map(r => `<li>${_claudeEsc(r.date || '')} · ${_claudeEsc(r.payer || '')} ${_csFmt$(r.amount)} — ${_claudeEsc(r.flag)}</li>`).join('')}
+        </ul>` : ''}`;
+
+    body.innerHTML = `
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            ${kpi('Total Received', totalReceived, '#059669')}
+            ${kpi('Total Uncollected', totalUncoll, '#dc2626')}
+            ${kpi('Net Position', net, net >= 0 ? '#059669' : '#dc2626')}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;">
+            <div>
+                <h5 style="font-size:12.5px;font-weight:700;color:var(--navy);margin:0 0 8px;">Received</h5>
+                ${receivedTables}
+            </div>
+            <div>
+                <h5 style="font-size:12.5px;font-weight:700;color:var(--navy);margin:0 0 8px;">Uncollected</h5>
+                ${uncollectedTable}
+            </div>
+        </div>
+        ${d.notes ? `<p style="margin:12px 2px 0;font-size:11.5px;color:var(--gray-500);line-height:1.55;">${_claudeEsc(d.notes)}</p>` : ''}`;
+}
+
+// ============================================================
+// IMPORT — Doral Office, June 2026
+// ------------------------------------------------------------
+// Loads the seven carrier statements for June 2026 (126 insured lines,
+// $5,785.31 gross) together with the royalty/expense settlement and the
+// office cash-receipts ledger. The month is REPLACED, not merged: the
+// file is the whole month across every carrier, so leaving earlier
+// partial June uploads in place would double-count them.
+// ============================================================
+
+// AMS client records for insureds a statement names but the Binder Book has
+// never seen. Existing values are never overwritten — only blanks are filled —
+// so re-running the import can't clobber contact details entered by hand.
+function csUpsertAmsClients(clients) {
+    if (!Array.isArray(clients) || !clients.length) return { created: 0, updated: 0 };
+
+    let contacts;
+    try { contacts = JSON.parse(localStorage.getItem('amsClientData')) || {}; }
+    catch (e) { contacts = {}; }
+
+    let created = 0, updated = 0;
+    clients.forEach(c => {
+        const name = (c.name || '').trim();
+        const key  = name.toUpperCase().replace(/\s+/g, ' ');   // amsClientKey()
+        if (!key) return;
+
+        if (!contacts[key]) { contacts[key] = {}; created++; } else { updated++; }
+        const rec = contacts[key];
+
+        // Individuals only — a business name has no first/last to split.
+        if (!rec.firstName && !rec.lastName && !/\b(llc|inc|corp|dba|co\.?)\b/i.test(name)) {
+            const parts = name.split(/\s+/);
+            if (parts.length >= 2) { rec.firstName = parts.slice(0, -1).join(' '); rec.lastName = parts[parts.length - 1]; }
+            else rec.firstName = name;
+        }
+        ['assignedAgent', 'clientStatus', 'clientSince', 'dealerLocation', 'referral'].forEach(f => {
+            if (c[f] && !rec[f]) rec[f] = c[f];
+        });
+
+        // What the carrier statement actually says about the policy, plus what
+        // it does not say — so whoever completes the record knows what to chase.
+        const p = c.policy || {};
+        if (p.carrier) {
+            const noteText =
+                `Added from the ${p.statementMonth || ''} commission statement — ${p.carrier}` +
+                (p.transaction ? `, ${p.transaction}` : '') +
+                (p.commission != null ? `, commission ${_csFmt$(p.commission)}` : '') +
+                `. Policy number, premium and effective dates are not on the carrier statement and still need to be entered.`;
+            rec.notes = Array.isArray(rec.notes) ? rec.notes
+                      : (rec.notes ? [{ text: String(rec.notes), author: 'Import', date: '' }] : []);
+            if (!rec.notes.some(n => (n.text || '') === noteText)) {
+                rec.notes.push({
+                    text:   noteText,
+                    author: 'Commission Statement Import',
+                    date:   new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                });
+            }
+        }
+        rec.updatedAt = new Date().toISOString();
+    });
+
+    localStorage.setItem('amsClientData', JSON.stringify(contacts));
+    driveSet('amsClientData', contacts);
+    return { created, updated };
+}
+
+async function importDoralJune26Statement() {
+    let data;
+    try {
+        const resp = await fetch('doral_june26_commission_import.json?v=20260624');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        data = await resp.json();
+    } catch (err) {
+        alert('Failed to load doral_june26_commission_import.json: ' + err.message);
+        return;
+    }
+
+    initializeCommissionStatements();
+    const month    = data.replacesMonth || data.month;
+    const existing = csKeysForMonth(month).filter(k => k !== data.statementKey);
+    const s        = data.settlement || {};
+
+    const confirmed = confirm(
+        `Import the Doral Office ${data.month} commission statement?\n\n` +
+        `• ${data.entryCount} insured lines across ${Object.keys(data.carrierTotals || {}).length} carriers\n` +
+        `• Gross commissions ${_csFmt$(data.grossTotal)}\n` +
+        `• Royalty ${_csFmt$(s.royalty)}, expenses ${_csFmt$(s.expensesTotal)}, net to office ${_csFmt$(s.netToOffice)}\n` +
+        `• Cash receipts ledger: ${(data.cashReceipts?.received || []).length} received, ` +
+        `${(data.cashReceipts?.uncollected || []).length} uncollected\n` +
+        (data.agentOfRecord ? `• Every line booked to ${data.agentOfRecord}\n` : '') +
+        ((data.amsClients || []).length ? `• ${data.amsClients.length} insureds added to the AMS as active clients\n` : '') +
+        `\n` +
+        (existing.length
+            ? `⚠️ This REPLACES the ${existing.length} statement${existing.length > 1 ? 's' : ''} already stored for ${month}:\n` +
+              existing.map(k => `   • ${k} (${_csFmt$(commissionStatements[k].grossTotal || 0)})`).join('\n') +
+              `\n\nThe file is the full month for every carrier, so keeping those would double-count.\n\n`
+            : '') +
+        'Click OK to proceed.'
+    );
+    if (!confirmed) return;
+
+    existing.forEach(k => { delete commissionStatements[k]; });
+
+    commissionStatements[data.statementKey] = {
+        month:         data.month,
+        office:        data.office || '',
+        period:        data.period || null,
+        sheetName:     data.sheetName || '',
+        source:        data.source || '',
+        uploadedAt:    new Date().toISOString(),
+        entries:       data.entries || [],
+        carrierTotals: data.carrierTotals || {},
+        carrierSplit:  data.carrierSplit || null,
+        grossTotal:    data.grossTotal,
+        entryCount:    (data.entries || []).length,
+        settlement:    csComputeSettlement(s, data.grossTotal)
+    };
+    normalizeCommissionStatements();
+    saveCommissionStatements();
+
+    if (data.cashReceipts) {
+        cashReceiptsData = data.cashReceipts;
+        saveCashReceipts();
+    }
+
+    const ams = csUpsertAmsClients(data.amsClients);
+
+    _csSettlementDraft = null;
+    _csSettlementFor   = null;
+    csCurrentMonthKey  = data.month;
+    loadCommissionStatementsList();
+
+    const reassigned = (data.entries || []).filter(e => Object.prototype.hasOwnProperty.call(e, 'priorAgentMatch'));
+    const moved      = reassigned.filter(e => e.priorAgentMatch).length;
+    const claimed    = reassigned.length - moved;
+    const unmatched  = (data.entries || []).filter(e => !e.agentMatch).length;
+    alert(
+        `✅ ${data.month} imported.\n\n` +
+        `• ${(data.entries || []).length} lines, gross ${_csFmt$(data.grossTotal)}\n` +
+        (data.agentOfRecord
+            ? `• All ${(data.entries || []).length} lines booked to ${data.agentOfRecord}` +
+              (moved || claimed
+                  ? ` — ${moved} moved from another agent, ${claimed} with no Binder Book match assigned`
+                  : '') + `\n`
+            : `• ${(data.entries || []).length - unmatched} matched to a Binder Book agent, ${unmatched} left unassigned for review\n`) +
+        (ams.created || ams.updated
+            ? `• AMS: ${ams.created} new active client${ams.created === 1 ? '' : 's'}` +
+              (ams.updated ? `, ${ams.updated} existing record${ams.updated === 1 ? '' : 's'} updated` : '') + `\n`
+            : '') +
+        `• Net to office ${_csFmt$(s.netToOffice)}\n` +
+        (existing.length ? `• ${existing.length} earlier ${month} statement${existing.length > 1 ? 's' : ''} replaced\n` : '')
+    );
 }
 
 // ============================================================

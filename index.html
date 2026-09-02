@@ -2557,6 +2557,7 @@
                             style="padding:7px 14px;border:1px solid var(--gray-200);border-radius:8px;font-size:13.5px;font-weight:700;color:var(--gray-700);cursor:pointer;"></select>
                         <button class="btn-primary btn-sm" style="background:linear-gradient(135deg,#b45309,#f59e0b);" onclick="showMonthlyDocuments()" title="Monthly document storage + carrier commission dashboard"><i data-lucide="folder-open"></i> Documents</button>
                         <button class="btn-primary btn-sm" onclick="openCommissionUploadModal()"><i data-lucide="upload"></i> Upload Statement</button>
+                        <button class="btn-warning btn-sm" onclick="importDoralJune26Statement()" title="Load the Doral Office June 2026 carrier statements, royalty/expense settlement and cash receipts ledger"><i data-lucide="upload"></i> Import Doral Jun 2026</button>
                     </div>
                 </div>
 
@@ -2587,6 +2588,24 @@
                                 <tbody id="csCarrierBreakdownBody"></tbody>
                             </table>
                         </div>
+                    </div>
+
+                    <!-- Statement Settlement — royalty off the top, the operating
+                         expenses that appear on no carrier statement, and the net
+                         the office is actually paid. Editable: the office figures
+                         change month to month. -->
+                    <div id="csSettlementPanel" style="display:none;margin-bottom:22px;border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;">
+                        <div style="background:linear-gradient(135deg,#065f46,#059669);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <i data-lucide="receipt"></i>
+                                <div>
+                                    <strong style="font-size:14px;">Royalty, Expenses &amp; Net to Office</strong>
+                                    <div style="font-size:11px;opacity:.85;">Gross commissions less royalty and operating expenses — the month's bottom line</div>
+                                </div>
+                            </div>
+                            <button class="btn-secondary btn-sm" onclick="saveCSSettlement()"><i data-lucide="save"></i> Save Settlement</button>
+                        </div>
+                        <div id="csSettlementBody" style="background:#fff;padding:6px 4px 14px;"></div>
                     </div>
 
                     <!-- Agent Breakdown -->
@@ -2705,6 +2724,19 @@
                             </table>
                         </div>
                         <p id="csEntryCountLabel" style="margin-top:10px;font-size:13px;color:var(--gray-500);"></p>
+                    </div>
+
+                    <!-- Cash Receipts — office-wide, every period. What came in and
+                         what is still owed; rows the office flagged are highlighted. -->
+                    <div id="csCashReceiptsPanel" style="display:none;margin-top:24px;border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;">
+                        <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:8px;">
+                            <i data-lucide="wallet"></i>
+                            <div>
+                                <strong style="font-size:14px;">Cash Receipts</strong>
+                                <div style="font-size:11px;opacity:.85;">Office-wide ledger across every period — not limited to the month selected above</div>
+                            </div>
+                        </div>
+                        <div id="csCashReceiptsBody" style="background:#fff;padding:14px 16px;"></div>
                     </div>
                 </div>
             </div>
