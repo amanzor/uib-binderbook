@@ -2600,6 +2600,7 @@ function openDailySalesModal() {
     generateBinderNumber();
     refreshAllCarrierDropdowns();
     populateSourceDropdown('source', '');
+    populateMGADropdown('mga', '');
     resetDriversVehicles();
     const m = document.getElementById('dailySalesModal');
     m.classList.add('active');
@@ -2762,6 +2763,69 @@ function saveNewSource(suffix = '') {
     populateSourceDropdown('source' + suffix, val);
     document.getElementById('source' + suffix).value = val;
     cancelNewSource(suffix);
+}
+
+// ── MGA (Managing General Agency) — "+ Add" button next to the MGA field ──
+const DEFAULT_MGAS = ['5Star','ACI-Ascendant','All Risk','Appalachian','Bass Underwriters','FastComp','Hiscox-London','Hull&Co','London Underwriters','MJ Kelly','Phyladelphia','SCU','Security Underwriters','Shelly Middle Brooks','Surety One','Tapco'];
+
+function getCustomMGAs() {
+    try { return JSON.parse(localStorage.getItem('customMGAs')) || []; } catch(e) { return []; }
+}
+
+function saveCustomMGAs(arr) {
+    localStorage.setItem('customMGAs', JSON.stringify(arr));
+}
+
+function populateMGADropdown(selectId, selectedValue) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const all = [...DEFAULT_MGAS, ...getCustomMGAs().filter(m => !DEFAULT_MGAS.includes(m))];
+    sel.innerHTML = '<option value="">Select MGA (Optional)</option>' +
+        all.map(m => `<option value="${m}"${m === selectedValue ? ' selected' : ''}>${m}</option>`).join('');
+}
+
+// Every MGA <select> that can exist on a page — refreshed together so a
+// newly-added MGA shows up everywhere, not just in the field that opened it.
+const MGA_SELECT_IDS = ['mga', 'mgaCom', 'editMga'];
+
+let _mgaFormAutoSelect = null;
+
+function openAddMgaModal(targetSelectId) {
+    _mgaFormAutoSelect = targetSelectId || null;
+    const inp = document.getElementById('modalMgaInput');
+    if (inp) inp.value = '';
+    const m = document.getElementById('addMgaModal');
+    if (!m) return;
+    m.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    setTimeout(() => inp?.focus(), 80);
+}
+
+function closeAddMgaModal() {
+    const m = document.getElementById('addMgaModal');
+    if (m) m.classList.remove('active');
+}
+
+function saveModalMga() {
+    const inp = document.getElementById('modalMgaInput');
+    const val = (inp?.value || '').trim();
+    if (!val) { inp?.focus(); return; }
+
+    const customs = getCustomMGAs();
+    const all = [...DEFAULT_MGAS, ...customs];
+    if (!all.map(m => m.toLowerCase()).includes(val.toLowerCase())) {
+        customs.push(val);
+        saveCustomMGAs(customs);
+    }
+
+    const target = _mgaFormAutoSelect;
+    MGA_SELECT_IDS.forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        populateMGADropdown(id, id === target ? val : sel.value);
+    });
+
+    closeAddMgaModal();
 }
 
 // ── Client Lookup Search ──────────────────────────────────────────────────────
@@ -3567,7 +3631,7 @@ function openEditModal(id) {
     document.getElementById('editPolicyType').value = entry.policyType || '';
     document.getElementById('editLineOfBusiness').value = entry.lineOfBusiness || '';
     document.getElementById('editCompany').value = entry.company || '';
-    document.getElementById('editMga').value = entry.mga || '';
+    populateMGADropdown('editMga', entry.mga || '');
     const editPremFin = document.getElementById('editPremiumFinance');
     if (editPremFin) editPremFin.value = entry.premiumFinance || '';
     document.getElementById('editDown').value = entry.down || '';

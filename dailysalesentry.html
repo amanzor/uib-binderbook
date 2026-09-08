@@ -454,25 +454,12 @@
                         </select>
                     </div>
                     <div class="form-group" style="margin:0;">
-                        <label>MGA</label>
+                        <label style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>MGA</span>
+                            <button type="button" class="btn-success btn-sm" onclick="openAddMgaModal('mga')" style="padding:2px 8px;font-size:11px;"><i data-lucide="plus-circle"></i> Add</button>
+                        </label>
                         <select id="mga">
                             <option value="">Select MGA (Optional)</option>
-                            <option value="5Star">5Star</option>
-                            <option value="ACI-Ascendant">ACI-Ascendant</option>
-                            <option value="All Risk">All Risk</option>
-                            <option value="Appalachian">Appalachian</option>
-                            <option value="Bass Underwriters">Bass Underwriters</option>
-                            <option value="FastComp">FastComp</option>
-                            <option value="Hiscox-London">Hiscox-London</option>
-                            <option value="Hull&amp;Co">Hull&amp;Co</option>
-                            <option value="London Underwriters">London Underwriters</option>
-                            <option value="MJ Kelly">MJ Kelly</option>
-                            <option value="Phyladelphia">Phyladelphia</option>
-                            <option value="SCU">SCU</option>
-                            <option value="Security Underwriters">Security Underwriters</option>
-                            <option value="Shelly Middle Brooks">Shelly Middle Brooks</option>
-                            <option value="Surety One">Surety One</option>
-                            <option value="Tapco">Tapco</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin:0;">
@@ -817,25 +804,12 @@
                         </select>
                     </div>
                     <div class="form-group" style="margin:0;">
-                        <label>MGA</label>
+                        <label style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>MGA</span>
+                            <button type="button" class="btn-success btn-sm" onclick="openAddMgaModal('mgaCom')" style="padding:2px 8px;font-size:11px;"><i data-lucide="plus-circle"></i> Add</button>
+                        </label>
                         <select id="mgaCom">
                             <option value="">Select MGA (Optional)</option>
-                            <option value="5Star">5Star</option>
-                            <option value="ACI-Ascendant">ACI-Ascendant</option>
-                            <option value="All Risk">All Risk</option>
-                            <option value="Appalachian">Appalachian</option>
-                            <option value="Bass Underwriters">Bass Underwriters</option>
-                            <option value="FastComp">FastComp</option>
-                            <option value="Hiscox-London">Hiscox-London</option>
-                            <option value="Hull&amp;Co">Hull&amp;Co</option>
-                            <option value="London Underwriters">London Underwriters</option>
-                            <option value="MJ Kelly">MJ Kelly</option>
-                            <option value="Phyladelphia">Phyladelphia</option>
-                            <option value="SCU">SCU</option>
-                            <option value="Security Underwriters">Security Underwriters</option>
-                            <option value="Shelly Middle Brooks">Shelly Middle Brooks</option>
-                            <option value="Surety One">Surety One</option>
-                            <option value="Tapco">Tapco</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin:0;">
@@ -1100,6 +1074,24 @@
     </div>
 </div>
 
+<div id="addMgaModal" class="modal">
+    <div class="modal-content" style="max-width:420px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <h3 style="margin:0;">Add MGA</h3>
+            <button type="button" class="btn-danger btn-sm" onclick="closeAddMgaModal()">✕</button>
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+            <label>MGA Name *</label>
+            <input type="text" id="modalMgaInput" placeholder="e.g. Coastal Underwriters"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();saveModalMga();}">
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="closeAddMgaModal()">Cancel</button>
+            <button type="button" class="btn-success" onclick="saveModalMga()">✓ Save</button>
+        </div>
+    </div>
+</div>
+
 <div id="editModal" class="modal">
     <div class="modal-content wide" style="max-width:700px;max-height:90vh;overflow-y:auto;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
@@ -1165,7 +1157,7 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js?v=20260901a"></script>
+<script src="app.js?v=20260908a"></script>
 <script src="motion.js"></script>
 <script>
     // Auth check — redirect to main app if not logged in
@@ -1193,6 +1185,8 @@
         refreshAllCarrierDropdowns();
         populateSourceDropdown('source', '');
         populateSourceDropdown('sourceCom', '');
+        populateMGADropdown('mga', '');
+        populateMGADropdown('mgaCom', '');
         populate2ndAgentDropdown('secondAgent', '');
         resetDriversVehicles();
         resetDriversVehicles('Com');
