@@ -483,7 +483,7 @@ function startAutoSync() {
             // Refresh whichever view is currently active
             if (currentRole === 'admin') {
                 loadAdminDashboard();
-            } else if (currentRole === 'agent') {
+            } else if (currentRole === 'agent' && document.getElementById('agentTable')) {
                 loadAgentData();
             }
             if (document.getElementById('commissionStatementsSection')?.classList.contains('active')) {
