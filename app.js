@@ -29,7 +29,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202609141;
+const APP_BUILD = 202609142;
 
 let _appOutdated = false;          // true once we KNOW the cloud has a newer build
 let _versionEnforcing = false;     // guards against overlapping checks
@@ -1121,8 +1121,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Proactively reclaim room when this browser is near Chrome's 5M-char
     // localStorage cap, so saves don't start failing mid-shift.
     try {
+        // Measure what is actually on disk: storage-codec.js keeps the big
+        // keys compressed, so getItem() lengths would overstate usage.
         let chars = 0;
-        for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); chars += k.length + (localStorage.getItem(k) || '').length; }
+        if (window.uibStorageCodec) chars = window.uibStorageCodec.usageChars();
+        else for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); chars += k.length + (localStorage.getItem(k) || '').length; }
         if (chars > 4200000 && typeof compactVerificationLogs === 'function') {
             compactVerificationLogs().then(did => { if (did) console.info('Compacted verification-log signatures to free browser storage.'); });
         }
