@@ -1,0 +1,10 @@
+# Only the web app is deployed. Everything below is source material, one-time
+# setup scripts, or reporting tooling that must never be served from the site.
+commissions/
+supabase/
+*.sql
+*.py
+*.gs
+*.md
+.gitignore
+.vercelignore

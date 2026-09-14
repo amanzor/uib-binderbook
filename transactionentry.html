@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+        // The app is served from Vercel only. Anyone still opening the old
+        // GitHub Pages address is sent to the same page on the live site.
+        if (/\.github\.io$/i.test(location.hostname)) {
+            location.replace('https://uib-binderbook.vercel.app' +
+                location.pathname.replace(/^\/uib-binderbook(?=\/|$)/, '') + location.search + location.hash);
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -1143,7 +1151,7 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js?v=20260913a"></script>
+<script src="app.js?v=20260914a"></script>
 <script src="motion.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {

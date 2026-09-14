@@ -19,8 +19,16 @@
     // Ephemeral / device-only keys we never sync.
     const SKIP = new Set([
         'uibCloudLastBackup', 'uibCloudAuto', 'uibPendingTransaction',
-        'uibPendingSalesEntry', 'uibCurrentUser', 'uibCloudRestoredThisSession'
+        'uibPendingSalesEntry', 'uibCurrentUser', 'uibCloudRestoredThisSession',
+        'uibReloadedForBuild', 'uibBlockedShrink'
     ]);
+    // Device-local bookkeeping prefixes (app.js sync flags / freshness stamps)
+    // and keys written by third-party scripts (wallet extensions, the Vercel
+    // toolbar) — none of it is business data and none of it belongs in the cloud.
+    function isDeviceOnly(key) {
+        return SKIP.has(key) || key.indexOf('uibDirty_') === 0 || key.indexOf('uibCloudStamp_') === 0 ||
+               key.indexOf('__') === 0 || !/^[A-Za-z0-9_]+$/.test(key);
+    }
 
     // The keys that actually hold your business data (auto-load checks these).
     const DATA_KEYS = ['binderData', 'amsClientData'];
@@ -54,6 +62,15 @@
         if (!res.ok) throw new Error('Save failed for "' + key + '" (HTTP ' + res.status + ')');
     }
 
+    // Read one key. Resolves to the stored value (parsed JSON) or null when
+    // the key doesn't exist; throws when the cloud can't be reached.
+    async function cloudGet(key) {
+        const res = await fetch(REST + '?select=value&key=eq.' + encodeURIComponent(key), { headers: HEADERS });
+        if (!res.ok) throw new Error('Fetch failed for "' + key + '" (HTTP ' + res.status + ')');
+        const rows = await res.json();
+        return rows.length ? rows[0].value : null;
+    }
+
     async function cloudGetAll() {
         // Rolling snapshots (backupSnapshot_*) are multi-MB point-in-time
         // copies that restoreAll skips anyway — filtering them out server-side
@@ -68,7 +85,7 @@
         const keys = [];
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
-            if (k && !SKIP.has(k) && k.indexOf('uibDirty_') !== 0) keys.push(k);
+            if (k && !isDeviceOnly(k)) keys.push(k);
         }
         let done = 0;
         for (const k of keys) {
@@ -150,7 +167,7 @@
 
     function queueDirty(key) {
         if (!autoEnabled || suppressAuto) return;
-        if (SKIP.has(key) || key.indexOf('uibDirty_') === 0) return; // device-local sync bookkeeping
+        if (isDeviceOnly(key)) return; // device-local bookkeeping / third-party keys
         // Keys owned by app.js's merge-sync layer must NOT be pushed raw
         // from here: this layer writes the same app_store table without
         // merging, so a device with a stale copy overwrote entries other
@@ -196,7 +213,10 @@
     }
 
     window.uibCloud = {
-        set: cloudSet, getAll: cloudGetAll, backupAll, restoreAll, ping,
+        set: cloudSet, get: cloudGet, getAll: cloudGetAll, backupAll, restoreAll, ping,
+        // Raw local write that does NOT queue a cloud push — for values that
+        // were just pulled down from the cloud.
+        setLocal: (key, value) => _setItem(key, value),
         isAuto: () => autoEnabled,
         setAuto: (on) => { autoEnabled = !!on; _setItem('uibCloudAuto', on ? 'on' : 'off'); }
     };

@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+        // The app is served from Vercel only. Anyone still opening the old
+        // GitHub Pages address is sent to the same page on the live site.
+        if (/\.github\.io$/i.test(location.hostname)) {
+            location.replace('https://uib-binderbook.vercel.app' +
+                location.pathname.replace(/^\/uib-binderbook(?=\/|$)/, '') + location.search + location.hash);
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UIB AMS — Agency Management System</title>
@@ -2134,8 +2142,8 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20260827a"></script>
-    <script src="supabase.js?v=20260727b"></script>
+    <script src="ams.js?v=20260914a"></script>
+    <script src="supabase.js?v=20260914a"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
         const _dashCharts = {};
@@ -3942,14 +3950,14 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 term:          _amsRnwTermMonths(src.effectiveDate, newEff),
                 notes:         'Renewal generated from the AMS — pending completion.'
             });
-            // Save to the AMS's own store (Apps Script + localStorage) and re-render
+            // Save to the AMS's own store (localStorage + Supabase auto-sync) and re-render
             binder.push(entry);
             amsSave('binderData', binder);
             if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Sending…'; }
 
-            // The agent's Binder Book reads binderData from Supabase — the AMS's
-            // normal sync writes to a different backend, so push the new entry to
-            // Supabase directly (merged) or the agent never sees it.
+            // The AMS auto-sync pushes the whole local array; push the new entry
+            // to Supabase directly (merged by id) so it can never clobber entries
+            // only present in the cloud, and the agent sees it right away.
             const ok = await amsRnwPushToSupabase(entry);
 
             _amsRnwRefreshViews();
