@@ -1059,6 +1059,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeCommissionStatements();
     setTodayDate();
 
+    // Proactively reclaim room when this browser is near Chrome's 5M-char
+    // localStorage cap, so saves don't start failing mid-shift.
+    try {
+        let chars = 0;
+        for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); chars += k.length + (localStorage.getItem(k) || '').length; }
+        if (chars > 4200000 && typeof compactVerificationLogs === 'function') {
+            compactVerificationLogs().then(did => { if (did) console.info('Compacted verification-log signatures to free browser storage.'); });
+        }
+    } catch (e) {}
+
     // Agency Commission = Carrier Rate % × Base Premium (auto, readonly)
     // Agent Commission  = (Agency Fee + Agency Commission) × 50% (auto, readonly)
     // Wired for both Personal (no suffix) and Commercial ("Com" suffix) —
@@ -1548,7 +1558,7 @@ function toTitleCase(str) {
     return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function saveEntry() {
+async function saveEntry() {
     // Personal Lines and Commercial Lines are two fully independent sets of
     // fields (Commercial's ids all carry a "Com" suffix) — read from
     // whichever one is currently selected/visible.
@@ -1631,7 +1641,25 @@ function saveEntry() {
     }
 
     allData.push(entry);
-    localStorage.setItem('binderData', JSON.stringify(allData));
+    // The wrapped setItem stores locally THEN pushes to the cloud. When this
+    // browser is out of room the local write throws and the push never ran —
+    // the entry was simply lost and the Save button looked broken. Free room
+    // and retry; failing that, push to the cloud directly and say so.
+    let storedLocally = _lsSetSafe('binderData', JSON.stringify(allData));
+    if (!storedLocally) {
+        await compactVerificationLogs();
+        storedLocally = _lsSetSafe('binderData', JSON.stringify(allData));
+    }
+    if (!storedLocally) {
+        let cloudOk = false;
+        try { cloudOk = await driveSet('binderData', allData); } catch (err) { cloudOk = false; }
+        if (!cloudOk) {
+            allData = allData.filter(d => d.id !== entry.id);
+            alert('❌ Entry NOT saved: this browser\'s storage is full and the cloud could not be reached.\n\nPlease tell your admin right away — browser storage for the Binder Book is at its limit.');
+            return;
+        }
+        alert('⚠️ Saved to the cloud, but this browser\'s storage is full so the entry may not appear on this device until storage is freed.\n\nPlease tell your admin: browser storage for the Binder Book is at its limit.');
+    }
 
     // Auto-sync this entry's contact info to AMS (drivers, vehicles, agent, etc.)
     syncEntryToAMS(entry);
@@ -1688,8 +1716,11 @@ function saveEntry() {
             };
         }
 
-        // Save updated commission data
-        localStorage.setItem('commissionData', JSON.stringify(commData));
+        // Save updated commission data (non-fatal if this browser is out of
+        // room — the entry itself is what matters; commissions recompute).
+        if (!_lsSetSafe('commissionData', JSON.stringify(commData))) {
+            try { driveSet('commissionData', commData); } catch (e) {}
+        }
         commissionData = commData;
     }
 
@@ -1787,6 +1818,59 @@ function saveEntry() {
 const _vlSigPads = {};
 
 let _vlSelectedDealer = '';
+
+// localStorage on this origin sits at Chrome's per-origin cap (the binder
+// book alone is ~7.6 MB). A plain setItem then throws QuotaExceededError,
+// which used to abort saveVerificationLog/saveEntry silently — the button
+// "did nothing". Write through this instead and let callers react.
+function _isQuotaError(e) {
+    return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
+}
+function _lsSetSafe(key, value) {
+    try { localStorage.setItem(key, value); return true; }
+    catch (e) { if (_isQuotaError(e)) { console.warn(`localStorage full — could not store ${key}`); return false; } throw e; }
+}
+
+// Signatures were stored as PNG (~19 KB each); WebP at q0.8 is ~8.5 KB and
+// looks identical on the printed form. Browsers that can't encode WebP
+// (older Safari) return a PNG from toDataURL, which is still fine.
+function _sigDataUrl(canvas) {
+    try { const w = canvas.toDataURL('image/webp', 0.8); if (w.startsWith('data:image/webp')) return w; } catch (e) {}
+    return canvas.toDataURL('image/png');
+}
+
+// One-time re-encode of existing PNG signatures to WebP. Frees ~60% of the
+// verificationLogs key — the only large key that can actually be shrunk.
+async function compactVerificationLogs() {
+    let logs;
+    try { logs = JSON.parse(localStorage.getItem('verificationLogs')) || []; } catch (e) { return false; }
+    const reencode = src => new Promise(res => {
+        if (!src || !src.startsWith('data:image/png')) return res(src);
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const c = document.createElement('canvas');
+                c.width = img.width; c.height = img.height;
+                c.getContext('2d').drawImage(img, 0, 0);
+                const out = _sigDataUrl(c);
+                res(out.length < src.length ? out : src);
+            } catch (e) { res(src); }
+        };
+        img.onerror = () => res(src);
+        img.src = src;
+    });
+    let changed = false;
+    for (const l of logs) {
+        const c = await reencode(l.customerSig), a = await reencode(l.agentSig);
+        if (c !== l.customerSig || a !== l.agentSig) { l.customerSig = c; l.agentSig = a; changed = true; }
+    }
+    if (!changed) return false;
+    // _origSetItem: the wrapped setItem would push the whole key to the cloud
+    // on every device that runs this; the content is the same signatures, so
+    // let the next real save carry it up.
+    try { _origSetItem('verificationLogs', JSON.stringify(logs)); } catch (e) { return false; }
+    return true;
+}
 
 function openDailyVerificationModal() {
     const m = document.getElementById('dealerSelectModal');
@@ -1910,7 +1994,7 @@ function isCanvasBlank(canvasId) {
     return !data.some(v => v !== 0);
 }
 
-function saveVerificationLog(e) {
+async function saveVerificationLog(e) {
     e.preventDefault();
 
     if (isCanvasBlank('vl_customerSigCanvas')) {
@@ -1928,8 +2012,8 @@ function saveVerificationLog(e) {
     const ack           = document.querySelector('input[name="vl_ack"]:checked')?.value;
     const permission    = document.querySelector('input[name="vl_permission"]:checked')?.value;
     const agentConfirm  = document.querySelector('input[name="vl_agentConfirm"]:checked')?.value;
-    const customerSig   = document.getElementById('vl_customerSigCanvas').toDataURL('image/png');
-    const agentSig      = document.getElementById('vl_agentSigCanvas').toDataURL('image/png');
+    const customerSig   = _sigDataUrl(document.getElementById('vl_customerSigCanvas'));
+    const agentSig      = _sigDataUrl(document.getElementById('vl_agentSigCanvas'));
 
     const entry = {
         id:            'VL-' + Date.now(),
@@ -1945,12 +2029,31 @@ function saveVerificationLog(e) {
         timestamp:     getEasternTimestamp()
     };
 
-    const logs = JSON.parse(localStorage.getItem('verificationLogs')) || [];
-    logs.push(entry);
-    localStorage.setItem('verificationLogs', JSON.stringify(logs));
-
-    // Generate and download the completed form
+    // Hand the agent the signed form FIRST — it must never depend on whether
+    // this browser still has room to store the log.
     downloadVerificationForm(entry);
+
+    const readLogs = () => { try { return JSON.parse(localStorage.getItem('verificationLogs')) || []; } catch (e) { return []; } };
+    let logs = readLogs();
+    logs.push(entry);
+    let stored = _lsSetSafe('verificationLogs', JSON.stringify(logs));
+    if (!stored) {
+        // Storage full: shrink the existing PNG signatures to WebP and retry.
+        await compactVerificationLogs();
+        logs = readLogs();
+        if (!logs.some(l => l.id === entry.id)) logs.push(entry);
+        stored = _lsSetSafe('verificationLogs', JSON.stringify(logs));
+    }
+    if (!stored) {
+        // Still no room locally — send it straight to the cloud (the shared
+        // source of truth the admin dashboard reads) and say so plainly.
+        let cloudOk = false;
+        try { cloudOk = await driveSet('verificationLogs', logs); } catch (err) { cloudOk = false; }
+        alert(cloudOk
+            ? '⚠️ This browser\'s storage is full, so the log could not be kept on this device — but it WAS saved to the cloud and the form was downloaded.\n\nPlease tell your admin: browser storage for the Binder Book is at its limit.'
+            : '❌ Could not save the verification log: this browser\'s storage is full and the cloud could not be reached.\n\nThe signed form was downloaded — keep that file. Please tell your admin right away.');
+        if (!cloudOk) return;
+    }
 
     document.getElementById('verificationSuccessMsg').style.display = 'block';
     setTimeout(() => {
@@ -2048,9 +2151,12 @@ function downloadVerificationForm(entry) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `VerificationLog-${entry.customerName.replace(/\s+/g,'-')}-${entry.date}.html`;
+    a.download = `VerificationLog-${String(entry.customerName || 'Customer').replace(/[^\w.-]+/g, '-')}-${entry.date}.html`;
+    a.style.display = 'none';
+    // Firefox/Safari ignore click() on an anchor that isn't in the document.
+    document.body.appendChild(a);
     a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 5000);
 }
 
 // ── New Prospect ──────────────────────────────────────────────
