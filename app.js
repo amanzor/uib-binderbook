@@ -31,7 +31,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202609140;
+const APP_BUILD = 202609142;
 
 let _appOutdated = false;          // true once we KNOW the cloud has a newer build
 let _versionEnforcing = false;     // guards against overlapping checks
@@ -211,6 +211,45 @@ function binderMarkDeleted(ids) {
     driveSet('binderDeletedIds', pruned);
 }
 
+// Best-effort local write for cloud-merged keys: a full device must not
+// stop the cloud write, so quota errors are swallowed here (and only here).
+function _lsMirror(key, str) {
+    try { _origSetItem(key, str); return true; }
+    catch (e) { if (typeof _isQuotaError === 'function' && _isQuotaError(e)) { console.warn(`localStorage full — ${key} kept in cloud only`); return false; } throw e; }
+}
+
+// ── Verification-log merge + tombstones (same idea as binder entries) ──
+function _vlTombstones() {
+    try { return JSON.parse(localStorage.getItem('verificationLogsDeleted')) || []; }
+    catch (e) { return []; }
+}
+async function _vlSyncTombstones() {
+    const local = _vlTombstones();
+    try {
+        const cloud = await driveGet('verificationLogsDeleted');
+        const merged = _mergeTombstones(local, Array.isArray(cloud) ? cloud : []);
+        _lsMirror('verificationLogsDeleted', JSON.stringify(merged));
+        return merged;
+    } catch (e) { return local; }
+}
+// Cloud entries first, then local ones overlay by id (local edits win);
+// tombstoned ids are dropped.
+function _mergeVerificationLogs(local, cloud, tombs) {
+    const dead = new Set((tombs || []).map(t => t.id));
+    const byId = new Map();
+    (cloud || []).forEach(l => { if (l && l.id != null && !dead.has(l.id)) byId.set(l.id, l); });
+    (local || []).forEach(l => { if (l && l.id != null && !dead.has(l.id)) byId.set(l.id, l); });
+    return [...byId.values()];
+}
+function vlMarkDeleted(id) {
+    const now = Date.now();
+    const list = _vlTombstones();
+    if (id != null && !list.some(t => t.id === id)) list.push({ id, ts: now });
+    const pruned = list.filter(t => now - (t.ts || 0) < TOMBSTONE_RETENTION_MS);
+    _lsMirror('verificationLogsDeleted', JSON.stringify(pruned));
+    driveSet('verificationLogsDeleted', pruned);
+}
+
 // Entries always get id = Date.now() at save; very old imports may lack
 // one, so fall back to a stable content signature for those.
 function _entryMergeKey(e) {
@@ -332,13 +371,31 @@ async function driveSet(key, value) {
                 }
                 return false;
             }
-            _origSetItem('binderData', JSON.stringify(value));
+            // The local mirror is best-effort: on a device whose storage is
+            // full this throws, and the cloud write below must still happen —
+            // it is the whole point of the quota fallback in saveEntry().
+            _lsMirror('binderData', JSON.stringify(value));
             if (typeof allData !== 'undefined' && Array.isArray(allData)) allData = value;
         } else if (key === 'binderDeletedIds') {
             const cloudRes = await driveGetResult('binderDeletedIds');
             if (!cloudRes.ok) return false; // same reasoning — retry later
             value = _mergeTombstones(Array.isArray(value) ? value : [], Array.isArray(cloudRes.value) ? cloudRes.value : []);
-            _origSetItem('binderDeletedIds', JSON.stringify(value));
+            _lsMirror('binderDeletedIds', JSON.stringify(value));
+        } else if (key === 'verificationLogs') {
+            // Signed compliance logs must never be lost to last-writer-wins:
+            // two locations saving at the same time, or a device whose full
+            // storage could only push its new log to the cloud. Merge by id;
+            // deletions travel as tombstones so they don't resurrect.
+            const cloudRes = await driveGetResult('verificationLogs');
+            if (!cloudRes.ok) return false;
+            const dead = await _vlSyncTombstones();
+            value = _mergeVerificationLogs(Array.isArray(value) ? value : [], Array.isArray(cloudRes.value) ? cloudRes.value : [], dead);
+            _lsMirror('verificationLogs', JSON.stringify(value));
+        } else if (key === 'verificationLogsDeleted') {
+            const cloudRes = await driveGetResult('verificationLogsDeleted');
+            if (!cloudRes.ok) return false;
+            value = _mergeTombstones(Array.isArray(value) ? value : [], Array.isArray(cloudRes.value) ? cloudRes.value : []);
+            _lsMirror('verificationLogsDeleted', JSON.stringify(value));
         }
         const wroteAt = new Date().toISOString();
         const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
@@ -433,7 +490,9 @@ async function syncFromDrive() {
 
         const data = await driveGet(key);
         if (data !== null) {
-            _origSetItem(key, JSON.stringify(data)); // bypass override to avoid write-back loop
+            // bypass override to avoid write-back loop; a full device must not
+            // abort the rest of the sync
+            _lsMirror(key, JSON.stringify(data));
         }
     }
     if (banner) banner.style.display = 'none';
@@ -1641,6 +1700,9 @@ async function saveEntry() {
     let storedLocally = _lsSetSafe('binderData', JSON.stringify(allData));
     if (!storedLocally) {
         await compactVerificationLogs();
+        // The auto-sync may have reloaded allData from storage during that
+        // await — make sure the new entry is still in it before retrying.
+        if (!allData.some(d => d.id === entry.id)) allData.push(entry);
         storedLocally = _lsSetSafe('binderData', JSON.stringify(allData));
     }
     if (!storedLocally) {
@@ -1785,7 +1847,9 @@ async function saveEntry() {
         const persistAll = Promise.all([
             pendingFilesSave.catch(e => console.warn('Attachment save failed:', e)),
             driveSet('binderData', allData),
-            driveSet('commissionData', JSON.parse(localStorage.getItem('commissionData') || '{}'))
+            // In-memory copy: if the local write above failed on a full device,
+            // localStorage still holds the OLD commissions.
+            driveSet('commissionData', (typeof commissionData !== 'undefined' && commissionData) ? commissionData : JSON.parse(localStorage.getItem('commissionData') || '{}'))
         ]);
         // Cap the wait so a slow network can't strand the agent here. With
         // attachments we allow longer, because navigating away aborts an
@@ -1851,16 +1915,21 @@ async function compactVerificationLogs() {
         img.onerror = () => res(src);
         img.src = src;
     });
-    let changed = false;
+    const smaller = new Map(); // id -> {customerSig, agentSig}
     for (const l of logs) {
         const c = await reencode(l.customerSig), a = await reencode(l.agentSig);
-        if (c !== l.customerSig || a !== l.agentSig) { l.customerSig = c; l.agentSig = a; changed = true; }
+        if (c !== l.customerSig || a !== l.agentSig) smaller.set(l.id, { customerSig: c, agentSig: a });
     }
-    if (!changed) return false;
+    if (!smaller.size) return false;
+    // Re-read right before writing: the image decodes above take a moment,
+    // and a log saved/deleted meanwhile must not be reverted by a stale copy.
+    let fresh;
+    try { fresh = JSON.parse(localStorage.getItem('verificationLogs')) || []; } catch (e) { return false; }
+    fresh.forEach(l => { const s = smaller.get(l.id); if (s) { l.customerSig = s.customerSig; l.agentSig = s.agentSig; } });
     // _origSetItem: the wrapped setItem would push the whole key to the cloud
     // on every device that runs this; the content is the same signatures, so
     // let the next real save carry it up.
-    try { _origSetItem('verificationLogs', JSON.stringify(logs)); } catch (e) { return false; }
+    try { _origSetItem('verificationLogs', JSON.stringify(fresh)); } catch (e) { return false; }
     return true;
 }
 
@@ -1909,12 +1978,19 @@ function selectDealerAndOpenLog(dealerName) {
     };
 }
 
+function _vlUnlock() {
+    window._vlSaving = false;
+    const b = document.querySelector('#verificationForm button[type="submit"]');
+    if (b) b.disabled = false;
+}
+
 function closeDailyVerificationModal() {
     document.getElementById('dailyVerificationModal').classList.remove('active');
     resetVerificationForm();
 }
 
 function resetVerificationForm() {
+    _vlUnlock();
     document.getElementById('verificationForm').reset();
     clearSignaturePad('vl_customerSigCanvas');
     clearSignaturePad('vl_agentSigCanvas');
@@ -1998,6 +2074,17 @@ async function saveVerificationLog(e) {
         return;
     }
 
+    // Everything below awaits (compaction, network) — block a second click
+    // from saving and downloading the same log twice.
+    // Stays locked after a SUCCESSFUL save too (the modal closes itself 2.5s
+    // later) — the happy path is synchronous, so a flag released at the end
+    // of this function would not stop a second click from saving twice.
+    if (window._vlSaving) return;
+    window._vlSaving = true;
+    const vlSubmitBtn = document.querySelector('#verificationForm button[type="submit"]');
+    if (vlSubmitBtn) vlSubmitBtn.disabled = true;
+    const vlDone = _vlUnlock;
+
     const date          = document.getElementById('vl_date').value;
     const agent         = document.getElementById('vl_agent').value;
     const customerName  = document.getElementById('vl_customerName').value.trim();
@@ -2041,10 +2128,14 @@ async function saveVerificationLog(e) {
         // source of truth the admin dashboard reads) and say so plainly.
         let cloudOk = false;
         try { cloudOk = await driveSet('verificationLogs', logs); } catch (err) { cloudOk = false; }
+        // driveSet remembers its own stamp so the next sync skips a
+        // re-download. This device does NOT hold the log, so forget the
+        // stamp: once storage frees up, the next sync pulls it back down.
+        if (cloudOk) { try { localStorage.removeItem(_stampKey('verificationLogs')); } catch (err) {} }
         alert(cloudOk
             ? '⚠️ This browser\'s storage is full, so the log could not be kept on this device — but it WAS saved to the cloud and the form was downloaded.\n\nPlease tell your admin: browser storage for the Binder Book is at its limit.'
             : '❌ Could not save the verification log: this browser\'s storage is full and the cloud could not be reached.\n\nThe signed form was downloaded — keep that file. Please tell your admin right away.');
-        if (!cloudOk) return;
+        if (!cloudOk) { vlDone(); return; }
     }
 
     document.getElementById('verificationSuccessMsg').style.display = 'block';
@@ -2624,6 +2715,7 @@ function deleteVerificationLog(id) {
     const who = `${entry.customerName || 'this customer'}${entry.dealer ? ' — ' + entry.dealer : ''}${entry.date ? ' (' + entry.date + ')' : ''}`;
     if (!confirm(`Delete the verification log for ${who}?\n\nThis removes it for everyone and cannot be undone.`)) return;
 
+    vlMarkDeleted(id); // tombstone first, so the merge on push drops it everywhere
     const remaining = logs.filter(l => l.id !== id);
     localStorage.setItem('verificationLogs', JSON.stringify(remaining));
 
