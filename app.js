@@ -3,7 +3,9 @@
 // ============================================================
 const SUPABASE_URL = "https://jgjmobktucyimupelfxd.supabase.co";
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
-// Old Apps Script URL — kept ONLY for email notifications (sendEmail action).
+// Old Apps Script URL — kept ONLY for the admin e-mail notification
+// (sendEmail action in claudeNotifyAdminExistingClient). It stores NO data:
+// every read and write of app data goes to Supabase.
 const DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
 const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'agentCredentials', 'prospectData', 'verificationLogs', 'commissionStatements'];
 
@@ -29,7 +31,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202609143;
+const APP_BUILD = 202609144;
 
 let _appOutdated = false;          // true once we KNOW the cloud has a newer build
 let _versionEnforcing = false;     // guards against overlapping checks
@@ -768,15 +770,6 @@ document.addEventListener('click', (e) => {
         document.querySelectorAll('.lob-dropdown.open').forEach(d => _returnLobDropdown(d));
     }
 });
-
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdgftX1s0VD0UqEpt0oKASpEeob_B4J6nwkYpVmNPn54kxYT910ly7NI9ab5RRW1o-tQ/exec';
-
-const SHEET_HEADERS = [
-    'id','agent','customerName','source','policyType','lineOfBusiness','company','mga',
-    'down','agencyFee','basePremium','agencyCommission','agentCommissionShare',
-    'totalPremium','paymentType','paymentMethod2','policyNumber','binderNumber',
-    'entryDate','effDate','term','timestamp','status'
-];
 
 // Loads binder data from Supabase (formerly from a Google Sheet).
 // Only overwrites local data when the cloud actually has records.
@@ -1900,7 +1893,6 @@ async function saveEntry() {
     setTodayDate();
     loadAgentData();
 
-    if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
 }
 
 // ── Daily Verification Log ────────────────────────────────────
@@ -3549,7 +3541,6 @@ function bulkDeleteSelected() {
     allData = allData.filter(d => !ids.includes(d.id));
     localStorage.setItem('binderData', JSON.stringify(allData));
     loadAgentData();
-    if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
 }
 
 function bulkClearSelection() {
@@ -11058,7 +11049,6 @@ function fixAllEntriesCase() {
     if (typeof loadAdminData === 'function') loadAdminData();
     if (typeof loadAgentData === 'function') loadAgentData();
     if (typeof apdInit === 'function') apdInit();
-    if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
     alert('Done! All ' + data.length + ' entries have been converted to title case.');
 }
 
@@ -11213,7 +11203,6 @@ function importLRCQ1Transactions() {
     if (typeof allData !== 'undefined') allData = stored;
     if (typeof loadAdminData === 'function') loadAdminData();
     if (typeof apdInit === 'function') apdInit();
-    if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
 
     alert('Import complete! Added ' + added + ' entries for Lazaro. Skipped ' + skipped + ' duplicates.');
 }
@@ -11241,34 +11230,15 @@ const BACKUP_SLOTS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => 'backu
 
 // Plain write — deliberately NOT driveSet: snapshots are point-in-time
 // copies that must never be merged with the cloud or flagged dirty.
-// Snapshots are written to BOTH backends. Supabase is the primary store, but
-// when it went down for a full day the backups went down with it — a backup
-// that shares a failure domain with the thing it protects is not a backup. The
-// Apps Script store stayed reachable throughout, so it gets a copy too. A
-// failure on either side never blocks the other.
+// Snapshots live in Supabase app_store alongside the live data (the old
+// Google Apps Script mirror is gone — Supabase is the only store).
 async function _backupPost(key, value) {
-    const results = await Promise.allSettled([
-        (async () => {
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
-                method: 'POST',
-                headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
-                body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
-            });
-            if (!res.ok) throw new Error('Supabase HTTP ' + res.status);
-        })(),
-        (async () => {
-            // Apps Script mirror — no-cors, so success is best-effort by design.
-            await fetch(DRIVE_API_URL, {
-                method: 'POST', mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key, value })
-            });
-        })()
-    ]);
-    // Only fail if BOTH backends rejected — one surviving copy is enough.
-    if (results.every(r => r.status === 'rejected')) {
-        throw new Error('both backup backends failed: ' + results.map(r => r.reason).join(' | '));
-    }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+        method: 'POST',
+        headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+        body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
+    });
+    if (!res.ok) throw new Error('Supabase HTTP ' + res.status);
 }
 
 // Freshness probe: fetch ONLY the snapshot's date field, not the multi-MB
