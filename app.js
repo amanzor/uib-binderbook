@@ -31,7 +31,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202609142;
+const APP_BUILD = 202609144;
 
 let _appOutdated = false;          // true once we KNOW the cloud has a newer build
 let _versionEnforcing = false;     // guards against overlapping checks
@@ -82,7 +82,20 @@ async function enforceAppVersion() {
             const already = sessionStorage.getItem('uibReloadedForBuild');
             if (already === null || parseInt(already, 10) < cloudBuild) {
                 sessionStorage.setItem('uibReloadedForBuild', String(cloudBuild));
-                setTimeout(() => { try { location.reload(); } catch (e) {} }, 1500);
+                // A plain reload re-uses the cached page: GitHub Pages serves
+                // index.html and app.js with max-age=600, so the "updated"
+                // page still pointed at the old app.js and this device stayed
+                // gated for up to 10 minutes after every deploy. Changing the
+                // page URL's query string forces the CDN and the browser to
+                // fetch the current index.html, whose ?v= tag then pulls the
+                // current app.js.
+                setTimeout(() => {
+                    try {
+                        const u = new URL(location.href);
+                        u.searchParams.set('build', String(cloudBuild));
+                        location.replace(u.toString());
+                    } catch (e) { try { location.reload(); } catch (e2) {} }
+                }, 1500);
             }
             return;
         }
@@ -1114,10 +1127,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Proactively reclaim room when this browser is near Chrome's 5M-char
     // localStorage cap, so saves don't start failing mid-shift.
     try {
+        // Measure what is actually on disk: storage-codec.js keeps the big
+        // keys compressed, so getItem() lengths would overstate usage.
         let chars = 0;
-        for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); chars += k.length + (localStorage.getItem(k) || '').length; }
+        if (window.uibStorageCodec) chars = window.uibStorageCodec.usageChars();
+        else for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); chars += k.length + (localStorage.getItem(k) || '').length; }
         if (chars > 4200000 && typeof compactVerificationLogs === 'function') {
             compactVerificationLogs().then(did => { if (did) console.info('Compacted verification-log signatures to free browser storage.'); });
+        }
+        // Never let a full browser fail silently again: past 80% of Chrome's
+        // 5M-character cap, say so on screen until an admin acts.
+        if (chars > 4000000 && !document.getElementById('uibStorageWarn')) {
+            const el = document.createElement('div');
+            el.id = 'uibStorageWarn';
+            el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483646;background:#b45309;color:#fff;padding:10px 16px;text-align:center;font:600 13px system-ui,Arial,sans-serif;box-shadow:0 -2px 10px rgba(0,0,0,.3);';
+            el.textContent = `⚠️ This browser's storage for the Binder Book is ${Math.round(chars / 50000)}% full (${(chars / 1e6).toFixed(2)}M of 5M). Saves will start failing at 100% — please tell your admin.`;
+            (document.body || document.documentElement).appendChild(el);
         }
     } catch (e) {}
 
@@ -11195,7 +11220,11 @@ function importLRCQ1Transactions() {
 // id, tombstones respected) — it only adds back what's missing,
 // never duplicates and never resurrects intentional deletions.
 // ============================================================
-const BACKUP_SNAPSHOT_KEYS = ['binderData', 'binderDeletedIds', 'commissionData', 'carrierMasterData', 'prospectData'];
+// Restore only ever merges binderData back (see restoreCloudBackup); the other
+// keys ride along so a snapshot is a complete picture — including the signed
+// dealer verification logs, which were not being backed up at all before.
+const BACKUP_SNAPSHOT_KEYS = ['binderData', 'binderDeletedIds', 'commissionData', 'carrierMasterData', 'prospectData',
+                              'verificationLogs', 'verificationLogsDeleted', 'commissionStatements', 'agentMasterData'];
 const BACKUP_SLOTS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => 'backupSnapshot_' + d)
     .concat(Array.from({length:12}, (_, i) => 'backupSnapshot_M' + String(i + 1).padStart(2, '0')));
 
