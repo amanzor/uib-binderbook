@@ -29,7 +29,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202609161;
+const APP_BUILD = 202609162;
 
 let _appOutdated = false;          // true once we KNOW the cloud has a newer build
 let _versionEnforcing = false;     // guards against overlapping checks
@@ -1205,6 +1205,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Continue syncing all other data in background
         syncFromDrive().then(() => { migrateLocationNames(); refreshIcons(); runDailyCloudBackup(); });
         startAutoSync();
+        // Anything saved to this browser only (cloud was unreachable at the
+        // time) goes up now, so it is visible on every device.
+        if (document.getElementById('agentTable')) {
+            setTimeout(() => { binderPushLocalFilesToCloud().catch(() => {}); }, 8000);
+        }
     })();
 });
 
@@ -3582,28 +3587,6 @@ function searchAgentSubmissions() {
 
 // Admin Dashboard
 function loadAdminDashboard() {
-    // One-time migration: set all Uriel Rendon entries to Gross Paid
-    if (!localStorage.getItem('migration_uriel_gross_paid')) {
-        const before = allData.length;
-        let changed = 0;
-        allData = allData.map(e => {
-            if (e.agent !== 'Uriel Rendon') return e;
-            const premium   = parseFloat(e.basePremium || e.totalPremium) || 0;
-            const agencyFee = parseFloat(e.agencyFee) || 0;
-            const rate      = getCommissionRate(e.company, e.lineOfBusiness, 'Gross Paid', e.policyType || 'New');
-            const agencyComm = rate > 0 ? parseFloat((premium * (rate / 100)).toFixed(2)) : (e.agencyCommission || 0);
-            const agentShare = parseFloat(((agencyFee + agencyComm) * 0.5).toFixed(2));
-            changed++;
-            return { ...e, paymentType: 'Gross Paid', agencyCommission: agencyComm, agentCommissionShare: agentShare };
-        });
-        if (changed > 0) {
-            localStorage.setItem('binderData', JSON.stringify(allData));
-            driveSet('binderData', allData);
-            recalculateAllCommissions();
-        }
-        localStorage.setItem('migration_uriel_gross_paid', '1');
-    }
-
     populateAgentFilter();
     _adminDefaultMonth();
     renderAdminStats();
@@ -4094,7 +4077,12 @@ function initializeCarrierData() {
     });
 
     carrierMasterData = carrierData;
-    if (!stored || updated) {
+    if (!stored) {
+        // Fresh browser or origin: keep the seed local only. The first sync
+        // pulls the fleet's real carrier list over it; publishing the stock
+        // list from here would replace every custom carrier and rule.
+        _origSetItem('carrierMasterData', JSON.stringify(carrierData));
+    } else if (updated) {
         _origSetItem('carrierMasterData', JSON.stringify(carrierData));
         driveSet('carrierMasterData', carrierData);
     }
@@ -4528,8 +4516,10 @@ document.getElementById('carrierForm')?.addEventListener('submit', (e) => {
 
 // Initialize agent data in localStorage
 function initializeAgentData() {
+    // Seed through the non-pushing writer: a fresh browser or origin must
+    // never publish an empty {} over the fleet's agent records.
     if (!localStorage.getItem('agentMasterData')) {
-        localStorage.setItem('agentMasterData', JSON.stringify({}));
+        _origSetItem('agentMasterData', JSON.stringify({}));
     }
 }
 
@@ -8283,110 +8273,6 @@ function apdExportCSV() {
     URL.revokeObjectURL(url);
 }
 
-// ── Binder Book May 26 Bulk Import ───────────────────────────────────────────
-async function importBinderMay26Data() {
-    const confirmed = confirm(
-        'Import Binder Book May 26 entries?\n\n' +
-        '• 40 policy entries (May 2026)\n' +
-        '• Agents: Uriel Rendon, Lazaro Reigosa Cruz, Amanda Montano, Randy Diaz\n' +
-        '• Personal Auto, Commercial, and other lines\n' +
-        '• Existing entries with matching IDs will be skipped (safe to re-run)\n\n' +
-        'Click OK to proceed.'
-    );
-    if (!confirmed) return;
-
-    let importData;
-    try {
-        const resp = await fetch('binder_may26_import.json?v=20260524');
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        importData = await resp.json();
-    } catch (err) {
-        alert('Failed to load binder_may26_import.json: ' + err.message);
-        return;
-    }
-
-    let existing = [];
-    try { existing = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) { existing = []; }
-
-    const existingIds = new Set(existing.map(e => e.id));
-    const newEntries  = importData.filter(e => !existingIds.has(e.id));
-
-    if (newEntries.length === 0) {
-        alert('All Binder Book May 26 entries already exist. Nothing was imported.');
-        return;
-    }
-
-    const merged = [...existing, ...newEntries];
-    localStorage.setItem('binderData', JSON.stringify(merged));
-    allData = merged;
-
-    alert(
-        `✅ Import complete!\n\n` +
-        `• ${newEntries.length} new entries added\n` +
-        `• ${importData.length - newEntries.length} duplicates skipped\n` +
-        `• Total records now: ${merged.length}`
-    );
-
-    if (typeof loadAdminData === 'function') loadAdminData();
-    if (typeof apdInit     === 'function') apdInit();
-    if (typeof prodApplyFilters === 'function') prodApplyFilters();
-}
-
-// ── Jorge Castro Bulk Import ─────────────────────────────────────────────────
-async function importJorgeCastroData() {
-    const confirmed = confirm(
-        'Import Jorge Castro commission data?\n\n' +
-        '• 3,428 policy entries (Jun 2023 – Apr 2026)\n' +
-        '• Location: Doral\n' +
-        '• Existing entries with matching IDs will be skipped (safe to re-run)\n\n' +
-        'Click OK to proceed.'
-    );
-    if (!confirmed) return;
-
-    let importData;
-    try {
-        const resp = await fetch('jorge_import.json?v=20260522');
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        importData = await resp.json();
-    } catch (err) {
-        alert('Failed to load jorge_import.json: ' + err.message);
-        return;
-    }
-
-    // Load current binderData
-    let existing = [];
-    try {
-        existing = JSON.parse(localStorage.getItem('binderData')) || [];
-    } catch (e) {
-        existing = [];
-    }
-
-    // Deduplicate by ID
-    const existingIds = new Set(existing.map(e => e.id));
-    const newEntries  = importData.filter(e => !existingIds.has(e.id));
-
-    if (newEntries.length === 0) {
-        alert('All Jorge Castro entries already exist in the system. Nothing was imported.');
-        return;
-    }
-
-    const merged = [...existing, ...newEntries];
-    localStorage.setItem('binderData', JSON.stringify(merged));
-    allData = merged;
-
-    alert(
-        `✅ Import complete!\n\n` +
-        `• ${newEntries.length} new entries added\n` +
-        `• ${importData.length - newEntries.length} duplicates skipped\n` +
-        `• Total records now: ${merged.length}`
-    );
-
-    // Refresh admin view if active
-    if (typeof loadAdminData === 'function') loadAdminData();
-    if (typeof apdInit     === 'function') apdInit();
-    if (typeof prodApplyFilters === 'function') prodApplyFilters();
-}
-
 // ============================================================
 // BINDER FILE SYSTEM — IndexedDB integration with UIB AMS
 // Shares the same 'UIB_AMS_Files' DB as ams.html so files
@@ -8504,7 +8390,7 @@ function _binderStorageUrl(path) {
     return `${SUPABASE_URL}/storage/v1/object/${FILES_BUCKET}/` + path.split('/').map(encodeURIComponent).join('/');
 }
 
-async function binderCloudUpload(file, clientKey, category) {
+async function binderCloudUpload(file, clientKey, category, uploadedBy) {
     const path = _binderStoragePath(clientKey, file.name);
     const res = await fetch(_binderStorageUrl(path), {
         method: 'POST',
@@ -8530,9 +8416,57 @@ async function binderCloudUpload(file, clientKey, category) {
             storage_path: path,
             size_bytes: file.size,
             mime_type: file.type || 'application/octet-stream',
-            uploaded_by: currentUser || 'Agent'
+            uploaded_by: uploadedBy || currentUser || 'Agent'
         }])
     });
+}
+
+// Files that could only be saved in this browser's IndexedDB (cloud
+// unreachable at the time, or AI-chat archives from older builds) exist on
+// this computer alone. Send each one to Supabase Storage so every device
+// sees it, and drop the local copy once the cloud has it.
+let _pushingLocalFiles = false;
+async function binderPushLocalFilesToCloud(report) {
+    const result = { uploaded: 0, skipped: 0, failed: 0 };
+    if (_pushingLocalFiles) return result;
+    _pushingLocalFiles = true;
+    try {
+        if (!binderDB) await binderInitDB();
+        if (!binderDB) return result;
+        const records = await new Promise(resolve => {
+            try {
+                const req = binderDB.transaction('files', 'readonly').objectStore('files').getAll();
+                req.onsuccess = e => resolve(e.target.result || []);
+                req.onerror   = () => resolve([]);
+            } catch (e) { resolve([]); }
+        });
+        const pending = records.filter(r => r && r.data && r.name && r.clientKey);
+        const cloudByKey = {};
+        for (const rec of pending) {
+            try {
+                if (!cloudByKey[rec.clientKey]) cloudByKey[rec.clientKey] = await binderCloudList(rec.clientKey);
+                const size = rec.size || rec.data.byteLength;
+                const already = cloudByKey[rec.clientKey].some(f => f.file_name === rec.name && Number(f.size_bytes) === size);
+                if (already) {
+                    result.skipped++;
+                } else {
+                    const file = new File([rec.data], rec.name, { type: rec.type || 'application/octet-stream' });
+                    await binderCloudUpload(file, rec.clientKey, rec.category || 'Other', rec.uploadedBy);
+                    cloudByKey[rec.clientKey].push({ file_name: rec.name, size_bytes: file.size });
+                    result.uploaded++;
+                }
+                await binderDBDeleteFile(rec.id);
+            } catch (e) {
+                result.failed++;
+                console.warn('Could not send local-only file to the cloud:', rec.name, e);
+            }
+        }
+        if (pending.length) console.log('Local-only files sent to cloud:', result);
+        return result;
+    } finally {
+        _pushingLocalFiles = false;
+        if (typeof report === 'function') report(result);
+    }
 }
 
 async function binderCloudList(clientKey) {
@@ -9218,12 +9152,26 @@ function claudeBase64ToArrayBuffer(base64) {
 async function claudeArchivePdfToClientFiles(pdf, customerName, category) {
     if (!pdf || !pdf.base64 || !pdf.name) return null;
     try {
-        if (!binderDB) await binderInitDB();
-        if (!binderDB) return null;
-
         const named     = (customerName || '').trim();
         const clientKey = named ? binderClientKey(named) : 'UNFILED';
         const buffer    = claudeBase64ToArrayBuffer(pdf.base64);
+        const by        = currentUser || 'AI Assistant';
+
+        // Cloud first, like a manual upload, so the PDF shows on every device;
+        // this browser's IndexedDB is only the offline fallback.
+        try {
+            const cloud = await binderCloudList(clientKey);
+            if (cloud.some(f => f.file_name === pdf.name && Number(f.size_bytes) === buffer.byteLength)) {
+                return { clientKey, duplicate: true };
+            }
+            await binderCloudUpload(new File([buffer], pdf.name, { type: 'application/pdf' }), clientKey, category || 'Policy', by);
+            return { clientKey, duplicate: false };
+        } catch (cloudErr) {
+            console.warn('Cloud archive failed, saving locally:', pdf.name, cloudErr);
+        }
+
+        if (!binderDB) await binderInitDB();
+        if (!binderDB) return null;
 
         // Don't re-save the same document twice for the same client
         const existing = await binderDBGetFiles(clientKey);
@@ -9240,10 +9188,10 @@ async function claudeArchivePdfToClientFiles(pdf, customerName, category) {
             size:       buffer.byteLength,
             category:   category || 'Policy',
             uploadedAt: new Date().toISOString(),
-            uploadedBy: currentUser || amsCurrentUser || 'AI Assistant',
+            uploadedBy: by,
             data:       buffer
         });
-        return { clientKey, duplicate: false };
+        return { clientKey, duplicate: false, localOnly: true };
     } catch (e) {
         console.warn('Failed to archive chat PDF to client files:', e);
         return null;
@@ -9259,6 +9207,11 @@ function claudeRenderArchiveNotice(result, pdfName, customerName) {
     if (result.duplicate) {
         return `<div style="margin-top:10px;padding:10px 12px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;color:#475569;">
             📁 "${_claudeEsc(pdfName)}" is already saved in ${where} — not duplicated.
+        </div>`;
+    }
+    if (result.localOnly) {
+        return `<div style="margin-top:10px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e;">
+            📁 Saved "${_claudeEsc(pdfName)}" to ${where} on this computer only (cloud unreachable) — it is sent to the cloud automatically the next time the Binder Book opens online.
         </div>`;
     }
     return `<div style="margin-top:10px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af;">
@@ -12350,6 +12303,8 @@ function showDataSafety() {
             '<p style="margin:0 0 14px;"><strong>Download a snapshot</strong> to keep an off-cloud copy of the whole book on your own computer. Do this regularly, and especially before any big import.</p>' +
             '<button onclick="downloadLocalSnapshot()" style="width:100%;background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;border:none;padding:11px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:18px;">⬇ Download snapshot (' + count + ' policies)</button>' +
             '<p style="margin:0 0 14px;"><strong>Restore from a snapshot</strong> merges a saved file back in. It only <em>adds</em> missing policies — it never deletes or overwrites what is already there.</p>' +
+            '<p style="margin:0 0 14px;"><strong>Send this computer\'s local-only files to the cloud.</strong> Documents that could only be saved on this PC (💾) are uploaded so every device — and the new site address — can see them. This also runs by itself each time the Binder Book opens.</p>' +
+            '<button onclick="this.disabled=true;this.textContent=\'Sending…\';binderPushLocalFilesToCloud(function(r){alert(\'Sent \'+r.uploaded+\' file(s) to the cloud, \'+r.skipped+\' already there, \'+r.failed+\' failed.\');document.getElementById(\'dataSafetyModal\').remove();})" style="width:100%;background:#fff;border:1.5px solid #0f766e;color:#0f766e;padding:11px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:16px;">📤 Send local files to cloud</button>' +
             '<input type="file" id="dataSafetyFile" accept="application/json,.json" style="display:none;" onchange="restoreSnapshotFromFile(this)">' +
             '<button onclick="document.getElementById(\'dataSafetyFile\').click()" style="width:100%;background:#fff;border:1.5px solid #0f766e;color:#0f766e;padding:11px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;">⬆ Restore from snapshot file…</button>' +
           '</div>' +

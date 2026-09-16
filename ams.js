@@ -516,26 +516,39 @@ function amsLogout() {
     document.getElementById('amsLoginPassword').value = '';
 }
 
-// ── Drive → localStorage sync ────────────────────────────────
+// ── Cloud → localStorage sync ────────────────────────────────
+// Reads the same Supabase app_store rows the Binder Book writes, so the AMS
+// opens on the fleet's current data. The old Google Sheet copy this used to
+// read stopped being updated by the Binder Book long ago, and writing it back
+// through the auto-sync layer pushed that stale copy over the cloud.
+// Rows are written with the raw setter: they came FROM the cloud, so pushing
+// them back would only overwrite what another device saved meanwhile.
+function _amsRawSet(key, value) {
+    if (window.uibCloud && typeof window.uibCloud.rawSet === 'function') window.uibCloud.rawSet(key, value);
+    else localStorage.setItem(key, value);
+}
+
 async function amsSyncDataFromDrive() {
     const keys = ['binderData', 'amsClientData', 'carrierMasterData', 'agentMasterData'];
-    const results = await Promise.allSettled(keys.map(async key => {
-        try {
-            const res  = await fetch(`${AMS_DRIVE_URL}?key=${key}`);
-            const json = await res.json();
-            if (json.success && json.data != null) {
-                let data = json.data;
-                // Unwrap {value: [...]} if data was stored with wrapper
-                if (data && !Array.isArray(data) && data.value && Array.isArray(data.value)) {
-                    data = data.value;
-                }
-                localStorage.setItem(key, JSON.stringify(data));
-                return { key, count: Array.isArray(data) ? data.length : Object.keys(data).length };
+    try {
+        const res = await fetch(`${AMS_SB_URL}/rest/v1/app_store?select=key,value&key=in.(${keys.join(',')})`, { headers: AMS_SB_HEADERS });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const rows = await res.json();
+        return keys.map(key => {
+            const row = rows.find(r => r.key === key);
+            if (!row || row.value == null) return { key, count: 0 };
+            let data = row.value;
+            // Unwrap {value: [...]} if data was stored with wrapper
+            if (data && !Array.isArray(data) && data.value && Array.isArray(data.value)) {
+                data = data.value;
             }
-        } catch (e) { /* Drive unavailable — use localStorage */ }
-        return { key, count: 0 };
-    }));
-    return results.map(r => r.value || r.reason);
+            _amsRawSet(key, JSON.stringify(data));
+            return { key, count: Array.isArray(data) ? data.length : Object.keys(data).length };
+        });
+    } catch (e) {
+        // Cloud unavailable — use whatever is in localStorage already
+        return keys.map(key => ({ key, count: 0 }));
+    }
 }
 
 // ── App launch ───────────────────────────────────────────────
@@ -670,8 +683,18 @@ function amsClientCurrentAgent(client) {
 }
 
 function amsBackfillAgentOnRecord() {
-    const firstRun = !localStorage.getItem(AMS_AOR_BACKFILL_KEY);
     const contacts = amsGetClientData();
+    // No contacts at all while policies exist means the cloud copy has not
+    // arrived yet — building a skeleton now and saving it would replace the
+    // fleet's client records with that skeleton.
+    if (!Object.keys(contacts).length && Object.keys(amsClientIndex).length) return 0;
+    // The fleet-wide first run already happened; a fresh browser or origin has
+    // no local flag but its (cloud-pulled) contacts do carry the Agent On
+    // Record. Treat that as done — a repeat "first run" would overwrite any
+    // agent assigned by hand since.
+    const flagged  = !!localStorage.getItem(AMS_AOR_BACKFILL_KEY);
+    const firstRun = !flagged && !Object.values(contacts).some(r => r && r.csrName);
+    if (!flagged && !firstRun) _amsRawSet(AMS_AOR_BACKFILL_KEY, new Date().toISOString());
     let changed = 0;
 
     Object.values(amsClientIndex).forEach(client => {
@@ -1549,13 +1572,15 @@ const AMS_DRIVE_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwS
 
 async function amsPullCredentialsFromDrive() {
     try {
-        const res  = await fetch(`${AMS_DRIVE_URL}?key=agentCredentials`);
-        const json = await res.json();
-        if (json.success && json.data && typeof json.data === 'object') {
-            localStorage.setItem('agentCredentials', JSON.stringify(json.data));
+        const res  = await fetch(`${AMS_SB_URL}/rest/v1/app_store?select=value&key=eq.agentCredentials`, { headers: AMS_SB_HEADERS });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const rows = await res.json();
+        const data = rows[0] && rows[0].value;
+        if (data && typeof data === 'object' && Object.keys(data).length) {
+            _amsRawSet('agentCredentials', JSON.stringify(data));
         }
     } catch (e) {
-        // Drive unavailable — use whatever is in localStorage already
+        // Cloud unavailable — use whatever is in localStorage already
     }
 }
 

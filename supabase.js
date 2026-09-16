@@ -19,7 +19,8 @@
     // Ephemeral / device-only keys we never sync.
     const SKIP = new Set([
         'uibCloudLastBackup', 'uibCloudAuto', 'uibPendingTransaction',
-        'uibPendingSalesEntry', 'uibCurrentUser', 'uibCloudRestoredThisSession'
+        'uibPendingSalesEntry', 'uibCurrentUser', 'uibCloudRestoredThisSession',
+        'rememberedAgentEmail', 'amsRememberedEmail', 'apdState'
     ]);
 
     // The keys that actually hold your business data (auto-load checks these).
@@ -59,7 +60,7 @@
         // copies that restoreAll skips anyway — filtering them out server-side
         // keeps a restore (or a fresh device's auto-load) from downloading
         // tens of MB it will immediately throw away.
-        const res = await fetch(REST + '?select=key,value&key=not.like.backupSnapshot*', { headers: HEADERS });
+        const res = await fetch(REST + '?select=key,value,updated_at&key=not.like.backupSnapshot*', { headers: HEADERS });
         if (!res.ok) throw new Error('Fetch failed (HTTP ' + res.status + ')');
         return res.json();
     }
@@ -92,14 +93,22 @@
     async function restoreAll(onProgress) {
         const rows = await cloudGetAll();
         suppressAuto = true;
+        // Write through the setter app.js captured BEFORE it wrapped
+        // localStorage: its wrapper would push every restored row straight
+        // back to the cloud (and make every other device re-download it).
+        // Remembering each row's stamp keeps the first sync from pulling the
+        // same multi-MB blobs a second time.
+        const rawSet = (typeof _origSetItem === 'function') ? _origSetItem : _setItem;
         try {
             let done = 0;
             for (const row of rows) {
                 // Rolling cloud snapshots live only in the cloud — copying
                 // them into localStorage would blow the browser quota.
                 if (row.key && row.key.indexOf('backupSnapshot_') === 0) { done++; continue; }
+                if (SKIP.has(row.key)) { done++; continue; }
                 const val = (typeof row.value === 'string') ? row.value : JSON.stringify(row.value);
-                _setItem(row.key, val);
+                rawSet(row.key, val);
+                if (typeof _rememberStamp === 'function' && row.updated_at) _rememberStamp(row.key, row.updated_at);
                 done++;
                 if (onProgress) onProgress(done, rows.length, row.key);
             }
@@ -197,6 +206,7 @@
 
     window.uibCloud = {
         set: cloudSet, getAll: cloudGetAll, backupAll, restoreAll, ping,
+        rawSet: _setItem,   // write localStorage without queueing a cloud push
         isAuto: () => autoEnabled,
         setAuto: (on) => { autoEnabled = !!on; _setItem('uibCloudAuto', on ? 'on' : 'off'); }
     };

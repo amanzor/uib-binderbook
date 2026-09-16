@@ -1,0 +1,14 @@
+# Not part of the web app — never upload to the public site.
+commissions/
+scripts/
+supabase/
+backups/
+*.sql
+*.gs
+*.py
+*.ts
+*.md
+*.xlsx
+*.pdf
+binder_may26_import.json
+jorge_import.json
