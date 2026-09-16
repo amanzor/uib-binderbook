@@ -235,16 +235,20 @@ function amsGetClientData()  { return JSON.parse(localStorage.getItem('amsClient
 function amsGetCredentials() { return JSON.parse(localStorage.getItem('agentCredentials')) || {}; }
 function amsGetCarriers()    { return JSON.parse(localStorage.getItem('carrierMasterData')) || {}; }
 
+// Every save lands in the browser copy and in Supabase (app_store). The
+// cloud layer in supabase.js wraps localStorage.setItem and pushes each write
+// automatically; when a user has switched automatic sync off we push
+// explicitly so the AMS never becomes a device-only store again.
 function amsSave(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
-    amsSyncToDrive(key, value);
+    const raw = JSON.stringify(value);
+    localStorage.setItem(key, raw);
+    amsSyncToCloud(key, raw);
 }
 
-async function amsSyncToDrive(key, value) {
+async function amsSyncToCloud(key, raw) {
     try {
-        const payload = JSON.stringify({ key: key, value: value });
-        await fetch(AMS_DRIVE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, mode: 'no-cors' });
-    } catch (e) { /* Drive unavailable */ }
+        if (window.uibCloud && !window.uibCloud.isAuto()) await window.uibCloud.set(key, raw);
+    } catch (e) { console.warn('AMS cloud save failed for ' + key + ':', e); }
 }
 
 // The Admin login. Setting, clearing or changing the agent on a record, and
@@ -516,26 +520,38 @@ function amsLogout() {
     document.getElementById('amsLoginPassword').value = '';
 }
 
-// ── Drive → localStorage sync ────────────────────────────────
-async function amsSyncDataFromDrive() {
+// ── Supabase → localStorage sync ─────────────────────────────
+// Pull the shared data the AMS works from out of Supabase app_store (the
+// same rows the Binder Book reads and writes) into this browser. Values are
+// written with the raw setter so a fresh pull is never echoed back up.
+async function amsSyncDataFromCloud() {
     const keys = ['binderData', 'amsClientData', 'carrierMasterData', 'agentMasterData'];
-    const results = await Promise.allSettled(keys.map(async key => {
-        try {
-            const res  = await fetch(`${AMS_DRIVE_URL}?key=${key}`);
-            const json = await res.json();
-            if (json.success && json.data != null) {
-                let data = json.data;
-                // Unwrap {value: [...]} if data was stored with wrapper
-                if (data && !Array.isArray(data) && data.value && Array.isArray(data.value)) {
-                    data = data.value;
-                }
-                localStorage.setItem(key, JSON.stringify(data));
-                return { key, count: Array.isArray(data) ? data.length : Object.keys(data).length };
+    const counts = {};
+    keys.forEach(k => { counts[k] = 0; });
+    try {
+        const url = `${AMS_SB_URL}/rest/v1/app_store?select=key,value&key=in.(${encodeURIComponent(keys.join(','))})`;
+        const res = await fetch(url, { headers: AMS_SB_HEADERS });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const rows = await res.json();
+        rows.forEach(row => {
+            if (!row || !keys.includes(row.key) || row.value == null) return;
+            let data = row.value;
+            // Unwrap {value: [...]} if data was stored with wrapper
+            if (data && !Array.isArray(data) && data.value && Array.isArray(data.value)) {
+                data = data.value;
             }
-        } catch (e) { /* Drive unavailable — use localStorage */ }
-        return { key, count: 0 };
-    }));
-    return results.map(r => r.value || r.reason);
+            amsSetLocal(row.key, JSON.stringify(data));
+            counts[row.key] = Array.isArray(data) ? data.length : Object.keys(data).length;
+        });
+    } catch (e) { /* cloud unavailable — use localStorage */ }
+    return keys.map(key => ({ key, count: counts[key] }));
+}
+
+// Write to localStorage WITHOUT queueing a cloud push (the value just came
+// from the cloud). Falls back to a plain write if the cloud layer isn't loaded.
+function amsSetLocal(key, raw) {
+    if (window.uibCloud && typeof window.uibCloud.setLocal === 'function') window.uibCloud.setLocal(key, raw);
+    else localStorage.setItem(key, raw);
 }
 
 // ── App launch ───────────────────────────────────────────────
@@ -549,9 +565,9 @@ function amsLaunchApp() {
     document.getElementById('amsUserLabel').textContent = amsCurrentUser;
     document.getElementById('amsUserAvatar').textContent = initials;
 
-    // Init IndexedDB + sync from Drive, then load UI
+    // Init IndexedDB + sync from Supabase, then load UI
     amsInitDB().then(async () => {
-        await amsSyncDataFromDrive();
+        await amsSyncDataFromCloud();
         amsBuildClientIndex();
         amsBackfillAgentOnRecord();
         amsPopulateAgentFilter();
@@ -1545,25 +1561,28 @@ function amsFlashBanner(msg) {
 }
 
 // ── Init ─────────────────────────────────────────────────────
-const AMS_DRIVE_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
-
-async function amsPullCredentialsFromDrive() {
+// Agent logins live in Supabase app_store (key "agentCredentials"), kept
+// current by the Binder Book's admin screens. Pull them at load so login
+// works on any device, even one that has never opened the Binder Book.
+async function amsPullCredentialsFromCloud() {
     try {
-        const res  = await fetch(`${AMS_DRIVE_URL}?key=agentCredentials`);
-        const json = await res.json();
-        if (json.success && json.data && typeof json.data === 'object') {
-            localStorage.setItem('agentCredentials', JSON.stringify(json.data));
+        const res  = await fetch(`${AMS_SB_URL}/rest/v1/app_store?select=value&key=eq.agentCredentials`, { headers: AMS_SB_HEADERS });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const rows = await res.json();
+        const data = rows.length ? rows[0].value : null;
+        if (data && typeof data === 'object') {
+            amsSetLocal('agentCredentials', JSON.stringify(data));
         }
     } catch (e) {
-        // Drive unavailable — use whatever is in localStorage already
+        // Cloud unavailable — use whatever is in localStorage already
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
 
-    // Pull latest credentials from Drive so login works on any device
-    amsPullCredentialsFromDrive();
+    // Pull latest credentials from Supabase so login works on any device
+    amsPullCredentialsFromCloud();
 
     // Pre-fill remembered email
     const remembered = localStorage.getItem('amsRememberedEmail');
