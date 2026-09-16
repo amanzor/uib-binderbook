@@ -29,7 +29,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202609143;
+const APP_BUILD = 202609161;
 
 let _appOutdated = false;          // true once we KNOW the cloud has a newer build
 let _versionEnforcing = false;     // guards against overlapping checks
@@ -552,11 +552,11 @@ function startAutoSync() {
             if (freshCarriers) { carrierMasterData = freshCarriers; refreshAllCarrierDropdowns(); }
             initializeCommissionStatements(); // keep the in-memory copy current too
 
-            // Refresh whichever view is currently active
-            if (currentRole === 'admin') {
-                loadAdminDashboard();
-            } else if (currentRole === 'agent' && document.getElementById('agentTable')) {
-                loadAgentData();
+            // Refresh whichever view is currently active. The dashboard tables
+            // exist only on index.html; the standalone entry pages have none.
+            if (document.getElementById('agentTable')) {
+                if (currentRole === 'admin') loadAdminDashboard();
+                else if (currentRole === 'agent') loadAgentData();
             }
             if (document.getElementById('commissionStatementsSection')?.classList.contains('active')) {
                 loadCommissionStatementsList();
