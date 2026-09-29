@@ -1096,12 +1096,11 @@ function amsLoadClientDetail(key) {
     if (contact.email)  metaItems.push(`<span><i data-lucide="mail"  style="width:12px;height:12px;"></i> ${amsEscHtml(contact.email)}</span>`);
     if (contact.city)   metaItems.push(`<span><i data-lucide="map-pin" style="width:12px;height:12px;"></i> ${amsEscHtml(contact.city)}</span>`);
     metaItems.push(`<span class="tag tag-blue">${numPol} Polic${numPol !== 1 ? 'ies' : 'y'}</span>`);
-    if (contact.clientStatus) {
-        const _statusTag = /prospect/i.test(contact.clientStatus) ? 'tag-orange'
-                         : /inactive/i.test(contact.clientStatus) ? 'tag-gray'
-                         : 'tag-green';
-        metaItems.push(`<span class="tag ${_statusTag}">${amsEscHtml(contact.clientStatus)}</span>`);
-    }
+    const _detailStatus = contact.clientStatus || 'Active';
+    const _statusTag = /prospect/i.test(_detailStatus) ? 'tag-orange'
+                     : /inactive/i.test(_detailStatus) ? 'tag-gray'
+                     : 'tag-green';
+    metaItems.push(`<span class="tag ${_statusTag}">${amsEscHtml(_detailStatus)}</span>`);
     document.getElementById('detailMeta').innerHTML = metaItems.join('');
 
     // Populate contact form fields
