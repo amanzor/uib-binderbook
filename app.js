@@ -1650,11 +1650,13 @@ function toTitleCase(str) {
 // Clears the required-highlight on the Documentation Status section as soon
 // as the agent checks at least one box.
 function docStatusUpdate() {
-    const section = document.getElementById('docStatusSection');
-    if (!section) return;
-    const anyChecked = section.querySelectorAll('.doc-status-cb:checked').length > 0;
-    const box = section.firstElementChild;
-    if (box && anyChecked) box.style.boxShadow = '';
+    ['docStatusSection', 'docStatusSectionCom'].forEach(id => {
+        const section = document.getElementById(id);
+        if (!section) return;
+        const anyChecked = section.querySelectorAll('.doc-status-cb:checked').length > 0;
+        const box = section.firstElementChild;
+        if (box && anyChecked) box.style.boxShadow = '';
+    });
 }
 
 async function saveEntry() {
@@ -1664,26 +1666,39 @@ async function saveEntry() {
     const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : '';
     const gid = id => document.getElementById(id + sfx);
 
-    // Documentation Status — required on the personal daily-sales entry form.
-    // Only enforced when the section is present and visible (i.e. Personal
-    // Lines is active); Commercial and forms without the section skip it.
+    // Documentation Status — required on the daily-sales entry form. Personal
+    // and Commercial each have their own section (Commercial adds a free-text
+    // "Other"). Enforced only when the active section is present and visible;
+    // forms without it (e.g. the main binder-book entry form) skip it.
     let documentationStatus = [];
-    const _docStatusSection = document.getElementById('docStatusSection');
-    if (_docStatusSection && _docStatusSection.offsetParent !== null) {
-        documentationStatus = [...document.querySelectorAll('.doc-status-cb:checked')].map(cb => cb.value);
+    const _docSection = document.getElementById('docStatusSection' + sfx);
+    if (_docSection && _docSection.offsetParent !== null) {
+        const _checked = [..._docSection.querySelectorAll('.doc-status-cb:checked')].map(cb => cb.value);
+        const _otherEl = _docSection.querySelector('.doc-status-other');
+        const _warn = msg => {
+            if (typeof claudeShowToast === 'function') claudeShowToast('⚠ ' + msg, 'warn');
+            else alert(msg);
+        };
+        const _flash = el => {
+            if (!el) return;
+            _docSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.transition = 'box-shadow .3s, border-color .3s';
+            el.style.boxShadow = '0 0 0 3px rgba(220,38,38,.28)';
+            setTimeout(() => { el.style.boxShadow = ''; }, 4000);
+        };
+        documentationStatus = _checked.filter(v => v !== 'Other');
+        if (_checked.includes('Other')) {
+            const _otherText = _otherEl ? _otherEl.value.trim() : '';
+            if (!_otherText) {
+                _warn('Please describe the "Other" documentation item.');
+                _flash(_otherEl || _docSection.firstElementChild);
+                return;
+            }
+            documentationStatus.push('Other: ' + _otherText);
+        }
         if (documentationStatus.length === 0) {
-            if (typeof claudeShowToast === 'function') {
-                claudeShowToast('⚠ Please select at least one item under Documentation Status.', 'warn');
-            } else {
-                alert('Please select at least one item under Documentation Status.');
-            }
-            _docStatusSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            const _box = _docStatusSection.firstElementChild;
-            if (_box) {
-                _box.style.transition = 'box-shadow .3s, border-color .3s';
-                _box.style.boxShadow = '0 0 0 3px rgba(220,38,38,.28)';
-                setTimeout(() => { _box.style.boxShadow = ''; }, 4000);
-            }
+            _warn('Please select at least one item under Documentation Status.');
+            _flash(_docSection.firstElementChild);
             return;
         }
     }
