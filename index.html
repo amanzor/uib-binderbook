@@ -1379,13 +1379,13 @@
                 <div class="user-info">
                     <span id="userDisplay"></span>
                     <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
-                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
+                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(to right,#047857 0%,#10b981 60%,#34d399 100%);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
                     <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
-                    <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(135deg,#5b21b6,#3b1a8c);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
-                    <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(135deg,#000000,#6b7280);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
-                    <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
-                    <button class="btn-sm" onclick="showUnderwritingSection()" style="background:linear-gradient(135deg,#fb923c,#f97316);color:#fff;border:none;"><i data-lucide="shield-alert"></i> Underwriting</button>
+                    <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(to right,#3b1a8c 0%,#5b21b6 60%,#7c3aed 100%);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
+                    <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
+                    <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
+                    <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
+                    <button class="btn-sm" onclick="showUnderwritingSection()" style="background:linear-gradient(to right,#c2410c 0%,#f97316 60%,#fb923c 100%);color:#fff;border:none;"><i data-lucide="shield-alert"></i> Underwriting</button>
                     <button class="btn-danger btn-sm" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
                 </div>
 
@@ -2089,8 +2089,8 @@
 
                 <div class="footer-buttons">
                     <button class="btn-secondary" onclick="exportAgentData()">📥 Export My Data (CSV)</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-success" style="background:linear-gradient(135deg,#000000,#6b7280);" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
+                    <button class="btn-success" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
                     <button class="btn-danger" onclick="logout()">Logout</button>
                 </div>
             </div>
@@ -2852,14 +2852,14 @@
                     <button class="btn-primary" onclick="showCarrierManagement()"><i data-lucide="building-2"></i> Carriers</button>
                     <button class="btn-primary" onclick="showAgentManagement()"><i data-lucide="users"></i> Agents</button>
                     <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0f766e,#14b8a6);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0f766e,#2dd4bf);" onclick="showDataSafety()" title="Download an off-cloud snapshot of the whole book, or merge one back in"><i data-lucide="life-buoy"></i> Data Safety</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-success" style="background:linear-gradient(135deg,#000000,#6b7280);" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#c2410c,#f59e0b);" onclick="showRenewalsSection()" title="Upcoming policy renewals + AI renewal report processor"><i data-lucide="refresh-cw"></i> Renewals</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" onclick="showProspectsSection()"><i data-lucide="target"></i> Prospects</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#fb923c,#f97316);" onclick="showUnderwritingSection()"><i data-lucide="shield-alert"></i> Underwriting</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#5b21b6,#3b1a8c);" onclick="showVerificationLogsSection()"><i data-lucide="list-checks"></i> Dealer Verifications</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#14b8a6 60%,#5eead4 100%);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#2dd4bf 60%,#5eead4 100%);" onclick="showDataSafety()" title="Download an off-cloud snapshot of the whole book, or merge one back in"><i data-lucide="life-buoy"></i> Data Safety</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
+                    <button class="btn-success" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#c2410c 0%,#ea580c 60%,#f59e0b 100%);" onclick="showRenewalsSection()" title="Upcoming policy renewals + AI renewal report processor"><i data-lucide="refresh-cw"></i> Renewals</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);" onclick="showProspectsSection()"><i data-lucide="target"></i> Prospects</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#c2410c 0%,#f97316 60%,#fb923c 100%);" onclick="showUnderwritingSection()"><i data-lucide="shield-alert"></i> Underwriting</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#3b1a8c 0%,#5b21b6 60%,#7c3aed 100%);" onclick="showVerificationLogsSection()"><i data-lucide="list-checks"></i> Dealer Verifications</button>
                     <button class="btn-warning" onclick="importLRCQ1Transactions()" title="Import 6 Q1 LRC transactions for Lazaro (Rewrites, Endorsements, Miscellaneous)">
                         <i data-lucide="upload"></i> Import LRC Q1 (Lazaro)
                     </button>
@@ -3379,7 +3379,7 @@
             <div style="max-width:1000px;width:100%;margin:0 auto;padding:24px 20px 60px;flex:1;">
 
                 <!-- Fixed period banner — this view is always the current month, new business only -->
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:12px 18px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);border-radius:12px;color:#fff;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:12px 18px;background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);border-radius:12px;color:#fff;">
                     <i data-lucide="calendar-check" style="width:18px;height:18px;"></i>
                     <strong id="commPeriodLabel" style="font-size:14px;">📅 Loading…</strong>
                     <span style="font-size:12px;opacity:.75;">This statement always shows the current month's new business — see Commission Statements (admin) for other periods or transaction types.</span>
