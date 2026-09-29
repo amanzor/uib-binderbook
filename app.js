@@ -4137,9 +4137,57 @@ function openEditModal(id) {
     document.getElementById('editTerm').value = entry.term || '';
     document.getElementById('editAgencyCommission').value = entry.agencyCommission || '';
     document.getElementById('editPaymentType').value = entry.paymentType || '';
-    document.getElementById('editStatus').value = entry.status || '';
+    renderEditDocStatus(entry);
     populate2ndAgentDropdown('editSecondAgent', entry.secondAgent || '');
     document.getElementById('editModal').classList.add('active');
+}
+
+// The Documentation Status items available on a binder entry depend on its
+// Line of Business. Kept in sync with the daily sales entry form's lists.
+const DOC_STATUS_PERSONAL = ['Pending Auto Pay Signature', 'E-Signature', 'Proof of Prior', 'Proof of Garaging', 'Proof of Grades', 'Proof of Homeowners', 'Telematics Enrollment', 'Clean'];
+const DOC_STATUS_COMMERCIAL = ['Binder', 'Carrier Invoice', 'Dec Pages AMS Upload', 'Proof of Active CGL', 'E-Signature', 'Proof of Prior', 'Proof of Active WC', 'Telematic Enrollments', 'Premium Finance Set Up', 'Invoice to be paid', 'Other'];
+
+function docStatusListFor(entry) {
+    return (entry && entry.lineType === 'commercial') ? DOC_STATUS_COMMERCIAL : DOC_STATUS_PERSONAL;
+}
+
+// Render the Documentation Status checkboxes into the Edit Policy modal,
+// pre-checking whatever the entry already carries. Available for every
+// binder entry, so pending items can be added by editing the transaction.
+function renderEditDocStatus(entry) {
+    const container = document.getElementById('editDocStatus');
+    if (!container) return;
+    const list = docStatusListFor(entry);
+    const current = Array.isArray(entry.documentationStatus) ? entry.documentationStatus : [];
+    const currentSet = new Set(current);
+    const otherItem = current.find(x => /^Other:/i.test(x)) || (currentSet.has('Other') ? 'Other' : '');
+    const otherText = otherItem ? otherItem.replace(/^Other:\s*/i, '').replace(/^Other$/i, '') : '';
+
+    container.innerHTML = list.map(item => {
+        if (item === 'Other') {
+            return `<div style="grid-column:1/-1;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;color:#374151;cursor:pointer;white-space:nowrap;">
+                    <input type="checkbox" class="edit-doc-cb" value="Other" ${otherItem ? 'checked' : ''} style="width:15px;height:15px;accent-color:#dc2626;cursor:pointer;"> Other</label>
+                <input type="text" id="editDocOther" placeholder="Describe the other item…" value="${_claudeEsc(otherText)}" style="flex:1;min-width:120px;padding:6px 9px;border:1px solid #fecaca;border-radius:6px;font-size:13px;">
+            </div>`;
+        }
+        const accent = item === 'Clean' ? '#16a34a' : '#dc2626';
+        return `<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;">
+            <input type="checkbox" class="edit-doc-cb" value="${_claudeEsc(item)}" ${currentSet.has(item) ? 'checked' : ''} style="width:15px;height:15px;accent-color:${accent};cursor:pointer;"> ${_claudeEsc(item)}</label>`;
+    }).join('');
+}
+
+// Collect the Documentation Status selections from the Edit Policy modal.
+function collectEditDocStatus() {
+    const container = document.getElementById('editDocStatus');
+    if (!container) return [];
+    const checked = [...container.querySelectorAll('.edit-doc-cb:checked')].map(cb => cb.value);
+    const result = checked.filter(v => v !== 'Other');
+    if (checked.includes('Other')) {
+        const t = (document.getElementById('editDocOther')?.value || '').trim();
+        result.push(t ? 'Other: ' + t : 'Other');
+    }
+    return result;
 }
 
 function closeModal() {
@@ -4177,7 +4225,7 @@ function updateEntry() {
     entry.term = document.getElementById('editTerm').value;
     entry.agencyCommission = parseFloat(document.getElementById('editAgencyCommission').value) || 0;
     entry.paymentType = document.getElementById('editPaymentType').value;
-    entry.status = document.getElementById('editStatus').value;
+    entry.documentationStatus = collectEditDocStatus();
     entry.secondAgent = document.getElementById('editSecondAgent')?.value || '';
     const _hasSecond = !!entry.secondAgent;
     const _commBase  = entry.agencyFee + entry.agencyCommission;

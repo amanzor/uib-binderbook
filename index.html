@@ -3265,15 +3265,14 @@
                             <option value="Gross Paid">🔥 Gross Paid</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Status</label>
-                        <select id="editStatus">
-                            <option value="">Pending</option>
-                            <option value="Clean">Clean</option>
-                            <option value="Alta">Alta</option>
-                            <option value="Other">Other</option>
-                        </select>
+                </div>
+                <!-- Documentation Status (pending items) — editable for any client -->
+                <div id="editDocStatusSection" style="margin-top:14px;background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1.5px solid #fca5a5;border-radius:10px;padding:14px 16px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+                        <span style="font-size:14px;font-weight:800;color:#991b1b;">📋 Documentation Status</span>
+                        <span style="font-size:11px;color:#b91c1c;font-style:italic;">— check any pending items for this client (leave all unchecked if none)</span>
                     </div>
+                    <div id="editDocStatus" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;"></div>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
