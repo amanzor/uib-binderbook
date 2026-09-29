@@ -775,7 +775,7 @@ const SHEET_HEADERS = [
     'id','agent','customerName','source','policyType','lineOfBusiness','company','mga',
     'down','agencyFee','basePremium','agencyCommission','agentCommissionShare',
     'totalPremium','paymentType','paymentMethod2','policyNumber','binderNumber',
-    'entryDate','effDate','term','timestamp','status','clientStatus'
+    'entryDate','effDate','term','timestamp','status'
 ];
 
 // Loads binder data from Supabase (formerly from a Google Sheet).
@@ -1658,7 +1658,6 @@ async function saveEntry() {
         id: Date.now(),
         agent: currentUser,
         customerName: toTitleCase(gid('customerName').value),
-        clientStatus: 'Active',
         contactName: toTitleCase(gid('contactName').value),
         source: gid('source').value,
         referredBy: toTitleCase(gid('referredBy').value),
@@ -3189,7 +3188,7 @@ function agentGlobalSearchRun(query) {
         const rows  = shown.map(e => `
             <tr style="font-size:13px;">
                 <td style="white-space:nowrap;color:#64748b;">${formatDate(e.entryDate)}</td>
-                <td style="font-weight:600;color:#1e293b;">${e.customerName || '—'}${clientStatusBadge(e)}</td>
+                <td style="font-weight:600;color:#1e293b;">${e.customerName || '—'}</td>
                 <td><span style="background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;">${e.agent || '—'}</span></td>
                 <td style="color:#374151;">${e.policyType || '—'}</td>
                 <td style="color:#374151;">${e.lineOfBusiness || '—'}</td>
@@ -3487,17 +3486,6 @@ function applyAgentFilters() {
     renderAgentTable(entries);
 }
 
-// A small pill showing whether a client is Active (has a bound policy) or a
-// Prospect. Set per entry from the edit modal; entries default to Active.
-function clientStatusBadge(entry) {
-    const isProspect = entry && entry.clientStatus === 'Prospect';
-    const label = isProspect ? 'Prospect' : 'Active';
-    const style = isProspect
-        ? 'background:#fef3c7;color:#92400e;'
-        : 'background:#dcfce7;color:#166534;';
-    return `<span class="client-status-badge" style="${style}display:inline-block;padding:1px 8px;margin-left:6px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.02em;vertical-align:middle;white-space:nowrap;">${label}</span>`;
-}
-
 function renderAgentTable(entries) {
     const tbody = document.getElementById('agentTable');
     const selectAll = document.getElementById('agentSelectAll');
@@ -3520,7 +3508,7 @@ function renderAgentTable(entries) {
             <td style="text-align:center;">${canModify ? `<input type="checkbox" class="agent-row-cb" value="${entry.id}" onchange="_updateBulkDeleteBar()">` : ''}</td>
             <td>${formatDate(entry.entryDate)}</td>
             ${admin ? `<td>${String(entry.agent || '—').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</td>` : ''}
-            <td>${entry.customerName}${clientStatusBadge(entry)}</td>
+            <td>${entry.customerName}</td>
             <td>${entry.policyType}</td>
             <td>${entry.lineOfBusiness}</td>
             <td>${entry.company}</td>
@@ -3751,7 +3739,7 @@ function renderAdminTable(entries) {
             <td><strong>${entry.agent}</strong></td>
             <td>${primaryDate}</td>
             ${secondaryDate}
-            <td>${entry.customerName}${clientStatusBadge(entry)}</td>
+            <td>${entry.customerName}</td>
             <td>${entry.policyType}</td>
             <td>${entry.lineOfBusiness}</td>
             <td>${entry.company}</td>
@@ -3865,8 +3853,6 @@ function openEditModal(id) {
     document.getElementById('editAgencyCommission').value = entry.agencyCommission || '';
     document.getElementById('editPaymentType').value = entry.paymentType || '';
     document.getElementById('editStatus').value = entry.status || '';
-    const editClientStatusEl = document.getElementById('editClientStatus');
-    if (editClientStatusEl) editClientStatusEl.value = (entry.clientStatus === 'Prospect') ? 'Prospect' : 'Active';
     populate2ndAgentDropdown('editSecondAgent', entry.secondAgent || '');
     document.getElementById('editModal').classList.add('active');
 }
@@ -3907,7 +3893,6 @@ function updateEntry() {
     entry.agencyCommission = parseFloat(document.getElementById('editAgencyCommission').value) || 0;
     entry.paymentType = document.getElementById('editPaymentType').value;
     entry.status = document.getElementById('editStatus').value;
-    entry.clientStatus = (document.getElementById('editClientStatus')?.value === 'Prospect') ? 'Prospect' : 'Active';
     entry.secondAgent = document.getElementById('editSecondAgent')?.value || '';
     const _hasSecond = !!entry.secondAgent;
     const _commBase  = entry.agencyFee + entry.agencyCommission;
@@ -6296,7 +6281,7 @@ function _renderCommDetailTable(filtered) {
         const typeIcon  = e.paymentType === 'Gross Paid' ? '🔥' : '📅';
         html += `<tr>
             <td style="white-space:nowrap;font-size:12px;">${dateDisplay}</td>
-            <td style="font-weight:600;" title="${e.customerName||''}">${e.customerName || '-'}${clientStatusBadge(e)}</td>
+            <td style="font-weight:600;" title="${e.customerName||''}">${e.customerName || '-'}</td>
             <td style="font-size:12px;">${e.company || '-'}</td>
             <td style="font-size:12px;">${e.lineOfBusiness || '-'}</td>
             <td style="font-size:12px;">${e.policyType || '-'}</td>
@@ -7644,7 +7629,7 @@ function prodRenderTable(data) {
                 ${effDisp ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Eff: ${effDisp}</div>` : ''}
             </td>
             <td style="padding:9px 12px;font-size:13px;font-weight:600;color:#1e40af;">${d.agent||'—'}</td>
-            <td style="padding:9px 12px;font-size:13px;">${d.customerName||'—'}${clientStatusBadge(d)}</td>
+            <td style="padding:9px 12px;font-size:13px;">${d.customerName||'—'}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;font-family:monospace;">${pnum}</td>
             <td style="padding:9px 12px;font-size:12px;">${d.company||'—'}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;">${d.mga||'—'}</td>
@@ -8083,7 +8068,7 @@ function apdRenderTable(data) {
                 ${effDisp ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Eff: ${effDisp}</div>` : ''}
             </td>
             <td style="padding:9px 12px;font-size:13px;font-weight:600;color:#1e40af;">${d.agent||'—'}</td>
-            <td style="padding:9px 12px;font-size:13px;">${d.customerName||'—'}${clientStatusBadge(d)}</td>
+            <td style="padding:9px 12px;font-size:13px;">${d.customerName||'—'}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;font-family:monospace;">${pnum}</td>
             <td style="padding:9px 12px;font-size:12px;">${d.company||'—'}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;">${d.mga||'—'}</td>
@@ -11863,7 +11848,7 @@ function renderRenewalsTable() {
         const premium  = parseFloat(e.totalPremium) || 0;
         return `<tr>
             <td><button onclick="openEditModal(${e.id})" title="Open this record"
-                style="background:none;border:none;padding:0;color:var(--blue);font-weight:700;font-size:inherit;font-family:inherit;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px;">${escHtml(e.customerName || '—')}</button>${clientStatusBadge(e)}</td>
+                style="background:none;border:none;padding:0;color:var(--blue);font-weight:700;font-size:inherit;font-family:inherit;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px;">${escHtml(e.customerName || '—')}</button></td>
             <td>${escHtml(e.lineOfBusiness || '—')}</td>
             <td>${escHtml(e.company || '—')}</td>
             <td style="font-family:monospace;font-size:11.5px;">${escHtml(e.policyNumber || '—')}</td>

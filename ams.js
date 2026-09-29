@@ -814,6 +814,10 @@ function amsRenderClientList(relatedCount = 0) {
         const c = amsClientIndex[key];
         const contact = c.contact || {};
         const numPolicies = c.policies.length;
+        const clientStatus = contact.clientStatus || 'Active';
+        const statusClass  = /prospect/i.test(clientStatus) ? 'status-prospect'
+                           : /inactive/i.test(clientStatus) ? 'status-inactive'
+                           : 'status-active';
         const lastAgent   = c.policies[0]?.agent || contact.assignedAgent || '';
         const phone       = contact.phone1 || '';
         const lastDate    = c.policies[0]?.entryDate
@@ -827,7 +831,10 @@ function amsRenderClientList(relatedCount = 0) {
             <div style="display:flex;gap:10px;align-items:center;">
                 <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--navy));color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${initials}</div>
                 <div style="flex:1;min-width:0;">
-                    <div class="cc-name">${amsEscHtml(c.displayName)}</div>
+                    <div style="display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:3px;">
+                        <div class="cc-name" style="margin-bottom:0;">${amsEscHtml(c.displayName)}</div>
+                        <span class="cc-badge ${statusClass}" style="flex-shrink:0;">${amsEscHtml(clientStatus)}</span>
+                    </div>
                     <div class="cc-meta">
                         ${phone ? `<span>${amsEscHtml(phone)}</span>` : ''}
                         ${lastDate ? `<span>${lastDate}</span>` : ''}
@@ -1089,7 +1096,12 @@ function amsLoadClientDetail(key) {
     if (contact.email)  metaItems.push(`<span><i data-lucide="mail"  style="width:12px;height:12px;"></i> ${amsEscHtml(contact.email)}</span>`);
     if (contact.city)   metaItems.push(`<span><i data-lucide="map-pin" style="width:12px;height:12px;"></i> ${amsEscHtml(contact.city)}</span>`);
     metaItems.push(`<span class="tag tag-blue">${numPol} Polic${numPol !== 1 ? 'ies' : 'y'}</span>`);
-    if (contact.clientStatus) metaItems.push(`<span class="tag tag-green">${amsEscHtml(contact.clientStatus)}</span>`);
+    if (contact.clientStatus) {
+        const _statusTag = /prospect/i.test(contact.clientStatus) ? 'tag-orange'
+                         : /inactive/i.test(contact.clientStatus) ? 'tag-gray'
+                         : 'tag-green';
+        metaItems.push(`<span class="tag ${_statusTag}">${amsEscHtml(contact.clientStatus)}</span>`);
+    }
     document.getElementById('detailMeta').innerHTML = metaItems.join('');
 
     // Populate contact form fields
