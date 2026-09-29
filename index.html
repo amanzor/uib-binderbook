@@ -528,6 +528,10 @@
             box-shadow: 0 1px 3px rgba(0,0,0,.1);
         }
         .prod-bar-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+        /* Underwriting filter tabs */
+        .uw-tab { background:#f8fafc; color:#64748b; transition:all .15s; }
+        .uw-tab:hover { background:#fff; color:#334155; }
+        .uw-tab-active { background:#dc2626 !important; color:#fff !important; }
         .prod-bar-label { width:140px; font-size:12px; font-weight:600; color:#334155; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
         .prod-bar-track { flex:1; position:relative; height:32px; background:#f1f5f9; border-radius:6px; overflow:hidden; }
         .prod-bar-fill  { height:100%; border-radius:6px; display:flex; align-items:center; padding-left:10px; transition:width .5s ease; min-width:2%; }
@@ -1223,6 +1227,51 @@
                 <p id="prospectCount" style="margin-top:10px; font-size:13px; color:var(--gray-500);"></p>
             </div>
 
+            <!-- Underwriting Section -->
+            <div id="underwritingSection" class="section">
+                <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button class="btn-secondary btn-sm" onclick="showSection((currentRole==='admin')?'adminSection':'agentSection')"><i data-lucide="arrow-left"></i> Back</button>
+                        <strong><i data-lucide="shield-alert"></i> Underwriting — Pending Documentation</strong>
+                    </div>
+                    <button class="btn-secondary btn-sm" onclick="renderUnderwriting()"><i data-lucide="refresh-cw"></i> Refresh</button>
+                </div>
+
+                <!-- Header / stats -->
+                <div style="margin-top:18px;border:1px solid var(--gray-200);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);">
+                    <div style="background:linear-gradient(135deg,#7f1d1d 0%,#dc2626 100%);color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <i data-lucide="shield-alert" style="width:20px;height:20px;"></i>
+                            <div>
+                                <h3 style="margin:0;font-size:1.02rem;font-weight:800;letter-spacing:-0.2px;">Underwriting Queue</h3>
+                                <p style="margin:0;font-size:11px;opacity:0.85;" id="uw_sub">Every reported client with pending documentation appears here automatically.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="uw_statsRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px 20px;background:#fff;border-bottom:1px solid var(--gray-200);"></div>
+                </div>
+
+                <!-- Filters -->
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin:16px 0; align-items:center;">
+                    <div style="display:inline-flex;border:1px solid var(--gray-200);border-radius:var(--radius-sm);overflow:hidden;">
+                        <button type="button" id="uwTab_open"    class="uw-tab uw-tab-active" onclick="uwSetFilter('open')"    style="border:none;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">Open</button>
+                        <button type="button" id="uwTab_cleared" class="uw-tab"               onclick="uwSetFilter('cleared')" style="border:none;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">Cleared</button>
+                        <button type="button" id="uwTab_all"     class="uw-tab"               onclick="uwSetFilter('all')"     style="border:none;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">All</button>
+                    </div>
+                    <input type="text" id="uwSearch" placeholder="Search client, carrier, policy #, agent…"
+                        oninput="renderUnderwriting()"
+                        style="flex:1; min-width:180px; padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
+                    <select id="uwAgentFilter" onchange="renderUnderwriting()"
+                        style="padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
+                        <option value="">All Agents</option>
+                    </select>
+                </div>
+
+                <!-- List -->
+                <div id="underwritingList"></div>
+                <p id="uwCount" style="margin-top:10px; font-size:13px; color:var(--gray-500);"></p>
+            </div>
+
             <!-- Verification Logs Section -->
             <div id="verificationLogsSection" class="section">
                 <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
@@ -1331,11 +1380,12 @@
                     <span id="userDisplay"></span>
                     <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
                     <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
-                    <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
                     <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
                     <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(135deg,#5b21b6,#3b1a8c);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
                     <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
                     <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
+                    <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
+                    <button class="btn-sm" onclick="showUnderwritingSection()" style="background:linear-gradient(135deg,#b91c1c,#dc2626);color:#fff;border:none;"><i data-lucide="shield-alert"></i> Underwriting</button>
                     <button class="btn-danger btn-sm" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
                 </div>
 
@@ -2808,6 +2858,7 @@
                     <button class="btn-success" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#c2410c,#f59e0b);" onclick="showRenewalsSection()" title="Upcoming policy renewals + AI renewal report processor"><i data-lucide="refresh-cw"></i> Renewals</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" onclick="showProspectsSection()"><i data-lucide="target"></i> Prospects</button>
+                    <button class="btn-primary" style="background:linear-gradient(135deg,#b91c1c,#dc2626);" onclick="showUnderwritingSection()"><i data-lucide="shield-alert"></i> Underwriting</button>
                     <button class="btn-primary" style="background:linear-gradient(135deg,#5b21b6,#3b1a8c);" onclick="showVerificationLogsSection()"><i data-lucide="list-checks"></i> Dealer Verifications</button>
                     <button class="btn-warning" onclick="importLRCQ1Transactions()" title="Import 6 Q1 LRC transactions for Lazaro (Rewrites, Endorsements, Miscellaneous)">
                         <i data-lucide="upload"></i> Import LRC Q1 (Lazaro)
