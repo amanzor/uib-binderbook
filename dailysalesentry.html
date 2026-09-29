@@ -684,6 +684,35 @@
             </div>
         </div>
 
+        <!-- Documentation Status (REQUIRED) -->
+        <div id="docStatusSection" style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1.5px solid #fca5a5;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1.5px solid #fecaca;flex-wrap:wrap;">
+                    <span style="font-size:15px;font-weight:700;color:#991b1b;">📋 Documentation Status</span>
+                    <span style="font-size:11px;background:#fee2e2;color:#7f1d1d;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">Required</span>
+                    <span style="font-size:12px;color:#b91c1c;font-style:italic;">— check every item that applies (at least one is required)</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Pending Auto Pay Signature" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Pending Auto Pay Signature</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="E-Signature" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> E-Signature</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Proof of Prior" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Proof of Prior</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Proof of Garaging" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Proof of Garaging</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Proof of Grades" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Proof of Grades</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Proof of Homeowners" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Proof of Homeowners</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Telematics Enrollment" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Telematics Enrollment</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Clean" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#16a34a;cursor:pointer;"> Clean</label>
+                </div>
+            </div>
+        </div>
+
         </div><!-- /personalLinesFields -->
 
         <div id="commercialLinesFields" style="display:none;">
@@ -1011,6 +1040,44 @@
                 </div>
                 <div id="vehiclesContainerCom"></div>
                 <div id="vehiclesEmptyStateCom" style="text-align:center;padding:14px 8px;font-size:13px;color:#475569;font-style:italic;">No vehicles added. Click <strong style="color:#c2410c;">+ Add Vehicle</strong> if you need to capture vehicle details.</div>
+            </div>
+        </div>
+
+        <!-- Documentation Status (REQUIRED) -->
+        <div id="docStatusSectionCom" style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1.5px solid #fca5a5;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1.5px solid #fecaca;flex-wrap:wrap;">
+                    <span style="font-size:15px;font-weight:700;color:#991b1b;">📋 Documentation Status</span>
+                    <span style="font-size:11px;background:#fee2e2;color:#7f1d1d;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">Required</span>
+                    <span style="font-size:12px;color:#b91c1c;font-style:italic;">— check every item that applies (at least one is required)</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Binder" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Binder</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Carrier Invoice" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Carrier Invoice</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Dec Pages AMS Upload" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Dec Pages AMS Upload</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Proof of Active CGL" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Proof of Active CGL</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="E-Signature" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> E-Signature</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Proof of Prior" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Proof of Prior</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Proof of Active WC" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Proof of Active WC</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Telematic Enrollments" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Telematic Enrollments</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Premium Finance Set Up" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Premium Finance Set Up</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Invoice to be paid" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Invoice to be paid</label>
+                    <div class="doc-status-label" style="grid-column:1/-1;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <label style="display:flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:600;color:#374151;cursor:pointer;white-space:nowrap;">
+                            <input type="checkbox" class="doc-status-cb" value="Other" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Other</label>
+                        <input type="text" class="doc-status-other" id="docStatusOtherCom" placeholder="Describe the other item…" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid #fecaca;border-radius:6px;font-size:13px;">
+                    </div>
+                </div>
             </div>
         </div>
 
