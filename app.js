@@ -1647,6 +1647,16 @@ function toTitleCase(str) {
     return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
+// Clears the required-highlight on the Documentation Status section as soon
+// as the agent checks at least one box.
+function docStatusUpdate() {
+    const section = document.getElementById('docStatusSection');
+    if (!section) return;
+    const anyChecked = section.querySelectorAll('.doc-status-cb:checked').length > 0;
+    const box = section.firstElementChild;
+    if (box && anyChecked) box.style.boxShadow = '';
+}
+
 async function saveEntry() {
     // Personal Lines and Commercial Lines are two fully independent sets of
     // fields (Commercial's ids all carry a "Com" suffix) — read from
@@ -1654,10 +1664,35 @@ async function saveEntry() {
     const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : '';
     const gid = id => document.getElementById(id + sfx);
 
+    // Documentation Status — required on the personal daily-sales entry form.
+    // Only enforced when the section is present and visible (i.e. Personal
+    // Lines is active); Commercial and forms without the section skip it.
+    let documentationStatus = [];
+    const _docStatusSection = document.getElementById('docStatusSection');
+    if (_docStatusSection && _docStatusSection.offsetParent !== null) {
+        documentationStatus = [...document.querySelectorAll('.doc-status-cb:checked')].map(cb => cb.value);
+        if (documentationStatus.length === 0) {
+            if (typeof claudeShowToast === 'function') {
+                claudeShowToast('⚠ Please select at least one item under Documentation Status.', 'warn');
+            } else {
+                alert('Please select at least one item under Documentation Status.');
+            }
+            _docStatusSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const _box = _docStatusSection.firstElementChild;
+            if (_box) {
+                _box.style.transition = 'box-shadow .3s, border-color .3s';
+                _box.style.boxShadow = '0 0 0 3px rgba(220,38,38,.28)';
+                setTimeout(() => { _box.style.boxShadow = ''; }, 4000);
+            }
+            return;
+        }
+    }
+
     const entry = {
         id: Date.now(),
         agent: currentUser,
         customerName: toTitleCase(gid('customerName').value),
+        documentationStatus,
         contactName: toTitleCase(gid('contactName').value),
         source: gid('source').value,
         referredBy: toTitleCase(gid('referredBy').value),
