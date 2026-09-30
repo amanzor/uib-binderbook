@@ -2656,43 +2656,61 @@ function uwGenerateReport() {
     }).join('') : '<p class="muted">No cleared clients yet.</p>';
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Cleared Report</title><style>
-        body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0f172a;margin:24px;}
-        h1{font-size:20px;margin:0 0 4px;}
-        .sub{color:#64748b;font-size:13px;margin:0 0 16px;}
-        .toolbar{margin:0 0 12px;}
-        .toolbar button{background:#1d4ed8;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;}
-        .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin:0 0 8px;}
+        :root{--blue:#1d4ed8;--navy:#0d1f3c;--green:#16a34a;--gray-200:#e2e8f0;}
+        *{box-sizing:border-box;}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#0f172a;margin:0;background:#f1f5f9;padding:20px;}
+        .wrap{max-width:1000px;margin:0 auto;}
+        .toolbar{display:flex;gap:8px;margin:0 0 14px;}
+        .btn{border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;}
+        .btn.back{background:linear-gradient(to right,#c8d5e3,#dde6f0,#f1f5f9);color:#334155;border:1px solid var(--gray-200);}
+        .btn.print{background:linear-gradient(to right,#0f2a78,#1d4ed8,#2563eb);color:#fff;}
+        .banner{background:linear-gradient(135deg,#166534 0%,#16a34a 100%);color:#fff;padding:16px 22px;border-radius:12px 12px 0 0;box-shadow:0 4px 14px rgba(22,163,74,.22);display:flex;align-items:center;gap:12px;}
+        .banner .btitle{font-size:18px;font-weight:800;letter-spacing:-.3px;margin:0;}
+        .banner .bsub{font-size:12px;opacity:.9;margin:2px 0 0;}
+        .panel{border:1px solid var(--gray-200);border-top:none;border-radius:0 0 12px 12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06);margin:0 0 16px;overflow:hidden;}
+        .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:14px 18px;background:#fff;border-bottom:1px solid var(--gray-200);}
         .filters .fld{display:flex;flex-direction:column;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.4px;}
-        .filters input,.filters select{margin-top:3px;padding:6px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;font-family:inherit;text-transform:none;font-weight:400;color:#0f172a;}
-        .filters button{align-self:flex-end;background:#e2e8f0;color:#334155;border:none;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;}
-        #fCount{font-size:12px;color:#64748b;margin:0 0 16px;}
-        .client{border:1px solid #e2e8f0;border-left:4px solid #16a34a;border-radius:10px;padding:12px 14px;margin:0 0 12px;page-break-inside:avoid;}
+        .filters input,.filters select{margin-top:3px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;text-transform:none;font-weight:400;color:#0f172a;background:#fff;}
+        .filters .clr{align-self:flex-end;background:#e2e8f0;color:#334155;border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;}
+        #fCount{font-size:12px;color:#64748b;padding:12px 18px 2px;margin:0;font-weight:600;}
+        .list{padding:6px 18px 18px;}
+        .client{border:1px solid #bbf7d0;border-left:5px solid #16a34a;border-radius:12px;padding:14px 16px;margin:10px 0 0;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06);page-break-inside:avoid;}
         .chead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-        .cname{font-size:15px;font-weight:800;}
-        .badge{border-radius:999px;padding:2px 10px;font-size:11px;font-weight:800;}
+        .cname{font-size:15px;font-weight:800;color:#0d1f3c;}
+        .badge{border-radius:999px;padding:3px 12px;font-size:11px;font-weight:800;letter-spacing:.3px;}
         .badge.clear{background:#dcfce7;color:#166534;}
         .clearedby{font-size:12px;color:#166534;font-weight:700;margin-top:3px;}
-        .cmeta{color:#475569;font-size:12px;margin-top:2px;}
+        .cmeta{color:#64748b;font-size:12px;margin-top:2px;}
         .sec{margin-top:8px;}
         .sec-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#334155;}
-        ul{margin:4px 0 0;padding-left:18px;font-size:13px;}
+        ul{margin:4px 0 0;padding-left:18px;font-size:13px;color:#475569;}
         li.done{color:#166534;}
         .muted{color:#94a3b8;}
-        @media print{.toolbar,.filters{display:none;}}
-    </style></head><body>
-        <div class="toolbar"><button onclick="window.print()">🖨 Print</button></div>
-        <h1>Cleared Report</h1>
-        <p class="sub">Clients with all documentation satisfied · Generated ${esc(uwFmtWhen(Date.now()))}${currentUser ? ' by ' + esc(currentUser) : ''}</p>
+        @media print{body{background:#fff;padding:0;}.toolbar,.filters{display:none !important;}.banner{box-shadow:none;}.panel{box-shadow:none;border:none;}}
+    </style></head><body><div class="wrap">
+        <div class="toolbar">
+            <button class="btn back" onclick="window.close()">← Back</button>
+            <button class="btn print" onclick="window.print()">🖨 Print</button>
+        </div>
+        <div class="banner">
+            <span style="font-size:22px;">✅</span>
+            <div>
+                <p class="btitle">Cleared Report</p>
+                <p class="bsub">Clients with all documentation satisfied · Generated ${esc(uwFmtWhen(Date.now()))}${currentUser ? ' by ' + esc(currentUser) : ''}</p>
+            </div>
+        </div>
+        <div class="panel">
         <div class="filters">
             <label class="fld">Search<input id="fName" placeholder="Client name…" oninput="applyF()"></label>
             <label class="fld">Cleared by<select id="fAgent" onchange="applyF()"><option value="">All agents</option>${agentOptions}</select></label>
             <label class="fld">Line<select id="fLine" onchange="applyF()"><option value="">All lines</option><option value="Personal">Personal</option><option value="Commercial">Commercial</option></select></label>
             <label class="fld">Cleared from<input type="date" id="fFrom" onchange="applyF()"></label>
             <label class="fld">Cleared to<input type="date" id="fTo" onchange="applyF()"></label>
-            <button onclick="clearF()">Clear filters</button>
+            <button class="clr" onclick="clearF()">Clear filters</button>
         </div>
         <p id="fCount"></p>
-        ${clientsHtml}
+        <div class="list">${clientsHtml}</div>
+        </div>
         <script>
         function applyF(){
             var name=(document.getElementById('fName').value||'').toLowerCase();
@@ -2717,7 +2735,7 @@ function uwGenerateReport() {
         function clearF(){ ['fName','fAgent','fLine','fFrom','fTo'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';}); applyF(); }
         applyF();
         <\/script>
-    </body></html>`;
+    </div></body></html>`;
 
     const w = window.open('', '_blank');
     if (!w) { alert('Please allow pop-ups to open the report.'); return; }
