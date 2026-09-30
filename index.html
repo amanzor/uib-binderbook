@@ -532,6 +532,9 @@
         .uw-tab { background:#f8fafc; color:#64748b; transition:all .15s; }
         .uw-tab:hover { background:#fff; color:#334155; }
         .uw-tab-active { background:#dc2626 !important; color:#fff !important; }
+        .uw-line-tab { background:#f8fafc; color:#64748b; transition:all .15s; }
+        .uw-line-tab:hover { background:#fff; color:#334155; }
+        .uw-line-tab-active { background:#1d4ed8 !important; color:#fff !important; }
         .prod-bar-label { width:140px; font-size:12px; font-weight:600; color:#334155; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
         .prod-bar-track { flex:1; position:relative; height:32px; background:#f1f5f9; border-radius:6px; overflow:hidden; }
         .prod-bar-fill  { height:100%; border-radius:6px; display:flex; align-items:center; padding-left:10px; transition:width .5s ease; min-width:2%; }
@@ -1265,6 +1268,15 @@
                         style="padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
                         <option value="">All Agents</option>
                     </select>
+                </div>
+
+                <!-- Personal / Commercial toggle -->
+                <div style="display:flex;justify-content:center;margin:0 0 16px 0;">
+                    <div style="display:inline-flex;border:1px solid var(--gray-200);border-radius:999px;overflow:hidden;box-shadow:var(--shadow-sm);">
+                        <button type="button" id="uwLine_all"        class="uw-line-tab uw-line-tab-active" onclick="uwSetLine('all')"        style="border:none;padding:9px 22px;font-size:13px;font-weight:700;cursor:pointer;">All Lines</button>
+                        <button type="button" id="uwLine_personal"   class="uw-line-tab"                    onclick="uwSetLine('personal')"   style="border:none;padding:9px 22px;font-size:13px;font-weight:700;cursor:pointer;border-left:1px solid var(--gray-200);">👤 Personal</button>
+                        <button type="button" id="uwLine_commercial" class="uw-line-tab"                    onclick="uwSetLine('commercial')" style="border:none;padding:9px 22px;font-size:13px;font-weight:700;cursor:pointer;border-left:1px solid var(--gray-200);">🏢 Commercial</button>
+                    </div>
                 </div>
 
                 <!-- List -->

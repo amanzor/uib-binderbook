@@ -2443,6 +2443,8 @@ function showProspectsSection() {
 // keyed by entry id, so the derived list always tracks the live binder book.
 const UW_STORE_KEY = 'underwritingData';
 let _uwFilter = 'open';
+let _uwLine = 'all';                // 'all' | 'personal' | 'commercial'
+const _uwJustCleared = new Set();   // ids satisfied this view — kept visible (green) in Open until tab switch/reopen
 
 function uwGetStore() {
     try { return JSON.parse(localStorage.getItem(UW_STORE_KEY)) || {}; }
@@ -2493,6 +2495,7 @@ function uwBuildList() {
 
 function showUnderwritingSection() {
     showSection('underwritingSection');
+    _uwJustCleared.clear();
     const data = JSON.parse(localStorage.getItem('binderData')) || [];
     const agents = [...new Set(data.map(d => d.agent).filter(Boolean))].sort();
     const sel = document.getElementById('uwAgentFilter');
@@ -2508,9 +2511,19 @@ function showUnderwritingSection() {
 
 function uwSetFilter(f) {
     _uwFilter = f;
+    _uwJustCleared.clear();
     ['open', 'cleared', 'all'].forEach(x => {
         const t = document.getElementById('uwTab_' + x);
         if (t) t.className = 'uw-tab' + (x === f ? ' uw-tab-active' : '');
+    });
+    renderUnderwriting();
+}
+
+function uwSetLine(line) {
+    _uwLine = line;
+    ['all', 'personal', 'commercial'].forEach(x => {
+        const t = document.getElementById('uwLine_' + x);
+        if (t) t.className = 'uw-line-tab' + (x === line ? ' uw-line-tab-active' : '');
     });
     renderUnderwriting();
 }
@@ -2527,20 +2540,25 @@ function renderUnderwriting() {
     if (!container) return;
 
     const all = uwBuildList();
+    // Scope to the selected Line of Business (Personal vs Commercial).
+    const scoped = (_uwLine === 'all') ? all : all.filter(r =>
+        ((r.entry.lineType || 'personal') === 'commercial') === (_uwLine === 'commercial'));
 
-    // Stats reflect the whole queue, not the current filter/search.
-    const openCount      = all.filter(r => !r.cleared).length;
-    const clearedCount   = all.filter(r => r.cleared).length;
-    const outstandingCnt = all.reduce((s, r) => s + r.outstanding.length, 0);
+    // Stats reflect the selected line, but not the status filter/search.
+    const openCount      = scoped.filter(r => !r.cleared).length;
+    const clearedCount   = scoped.filter(r => r.cleared).length;
+    const outstandingCnt = scoped.reduce((s, r) => s + r.outstanding.length, 0);
     const statsRow = document.getElementById('uw_statsRow');
     if (statsRow) statsRow.innerHTML =
         uwStatCard('Clients Pending', openCount, '#dc2626') +
         uwStatCard('Outstanding Items', outstandingCnt, '#ea580c') +
         uwStatCard('Cleared', clearedCount, '#16a34a') +
-        uwStatCard('Total Reported', all.length, '#1d4ed8');
+        uwStatCard('Total Reported', scoped.length, '#1d4ed8');
 
-    let list = all.slice();
-    if (_uwFilter === 'open')    list = list.filter(r => !r.cleared);
+    let list = scoped.slice();
+    // On the Open tab, keep a just-satisfied client visible (with its green
+    // border) until the agent switches tabs or reopens the section.
+    if (_uwFilter === 'open')    list = list.filter(r => !r.cleared || _uwJustCleared.has(r.entry.id));
     if (_uwFilter === 'cleared') list = list.filter(r => r.cleared);
 
     const agentF = document.getElementById('uwAgentFilter')?.value || '';
@@ -2633,6 +2651,17 @@ function uwCardHtml(r) {
     </div>`;
 }
 
+// Whether every pending item on an entry is currently marked satisfied.
+function uwIsCleared(entryId) {
+    const data = JSON.parse(localStorage.getItem('binderData')) || [];
+    const entry = data.find(d => d.id === entryId);
+    if (!entry) return false;
+    const pending = uwPendingItems(entry);
+    if (!pending.length) return false;
+    const satis = (uwGetStore()[entryId] || {}).items || {};
+    return pending.every(i => satis[i] && satis[i].satisfied);
+}
+
 function uwToggleItem(entryId, idx) {
     const data = JSON.parse(localStorage.getItem('binderData')) || [];
     const entry = data.find(d => d.id === entryId);
@@ -2648,6 +2677,8 @@ function uwToggleItem(entryId, idx) {
         rec.items[item] = { satisfied: true, at: Date.now(), by: currentUser || '' };
     }
     uwSaveStore(store);
+    // Keep it visible (green) in the Open tab if this cleared it; drop it if reopened.
+    if (uwIsCleared(entryId)) _uwJustCleared.add(entryId); else _uwJustCleared.delete(entryId);
     renderUnderwriting();
 }
 
@@ -2662,12 +2693,14 @@ function uwSatisfyAll(entryId) {
         rec.items[item] = { satisfied: true, at: Date.now(), by: currentUser || '' };
     });
     uwSaveStore(store);
+    _uwJustCleared.add(entryId); // keep it visible with its green border in Open
     renderUnderwriting();
 }
 
 function uwReopen(entryId) {
     const store = uwGetStore();
     if (store[entryId]) { store[entryId].items = {}; uwSaveStore(store); }
+    _uwJustCleared.delete(entryId);
     renderUnderwriting();
 }
 
