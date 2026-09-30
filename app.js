@@ -2611,13 +2611,16 @@ function uwCardHtml(r) {
         <div style="margin-top:12px;border-top:1px dashed #e5e7eb;padding-top:10px;">
             <div style="font-size:12px;font-weight:800;color:#334155;margin-bottom:6px;">📞 Contact Log${r.contacts.length ? ` (${r.contacts.length})` : ''}${lastContact ? ` · last ${uwEsc(uwFmtWhen(lastContact.at))}` : ''}</div>
             <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
+                <select id="uwBy_${e.id}" title="Agent who worked this contact" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;max-width:160px;">
+                    ${uwAgentOptions(currentUser)}
+                </select>
                 <select id="uwType_${e.id}" title="Type of contact" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;">
                     <option value="Call">📞 Call</option>
                     <option value="Text">💬 Text</option>
                     <option value="Voicemail">📩 Voicemail</option>
                     <option value="Email">✉️ Email</option>
                 </select>
-                <textarea id="uwNote_${e.id}" rows="2" placeholder="Notes about this interaction — what was discussed, what's still needed…" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+                <textarea id="uwNote_${e.id}" rows="2" placeholder="Notes about this interaction — what was discussed, what's still needed…" style="flex:1;min-width:180px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
                 <button class="btn-primary btn-sm" onclick="uwLogContact(${e.id})" style="white-space:nowrap;"><i data-lucide="phone-call"></i> Log Contact</button>
             </div>
             <div style="margin-top:8px;">${contactsHtml}</div>
@@ -2663,6 +2666,22 @@ function uwReopen(entryId) {
     renderUnderwriting();
 }
 
+// The agents available to attribute a contact to (from the binder book +
+// registered agents), with the current user first if not already present.
+function uwAgentList() {
+    let fromData = [], master = {}, creds = {};
+    try { fromData = (JSON.parse(localStorage.getItem('binderData')) || []).map(d => d.agent).filter(Boolean); } catch (e) {}
+    try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    try { creds = JSON.parse(localStorage.getItem('agentCredentials')) || {}; } catch (e) {}
+    const set = [...new Set([...fromData, ...Object.keys(master), ...Object.keys(creds)])].filter(Boolean).sort();
+    if (currentUser && !set.includes(currentUser)) set.unshift(currentUser);
+    return set;
+}
+function uwAgentOptions(selected) {
+    return uwAgentList().map(a =>
+        `<option value="${uwEsc(a)}"${a === selected ? ' selected' : ''}>${uwEsc(a)}</option>`).join('');
+}
+
 // Icon + name for a logged contact's type (defaults to Call for old records).
 function uwTypeLabel(type) {
     const icons = { Call: '📞', Text: '💬', Voicemail: '📩', Email: '✉️' };
@@ -2686,12 +2705,14 @@ function uwLogContact(entryId) {
     // clicks), the contact type, plus whatever notes were typed in.
     const noteEl = document.getElementById('uwNote_' + entryId);
     const typeEl = document.getElementById('uwType_' + entryId);
+    const byEl = document.getElementById('uwBy_' + entryId);
     const note = noteEl ? noteEl.value.trim() : '';
     const type = typeEl ? typeEl.value : 'Call';
+    const by = byEl ? byEl.value : (currentUser || '');
     const store = uwGetStore();
     const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
     if (!rec.contacts) rec.contacts = [];
-    rec.contacts.push({ at: Date.now(), by: currentUser || '', type, note });
+    rec.contacts.push({ at: Date.now(), by, type, note });
     uwSaveStore(store);
     if (noteEl) noteEl.value = '';
     renderUnderwriting();
