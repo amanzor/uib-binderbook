@@ -3952,7 +3952,7 @@ function _agentDefaultMonth() {
 // Agent admins: log in as regular agents but can view EVERY agent's
 // submissions (extra Agent filter + Agent column). Editing and deleting
 // still applies only to their own entries.
-const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz'];
+const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano'];
 function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser); }
 
 // The entries the current user is allowed to SEE (before UI filters).
