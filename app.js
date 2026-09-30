@@ -6655,23 +6655,57 @@ function getAgentCommissionShares(agentName) {
 let _commDetailSortField = 'date';
 let _commDetailSortDir   = 'desc';
 
-// "My Commissions" is always scoped to the current calendar month and to
-// new business only (policyType starting with "New" — excludes Renewal,
-// Renew A-B, Rewrite, Policy Change, etc). Baked in here since this is the
-// only place in the app that reads agent policy entries for this feature —
-// screen view, CSV export, and PDF export all go through this one function.
+// "My Commissions" defaults to the current calendar month and new business
+// only, but the Month / Transaction Type / Agent (admins) filters can change
+// that. The selected values are read here so the screen view, CSV export and
+// PDF export all stay in sync through this one function.
 function _currentMonthYearET() {
     const p = new Intl.DateTimeFormat('en-US', { timeZone: _ET, month: 'long', year: 'numeric' }).formatToParts(new Date());
     return { month: p.find(x => x.type === 'month').value, year: p.find(x => x.type === 'year').value };
 }
 
-function _getAgentPolicyEntries(agent) {
+// Who can view another agent's statement (full admins + agent-admins).
+function _canViewOtherAgentComm() {
+    return currentRole === 'admin' || (typeof isAgentAdmin === 'function' && isAgentAdmin());
+}
+// The agent whose statement is being viewed (self by default; admins may pick another).
+function _viewedCommAgent() {
+    const sel = document.getElementById('commFilterAgent');
+    if (sel && sel.value && _canViewOtherAgentComm()) return sel.value;
+    return currentUser;
+}
+// Selected month label, e.g. "September 2026" (defaults to current month).
+function _selectedCommMonthLabel() {
+    const sel = document.getElementById('commFilterMonth');
+    if (sel && sel.value) return sel.value;
     const { month, year } = _currentMonthYearET();
-    const currentMonthLabel = `${month} ${year}`;
+    return `${month} ${year}`;
+}
+// Selected transaction type. '' = all; 'New' = any New Business; else exact match.
+function _selectedCommType() {
+    const sel = document.getElementById('commFilterType');
+    return sel ? sel.value : 'New';
+}
+function _commTypeMatches(policyType) {
+    const type = _selectedCommType();
+    const pt = (policyType || '').trim();
+    if (!type) return true;
+    if (type === 'New') return /^new/i.test(pt);
+    return pt.toLowerCase() === type.toLowerCase();
+}
+function _commTypeLabel() {
+    const type = _selectedCommType();
+    if (!type) return 'All Transaction Types';
+    if (type === 'New') return 'New Business Only';
+    return type;
+}
+
+function _getAgentPolicyEntries(agent) {
+    const monthLabel = _selectedCommMonthLabel();
     return allData.filter(d =>
         d.agent === agent &&
-        /^new/i.test((d.policyType || '').trim()) &&
-        _entryMonth(d) === currentMonthLabel
+        _commTypeMatches(d.policyType) &&
+        _entryMonth(d) === monthLabel
     );
 }
 
@@ -6682,18 +6716,49 @@ function _entryMonth(e) {
 }
 
 function loadAgentCommissionData() {
-    const agent = currentUser;
-    // Already scoped to the current month + new business only (see _getAgentPolicyEntries).
+    // ── Agent filter (admins can view another agent's statement) ──
+    const agentWrap = document.getElementById('commFilterAgentWrap');
+    const agentSel  = document.getElementById('commFilterAgent');
+    if (agentWrap && agentSel) {
+        if (_canViewOtherAgentComm()) {
+            agentWrap.style.display = 'flex';
+            const roster = (typeof getAllAgents === 'function') ? getAllAgents() : [];
+            const prevA = agentSel.value || currentUser;
+            agentSel.innerHTML = roster.map(a =>
+                `<option value="${a}"${a === prevA ? ' selected' : ''}>${a === currentUser ? a + ' (you)' : a}</option>`).join('');
+            if (![...agentSel.options].some(o => o.value === prevA) && currentUser) agentSel.value = currentUser;
+        } else {
+            agentWrap.style.display = 'none';
+        }
+    }
+
+    const agent = _viewedCommAgent();
+
+    // ── Month filter — options come from this agent's entries (all types) ──
+    const monthSel = document.getElementById('commFilterMonth');
+    if (monthSel) {
+        const { month: cM, year: cY } = _currentMonthYearET();
+        const currentLabel = `${cM} ${cY}`;
+        const monthsSet = new Set([currentLabel]);
+        allData.forEach(d => { if (d.agent === agent) { const m = _entryMonth(d); if (m) monthsSet.add(m); } });
+        // Sort by actual date, newest first.
+        const _mval = (label) => { const [n, y] = label.split(' '); const d = new Date(`${n} 1, ${y}`); return isNaN(d) ? 0 : d.getTime(); };
+        const months = [...monthsSet].sort((a, b) => _mval(b) - _mval(a));
+        const prevM = monthSel.value && months.includes(monthSel.value) ? monthSel.value : currentLabel;
+        monthSel.innerHTML = months.map(m => `<option value="${m}"${m === prevM ? ' selected' : ''}>${m}</option>`).join('');
+    }
+
     const entries = _getAgentPolicyEntries(agent);
     const commissions = loadCommissionData();
     const agentData = commissions[agent] || { monthlyPaidCommissionCarriers:{}, grossPaidCarriers:{} };
     const monthlyPaidCarriers = agentData.monthlyPaidCommissionCarriers || {};
     const grossPaidCarriers   = agentData.grossPaidCarriers || {};
 
-    // Fixed to the current month — this view no longer lets the agent pick a different period.
-    const { month: fMonth, year: fYear } = _currentMonthYearET();
+    // Selected period + type (from the filters above).
+    const selMonthLabel = _selectedCommMonthLabel();
+    const [fMonth, fYear] = selMonthLabel.split(' ');
     const periodLabel = document.getElementById('commPeriodLabel');
-    if (periodLabel) periodLabel.textContent = `📅 ${fMonth} ${fYear} · New Business Only`;
+    if (periodLabel) periodLabel.textContent = `📅 ${selMonthLabel} · ${_commTypeLabel()}${agent !== currentUser ? ' · ' + agent : ''}`;
 
     // ── Populate dynamic filter dropdowns (Carrier / LOB only) ──
     const allCarriers = new Set(), allLOBs = new Set();
@@ -6864,6 +6929,14 @@ function loadAgentCommissionData() {
 
     // ── Special flat-rate commission rule (e.g. Amanda) ──
     renderSpecialCommissionPanel(agent);
+
+    // Agents with a flat-rate special rule use ONLY that panel — hide the
+    // standard percentage-based section and its (percentage-oriented) filters.
+    const hasSpecial = !!SPECIAL_COMMISSION_RULES[agent];
+    const stdSection = document.getElementById('standardCommissionSection');
+    const stdFilters = document.getElementById('standardCommFilters');
+    if (stdSection) stdSection.style.display = hasSpecial ? 'none' : '';
+    if (stdFilters) stdFilters.style.display = hasSpecial ? 'none' : 'contents';
 }
 
 // ── Special per-agent flat-rate commission rules ─────────────────────────────
@@ -6895,10 +6968,10 @@ function renderSpecialCommissionPanel(agent) {
     const rule = SPECIAL_COMMISSION_RULES[agent];
     if (!rule) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
 
-    const { month, year } = _currentMonthYearET();
-    const monthLabel = `${month} ${year}`;
+    // Follows the selected Month filter (defaults to the current month).
+    const monthLabel = _selectedCommMonthLabel();
 
-    // Current-month policy entries for this agent (all policy types).
+    // Policy entries for this agent in the selected month (all policy types).
     const agentEntries = allData.filter(d => d.agent === agent && _entryMonth(d) === monthLabel);
 
     const rows = [];
@@ -6991,7 +7064,7 @@ function _renderCommDetailTable(filtered) {
     if (!detailTbody) return;
 
     if (sorted.length === 0) {
-        detailTbody.innerHTML = '<tr><td colspan="12" class="no-data">No new business sold yet this month</td></tr>';
+        detailTbody.innerHTML = '<tr><td colspan="12" class="no-data">No transactions for this selection</td></tr>';
         return;
     }
 
@@ -7075,11 +7148,18 @@ function switchCommTab(tab) {
 }
 
 function clearCommissionFilters() {
-    // Month/Year are no longer user-selectable — this view is always the current month.
     ['commFilterCarrier','commFilterLOB'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
+    // Reset month to the current month and type back to New Business.
+    const { month, year } = _currentMonthYearET();
+    const monthSel = document.getElementById('commFilterMonth');
+    if (monthSel) monthSel.value = `${month} ${year}`;
+    const typeSel = document.getElementById('commFilterType');
+    if (typeSel) typeSel.value = 'New';
+    const agentSel = document.getElementById('commFilterAgent');
+    if (agentSel && currentUser) agentSel.value = currentUser;
     const sort = document.getElementById('commSortBy');
     if (sort) sort.value = 'date-desc';
     _commDetailSortField = 'date';
@@ -7088,13 +7168,13 @@ function clearCommissionFilters() {
 }
 
 function exportAgentCommissions() {
-    const agent = currentUser;
+    const agent = _viewedCommAgent();
     const entries = _getAgentPolicyEntries(agent);
-    const { month, year } = _currentMonthYearET();
+    const selMonthLabel = _selectedCommMonthLabel();
 
     let csvLines = [
         `Commission Statement - ${agent}`,
-        `Period: ${month} ${year} — New Business Only`,
+        `Period: ${selMonthLabel} — ${_commTypeLabel()}`,
         `Generated: ${getEasternDateTimeDisplay()}`,
         '',
         'Date,Customer,Carrier,LOB,Policy Type,Binder #,Base Premium,Agency Commission,Agency Fee,Agent Share (50%),Commission Type'
@@ -7130,11 +7210,11 @@ function exportAgentCommissions() {
 }
 
 function exportAgentCommissionsPDF() {
-    const agent = currentUser;
+    const agent = _viewedCommAgent();
     const entries = _getAgentPolicyEntries(agent);
     const sorted = [...entries].sort((a,b) => (a.entryDate||'').localeCompare(b.entryDate||''));
     const fmt = (v) => v ? `$${parseFloat(v).toFixed(2)}` : '-';
-    const { month, year } = _currentMonthYearET();
+    const selMonthLabel = _selectedCommMonthLabel();
 
     let totalAgencyComm = 0, totalAgentShare = 0, totalPremium = 0, totalFee = 0;
     sorted.forEach(e => {
@@ -7175,7 +7255,7 @@ function exportAgentCommissionsPDF() {
     <script>window.onload = () => window.print();<\/script>
     </head><body>
     <h2>Commission Statement — ${agent}</h2>
-    <div class="meta">${month} ${year} &middot; New Business Only &middot; Generated: ${getEasternDateTimeDisplay()} &middot; ${sorted.length} policies</div>
+    <div class="meta">${selMonthLabel} &middot; ${_commTypeLabel()} &middot; Generated: ${getEasternDateTimeDisplay()} &middot; ${sorted.length} policies</div>
     <div class="summary">
         <div class="sbox"><div class="lbl">Total Commissions</div><div class="val">${fmt(totalAgencyComm + totalAgentShare)}</div></div>
         <div class="sbox"><div class="lbl">Agency Commission</div><div class="val">${fmt(totalAgencyComm)}</div></div>
