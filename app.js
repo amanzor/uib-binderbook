@@ -4384,7 +4384,7 @@ function openEditModal(id) {
 
 // The Documentation Status items available on a binder entry depend on its
 // Line of Business. Kept in sync with the daily sales entry form's lists.
-const DOC_STATUS_PERSONAL = ['Pending Auto Pay Signature', 'E-Signature', 'Proof of Prior', 'Proof of Garaging', 'Proof of Grades', 'Proof of Homeowners', 'Telematics Enrollment', 'Clean'];
+const DOC_STATUS_PERSONAL = ['Pending Auto Pay Signature', 'E-Signature', 'Proof of Prior', 'Proof of Garaging', 'Proof of Grades', 'Proof of Homeowners', 'Telematics Enrollment', 'Paperless Enrollment', 'Photos/Inspections', 'Clean', 'Other'];
 const DOC_STATUS_COMMERCIAL = ['Binder', 'Carrier Invoice', 'Dec Pages AMS Upload', 'Proof of Active CGL', 'E-Signature', 'Proof of Prior', 'Proof of Active WC', 'Telematic Enrollments', 'Premium Finance Set Up', 'Invoice to be paid', 'Other'];
 
 function docStatusListFor(entry) {

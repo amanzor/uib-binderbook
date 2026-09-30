@@ -708,7 +708,16 @@
                     <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
                         <input type="checkbox" class="doc-status-cb" value="Telematics Enrollment" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Telematics Enrollment</label>
                     <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Paperless Enrollment" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Paperless Enrollment</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Photos/Inspections" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Photos/Inspections</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
                         <input type="checkbox" class="doc-status-cb" value="Clean" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#16a34a;cursor:pointer;"> Clean</label>
+                    <div class="doc-status-label" style="grid-column:1/-1;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <label style="display:flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:600;color:#374151;cursor:pointer;white-space:nowrap;">
+                            <input type="checkbox" class="doc-status-cb" value="Other" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Other</label>
+                        <input type="text" class="doc-status-other" id="docStatusOther" placeholder="Describe the other item…" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid #fecaca;border-radius:6px;font-size:13px;">
+                    </div>
                 </div>
             </div>
         </div>
