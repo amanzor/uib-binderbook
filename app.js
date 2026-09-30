@@ -2581,8 +2581,11 @@ function uwCardHtml(r) {
 
     const lastContact = r.contacts.length ? r.contacts[r.contacts.length - 1] : null;
     const contactsHtml = r.contacts.length
-        ? r.contacts.slice().reverse().map(c =>
-            `<div style="font-size:12px;color:#475569;padding:4px 0;border-top:1px dashed #e5e7eb;">📞 ${uwEsc(uwFmtWhen(c.at))}${c.by ? ' · ' + uwEsc(c.by) : ''}${c.note ? ' — ' + uwEsc(c.note) : ''}</div>`).join('')
+        ? r.contacts.map((c, i) => ({ c, i })).reverse().map(({ c, i }) =>
+            `<div style="font-size:12px;color:#475569;padding:4px 0;border-top:1px dashed #e5e7eb;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <span>${uwTypeLabel(c.type)} ${uwEsc(uwFmtWhen(c.at))}${c.by ? ' · ' + uwEsc(c.by) : ''}${c.note ? ' — ' + uwEsc(c.note) : ''}</span>
+                <button onclick="uwDeleteContact(${e.id}, ${i})" title="Remove this contact log" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:13px;line-height:1;padding:2px 6px;flex-shrink:0;">✕</button>
+            </div>`).join('')
         : `<div style="font-size:12px;color:#94a3b8;font-style:italic;">No contact logged yet.</div>`;
 
     const badge = r.cleared
@@ -2598,7 +2601,6 @@ function uwCardHtml(r) {
                 </div>
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                <button class="btn-primary btn-sm" onclick="uwLogContact(${e.id})"><i data-lucide="phone-call"></i> Log Contact${r.contacts.length ? ` (${r.contacts.length})` : ''}</button>
                 ${r.cleared
                     ? `<button class="btn-secondary btn-sm" onclick="uwReopen(${e.id})"><i data-lucide="rotate-ccw"></i> Reopen</button>`
                     : `<button class="btn-success btn-sm" onclick="uwSatisfyAll(${e.id})"><i data-lucide="check-check"></i> Mark All Satisfied</button>`}
@@ -2606,10 +2608,20 @@ function uwCardHtml(r) {
         </div>
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">${chips}</div>
         <div style="margin-top:6px;font-size:11px;color:#94a3b8;">Tap an item to mark it satisfied (tap again to reopen).</div>
-        <details style="margin-top:8px;">
-            <summary style="cursor:pointer;font-size:12px;font-weight:700;color:#334155;">Contact history${lastContact ? ` — last ${uwEsc(uwFmtWhen(lastContact.at))}` : ''}</summary>
-            <div style="margin-top:6px;">${contactsHtml}</div>
-        </details>
+        <div style="margin-top:12px;border-top:1px dashed #e5e7eb;padding-top:10px;">
+            <div style="font-size:12px;font-weight:800;color:#334155;margin-bottom:6px;">📞 Contact Log${r.contacts.length ? ` (${r.contacts.length})` : ''}${lastContact ? ` · last ${uwEsc(uwFmtWhen(lastContact.at))}` : ''}</div>
+            <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
+                <select id="uwType_${e.id}" title="Type of contact" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;">
+                    <option value="Call">📞 Call</option>
+                    <option value="Text">💬 Text</option>
+                    <option value="Voicemail">📩 Voicemail</option>
+                    <option value="Email">✉️ Email</option>
+                </select>
+                <textarea id="uwNote_${e.id}" rows="2" placeholder="Notes about this interaction — what was discussed, what's still needed…" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+                <button class="btn-primary btn-sm" onclick="uwLogContact(${e.id})" style="white-space:nowrap;"><i data-lucide="phone-call"></i> Log Contact</button>
+            </div>
+            <div style="margin-top:8px;">${contactsHtml}</div>
+        </div>
     </div>`;
 }
 
@@ -2651,14 +2663,37 @@ function uwReopen(entryId) {
     renderUnderwriting();
 }
 
+// Icon + name for a logged contact's type (defaults to Call for old records).
+function uwTypeLabel(type) {
+    const icons = { Call: '📞', Text: '💬', Voicemail: '📩', Email: '✉️' };
+    const t = type || 'Call';
+    return `${icons[t] || '📞'} ${uwEsc(t)}`;
+}
+
+function uwDeleteContact(entryId, idx) {
+    const store = uwGetStore();
+    const rec = store[entryId];
+    if (!rec || !Array.isArray(rec.contacts)) return;
+    if (idx < 0 || idx >= rec.contacts.length) return;
+    if (!confirm('Remove this contact log entry?')) return;
+    rec.contacts.splice(idx, 1);
+    uwSaveStore(store);
+    renderUnderwriting();
+}
+
 function uwLogContact(entryId) {
-    const note = prompt('Log a contact for this client (optional note — e.g. "Left voicemail", "Emailed docs request"):', '');
-    if (note === null) return; // cancelled
+    // Record the interaction with a timestamp (stamped the moment the agent
+    // clicks), the contact type, plus whatever notes were typed in.
+    const noteEl = document.getElementById('uwNote_' + entryId);
+    const typeEl = document.getElementById('uwType_' + entryId);
+    const note = noteEl ? noteEl.value.trim() : '';
+    const type = typeEl ? typeEl.value : 'Call';
     const store = uwGetStore();
     const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
     if (!rec.contacts) rec.contacts = [];
-    rec.contacts.push({ at: Date.now(), by: currentUser || '', note: (note || '').trim() });
+    rec.contacts.push({ at: Date.now(), by: currentUser || '', type, note });
     uwSaveStore(store);
+    if (noteEl) noteEl.value = '';
     renderUnderwriting();
 }
 
