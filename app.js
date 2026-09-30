@@ -4914,22 +4914,29 @@ function closeAgentManagement() {
     document.getElementById('agentManagementModal').classList.remove('active');
 }
 
-// Load and display agent list
+// Load and display agent list. Lists every stored agent — those with a full
+// master record AND those that exist only as login credentials — so any of
+// them can be edited or deleted here.
 function loadAgentList() {
     const agents = JSON.parse(localStorage.getItem('agentMasterData')) || {};
+    let creds = {};
+    try { creds = JSON.parse(localStorage.getItem('agentCredentials')) || {}; } catch (e) {}
+    const names = [...new Set([...Object.keys(agents), ...Object.keys(creds)])].sort();
     const tbody = document.getElementById('agentListTable');
 
-    if (Object.keys(agents).length === 0) {
+    if (names.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="no-data">No agents added yet</td></tr>';
         return;
     }
 
     let tableHTML = '';
-    Object.entries(agents).forEach(([agentName, agentData]) => {
+    names.forEach(agentName => {
+        const agentData = agents[agentName] || {};
+        const email = agentData.email || (creds[agentName] && creds[agentName].email) || '-';
         const licenses = agentData.licenses ? agentData.licenses.join(', ') : '-';
         tableHTML += `<tr>
             <td>${agentData.name || agentName}</td>
-            <td>${agentData.email || '-'}</td>
+            <td>${email}</td>
             <td>${agentData.phone || '-'}</td>
             <td>${licenses}</td>
             <td>
@@ -5001,6 +5008,15 @@ function deleteAgent(agentName) {
     const agents = JSON.parse(localStorage.getItem('agentMasterData')) || {};
     delete agents[agentName];
     localStorage.setItem('agentMasterData', JSON.stringify(agents));
+    // Also remove their login credentials, otherwise the agent keeps showing
+    // up in login/agent dropdowns (getAllAgents unions the credentials keys).
+    try {
+        const creds = JSON.parse(localStorage.getItem('agentCredentials')) || {};
+        if (creds[agentName]) {
+            delete creds[agentName];
+            localStorage.setItem('agentCredentials', JSON.stringify(creds));
+        }
+    } catch (e) {}
     loadAgentList();
     alert(`Agent "${agentName}" deleted successfully!`);
 }
