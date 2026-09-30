@@ -2535,29 +2535,14 @@ function uwStatCard(label, val, color) {
     </div>`;
 }
 
-function renderUnderwriting() {
-    const container = document.getElementById('underwritingList');
-    if (!container) return;
-
+// Build the currently-shown Underwriting list, honoring the Line toggle,
+// status tab, agent filter and search. Returns { scoped, list }.
+function uwFilteredList() {
     const all = uwBuildList();
-    // Scope to the selected Line of Business (Personal vs Commercial).
     const scoped = (_uwLine === 'all') ? all : all.filter(r =>
         ((r.entry.lineType || 'personal') === 'commercial') === (_uwLine === 'commercial'));
 
-    // Stats reflect the selected line, but not the status filter/search.
-    const openCount      = scoped.filter(r => !r.cleared).length;
-    const clearedCount   = scoped.filter(r => r.cleared).length;
-    const outstandingCnt = scoped.reduce((s, r) => s + r.outstanding.length, 0);
-    const statsRow = document.getElementById('uw_statsRow');
-    if (statsRow) statsRow.innerHTML =
-        uwStatCard('Clients Pending', openCount, '#dc2626') +
-        uwStatCard('Outstanding Items', outstandingCnt, '#ea580c') +
-        uwStatCard('Cleared', clearedCount, '#16a34a') +
-        uwStatCard('Total Reported', scoped.length, '#1d4ed8');
-
     let list = scoped.slice();
-    // On the Open tab, keep a just-satisfied client visible (with its green
-    // border) until the agent switches tabs or reopens the section.
     if (_uwFilter === 'open')    list = list.filter(r => !r.cleared || _uwJustCleared.has(r.entry.id));
     if (_uwFilter === 'cleared') list = list.filter(r => r.cleared);
 
@@ -2575,6 +2560,26 @@ function renderUnderwriting() {
         (b.outstanding.length - a.outstanding.length) ||
         ((b.entry.entryDate || '').localeCompare(a.entry.entryDate || '')));
 
+    return { scoped, list };
+}
+
+function renderUnderwriting() {
+    const container = document.getElementById('underwritingList');
+    if (!container) return;
+
+    const { scoped, list } = uwFilteredList();
+
+    // Stats reflect the selected line, but not the status filter/search.
+    const openCount      = scoped.filter(r => !r.cleared).length;
+    const clearedCount   = scoped.filter(r => r.cleared).length;
+    const outstandingCnt = scoped.reduce((s, r) => s + r.outstanding.length, 0);
+    const statsRow = document.getElementById('uw_statsRow');
+    if (statsRow) statsRow.innerHTML =
+        uwStatCard('Clients Pending', openCount, '#dc2626') +
+        uwStatCard('Outstanding Items', outstandingCnt, '#ea580c') +
+        uwStatCard('Cleared', clearedCount, '#16a34a') +
+        uwStatCard('Total Reported', scoped.length, '#1d4ed8');
+
     const countEl = document.getElementById('uwCount');
     if (!list.length) {
         container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray-400);border:1px dashed var(--gray-200);border-radius:12px;">${_uwFilter === 'cleared' ? 'No cleared clients yet.' : 'No pending documentation right now. 🎉'}</div>`;
@@ -2586,6 +2591,72 @@ function renderUnderwriting() {
     container.innerHTML = list.map(uwCardHtml).join('');
     if (countEl) countEl.textContent = `${list.length} client${list.length !== 1 ? 's' : ''} shown`;
     refreshIcons();
+}
+
+// Open a printable report of the clients currently shown in Underwriting
+// (honoring the Line toggle, status tab, agent filter and search).
+function uwGenerateReport() {
+    const { list } = uwFilteredList();
+    const esc = uwEsc;
+    const lineLabel = _uwLine === 'commercial' ? 'Commercial Lines'
+                    : _uwLine === 'personal' ? 'Personal Lines' : 'All Lines';
+    const statusLabel = _uwFilter === 'open' ? 'Open (pending)'
+                      : _uwFilter === 'cleared' ? 'Cleared' : 'All';
+
+    const clientsHtml = list.length ? list.map(r => {
+        const e = r.entry;
+        const items = r.pending.map(item => {
+            const info = r.items[item];
+            const done = !!(info && info.satisfied);
+            const meta = done && info.at
+                ? ` <span class="muted">(satisfied ${esc(uwFmtWhen(info.at))}${info.by ? ' by ' + esc(info.by) : ''})</span>` : '';
+            return `<li class="${done ? 'done' : 'pend'}">${done ? '☑' : '☐'} ${esc(item)}${meta}</li>`;
+        }).join('') || '<li class="muted">No documentation items.</li>';
+        const contacts = (r.contacts && r.contacts.length)
+            ? r.contacts.slice().reverse().map(c =>
+                `<li>${uwTypeLabel(c.type)} — ${esc(uwFmtWhen(c.at))}${c.by ? ' · ' + esc(c.by) : ''}${c.note ? ' — ' + esc(c.note) : ''}</li>`).join('')
+            : '<li class="muted">No contact logged.</li>';
+        const line = (e.lineType === 'commercial') ? 'Commercial' : 'Personal';
+        return `<div class="client" style="border-left-color:${r.cleared ? '#16a34a' : '#dc2626'};">
+            <div class="chead"><span class="cname">${esc(e.customerName || '—')}</span>
+                <span class="badge ${r.cleared ? 'clear' : 'pend'}">${r.cleared ? '✓ CLEAR' : r.outstanding.length + ' PENDING'}</span></div>
+            <div class="cmeta">${esc(e.agent || '—')} · ${line} · ${esc(e.lineOfBusiness || '—')} · ${esc(e.company || '—')}${e.policyNumber ? ' · Policy ' + esc(e.policyNumber) : ''}${e.entryDate ? ' · ' + esc(formatDate(e.entryDate)) : ''}</div>
+            <div class="sec"><div class="sec-t">Documentation Status</div><ul>${items}</ul></div>
+            <div class="sec"><div class="sec-t">Contact Log</div><ul>${contacts}</ul></div>
+        </div>`;
+    }).join('') : '<p class="muted">No clients match the current view.</p>';
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Underwriting Report</title><style>
+        body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0f172a;margin:24px;}
+        h1{font-size:20px;margin:0 0 4px;}
+        .sub{color:#64748b;font-size:13px;margin:0 0 16px;}
+        .toolbar{margin:0 0 16px;}
+        .toolbar button{background:#1d4ed8;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;}
+        .client{border:1px solid #e2e8f0;border-left:4px solid #dc2626;border-radius:10px;padding:12px 14px;margin:0 0 12px;page-break-inside:avoid;}
+        .chead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+        .cname{font-size:15px;font-weight:800;}
+        .badge{border-radius:999px;padding:2px 10px;font-size:11px;font-weight:800;}
+        .badge.pend{background:#fee2e2;color:#991b1b;}
+        .badge.clear{background:#dcfce7;color:#166534;}
+        .cmeta{color:#475569;font-size:12px;margin-top:3px;}
+        .sec{margin-top:8px;}
+        .sec-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#334155;}
+        ul{margin:4px 0 0;padding-left:18px;font-size:13px;}
+        li.done{color:#166534;} li.pend{color:#991b1b;}
+        .muted{color:#94a3b8;}
+        @media print{.toolbar{display:none;}}
+    </style></head><body>
+        <div class="toolbar"><button onclick="window.print()">🖨 Print</button></div>
+        <h1>Underwriting Report — Pending Documentation</h1>
+        <p class="sub">${lineLabel} · ${statusLabel} · ${list.length} client${list.length !== 1 ? 's' : ''} · Generated ${esc(uwFmtWhen(Date.now()))}${currentUser ? ' by ' + esc(currentUser) : ''}</p>
+        ${clientsHtml}
+    </body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { alert('Please allow pop-ups to open the report.'); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
 }
 
 function uwCardHtml(r) {
