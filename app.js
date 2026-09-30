@@ -2487,10 +2487,31 @@ function uwBuildList() {
             entry, pending, outstanding,
             cleared: outstanding.length === 0,
             contacts: rec.contacts || [],
-            items: satis
+            items: satis,
+            clearedBy: rec.clearedBy || '',
+            clearedAt: rec.clearedAt || null
         });
     });
     return list;
+}
+
+// Who/when cleared a client. Prefers the explicitly recorded clearedBy/At,
+// falling back to the most recently satisfied item (covers older records).
+function uwClearedBy(r) {
+    if (r.clearedBy) return r.clearedBy;
+    let best = '', at = -1;
+    Object.values(r.items || {}).forEach(v => {
+        if (v && v.satisfied && (v.at || 0) > at) { at = v.at || 0; best = v.by || ''; }
+    });
+    return best;
+}
+function uwClearedAt(r) {
+    if (r.clearedAt) return r.clearedAt;
+    let at = null;
+    Object.values(r.items || {}).forEach(v => {
+        if (v && v.satisfied && (v.at || 0) > (at || 0)) at = v.at;
+    });
+    return at;
 }
 
 function showUnderwritingSection() {
@@ -2593,63 +2614,109 @@ function renderUnderwriting() {
     refreshIcons();
 }
 
-// Open a printable report of the clients currently shown in Underwriting
-// (honoring the Line toggle, status tab, agent filter and search).
+// Open the printable "Cleared Report" — only clients that have been cleared,
+// with the agent who cleared each, and an interactive filter section.
 function uwGenerateReport() {
-    const { list } = uwFilteredList();
     const esc = uwEsc;
-    const lineLabel = _uwLine === 'commercial' ? 'Commercial Lines'
-                    : _uwLine === 'personal' ? 'Personal Lines' : 'All Lines';
-    const statusLabel = _uwFilter === 'open' ? 'Open (pending)'
-                      : _uwFilter === 'cleared' ? 'Cleared' : 'All';
+    const cleared = uwBuildList().filter(r => r.cleared);
 
-    const clientsHtml = list.length ? list.map(r => {
+    const isoDay = (ts) => {
+        if (!ts) return '';
+        const d = new Date(ts);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    // Agent options = distinct "cleared by" values.
+    const agents = [...new Set(cleared.map(r => uwClearedBy(r)).filter(Boolean))].sort();
+    const agentOptions = agents.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+
+    const clientsHtml = cleared.length ? cleared.map(r => {
         const e = r.entry;
+        const by = uwClearedBy(r);
+        const at = uwClearedAt(r);
+        const line = (e.lineType === 'commercial') ? 'Commercial' : 'Personal';
         const items = r.pending.map(item => {
             const info = r.items[item];
-            const done = !!(info && info.satisfied);
-            const meta = done && info.at
-                ? ` <span class="muted">(satisfied ${esc(uwFmtWhen(info.at))}${info.by ? ' by ' + esc(info.by) : ''})</span>` : '';
-            return `<li class="${done ? 'done' : 'pend'}">${done ? '☑' : '☐'} ${esc(item)}${meta}</li>`;
+            const meta = info && info.at
+                ? ` <span class="muted">(${esc(uwFmtWhen(info.at))}${info.by ? ' by ' + esc(info.by) : ''})</span>` : '';
+            return `<li class="done">☑ ${esc(item)}${meta}</li>`;
         }).join('') || '<li class="muted">No documentation items.</li>';
         const contacts = (r.contacts && r.contacts.length)
             ? r.contacts.slice().reverse().map(c =>
                 `<li>${uwTypeLabel(c.type)} — ${esc(uwFmtWhen(c.at))}${c.by ? ' · ' + esc(c.by) : ''}${c.note ? ' — ' + esc(c.note) : ''}</li>`).join('')
             : '<li class="muted">No contact logged.</li>';
-        const line = (e.lineType === 'commercial') ? 'Commercial' : 'Personal';
-        return `<div class="client" style="border-left-color:${r.cleared ? '#16a34a' : '#dc2626'};">
+        return `<div class="client" data-name="${esc((e.customerName || '').toLowerCase())}" data-agent="${esc(by)}" data-line="${line}" data-cleared="${isoDay(at)}">
             <div class="chead"><span class="cname">${esc(e.customerName || '—')}</span>
-                <span class="badge ${r.cleared ? 'clear' : 'pend'}">${r.cleared ? '✓ CLEAR' : r.outstanding.length + ' PENDING'}</span></div>
+                <span class="badge clear">✓ CLEAR</span></div>
+            <div class="clearedby">✓ Cleared by ${esc(by || '—')}${at ? ' · ' + esc(uwFmtWhen(at)) : ''}</div>
             <div class="cmeta">${esc(e.agent || '—')} · ${line} · ${esc(e.lineOfBusiness || '—')} · ${esc(e.company || '—')}${e.policyNumber ? ' · Policy ' + esc(e.policyNumber) : ''}${e.entryDate ? ' · ' + esc(formatDate(e.entryDate)) : ''}</div>
             <div class="sec"><div class="sec-t">Documentation Status</div><ul>${items}</ul></div>
             <div class="sec"><div class="sec-t">Contact Log</div><ul>${contacts}</ul></div>
         </div>`;
-    }).join('') : '<p class="muted">No clients match the current view.</p>';
+    }).join('') : '<p class="muted">No cleared clients yet.</p>';
 
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Underwriting Report</title><style>
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Cleared Report</title><style>
         body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0f172a;margin:24px;}
         h1{font-size:20px;margin:0 0 4px;}
         .sub{color:#64748b;font-size:13px;margin:0 0 16px;}
-        .toolbar{margin:0 0 16px;}
+        .toolbar{margin:0 0 12px;}
         .toolbar button{background:#1d4ed8;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;}
-        .client{border:1px solid #e2e8f0;border-left:4px solid #dc2626;border-radius:10px;padding:12px 14px;margin:0 0 12px;page-break-inside:avoid;}
+        .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin:0 0 8px;}
+        .filters .fld{display:flex;flex-direction:column;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.4px;}
+        .filters input,.filters select{margin-top:3px;padding:6px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;font-family:inherit;text-transform:none;font-weight:400;color:#0f172a;}
+        .filters button{align-self:flex-end;background:#e2e8f0;color:#334155;border:none;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;}
+        #fCount{font-size:12px;color:#64748b;margin:0 0 16px;}
+        .client{border:1px solid #e2e8f0;border-left:4px solid #16a34a;border-radius:10px;padding:12px 14px;margin:0 0 12px;page-break-inside:avoid;}
         .chead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
         .cname{font-size:15px;font-weight:800;}
         .badge{border-radius:999px;padding:2px 10px;font-size:11px;font-weight:800;}
-        .badge.pend{background:#fee2e2;color:#991b1b;}
         .badge.clear{background:#dcfce7;color:#166534;}
-        .cmeta{color:#475569;font-size:12px;margin-top:3px;}
+        .clearedby{font-size:12px;color:#166534;font-weight:700;margin-top:3px;}
+        .cmeta{color:#475569;font-size:12px;margin-top:2px;}
         .sec{margin-top:8px;}
         .sec-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#334155;}
         ul{margin:4px 0 0;padding-left:18px;font-size:13px;}
-        li.done{color:#166534;} li.pend{color:#991b1b;}
+        li.done{color:#166534;}
         .muted{color:#94a3b8;}
-        @media print{.toolbar{display:none;}}
+        @media print{.toolbar,.filters{display:none;}}
     </style></head><body>
         <div class="toolbar"><button onclick="window.print()">🖨 Print</button></div>
-        <h1>Underwriting Report — Pending Documentation</h1>
-        <p class="sub">${lineLabel} · ${statusLabel} · ${list.length} client${list.length !== 1 ? 's' : ''} · Generated ${esc(uwFmtWhen(Date.now()))}${currentUser ? ' by ' + esc(currentUser) : ''}</p>
+        <h1>Cleared Report</h1>
+        <p class="sub">Clients with all documentation satisfied · Generated ${esc(uwFmtWhen(Date.now()))}${currentUser ? ' by ' + esc(currentUser) : ''}</p>
+        <div class="filters">
+            <label class="fld">Search<input id="fName" placeholder="Client name…" oninput="applyF()"></label>
+            <label class="fld">Cleared by<select id="fAgent" onchange="applyF()"><option value="">All agents</option>${agentOptions}</select></label>
+            <label class="fld">Line<select id="fLine" onchange="applyF()"><option value="">All lines</option><option value="Personal">Personal</option><option value="Commercial">Commercial</option></select></label>
+            <label class="fld">Cleared from<input type="date" id="fFrom" onchange="applyF()"></label>
+            <label class="fld">Cleared to<input type="date" id="fTo" onchange="applyF()"></label>
+            <button onclick="clearF()">Clear filters</button>
+        </div>
+        <p id="fCount"></p>
         ${clientsHtml}
+        <script>
+        function applyF(){
+            var name=(document.getElementById('fName').value||'').toLowerCase();
+            var ag=document.getElementById('fAgent').value;
+            var ln=document.getElementById('fLine').value;
+            var from=document.getElementById('fFrom').value;
+            var to=document.getElementById('fTo').value;
+            var cards=document.querySelectorAll('.client'), shown=0;
+            cards.forEach(function(c){
+                var ok=true, d=c.getAttribute('data-cleared');
+                if(name && c.getAttribute('data-name').indexOf(name)<0) ok=false;
+                if(ag && c.getAttribute('data-agent')!==ag) ok=false;
+                if(ln && c.getAttribute('data-line')!==ln) ok=false;
+                if(from && (!d || d<from)) ok=false;
+                if(to && (!d || d>to)) ok=false;
+                c.style.display= ok ? '' : 'none';
+                if(ok) shown++;
+            });
+            var el=document.getElementById('fCount');
+            if(el) el.textContent = shown + ' cleared client' + (shown!==1?'s':'');
+        }
+        function clearF(){ ['fName','fAgent','fLine','fFrom','fTo'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';}); applyF(); }
+        applyF();
+        <\/script>
     </body></html>`;
 
     const w = window.open('', '_blank');
@@ -2695,6 +2762,7 @@ function uwCardHtml(r) {
                 <div style="font-size:12px;color:#64748b;margin-top:3px;">
                     ${uwEsc(e.agent || '—')} · ${uwEsc(e.lineOfBusiness || '—')} · ${uwEsc(e.company || '—')}${e.policyNumber ? ' · Policy ' + uwEsc(e.policyNumber) : ''}${dateStr ? ' · ' + dateStr : ''}${e.customerPhone ? ' · 📱 ' + uwEsc(e.customerPhone) : ''}
                 </div>
+                ${r.cleared && uwClearedBy(r) ? `<div style="font-size:11px;color:#166534;font-weight:700;margin-top:2px;">✓ Cleared by ${uwEsc(uwClearedBy(r))}${uwClearedAt(r) ? ' · ' + uwEsc(uwFmtWhen(uwClearedAt(r))) : ''}</div>` : ''}
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 ${r.cleared
@@ -2722,17 +2790,6 @@ function uwCardHtml(r) {
     </div>`;
 }
 
-// Whether every pending item on an entry is currently marked satisfied.
-function uwIsCleared(entryId) {
-    const data = JSON.parse(localStorage.getItem('binderData')) || [];
-    const entry = data.find(d => d.id === entryId);
-    if (!entry) return false;
-    const pending = uwPendingItems(entry);
-    if (!pending.length) return false;
-    const satis = (uwGetStore()[entryId] || {}).items || {};
-    return pending.every(i => satis[i] && satis[i].satisfied);
-}
-
 function uwToggleItem(entryId, idx) {
     const data = JSON.parse(localStorage.getItem('binderData')) || [];
     const entry = data.find(d => d.id === entryId);
@@ -2747,9 +2804,18 @@ function uwToggleItem(entryId, idx) {
     } else {
         rec.items[item] = { satisfied: true, at: Date.now(), by: currentUser || '' };
     }
+    // Record who cleared it when this toggle completes the set; clear it if reopened.
+    const pending = uwPendingItems(entry);
+    const nowCleared = pending.length > 0 && pending.every(i => rec.items[i] && rec.items[i].satisfied);
+    if (nowCleared) {
+        rec.clearedBy = currentUser || '';
+        if (!rec.clearedAt) rec.clearedAt = Date.now();
+        _uwJustCleared.add(entryId);
+    } else {
+        delete rec.clearedBy; delete rec.clearedAt;
+        _uwJustCleared.delete(entryId);
+    }
     uwSaveStore(store);
-    // Keep it visible (green) in the Open tab if this cleared it; drop it if reopened.
-    if (uwIsCleared(entryId)) _uwJustCleared.add(entryId); else _uwJustCleared.delete(entryId);
     renderUnderwriting();
 }
 
@@ -2763,6 +2829,8 @@ function uwSatisfyAll(entryId) {
     uwPendingItems(entry).forEach(item => {
         rec.items[item] = { satisfied: true, at: Date.now(), by: currentUser || '' };
     });
+    rec.clearedBy = currentUser || '';
+    rec.clearedAt = Date.now();
     uwSaveStore(store);
     _uwJustCleared.add(entryId); // keep it visible with its green border in Open
     renderUnderwriting();
@@ -2770,7 +2838,12 @@ function uwSatisfyAll(entryId) {
 
 function uwReopen(entryId) {
     const store = uwGetStore();
-    if (store[entryId]) { store[entryId].items = {}; uwSaveStore(store); }
+    if (store[entryId]) {
+        store[entryId].items = {};
+        delete store[entryId].clearedBy;
+        delete store[entryId].clearedAt;
+        uwSaveStore(store);
+    }
     _uwJustCleared.delete(entryId);
     renderUnderwriting();
 }
