@@ -5,7 +5,7 @@ const SUPABASE_URL = "https://jgjmobktucyimupelfxd.supabase.co";
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
 // Old Apps Script URL — kept ONLY for email notifications (sendEmail action).
 const DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
-const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'agentCredentials', 'prospectData', 'verificationLogs', 'commissionStatements'];
+const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'agentCredentials', 'prospectData', 'verificationLogs', 'commissionStatements', 'underwritingData'];
 
 const _SB_HEADERS = {
     'apikey': SUPABASE_ANON_KEY,
@@ -2427,6 +2427,241 @@ function showProspectsSection() {
     if (window.UIBMotion) UIBMotion.animateSection(document.getElementById('prospectsSection'));
 }
 
+// ── Underwriting queue ───────────────────────────────────────
+// Every reported client (binder entry) whose Documentation Status has any
+// pending item (anything other than "Clean") flows into this queue
+// automatically. Agents log each contact attempt and mark each pending item
+// satisfied; once all are satisfied the client shows as CLEAR. The per-item
+// "satisfied" flags and the contact log live in `underwritingData` (synced),
+// keyed by entry id, so the derived list always tracks the live binder book.
+const UW_STORE_KEY = 'underwritingData';
+let _uwFilter = 'open';
+
+function uwGetStore() {
+    try { return JSON.parse(localStorage.getItem(UW_STORE_KEY)) || {}; }
+    catch (e) { return {}; }
+}
+function uwSaveStore(store) {
+    // The wrapped setItem mirrors this to the cloud (key is in SYNC_KEYS).
+    localStorage.setItem(UW_STORE_KEY, JSON.stringify(store));
+}
+function uwEsc(s) {
+    return (typeof _claudeEsc === 'function') ? _claudeEsc(s) : String(s == null ? '' : s);
+}
+function uwFmtWhen(ts) {
+    if (!ts) return '';
+    try {
+        const d = new Date(ts);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+               ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } catch (e) { return String(ts); }
+}
+
+// Pending items on an entry = its Documentation Status minus the "Clean" flag.
+function uwPendingItems(entry) {
+    const ds = Array.isArray(entry && entry.documentationStatus) ? entry.documentationStatus : [];
+    return ds.filter(x => x && x !== 'Clean');
+}
+
+// Build the working list from the live binder book + the resolution store.
+function uwBuildList() {
+    const data = JSON.parse(localStorage.getItem('binderData')) || [];
+    const store = uwGetStore();
+    const list = [];
+    data.forEach(entry => {
+        const pending = uwPendingItems(entry);
+        if (!pending.length) return;
+        const rec = store[entry.id] || {};
+        const satis = rec.items || {};
+        const outstanding = pending.filter(i => !(satis[i] && satis[i].satisfied));
+        list.push({
+            entry, pending, outstanding,
+            cleared: outstanding.length === 0,
+            contacts: rec.contacts || [],
+            items: satis
+        });
+    });
+    return list;
+}
+
+function showUnderwritingSection() {
+    showSection('underwritingSection');
+    const data = JSON.parse(localStorage.getItem('binderData')) || [];
+    const agents = [...new Set(data.map(d => d.agent).filter(Boolean))].sort();
+    const sel = document.getElementById('uwAgentFilter');
+    if (sel) {
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">All Agents</option>' +
+            agents.map(a => `<option value="${uwEsc(a)}"${a === cur ? ' selected' : ''}>${uwEsc(a)}</option>`).join('');
+    }
+    renderUnderwriting();
+    refreshIcons();
+    if (window.UIBMotion) UIBMotion.animateSection(document.getElementById('underwritingSection'));
+}
+
+function uwSetFilter(f) {
+    _uwFilter = f;
+    ['open', 'cleared', 'all'].forEach(x => {
+        const t = document.getElementById('uwTab_' + x);
+        if (t) t.className = 'uw-tab' + (x === f ? ' uw-tab-active' : '');
+    });
+    renderUnderwriting();
+}
+
+function uwStatCard(label, val, color) {
+    return `<div style="background:#fff;border:1px solid var(--gray-200);border-radius:10px;padding:12px 14px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">${label}</div>
+        <div style="font-size:22px;font-weight:800;color:${color};margin-top:2px;">${val}</div>
+    </div>`;
+}
+
+function renderUnderwriting() {
+    const container = document.getElementById('underwritingList');
+    if (!container) return;
+
+    const all = uwBuildList();
+
+    // Stats reflect the whole queue, not the current filter/search.
+    const openCount      = all.filter(r => !r.cleared).length;
+    const clearedCount   = all.filter(r => r.cleared).length;
+    const outstandingCnt = all.reduce((s, r) => s + r.outstanding.length, 0);
+    const statsRow = document.getElementById('uw_statsRow');
+    if (statsRow) statsRow.innerHTML =
+        uwStatCard('Clients Pending', openCount, '#dc2626') +
+        uwStatCard('Outstanding Items', outstandingCnt, '#ea580c') +
+        uwStatCard('Cleared', clearedCount, '#16a34a') +
+        uwStatCard('Total Reported', all.length, '#1d4ed8');
+
+    let list = all.slice();
+    if (_uwFilter === 'open')    list = list.filter(r => !r.cleared);
+    if (_uwFilter === 'cleared') list = list.filter(r => r.cleared);
+
+    const agentF = document.getElementById('uwAgentFilter')?.value || '';
+    if (agentF) list = list.filter(r => r.entry.agent === agentF);
+
+    const q = (document.getElementById('uwSearch')?.value || '').trim().toLowerCase();
+    if (q) list = list.filter(r => {
+        const e = r.entry;
+        return [e.customerName, e.company, e.policyNumber, e.binderNumber, e.agent, e.lineOfBusiness]
+            .some(v => (v || '').toString().toLowerCase().includes(q));
+    });
+
+    list.sort((a, b) =>
+        (b.outstanding.length - a.outstanding.length) ||
+        ((b.entry.entryDate || '').localeCompare(a.entry.entryDate || '')));
+
+    const countEl = document.getElementById('uwCount');
+    if (!list.length) {
+        container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray-400);border:1px dashed var(--gray-200);border-radius:12px;">${_uwFilter === 'cleared' ? 'No cleared clients yet.' : 'No pending documentation right now. 🎉'}</div>`;
+        if (countEl) countEl.textContent = '';
+        refreshIcons();
+        return;
+    }
+
+    container.innerHTML = list.map(uwCardHtml).join('');
+    if (countEl) countEl.textContent = `${list.length} client${list.length !== 1 ? 's' : ''} shown`;
+    refreshIcons();
+}
+
+function uwCardHtml(r) {
+    const e = r.entry;
+    const dateStr = e.entryDate ? formatDate(e.entryDate) : '';
+
+    const chips = r.pending.map((item, idx) => {
+        const done = !!(r.items[item] && r.items[item].satisfied);
+        const bg  = done ? '#dcfce7' : '#fee2e2';
+        const col = done ? '#166534' : '#991b1b';
+        const bdr = done ? '#86efac' : '#fca5a5';
+        const tip = done && r.items[item].at
+            ? ` title="Satisfied ${uwEsc(uwFmtWhen(r.items[item].at))}${r.items[item].by ? ' by ' + uwEsc(r.items[item].by) : ''} — tap to reopen"`
+            : ' title="Tap to mark satisfied"';
+        return `<button type="button" onclick="uwToggleItem(${e.id}, ${idx})"${tip}
+            style="display:inline-flex;align-items:center;gap:4px;background:${bg};color:${col};border:1px solid ${bdr};border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;${done ? 'text-decoration:line-through;opacity:.85;' : ''}">${done ? '✓ ' : ''}${uwEsc(item)}</button>`;
+    }).join(' ');
+
+    const lastContact = r.contacts.length ? r.contacts[r.contacts.length - 1] : null;
+    const contactsHtml = r.contacts.length
+        ? r.contacts.slice().reverse().map(c =>
+            `<div style="font-size:12px;color:#475569;padding:4px 0;border-top:1px dashed #e5e7eb;">📞 ${uwEsc(uwFmtWhen(c.at))}${c.by ? ' · ' + uwEsc(c.by) : ''}${c.note ? ' — ' + uwEsc(c.note) : ''}</div>`).join('')
+        : `<div style="font-size:12px;color:#94a3b8;font-style:italic;">No contact logged yet.</div>`;
+
+    const badge = r.cleared
+        ? `<span style="background:#dcfce7;color:#166534;border-radius:999px;padding:3px 12px;font-size:11px;font-weight:800;letter-spacing:.3px;vertical-align:middle;">✓ CLEAR</span>`
+        : `<span style="background:#fee2e2;color:#991b1b;border-radius:999px;padding:3px 12px;font-size:11px;font-weight:800;letter-spacing:.3px;vertical-align:middle;">${r.outstanding.length} PENDING</span>`;
+
+    return `<div style="border:1px solid ${r.cleared ? '#bbf7d0' : '#fecaca'};border-left:5px solid ${r.cleared ? '#16a34a' : '#dc2626'};border-radius:12px;padding:14px 16px;margin-bottom:12px;background:#fff;box-shadow:var(--shadow-sm);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+            <div style="min-width:0;">
+                <div style="font-size:15px;font-weight:800;color:#0d1f3c;">${uwEsc(e.customerName || '—')} ${badge}</div>
+                <div style="font-size:12px;color:#64748b;margin-top:3px;">
+                    ${uwEsc(e.agent || '—')} · ${uwEsc(e.lineOfBusiness || '—')} · ${uwEsc(e.company || '—')}${e.policyNumber ? ' · Policy ' + uwEsc(e.policyNumber) : ''}${dateStr ? ' · ' + dateStr : ''}${e.customerPhone ? ' · 📱 ' + uwEsc(e.customerPhone) : ''}
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="btn-primary btn-sm" onclick="uwLogContact(${e.id})"><i data-lucide="phone-call"></i> Log Contact${r.contacts.length ? ` (${r.contacts.length})` : ''}</button>
+                ${r.cleared
+                    ? `<button class="btn-secondary btn-sm" onclick="uwReopen(${e.id})"><i data-lucide="rotate-ccw"></i> Reopen</button>`
+                    : `<button class="btn-success btn-sm" onclick="uwSatisfyAll(${e.id})"><i data-lucide="check-check"></i> Mark All Satisfied</button>`}
+            </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">${chips}</div>
+        <div style="margin-top:6px;font-size:11px;color:#94a3b8;">Tap an item to mark it satisfied (tap again to reopen).</div>
+        <details style="margin-top:8px;">
+            <summary style="cursor:pointer;font-size:12px;font-weight:700;color:#334155;">Contact history${lastContact ? ` — last ${uwEsc(uwFmtWhen(lastContact.at))}` : ''}</summary>
+            <div style="margin-top:6px;">${contactsHtml}</div>
+        </details>
+    </div>`;
+}
+
+function uwToggleItem(entryId, idx) {
+    const data = JSON.parse(localStorage.getItem('binderData')) || [];
+    const entry = data.find(d => d.id === entryId);
+    if (!entry) return;
+    const item = uwPendingItems(entry)[idx];
+    if (!item) return;
+    const store = uwGetStore();
+    const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
+    if (!rec.items) rec.items = {};
+    if (rec.items[item] && rec.items[item].satisfied) {
+        delete rec.items[item];
+    } else {
+        rec.items[item] = { satisfied: true, at: Date.now(), by: currentUser || '' };
+    }
+    uwSaveStore(store);
+    renderUnderwriting();
+}
+
+function uwSatisfyAll(entryId) {
+    const data = JSON.parse(localStorage.getItem('binderData')) || [];
+    const entry = data.find(d => d.id === entryId);
+    if (!entry) return;
+    const store = uwGetStore();
+    const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
+    if (!rec.items) rec.items = {};
+    uwPendingItems(entry).forEach(item => {
+        rec.items[item] = { satisfied: true, at: Date.now(), by: currentUser || '' };
+    });
+    uwSaveStore(store);
+    renderUnderwriting();
+}
+
+function uwReopen(entryId) {
+    const store = uwGetStore();
+    if (store[entryId]) { store[entryId].items = {}; uwSaveStore(store); }
+    renderUnderwriting();
+}
+
+function uwLogContact(entryId) {
+    const note = prompt('Log a contact for this client (optional note — e.g. "Left voicemail", "Emailed docs request"):', '');
+    if (note === null) return; // cancelled
+    const store = uwGetStore();
+    const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
+    if (!rec.contacts) rec.contacts = [];
+    rec.contacts.push({ at: Date.now(), by: currentUser || '', note: (note || '').trim() });
+    uwSaveStore(store);
+    renderUnderwriting();
+}
+
 function renderProspectsDashboard() {
     const all = JSON.parse(localStorage.getItem('prospectData')) || [];
 
@@ -3902,9 +4137,57 @@ function openEditModal(id) {
     document.getElementById('editTerm').value = entry.term || '';
     document.getElementById('editAgencyCommission').value = entry.agencyCommission || '';
     document.getElementById('editPaymentType').value = entry.paymentType || '';
-    document.getElementById('editStatus').value = entry.status || '';
+    renderEditDocStatus(entry);
     populate2ndAgentDropdown('editSecondAgent', entry.secondAgent || '');
     document.getElementById('editModal').classList.add('active');
+}
+
+// The Documentation Status items available on a binder entry depend on its
+// Line of Business. Kept in sync with the daily sales entry form's lists.
+const DOC_STATUS_PERSONAL = ['Pending Auto Pay Signature', 'E-Signature', 'Proof of Prior', 'Proof of Garaging', 'Proof of Grades', 'Proof of Homeowners', 'Telematics Enrollment', 'Clean'];
+const DOC_STATUS_COMMERCIAL = ['Binder', 'Carrier Invoice', 'Dec Pages AMS Upload', 'Proof of Active CGL', 'E-Signature', 'Proof of Prior', 'Proof of Active WC', 'Telematic Enrollments', 'Premium Finance Set Up', 'Invoice to be paid', 'Other'];
+
+function docStatusListFor(entry) {
+    return (entry && entry.lineType === 'commercial') ? DOC_STATUS_COMMERCIAL : DOC_STATUS_PERSONAL;
+}
+
+// Render the Documentation Status checkboxes into the Edit Policy modal,
+// pre-checking whatever the entry already carries. Available for every
+// binder entry, so pending items can be added by editing the transaction.
+function renderEditDocStatus(entry) {
+    const container = document.getElementById('editDocStatus');
+    if (!container) return;
+    const list = docStatusListFor(entry);
+    const current = Array.isArray(entry.documentationStatus) ? entry.documentationStatus : [];
+    const currentSet = new Set(current);
+    const otherItem = current.find(x => /^Other:/i.test(x)) || (currentSet.has('Other') ? 'Other' : '');
+    const otherText = otherItem ? otherItem.replace(/^Other:\s*/i, '').replace(/^Other$/i, '') : '';
+
+    container.innerHTML = list.map(item => {
+        if (item === 'Other') {
+            return `<div style="grid-column:1/-1;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;color:#374151;cursor:pointer;white-space:nowrap;">
+                    <input type="checkbox" class="edit-doc-cb" value="Other" ${otherItem ? 'checked' : ''} style="width:15px;height:15px;accent-color:#dc2626;cursor:pointer;"> Other</label>
+                <input type="text" id="editDocOther" placeholder="Describe the other item…" value="${_claudeEsc(otherText)}" style="flex:1;min-width:120px;padding:6px 9px;border:1px solid #fecaca;border-radius:6px;font-size:13px;">
+            </div>`;
+        }
+        const accent = item === 'Clean' ? '#16a34a' : '#dc2626';
+        return `<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;">
+            <input type="checkbox" class="edit-doc-cb" value="${_claudeEsc(item)}" ${currentSet.has(item) ? 'checked' : ''} style="width:15px;height:15px;accent-color:${accent};cursor:pointer;"> ${_claudeEsc(item)}</label>`;
+    }).join('');
+}
+
+// Collect the Documentation Status selections from the Edit Policy modal.
+function collectEditDocStatus() {
+    const container = document.getElementById('editDocStatus');
+    if (!container) return [];
+    const checked = [...container.querySelectorAll('.edit-doc-cb:checked')].map(cb => cb.value);
+    const result = checked.filter(v => v !== 'Other');
+    if (checked.includes('Other')) {
+        const t = (document.getElementById('editDocOther')?.value || '').trim();
+        result.push(t ? 'Other: ' + t : 'Other');
+    }
+    return result;
 }
 
 function closeModal() {
@@ -3942,7 +4225,7 @@ function updateEntry() {
     entry.term = document.getElementById('editTerm').value;
     entry.agencyCommission = parseFloat(document.getElementById('editAgencyCommission').value) || 0;
     entry.paymentType = document.getElementById('editPaymentType').value;
-    entry.status = document.getElementById('editStatus').value;
+    entry.documentationStatus = collectEditDocStatus();
     entry.secondAgent = document.getElementById('editSecondAgent')?.value || '';
     const _hasSecond = !!entry.secondAgent;
     const _commBase  = entry.agencyFee + entry.agencyCommission;

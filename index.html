@@ -528,6 +528,10 @@
             box-shadow: 0 1px 3px rgba(0,0,0,.1);
         }
         .prod-bar-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+        /* Underwriting filter tabs */
+        .uw-tab { background:#f8fafc; color:#64748b; transition:all .15s; }
+        .uw-tab:hover { background:#fff; color:#334155; }
+        .uw-tab-active { background:#dc2626 !important; color:#fff !important; }
         .prod-bar-label { width:140px; font-size:12px; font-weight:600; color:#334155; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
         .prod-bar-track { flex:1; position:relative; height:32px; background:#f1f5f9; border-radius:6px; overflow:hidden; }
         .prod-bar-fill  { height:100%; border-radius:6px; display:flex; align-items:center; padding-left:10px; transition:width .5s ease; min-width:2%; }
@@ -1223,6 +1227,51 @@
                 <p id="prospectCount" style="margin-top:10px; font-size:13px; color:var(--gray-500);"></p>
             </div>
 
+            <!-- Underwriting Section -->
+            <div id="underwritingSection" class="section">
+                <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button class="btn-secondary btn-sm" onclick="showSection((currentRole==='admin')?'adminSection':'agentSection')"><i data-lucide="arrow-left"></i> Back</button>
+                        <strong><i data-lucide="shield-alert"></i> Underwriting — Pending Documentation</strong>
+                    </div>
+                    <button class="btn-secondary btn-sm" onclick="renderUnderwriting()"><i data-lucide="refresh-cw"></i> Refresh</button>
+                </div>
+
+                <!-- Header / stats -->
+                <div style="margin-top:18px;border:1px solid var(--gray-200);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);">
+                    <div style="background:linear-gradient(135deg,#7f1d1d 0%,#dc2626 100%);color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <i data-lucide="shield-alert" style="width:20px;height:20px;"></i>
+                            <div>
+                                <h3 style="margin:0;font-size:1.02rem;font-weight:800;letter-spacing:-0.2px;">Underwriting Queue</h3>
+                                <p style="margin:0;font-size:11px;opacity:0.85;" id="uw_sub">Every reported client with pending documentation appears here automatically.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="uw_statsRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px 20px;background:#fff;border-bottom:1px solid var(--gray-200);"></div>
+                </div>
+
+                <!-- Filters -->
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin:16px 0; align-items:center;">
+                    <div style="display:inline-flex;border:1px solid var(--gray-200);border-radius:var(--radius-sm);overflow:hidden;">
+                        <button type="button" id="uwTab_open"    class="uw-tab uw-tab-active" onclick="uwSetFilter('open')"    style="border:none;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">Open</button>
+                        <button type="button" id="uwTab_cleared" class="uw-tab"               onclick="uwSetFilter('cleared')" style="border:none;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">Cleared</button>
+                        <button type="button" id="uwTab_all"     class="uw-tab"               onclick="uwSetFilter('all')"     style="border:none;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">All</button>
+                    </div>
+                    <input type="text" id="uwSearch" placeholder="Search client, carrier, policy #, agent…"
+                        oninput="renderUnderwriting()"
+                        style="flex:1; min-width:180px; padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
+                    <select id="uwAgentFilter" onchange="renderUnderwriting()"
+                        style="padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
+                        <option value="">All Agents</option>
+                    </select>
+                </div>
+
+                <!-- List -->
+                <div id="underwritingList"></div>
+                <p id="uwCount" style="margin-top:10px; font-size:13px; color:var(--gray-500);"></p>
+            </div>
+
             <!-- Verification Logs Section -->
             <div id="verificationLogsSection" class="section">
                 <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
@@ -1330,12 +1379,13 @@
                 <div class="user-info">
                     <span id="userDisplay"></span>
                     <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
-                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
-                    <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
+                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(to right,#047857 0%,#10b981 60%,#34d399 100%);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
                     <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
-                    <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(135deg,#5b21b6,#3b1a8c);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
-                    <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
+                    <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(to right,#3b1a8c 0%,#5b21b6 60%,#7c3aed 100%);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
+                    <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
+                    <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
+                    <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
+                    <button class="btn-sm" onclick="showUnderwritingSection()" style="background:linear-gradient(to right,#c2410c 0%,#f97316 60%,#fb923c 100%);color:#fff;border:none;"><i data-lucide="shield-alert"></i> Underwriting</button>
                     <button class="btn-danger btn-sm" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
                 </div>
 
@@ -2039,8 +2089,8 @@
 
                 <div class="footer-buttons">
                     <button class="btn-secondary" onclick="exportAgentData()">📥 Export My Data (CSV)</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-success" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
+                    <button class="btn-success" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
                     <button class="btn-danger" onclick="logout()">Logout</button>
                 </div>
             </div>
@@ -2802,13 +2852,14 @@
                     <button class="btn-primary" onclick="showCarrierManagement()"><i data-lucide="building-2"></i> Carriers</button>
                     <button class="btn-primary" onclick="showAgentManagement()"><i data-lucide="users"></i> Agents</button>
                     <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0f766e,#14b8a6);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0f766e,#2dd4bf);" onclick="showDataSafety()" title="Download an off-cloud snapshot of the whole book, or merge one back in"><i data-lucide="life-buoy"></i> Data Safety</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-success" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#c2410c,#f59e0b);" onclick="showRenewalsSection()" title="Upcoming policy renewals + AI renewal report processor"><i data-lucide="refresh-cw"></i> Renewals</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" onclick="showProspectsSection()"><i data-lucide="target"></i> Prospects</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#5b21b6,#3b1a8c);" onclick="showVerificationLogsSection()"><i data-lucide="list-checks"></i> Dealer Verifications</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#14b8a6 60%,#5eead4 100%);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#2dd4bf 60%,#5eead4 100%);" onclick="showDataSafety()" title="Download an off-cloud snapshot of the whole book, or merge one back in"><i data-lucide="life-buoy"></i> Data Safety</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
+                    <button class="btn-success" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#c2410c 0%,#ea580c 60%,#f59e0b 100%);" onclick="showRenewalsSection()" title="Upcoming policy renewals + AI renewal report processor"><i data-lucide="refresh-cw"></i> Renewals</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);" onclick="showProspectsSection()"><i data-lucide="target"></i> Prospects</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#c2410c 0%,#f97316 60%,#fb923c 100%);" onclick="showUnderwritingSection()"><i data-lucide="shield-alert"></i> Underwriting</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#3b1a8c 0%,#5b21b6 60%,#7c3aed 100%);" onclick="showVerificationLogsSection()"><i data-lucide="list-checks"></i> Dealer Verifications</button>
                     <button class="btn-warning" onclick="importLRCQ1Transactions()" title="Import 6 Q1 LRC transactions for Lazaro (Rewrites, Endorsements, Miscellaneous)">
                         <i data-lucide="upload"></i> Import LRC Q1 (Lazaro)
                     </button>
@@ -3214,15 +3265,14 @@
                             <option value="Gross Paid">🔥 Gross Paid</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Status</label>
-                        <select id="editStatus">
-                            <option value="">Pending</option>
-                            <option value="Clean">Clean</option>
-                            <option value="Alta">Alta</option>
-                            <option value="Other">Other</option>
-                        </select>
+                </div>
+                <!-- Documentation Status (pending items) — editable for any client -->
+                <div id="editDocStatusSection" style="margin-top:14px;background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1.5px solid #fca5a5;border-radius:10px;padding:14px 16px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+                        <span style="font-size:14px;font-weight:800;color:#991b1b;">📋 Documentation Status</span>
+                        <span style="font-size:11px;color:#b91c1c;font-style:italic;">— check any pending items for this client (leave all unchecked if none)</span>
                     </div>
+                    <div id="editDocStatus" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;"></div>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
@@ -3328,7 +3378,7 @@
             <div style="max-width:1000px;width:100%;margin:0 auto;padding:24px 20px 60px;flex:1;">
 
                 <!-- Fixed period banner — this view is always the current month, new business only -->
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:12px 18px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);border-radius:12px;color:#fff;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:12px 18px;background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);border-radius:12px;color:#fff;">
                     <i data-lucide="calendar-check" style="width:18px;height:18px;"></i>
                     <strong id="commPeriodLabel" style="font-size:14px;">📅 Loading…</strong>
                     <span style="font-size:12px;opacity:.75;">This statement always shows the current month's new business — see Commission Statements (admin) for other periods or transaction types.</span>
