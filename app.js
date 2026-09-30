@@ -838,9 +838,14 @@ function migrateLocationNames() {
 }
 
 function getAllAgents() {
-    const fromCreds  = Object.keys(JSON.parse(localStorage.getItem('agentCredentials') || '{}'));
-    const fromMaster = Object.keys(JSON.parse(localStorage.getItem('agentMasterData')  || '{}'));
-    return [...new Set([...AGENTS, ...fromCreds, ...fromMaster])].sort();
+    // The canonical roster = the Agent Management list. Agent dropdowns
+    // everywhere use this, so they only show registered agents (not names
+    // scraped from old binder entries or leftover login credentials). Falls
+    // back to the built-in list only if no managed agents exist yet.
+    let master = {};
+    try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    const names = Object.keys(master);
+    return (names.length ? [...new Set(names)] : AGENTS.slice()).sort();
 }
 
 // Initialize credentials — structure: { "Agent Name": { email, password } }
@@ -1245,10 +1250,7 @@ function calculateAgentCommission(suffix = '') {
 function populate2ndAgentDropdown(selectId, selectedValue) {
     const sel = document.getElementById(selectId);
     if (!sel) return;
-    const agentMasterData = JSON.parse(localStorage.getItem('agentMasterData')) || {};
-    const masterAgents = Object.keys(agentMasterData);
-    const entryAgents  = [...new Set((JSON.parse(localStorage.getItem('binderData')) || []).map(d => d.agent).filter(Boolean))];
-    const agents = [...new Set([...masterAgents, ...entryAgents])].sort();
+    const agents = getAllAgents();
     sel.innerHTML = '<option value="">— None —</option>' +
         agents.map(a => `<option value="${a}"${a === selectedValue ? ' selected' : ''}>${a}</option>`).join('');
 }
@@ -2518,7 +2520,7 @@ function showUnderwritingSection() {
     showSection('underwritingSection');
     _uwJustCleared.clear();
     const data = JSON.parse(localStorage.getItem('binderData')) || [];
-    const agents = [...new Set(data.map(d => d.agent).filter(Boolean))].sort();
+    const agents = getAllAgents();
     const sel = document.getElementById('uwAgentFilter');
     if (sel) {
         const cur = sel.value;
@@ -2645,10 +2647,11 @@ function uwGenerateReport() {
             ? r.contacts.slice().reverse().map(c =>
                 `<li>${uwTypeLabel(c.type)} — ${esc(uwFmtWhen(c.at))}${c.by ? ' · ' + esc(c.by) : ''}${c.note ? ' — ' + esc(c.note) : ''}</li>`).join('')
             : '<li class="muted">No contact logged.</li>';
-        return `<div class="client" data-name="${esc((e.customerName || '').toLowerCase())}" data-agent="${esc(by)}" data-line="${line}" data-cleared="${isoDay(at)}">
+        return `<div class="client" data-name="${esc((e.customerName || '').toLowerCase())}" data-agent="${esc(by)}" data-line="${line}" data-cleared="${isoDay(at)}" data-fee="10">
             <div class="chead"><span class="cname">${esc(e.customerName || '—')}</span>
                 <span class="badge clear">✓ CLEAR</span></div>
             <div class="clearedby">✓ Cleared by ${esc(by || '—')}${at ? ' · ' + esc(uwFmtWhen(at)) : ''}</div>
+            <div class="fee">💵 Clearance fee: $10.00 to ${esc(by || '—')}</div>
             <div class="cmeta">${esc(e.agent || '—')} · ${line} · ${esc(e.lineOfBusiness || '—')} · ${esc(e.company || '—')}${e.policyNumber ? ' · Policy ' + esc(e.policyNumber) : ''}${e.entryDate ? ' · ' + esc(formatDate(e.entryDate)) : ''}</div>
             <div class="sec"><div class="sec-t">Documentation Status</div><ul>${items}</ul></div>
             <div class="sec"><div class="sec-t">Contact Log</div><ul>${contacts}</ul></div>
@@ -2680,6 +2683,15 @@ function uwGenerateReport() {
         .badge{border-radius:999px;padding:3px 12px;font-size:11px;font-weight:800;letter-spacing:.3px;}
         .badge.clear{background:#dcfce7;color:#166534;}
         .clearedby{font-size:12px;color:#166534;font-weight:700;margin-top:3px;}
+        .fee{font-size:12px;color:#166534;font-weight:700;margin-top:2px;}
+        .fee-wrap{padding:14px 18px;border-bottom:1px solid var(--gray-200);background:#f0fdf4;}
+        .fee-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#166534;margin-bottom:8px;}
+        .fee-month{margin-bottom:10px;}
+        .fee-month-h{font-size:13px;font-weight:800;color:#166534;margin-bottom:4px;}
+        .fee-table{width:100%;border-collapse:collapse;font-size:12px;}
+        .fee-table th{text-align:left;color:#64748b;font-weight:700;border-bottom:1px solid #d1fae5;padding:4px 6px;}
+        .fee-table td{padding:4px 6px;border-bottom:1px solid #ecfdf5;color:#334155;}
+        .fee-grand{margin-top:8px;font-size:15px;font-weight:800;color:#166534;text-align:right;}
         .cmeta{color:#64748b;font-size:12px;margin-top:2px;}
         .sec{margin-top:8px;}
         .sec-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#334155;}
@@ -2708,6 +2720,10 @@ function uwGenerateReport() {
             <label class="fld">Cleared to<input type="date" id="fTo" onchange="applyF()"></label>
             <button class="clr" onclick="clearF()">Clear filters</button>
         </div>
+        <div class="fee-wrap">
+            <div class="fee-title">💵 Clearance Fees — $10 per cleared client</div>
+            <div id="feeSummary"></div>
+        </div>
         <p id="fCount"></p>
         <div class="list">${clientsHtml}</div>
         </div>
@@ -2731,6 +2747,33 @@ function uwGenerateReport() {
             });
             var el=document.getElementById('fCount');
             if(el) el.textContent = shown + ' cleared client' + (shown!==1?'s':'');
+            computeFees();
+        }
+        function computeFees(){
+            var mn=['January','February','March','April','May','June','July','August','September','October','November','December'];
+            var cards=document.querySelectorAll('.client'), months={}, grand=0;
+            cards.forEach(function(c){
+                if(c.style.display==='none') return;
+                var d=c.getAttribute('data-cleared'), m=d?d.slice(0,7):'Unknown';
+                var ag=c.getAttribute('data-agent')||'—';
+                if(!months[m]) months[m]={};
+                months[m][ag]=(months[m][ag]||0)+1;
+                grand+=10;
+            });
+            function mlabel(m){ if(m==='Unknown') return 'Unknown date'; var p=m.split('-'); return mn[parseInt(p[1],10)-1]+' '+p[0]; }
+            var keys=Object.keys(months).sort().reverse(), html='';
+            if(!keys.length){ html='<div class="muted">No cleared clients to bill.</div>'; }
+            keys.forEach(function(m){
+                var agents=months[m], sub=0, rows='';
+                Object.keys(agents).sort().forEach(function(ag){
+                    var cnt=agents[ag], amt=cnt*10; sub+=amt;
+                    rows+='<tr><td>'+ag+'</td><td style="text-align:center;">'+cnt+'</td><td style="text-align:right;">$'+amt.toFixed(2)+'</td></tr>';
+                });
+                html+='<div class="fee-month"><div class="fee-month-h">'+mlabel(m)+' — <strong>$'+sub.toFixed(2)+'</strong></div>'+
+                      '<table class="fee-table"><thead><tr><th>Agent</th><th style="text-align:center;">Cleared</th><th style="text-align:right;">Fee ($10 ea.)</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+            });
+            html+='<div class="fee-grand">Total to be paid: $'+grand.toFixed(2)+'</div>';
+            var el=document.getElementById('feeSummary'); if(el) el.innerHTML=html;
         }
         function clearF(){ ['fName','fAgent','fLine','fFrom','fTo'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';}); applyF(); }
         applyF();
@@ -2909,7 +2952,7 @@ function renderProspectsDashboard() {
     const agentSel = document.getElementById('pdash_agentFilter');
     if (agentSel) {
         const current = agentSel.value;
-        const agents = [...new Set(all.map(p => p.agent).filter(Boolean))].sort();
+        const agents = getAllAgents();
         agentSel.innerHTML = '<option value="" style="color:#111;">All Agents</option>' +
             agents.map(a => `<option value="${a}" style="color:#111;"${a === current ? ' selected' : ''}>${a}</option>`).join('');
     }
@@ -3104,7 +3147,7 @@ function renderVerificationLogsDashboard() {
     const agentSel = document.getElementById('vldash_agentFilter');
     if (agentSel) {
         const current = agentSel.value;
-        const agents = [...new Set(all.map(l => l.agent).filter(Boolean))].sort();
+        const agents = getAllAgents();
         agentSel.innerHTML = '<option value="" style="color:#111;">All Agents</option>' +
             agents.map(a => `<option value="${a}" style="color:#111;"${a === current ? ' selected' : ''}>${a}</option>`).join('');
     }
@@ -3909,7 +3952,7 @@ function _agentDefaultMonth() {
 // Agent admins: log in as regular agents but can view EVERY agent's
 // submissions (extra Agent filter + Agent column). Editing and deleting
 // still applies only to their own entries.
-const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz'];
+const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano'];
 function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser); }
 
 // The entries the current user is allowed to SEE (before UI filters).
@@ -3928,7 +3971,7 @@ function loadAgentData() {
         const sel = document.getElementById('agentAgentFilter');
         if (sel) {
             const current = sel.value;
-            const agents = [...new Set(allData.map(d => d.agent).filter(Boolean))].sort();
+            const agents = getAllAgents();
             sel.innerHTML = '<option value="">All Agents</option>' +
                 agents.map(a => `<option value="${a.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">${a.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</option>`).join('');
             if (agents.includes(current)) sel.value = current;
@@ -4134,15 +4177,8 @@ function populateAgentFilter() {
     const select = document.getElementById('adminAgentFilter');
     if (!select) return;
 
-    // Get agents from master list
-    const agentMasterData = JSON.parse(localStorage.getItem('agentMasterData')) || {};
-    const masterAgents = Object.keys(agentMasterData);
-
-    // Also get any agents from existing entries (in case any exist outside master list)
-    const entryAgents = [...new Set(allData.map(d => d.agent).filter(Boolean))];
-
-    // Combine both sources, deduplicate, and sort alphabetically
-    const allAgents = [...new Set([...masterAgents, ...entryAgents])].sort();
+    // Only the registered agents (Agent Management list).
+    const allAgents = getAllAgents();
 
     select.innerHTML = '<option value="">All Agents</option>';
     allAgents.forEach(agent => {
@@ -5744,7 +5780,7 @@ function loadUniversalInsCommissions() {
     if (agentSel) {
         const prev = agentSel.value;
         agentSel.innerHTML = '<option value="">All Agents</option>';
-        [...allAgents].sort().forEach(a => {
+        getAllAgents().forEach(a => {
             const o = document.createElement('option'); o.value = a; o.textContent = a;
             if (a === prev) o.selected = true;
             agentSel.appendChild(o);
@@ -6016,7 +6052,7 @@ function openUICEntryPicker() {
     if (!modal) return;
 
     // Build agent list from binder data
-    const binderAgents = [...new Set((JSON.parse(localStorage.getItem('binderData')) || []).map(e => e.agent).filter(Boolean))].sort();
+    const binderAgents = getAllAgents();
 
     // Populate binder agent filter
     const agentSel = document.getElementById('uicPickerAgentFilter');
@@ -8021,10 +8057,7 @@ function showProductionDashboard() {
     allData = JSON.parse(localStorage.getItem('binderData')) || [];
 
     // Populate Agent filter — merge from data + registered agents
-    const agentsFromData = allData.map(d => d.agent).filter(Boolean);
-    const masterAgents   = Object.keys(JSON.parse(localStorage.getItem('agentMasterData'))  || {});
-    const credAgents     = Object.keys(JSON.parse(localStorage.getItem('agentCredentials')) || {});
-    const agents = [...new Set([...agentsFromData, ...masterAgents, ...credAgents])].sort();
+    const agents = getAllAgents();
     const agentSel = document.getElementById('prodAgentFilter');
     if (agentSel) agentSel.innerHTML =
         '<option value="">All Agents</option>' +
@@ -8468,7 +8501,7 @@ function apdInit() {
     _apdSortDir = saved?.sortDir ?? -1;
 
     // Populate Agent filter
-    const agents = [...new Set(allData.map(d => d.agent).filter(Boolean))].sort();
+    const agents = getAllAgents();
     const agentSel = document.getElementById('apd_agentFilter');
     if (agentSel) {
         agentSel.innerHTML =
@@ -12234,9 +12267,7 @@ function rnwSelectMonth(monthKey) {
 }
 
 function _rnwAgentList() {
-    const entryAgents  = (allData || []).map(e => e.agent).filter(Boolean);
-    const masterAgents = Object.keys(JSON.parse(localStorage.getItem('agentMasterData') || '{}'));
-    return [...new Set([...entryAgents, ...masterAgents])].sort();
+    return getAllAgents();
 }
 
 // The rows currently rendered in the renewals table, in display order.
