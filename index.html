@@ -3413,6 +3413,7 @@
                         <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Month</label>
                         <select id="commFilterMonth" onchange="loadAgentCommissionData()" style="padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;"></select>
                     </div>
+                    <div id="standardCommFilters" style="display:contents;">
                     <div style="display:flex;flex-direction:column;gap:5px;min-width:140px;">
                         <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Transaction Type</label>
                         <select id="commFilterType" onchange="loadAgentCommissionData()" style="padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;">
@@ -3448,8 +3449,11 @@
                         </select>
                     </div>
                     <button type="button" onclick="clearCommissionFilters()" class="btn-secondary btn-sm" style="padding:9px 14px;">✕ Clear</button>
+                    </div><!-- /standardCommFilters -->
                 </div>
 
+                <!-- Standard percentage-based commission section (hidden for agents with a flat-rate special rule, e.g. Amanda) -->
+                <div id="standardCommissionSection">
                 <!-- Stat Cards -->
                 <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:20px;">
                     <div class="stat-card"><h4>Total Commissions</h4><div class="number" id="agentTotalCommissions">$0.00</div></div>
@@ -3522,6 +3526,7 @@
                         </table>
                     </div>
                 </div>
+                </div><!-- /standardCommissionSection -->
 
                 <!-- Actions -->
                 <div style="display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap;">

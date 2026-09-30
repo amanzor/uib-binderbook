@@ -6929,6 +6929,14 @@ function loadAgentCommissionData() {
 
     // ── Special flat-rate commission rule (e.g. Amanda) ──
     renderSpecialCommissionPanel(agent);
+
+    // Agents with a flat-rate special rule use ONLY that panel — hide the
+    // standard percentage-based section and its (percentage-oriented) filters.
+    const hasSpecial = !!SPECIAL_COMMISSION_RULES[agent];
+    const stdSection = document.getElementById('standardCommissionSection');
+    const stdFilters = document.getElementById('standardCommFilters');
+    if (stdSection) stdSection.style.display = hasSpecial ? 'none' : '';
+    if (stdFilters) stdFilters.style.display = hasSpecial ? 'none' : 'contents';
 }
 
 // ── Special per-agent flat-rate commission rules ─────────────────────────────
