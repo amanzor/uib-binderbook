@@ -838,9 +838,14 @@ function migrateLocationNames() {
 }
 
 function getAllAgents() {
-    const fromCreds  = Object.keys(JSON.parse(localStorage.getItem('agentCredentials') || '{}'));
-    const fromMaster = Object.keys(JSON.parse(localStorage.getItem('agentMasterData')  || '{}'));
-    return [...new Set([...AGENTS, ...fromCreds, ...fromMaster])].sort();
+    // The canonical roster = the Agent Management list. Agent dropdowns
+    // everywhere use this, so they only show registered agents (not names
+    // scraped from old binder entries or leftover login credentials). Falls
+    // back to the built-in list only if no managed agents exist yet.
+    let master = {};
+    try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    const names = Object.keys(master);
+    return (names.length ? [...new Set(names)] : AGENTS.slice()).sort();
 }
 
 // Initialize credentials — structure: { "Agent Name": { email, password } }
@@ -1245,10 +1250,7 @@ function calculateAgentCommission(suffix = '') {
 function populate2ndAgentDropdown(selectId, selectedValue) {
     const sel = document.getElementById(selectId);
     if (!sel) return;
-    const agentMasterData = JSON.parse(localStorage.getItem('agentMasterData')) || {};
-    const masterAgents = Object.keys(agentMasterData);
-    const entryAgents  = [...new Set((JSON.parse(localStorage.getItem('binderData')) || []).map(d => d.agent).filter(Boolean))];
-    const agents = [...new Set([...masterAgents, ...entryAgents])].sort();
+    const agents = getAllAgents();
     sel.innerHTML = '<option value="">— None —</option>' +
         agents.map(a => `<option value="${a}"${a === selectedValue ? ' selected' : ''}>${a}</option>`).join('');
 }
@@ -2518,7 +2520,7 @@ function showUnderwritingSection() {
     showSection('underwritingSection');
     _uwJustCleared.clear();
     const data = JSON.parse(localStorage.getItem('binderData')) || [];
-    const agents = [...new Set(data.map(d => d.agent).filter(Boolean))].sort();
+    const agents = getAllAgents();
     const sel = document.getElementById('uwAgentFilter');
     if (sel) {
         const cur = sel.value;
@@ -2950,7 +2952,7 @@ function renderProspectsDashboard() {
     const agentSel = document.getElementById('pdash_agentFilter');
     if (agentSel) {
         const current = agentSel.value;
-        const agents = [...new Set(all.map(p => p.agent).filter(Boolean))].sort();
+        const agents = getAllAgents();
         agentSel.innerHTML = '<option value="" style="color:#111;">All Agents</option>' +
             agents.map(a => `<option value="${a}" style="color:#111;"${a === current ? ' selected' : ''}>${a}</option>`).join('');
     }
@@ -3145,7 +3147,7 @@ function renderVerificationLogsDashboard() {
     const agentSel = document.getElementById('vldash_agentFilter');
     if (agentSel) {
         const current = agentSel.value;
-        const agents = [...new Set(all.map(l => l.agent).filter(Boolean))].sort();
+        const agents = getAllAgents();
         agentSel.innerHTML = '<option value="" style="color:#111;">All Agents</option>' +
             agents.map(a => `<option value="${a}" style="color:#111;"${a === current ? ' selected' : ''}>${a}</option>`).join('');
     }
@@ -3969,7 +3971,7 @@ function loadAgentData() {
         const sel = document.getElementById('agentAgentFilter');
         if (sel) {
             const current = sel.value;
-            const agents = [...new Set(allData.map(d => d.agent).filter(Boolean))].sort();
+            const agents = getAllAgents();
             sel.innerHTML = '<option value="">All Agents</option>' +
                 agents.map(a => `<option value="${a.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">${a.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</option>`).join('');
             if (agents.includes(current)) sel.value = current;
@@ -4175,15 +4177,8 @@ function populateAgentFilter() {
     const select = document.getElementById('adminAgentFilter');
     if (!select) return;
 
-    // Get agents from master list
-    const agentMasterData = JSON.parse(localStorage.getItem('agentMasterData')) || {};
-    const masterAgents = Object.keys(agentMasterData);
-
-    // Also get any agents from existing entries (in case any exist outside master list)
-    const entryAgents = [...new Set(allData.map(d => d.agent).filter(Boolean))];
-
-    // Combine both sources, deduplicate, and sort alphabetically
-    const allAgents = [...new Set([...masterAgents, ...entryAgents])].sort();
+    // Only the registered agents (Agent Management list).
+    const allAgents = getAllAgents();
 
     select.innerHTML = '<option value="">All Agents</option>';
     allAgents.forEach(agent => {
@@ -5785,7 +5780,7 @@ function loadUniversalInsCommissions() {
     if (agentSel) {
         const prev = agentSel.value;
         agentSel.innerHTML = '<option value="">All Agents</option>';
-        [...allAgents].sort().forEach(a => {
+        getAllAgents().forEach(a => {
             const o = document.createElement('option'); o.value = a; o.textContent = a;
             if (a === prev) o.selected = true;
             agentSel.appendChild(o);
@@ -6057,7 +6052,7 @@ function openUICEntryPicker() {
     if (!modal) return;
 
     // Build agent list from binder data
-    const binderAgents = [...new Set((JSON.parse(localStorage.getItem('binderData')) || []).map(e => e.agent).filter(Boolean))].sort();
+    const binderAgents = getAllAgents();
 
     // Populate binder agent filter
     const agentSel = document.getElementById('uicPickerAgentFilter');
@@ -8062,10 +8057,7 @@ function showProductionDashboard() {
     allData = JSON.parse(localStorage.getItem('binderData')) || [];
 
     // Populate Agent filter — merge from data + registered agents
-    const agentsFromData = allData.map(d => d.agent).filter(Boolean);
-    const masterAgents   = Object.keys(JSON.parse(localStorage.getItem('agentMasterData'))  || {});
-    const credAgents     = Object.keys(JSON.parse(localStorage.getItem('agentCredentials')) || {});
-    const agents = [...new Set([...agentsFromData, ...masterAgents, ...credAgents])].sort();
+    const agents = getAllAgents();
     const agentSel = document.getElementById('prodAgentFilter');
     if (agentSel) agentSel.innerHTML =
         '<option value="">All Agents</option>' +
@@ -8509,7 +8501,7 @@ function apdInit() {
     _apdSortDir = saved?.sortDir ?? -1;
 
     // Populate Agent filter
-    const agents = [...new Set(allData.map(d => d.agent).filter(Boolean))].sort();
+    const agents = getAllAgents();
     const agentSel = document.getElementById('apd_agentFilter');
     if (agentSel) {
         agentSel.innerHTML =
@@ -12275,9 +12267,7 @@ function rnwSelectMonth(monthKey) {
 }
 
 function _rnwAgentList() {
-    const entryAgents  = (allData || []).map(e => e.agent).filter(Boolean);
-    const masterAgents = Object.keys(JSON.parse(localStorage.getItem('agentMasterData') || '{}'));
-    return [...new Set([...entryAgents, ...masterAgents])].sort();
+    return getAllAgents();
 }
 
 // The rows currently rendered in the renewals table, in display order.
