@@ -2645,10 +2645,11 @@ function uwGenerateReport() {
             ? r.contacts.slice().reverse().map(c =>
                 `<li>${uwTypeLabel(c.type)} — ${esc(uwFmtWhen(c.at))}${c.by ? ' · ' + esc(c.by) : ''}${c.note ? ' — ' + esc(c.note) : ''}</li>`).join('')
             : '<li class="muted">No contact logged.</li>';
-        return `<div class="client" data-name="${esc((e.customerName || '').toLowerCase())}" data-agent="${esc(by)}" data-line="${line}" data-cleared="${isoDay(at)}">
+        return `<div class="client" data-name="${esc((e.customerName || '').toLowerCase())}" data-agent="${esc(by)}" data-line="${line}" data-cleared="${isoDay(at)}" data-fee="10">
             <div class="chead"><span class="cname">${esc(e.customerName || '—')}</span>
                 <span class="badge clear">✓ CLEAR</span></div>
             <div class="clearedby">✓ Cleared by ${esc(by || '—')}${at ? ' · ' + esc(uwFmtWhen(at)) : ''}</div>
+            <div class="fee">💵 Clearance fee: $10.00 to ${esc(by || '—')}</div>
             <div class="cmeta">${esc(e.agent || '—')} · ${line} · ${esc(e.lineOfBusiness || '—')} · ${esc(e.company || '—')}${e.policyNumber ? ' · Policy ' + esc(e.policyNumber) : ''}${e.entryDate ? ' · ' + esc(formatDate(e.entryDate)) : ''}</div>
             <div class="sec"><div class="sec-t">Documentation Status</div><ul>${items}</ul></div>
             <div class="sec"><div class="sec-t">Contact Log</div><ul>${contacts}</ul></div>
@@ -2680,6 +2681,15 @@ function uwGenerateReport() {
         .badge{border-radius:999px;padding:3px 12px;font-size:11px;font-weight:800;letter-spacing:.3px;}
         .badge.clear{background:#dcfce7;color:#166534;}
         .clearedby{font-size:12px;color:#166534;font-weight:700;margin-top:3px;}
+        .fee{font-size:12px;color:#166534;font-weight:700;margin-top:2px;}
+        .fee-wrap{padding:14px 18px;border-bottom:1px solid var(--gray-200);background:#f0fdf4;}
+        .fee-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#166534;margin-bottom:8px;}
+        .fee-month{margin-bottom:10px;}
+        .fee-month-h{font-size:13px;font-weight:800;color:#166534;margin-bottom:4px;}
+        .fee-table{width:100%;border-collapse:collapse;font-size:12px;}
+        .fee-table th{text-align:left;color:#64748b;font-weight:700;border-bottom:1px solid #d1fae5;padding:4px 6px;}
+        .fee-table td{padding:4px 6px;border-bottom:1px solid #ecfdf5;color:#334155;}
+        .fee-grand{margin-top:8px;font-size:15px;font-weight:800;color:#166534;text-align:right;}
         .cmeta{color:#64748b;font-size:12px;margin-top:2px;}
         .sec{margin-top:8px;}
         .sec-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#334155;}
@@ -2708,6 +2718,10 @@ function uwGenerateReport() {
             <label class="fld">Cleared to<input type="date" id="fTo" onchange="applyF()"></label>
             <button class="clr" onclick="clearF()">Clear filters</button>
         </div>
+        <div class="fee-wrap">
+            <div class="fee-title">💵 Clearance Fees — $10 per cleared client</div>
+            <div id="feeSummary"></div>
+        </div>
         <p id="fCount"></p>
         <div class="list">${clientsHtml}</div>
         </div>
@@ -2731,6 +2745,33 @@ function uwGenerateReport() {
             });
             var el=document.getElementById('fCount');
             if(el) el.textContent = shown + ' cleared client' + (shown!==1?'s':'');
+            computeFees();
+        }
+        function computeFees(){
+            var mn=['January','February','March','April','May','June','July','August','September','October','November','December'];
+            var cards=document.querySelectorAll('.client'), months={}, grand=0;
+            cards.forEach(function(c){
+                if(c.style.display==='none') return;
+                var d=c.getAttribute('data-cleared'), m=d?d.slice(0,7):'Unknown';
+                var ag=c.getAttribute('data-agent')||'—';
+                if(!months[m]) months[m]={};
+                months[m][ag]=(months[m][ag]||0)+1;
+                grand+=10;
+            });
+            function mlabel(m){ if(m==='Unknown') return 'Unknown date'; var p=m.split('-'); return mn[parseInt(p[1],10)-1]+' '+p[0]; }
+            var keys=Object.keys(months).sort().reverse(), html='';
+            if(!keys.length){ html='<div class="muted">No cleared clients to bill.</div>'; }
+            keys.forEach(function(m){
+                var agents=months[m], sub=0, rows='';
+                Object.keys(agents).sort().forEach(function(ag){
+                    var cnt=agents[ag], amt=cnt*10; sub+=amt;
+                    rows+='<tr><td>'+ag+'</td><td style="text-align:center;">'+cnt+'</td><td style="text-align:right;">$'+amt.toFixed(2)+'</td></tr>';
+                });
+                html+='<div class="fee-month"><div class="fee-month-h">'+mlabel(m)+' — <strong>$'+sub.toFixed(2)+'</strong></div>'+
+                      '<table class="fee-table"><thead><tr><th>Agent</th><th style="text-align:center;">Cleared</th><th style="text-align:right;">Fee ($10 ea.)</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+            });
+            html+='<div class="fee-grand">Total to be paid: $'+grand.toFixed(2)+'</div>';
+            var el=document.getElementById('feeSummary'); if(el) el.innerHTML=html;
         }
         function clearF(){ ['fName','fAgent','fLine','fFrom','fTo'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';}); applyF(); }
         applyF();
