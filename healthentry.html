@@ -450,8 +450,11 @@
     }
 
     // ── Carrier section ──────────────────────────────────────────────
+    // Health insurance carriers are kept SEPARATE from the general P&C
+    // carrier list (carrierMasterData); they live in their own store.
+    const HEALTH_CARRIER_KEY = 'healthCarrierData';
     function _healthCarriers() {
-        try { return JSON.parse(localStorage.getItem('carrierMasterData')) || {}; } catch (e) { return {}; }
+        try { return JSON.parse(localStorage.getItem(HEALTH_CARRIER_KEY)) || {}; } catch (e) { return {}; }
     }
     function _summarizeCommissionRule(carrier) {
         if (!carrier || !Array.isArray(carrier.commissionRules) || !carrier.commissionRules.length) return '';
@@ -503,23 +506,18 @@
             if (!confirm('"' + existing + '" already exists. Update its commission rule?')) { return; }
         }
         const key = existing || name;
-        const lob = (typeof ALL_LOBS !== 'undefined') ? ALL_LOBS : [];
         carriers[key] = {
             carrierName:  key,
-            phoneNumbers: (carriers[key] && carriers[key].phoneNumbers) || ['', '', ''],
-            emails:       (carriers[key] && carriers[key].emails) || { underwriting: '', general: '', miscellaneous: '' },
             commissionRules: [
-                { lineOfBusiness: lob, paymentType: 'Monthly Paid', newRate: nw, renewRate: rn },
-                { lineOfBusiness: lob, paymentType: 'Gross Paid',   newRate: nw, renewRate: rn }
+                { paymentType: 'Monthly Paid', newRate: nw, renewRate: rn },
+                { paymentType: 'Gross Paid',   newRate: nw, renewRate: rn }
             ]
         };
         try {
-            localStorage.setItem('carrierMasterData', JSON.stringify(carriers));
-            if (typeof carrierMasterData !== 'undefined') carrierMasterData = carriers;
+            localStorage.setItem(HEALTH_CARRIER_KEY, JSON.stringify(carriers));
         } catch (err) { alert('⚠️ Could not save the carrier — storage is full.'); return; }
         refreshHealthCarrierDropdown(key);
         onHealthCarrierChange();
-        if (typeof refreshAllCarrierDropdowns === 'function') { try { refreshAllCarrierDropdowns(); } catch (e) {} }
         closeHealthCarrierModal();
     }
 
