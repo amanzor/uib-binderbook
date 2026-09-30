@@ -1362,6 +1362,9 @@ document.getElementById('agentLoginForm')?.addEventListener('submit', (e) => {
 function showAgentSection(agent) {
     currentUser = agent;
     currentRole = 'agent';
+    // Persist across browser sessions so the agent stays signed in on this
+    // device until they hit Logout (not just for the current tab/session).
+    try { localStorage.setItem('uibCurrentUser', agent); } catch (e) {}
     showSection('agentSection');
     document.getElementById('userDisplay').textContent = `👤 Agent: ${agent}`;
     document.getElementById('agentForm').reset();
@@ -1505,6 +1508,7 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
     if (password === 'admin123') {
         currentUser = 'Admin';
         currentRole = 'admin';
+        try { localStorage.setItem('uibCurrentUser', 'Admin'); } catch (e) {}
         closeAdminLoginModal();
         showSection('adminSection');
         loadFromSheet().then(() => loadAdminDashboard());
@@ -1518,8 +1522,9 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
 function logout() {
     currentUser = null;
     currentRole = null;
-    // Clear the session marker so we don't auto-restore straight back in.
+    // Clear the session markers so we don't auto-restore straight back in.
     try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {}
+    try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('loginSection');
     initializeAgentButtons();
 }
@@ -1545,8 +1550,10 @@ function restoreSessionFromStorage() {
     // real dashboard element (#agentTable) that only exists on index.html.
     if (!document.getElementById('loginSection') || !document.getElementById('agentTable')) return false;
 
+    // Prefer the persistent copy (localStorage) so the agent stays signed in
+    // across browser restarts; fall back to the per-tab sessionStorage copy.
     let savedUser = null;
-    try { savedUser = sessionStorage.getItem('uibCurrentUser'); } catch (e) { return false; }
+    try { savedUser = localStorage.getItem('uibCurrentUser') || sessionStorage.getItem('uibCurrentUser'); } catch (e) { return false; }
     if (!savedUser) return false;
 
     if (savedUser === 'Admin') {
