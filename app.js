@@ -2581,8 +2581,11 @@ function uwCardHtml(r) {
 
     const lastContact = r.contacts.length ? r.contacts[r.contacts.length - 1] : null;
     const contactsHtml = r.contacts.length
-        ? r.contacts.slice().reverse().map(c =>
-            `<div style="font-size:12px;color:#475569;padding:4px 0;border-top:1px dashed #e5e7eb;">${uwTypeLabel(c.type)} ${uwEsc(uwFmtWhen(c.at))}${c.by ? ' · ' + uwEsc(c.by) : ''}${c.note ? ' — ' + uwEsc(c.note) : ''}</div>`).join('')
+        ? r.contacts.map((c, i) => ({ c, i })).reverse().map(({ c, i }) =>
+            `<div style="font-size:12px;color:#475569;padding:4px 0;border-top:1px dashed #e5e7eb;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <span>${uwTypeLabel(c.type)} ${uwEsc(uwFmtWhen(c.at))}${c.by ? ' · ' + uwEsc(c.by) : ''}${c.note ? ' — ' + uwEsc(c.note) : ''}</span>
+                <button onclick="uwDeleteContact(${e.id}, ${i})" title="Remove this contact log" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:13px;line-height:1;padding:2px 6px;flex-shrink:0;">✕</button>
+            </div>`).join('')
         : `<div style="font-size:12px;color:#94a3b8;font-style:italic;">No contact logged yet.</div>`;
 
     const badge = r.cleared
@@ -2665,6 +2668,17 @@ function uwTypeLabel(type) {
     const icons = { Call: '📞', Text: '💬', Voicemail: '📩', Email: '✉️' };
     const t = type || 'Call';
     return `${icons[t] || '📞'} ${uwEsc(t)}`;
+}
+
+function uwDeleteContact(entryId, idx) {
+    const store = uwGetStore();
+    const rec = store[entryId];
+    if (!rec || !Array.isArray(rec.contacts)) return;
+    if (idx < 0 || idx >= rec.contacts.length) return;
+    if (!confirm('Remove this contact log entry?')) return;
+    rec.contacts.splice(idx, 1);
+    uwSaveStore(store);
+    renderUnderwriting();
 }
 
 function uwLogContact(entryId) {
