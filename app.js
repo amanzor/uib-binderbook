@@ -1362,6 +1362,9 @@ document.getElementById('agentLoginForm')?.addEventListener('submit', (e) => {
 function showAgentSection(agent) {
     currentUser = agent;
     currentRole = 'agent';
+    // Persist across browser sessions so the agent stays signed in on this
+    // device until they hit Logout (not just for the current tab/session).
+    try { localStorage.setItem('uibCurrentUser', agent); } catch (e) {}
     showSection('agentSection');
     document.getElementById('userDisplay').textContent = `👤 Agent: ${agent}`;
     document.getElementById('agentForm').reset();
@@ -1505,6 +1508,7 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
     if (password === 'admin123') {
         currentUser = 'Admin';
         currentRole = 'admin';
+        try { localStorage.setItem('uibCurrentUser', 'Admin'); } catch (e) {}
         closeAdminLoginModal();
         showSection('adminSection');
         loadFromSheet().then(() => loadAdminDashboard());
@@ -1518,8 +1522,9 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
 function logout() {
     currentUser = null;
     currentRole = null;
-    // Clear the session marker so we don't auto-restore straight back in.
+    // Clear the session markers so we don't auto-restore straight back in.
     try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {}
+    try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('loginSection');
     initializeAgentButtons();
 }
@@ -1545,8 +1550,10 @@ function restoreSessionFromStorage() {
     // real dashboard element (#agentTable) that only exists on index.html.
     if (!document.getElementById('loginSection') || !document.getElementById('agentTable')) return false;
 
+    // Prefer the persistent copy (localStorage) so the agent stays signed in
+    // across browser restarts; fall back to the per-tab sessionStorage copy.
     let savedUser = null;
-    try { savedUser = sessionStorage.getItem('uibCurrentUser'); } catch (e) { return false; }
+    try { savedUser = localStorage.getItem('uibCurrentUser') || sessionStorage.getItem('uibCurrentUser'); } catch (e) { return false; }
     if (!savedUser) return false;
 
     if (savedUser === 'Admin') {
@@ -2611,18 +2618,16 @@ function uwCardHtml(r) {
         <div style="margin-top:12px;border-top:1px dashed #e5e7eb;padding-top:10px;">
             <div style="font-size:12px;font-weight:800;color:#334155;margin-bottom:6px;">📞 Contact Log${r.contacts.length ? ` (${r.contacts.length})` : ''}${lastContact ? ` · last ${uwEsc(uwFmtWhen(lastContact.at))}` : ''}</div>
             <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
-                <select id="uwBy_${e.id}" title="Agent who worked this contact" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;max-width:160px;">
-                    ${uwAgentOptions(currentUser)}
-                </select>
                 <select id="uwType_${e.id}" title="Type of contact" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;">
                     <option value="Call">📞 Call</option>
                     <option value="Text">💬 Text</option>
                     <option value="Voicemail">📩 Voicemail</option>
                     <option value="Email">✉️ Email</option>
                 </select>
-                <textarea id="uwNote_${e.id}" rows="2" placeholder="Notes about this interaction — what was discussed, what's still needed…" style="flex:1;min-width:180px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+                <textarea id="uwNote_${e.id}" rows="2" placeholder="Notes about this interaction — what was discussed, what's still needed…" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
                 <button class="btn-primary btn-sm" onclick="uwLogContact(${e.id})" style="white-space:nowrap;"><i data-lucide="phone-call"></i> Log Contact</button>
             </div>
+            <div style="margin-top:5px;font-size:11px;color:#94a3b8;">Will be logged as <strong style="color:#475569;">${uwEsc(currentUser || 'this agent')}</strong> at the current time.</div>
             <div style="margin-top:8px;">${contactsHtml}</div>
         </div>
     </div>`;
@@ -2666,22 +2671,6 @@ function uwReopen(entryId) {
     renderUnderwriting();
 }
 
-// The agents available to attribute a contact to (from the binder book +
-// registered agents), with the current user first if not already present.
-function uwAgentList() {
-    let fromData = [], master = {}, creds = {};
-    try { fromData = (JSON.parse(localStorage.getItem('binderData')) || []).map(d => d.agent).filter(Boolean); } catch (e) {}
-    try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
-    try { creds = JSON.parse(localStorage.getItem('agentCredentials')) || {}; } catch (e) {}
-    const set = [...new Set([...fromData, ...Object.keys(master), ...Object.keys(creds)])].filter(Boolean).sort();
-    if (currentUser && !set.includes(currentUser)) set.unshift(currentUser);
-    return set;
-}
-function uwAgentOptions(selected) {
-    return uwAgentList().map(a =>
-        `<option value="${uwEsc(a)}"${a === selected ? ' selected' : ''}>${uwEsc(a)}</option>`).join('');
-}
-
 // Icon + name for a logged contact's type (defaults to Call for old records).
 function uwTypeLabel(type) {
     const icons = { Call: '📞', Text: '💬', Voicemail: '📩', Email: '✉️' };
@@ -2705,10 +2694,10 @@ function uwLogContact(entryId) {
     // clicks), the contact type, plus whatever notes were typed in.
     const noteEl = document.getElementById('uwNote_' + entryId);
     const typeEl = document.getElementById('uwType_' + entryId);
-    const byEl = document.getElementById('uwBy_' + entryId);
     const note = noteEl ? noteEl.value.trim() : '';
     const type = typeEl ? typeEl.value : 'Call';
-    const by = byEl ? byEl.value : (currentUser || '');
+    // Always attribute the contact to the agent who is signed in.
+    const by = currentUser || '';
     const store = uwGetStore();
     const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
     if (!rec.contacts) rec.contacts = [];
@@ -4925,22 +4914,29 @@ function closeAgentManagement() {
     document.getElementById('agentManagementModal').classList.remove('active');
 }
 
-// Load and display agent list
+// Load and display agent list. Lists every stored agent — those with a full
+// master record AND those that exist only as login credentials — so any of
+// them can be edited or deleted here.
 function loadAgentList() {
     const agents = JSON.parse(localStorage.getItem('agentMasterData')) || {};
+    let creds = {};
+    try { creds = JSON.parse(localStorage.getItem('agentCredentials')) || {}; } catch (e) {}
+    const names = [...new Set([...Object.keys(agents), ...Object.keys(creds)])].sort();
     const tbody = document.getElementById('agentListTable');
 
-    if (Object.keys(agents).length === 0) {
+    if (names.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="no-data">No agents added yet</td></tr>';
         return;
     }
 
     let tableHTML = '';
-    Object.entries(agents).forEach(([agentName, agentData]) => {
+    names.forEach(agentName => {
+        const agentData = agents[agentName] || {};
+        const email = agentData.email || (creds[agentName] && creds[agentName].email) || '-';
         const licenses = agentData.licenses ? agentData.licenses.join(', ') : '-';
         tableHTML += `<tr>
             <td>${agentData.name || agentName}</td>
-            <td>${agentData.email || '-'}</td>
+            <td>${email}</td>
             <td>${agentData.phone || '-'}</td>
             <td>${licenses}</td>
             <td>
@@ -5012,6 +5008,15 @@ function deleteAgent(agentName) {
     const agents = JSON.parse(localStorage.getItem('agentMasterData')) || {};
     delete agents[agentName];
     localStorage.setItem('agentMasterData', JSON.stringify(agents));
+    // Also remove their login credentials, otherwise the agent keeps showing
+    // up in login/agent dropdowns (getAllAgents unions the credentials keys).
+    try {
+        const creds = JSON.parse(localStorage.getItem('agentCredentials')) || {};
+        if (creds[agentName]) {
+            delete creds[agentName];
+            localStorage.setItem('agentCredentials', JSON.stringify(creds));
+        }
+    } catch (e) {}
     loadAgentList();
     alert(`Agent "${agentName}" deleted successfully!`);
 }
