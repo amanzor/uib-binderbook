@@ -320,13 +320,36 @@
             </div>
         </div>
 
+        <!-- Carrier -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1.5px solid #a5b4fc;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #c7d2fe;flex-wrap:wrap;">
+                    <span style="font-size:15px;font-weight:700;color:#3730a3;">&#127970; Carrier</span>
+                    <span style="font-size:12px;color:#4338ca;font-style:italic;">— current carrier &amp; commission rule</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Current Carrier</label>
+                        <div style="display:flex;gap:6px;">
+                            <select id="h_carrier" style="flex:1;" onchange="onHealthCarrierChange()"><option value="">— Select Carrier —</option></select>
+                            <button type="button" onclick="openHealthCarrierModal()" title="Add a new carrier" style="background:linear-gradient(135deg,#4f46e5,#4338ca);color:#fff;border:none;padding:0 12px;border-radius:6px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;">+</button>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Commission Rule</label>
+                        <input type="text" id="h_commissionRule" placeholder="Auto-fills from carrier — editable">
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Members -->
         <div style="margin:0 0 14px 0;">
             <div style="background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:1.5px solid #5eead4;border-radius:10px;padding:14px 18px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #99f6e4;gap:10px;flex-wrap:wrap;">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <span style="font-size:15px;font-weight:700;color:#115e59;">&#128101; Members</span>
-                        <span style="font-size:11px;background:#ccfbf1;color:#134e4a;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">Up to 6</span>
+                        <span id="memberCountBadge" style="font-size:11px;background:#ccfbf1;color:#134e4a;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">0 members</span>
                     </div>
                     <button type="button" id="addMemberBtn" onclick="addMemberRow()" style="background:linear-gradient(135deg,#0d9488,#0f766e);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Member</button>
                 </div>
@@ -351,6 +374,34 @@
     </form>
 </div>
 
+<!-- Add Carrier modal -->
+<div id="healthCarrierModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:#fff;border-radius:14px;max-width:460px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#4f46e5,#4338ca);color:#fff;padding:14px 18px;font-size:15px;font-weight:700;">&#127970; Add Carrier</div>
+        <div style="padding:18px;">
+            <div class="form-group" style="margin:0 0 12px;">
+                <label>Carrier Name *</label>
+                <input type="text" id="hc_name" placeholder="e.g. Florida Blue">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div class="form-group" style="margin:0;">
+                    <label>New Business Rate (%)</label>
+                    <input type="number" id="hc_newRate" step="0.1" min="0" value="10">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label>Renewal Rate (%)</label>
+                    <input type="number" id="hc_renewRate" step="0.1" min="0" value="10">
+                </div>
+            </div>
+            <div style="font-size:11px;color:#64748b;margin-bottom:14px;">Commission rule applies to all lines of business for this carrier. You can fine-tune per-line rates later in Carrier Management.</div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;">
+                <button type="button" class="btn-secondary btn-sm" onclick="closeHealthCarrierModal()">Cancel</button>
+                <button type="button" class="btn-success btn-sm" onclick="saveHealthCarrier()">Save Carrier</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <span id="userDisplay" style="display:none;"></span>
 
 <script src="app.js?v=20260916b"></script>
@@ -359,14 +410,14 @@
     let _healthMemberCount = 0;
     function updateAddMemberBtn() {
         const n = document.querySelectorAll('.health-member').length;
-        const btn = document.getElementById('addMemberBtn');
-        if (btn) { btn.disabled = n >= 6; btn.style.opacity = n >= 6 ? '.5' : '1'; btn.style.cursor = n >= 6 ? 'not-allowed' : 'pointer'; }
+        const badge = document.getElementById('memberCountBadge');
+        if (badge) badge.textContent = n + (n === 1 ? ' member' : ' members');
     }
     function renumberMembers() {
         document.querySelectorAll('.health-member .hm-num').forEach((el, i) => el.textContent = (i + 1));
+        updateAddMemberBtn();
     }
     function addMemberRow() {
-        if (document.querySelectorAll('.health-member').length >= 6) return;
         const wrap = document.createElement('div');
         wrap.className = 'health-member';
         wrap.style.cssText = 'border:1px solid #99f6e4;border-radius:8px;padding:12px;margin-bottom:10px;background:#fff;';
@@ -397,6 +448,81 @@
         try { if (typeof getEasternDateString === 'function') return getEasternDateString(); } catch (e) {}
         return new Date().toISOString().slice(0, 10);
     }
+
+    // ── Carrier section ──────────────────────────────────────────────
+    function _healthCarriers() {
+        try { return JSON.parse(localStorage.getItem('carrierMasterData')) || {}; } catch (e) { return {}; }
+    }
+    function _summarizeCommissionRule(carrier) {
+        if (!carrier || !Array.isArray(carrier.commissionRules) || !carrier.commissionRules.length) return '';
+        const r = carrier.commissionRules[0];
+        const nw = (r.newRate != null && r.newRate !== '') ? r.newRate : '—';
+        const rn = (r.renewRate != null && r.renewRate !== '') ? r.renewRate : '—';
+        return 'New ' + nw + '% / Renewal ' + rn + '%';
+    }
+    function refreshHealthCarrierDropdown(selectName) {
+        const sel = document.getElementById('h_carrier');
+        if (!sel) return;
+        const carriers = _healthCarriers();
+        const names = Object.keys(carriers).sort((a, b) => a.localeCompare(b));
+        const prev = selectName || sel.value;
+        sel.innerHTML = '<option value="">— Select Carrier —</option>' +
+            names.map(n => '<option value="' + n.replace(/"/g, '&quot;') + '"' + (n === prev ? ' selected' : '') + '>' + n + '</option>').join('');
+    }
+    function onHealthCarrierChange() {
+        const sel = document.getElementById('h_carrier');
+        const fld = document.getElementById('h_commissionRule');
+        if (!sel || !fld) return;
+        const carriers = _healthCarriers();
+        const carrier = carriers[sel.value];
+        fld.value = _summarizeCommissionRule(carrier);
+    }
+    function openHealthCarrierModal() {
+        const m = document.getElementById('healthCarrierModal');
+        if (!m) return;
+        document.getElementById('hc_name').value = '';
+        document.getElementById('hc_newRate').value = '10';
+        document.getElementById('hc_renewRate').value = '10';
+        m.style.display = 'flex';
+        setTimeout(() => document.getElementById('hc_name').focus(), 60);
+    }
+    function closeHealthCarrierModal() {
+        const m = document.getElementById('healthCarrierModal');
+        if (m) m.style.display = 'none';
+    }
+    function saveHealthCarrier() {
+        const name = (document.getElementById('hc_name').value || '').trim();
+        if (!name) { alert('Carrier name is required.'); return; }
+        const newRate = parseFloat(document.getElementById('hc_newRate').value);
+        const renewRate = parseFloat(document.getElementById('hc_renewRate').value);
+        const nw = isNaN(newRate) ? 10 : newRate;
+        const rn = isNaN(renewRate) ? 10 : renewRate;
+        const carriers = _healthCarriers();
+        const existing = Object.keys(carriers).find(n => n.toLowerCase() === name.toLowerCase());
+        if (existing) {
+            if (!confirm('"' + existing + '" already exists. Update its commission rule?')) { return; }
+        }
+        const key = existing || name;
+        const lob = (typeof ALL_LOBS !== 'undefined') ? ALL_LOBS : [];
+        carriers[key] = {
+            carrierName:  key,
+            phoneNumbers: (carriers[key] && carriers[key].phoneNumbers) || ['', '', ''],
+            emails:       (carriers[key] && carriers[key].emails) || { underwriting: '', general: '', miscellaneous: '' },
+            commissionRules: [
+                { lineOfBusiness: lob, paymentType: 'Monthly Paid', newRate: nw, renewRate: rn },
+                { lineOfBusiness: lob, paymentType: 'Gross Paid',   newRate: nw, renewRate: rn }
+            ]
+        };
+        try {
+            localStorage.setItem('carrierMasterData', JSON.stringify(carriers));
+            if (typeof carrierMasterData !== 'undefined') carrierMasterData = carriers;
+        } catch (err) { alert('⚠️ Could not save the carrier — storage is full.'); return; }
+        refreshHealthCarrierDropdown(key);
+        onHealthCarrierChange();
+        if (typeof refreshAllCarrierDropdowns === 'function') { try { refreshAllCarrierDropdowns(); } catch (e) {} }
+        closeHealthCarrierModal();
+    }
+
     function saveHealthEntry(e) {
         e.preventDefault();
         const g = id => document.getElementById(id);
@@ -422,6 +548,8 @@
             employer: g('h_employer').value.trim(),
             previousCustomer: g('h_prevCustomer').value,
             referredBy: g('h_referredBy').value.trim(),
+            carrier: g('h_carrier').value,
+            commissionRule: g('h_commissionRule').value.trim(),
             acknowledged: g('h_ack').checked,
             members: _collectHealthMembers(),
             timestamp: (typeof getEasternTimestamp === 'function') ? getEasternTimestamp() : new Date().toISOString()
@@ -440,6 +568,7 @@
         addMemberRow();
         g('h_date').value = _healthToday();
         g('h_agent').value = (typeof currentUser !== 'undefined' && currentUser) || '';
+        g('h_commissionRule').value = '';
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -451,8 +580,14 @@
         document.getElementById('h_date').value = _healthToday();
         document.getElementById('healthForm').addEventListener('submit', saveHealthEntry);
         addMemberRow();
+        refreshHealthCarrierDropdown();
         if (window.refreshIcons) refreshIcons();
-        if (typeof syncFromDrive === 'function') { try { syncFromDrive(); } catch (e) {} }
+        if (typeof syncFromDrive === 'function') {
+            try {
+                const r = syncFromDrive();
+                if (r && typeof r.then === 'function') r.then(() => refreshHealthCarrierDropdown()).catch(() => {});
+            } catch (e) {}
+        }
     });
 </script>
 </body>
