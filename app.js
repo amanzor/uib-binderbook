@@ -6861,6 +6861,109 @@ function loadAgentCommissionData() {
 
     // ── Detail tab (per-policy rows) ──
     _renderCommDetailTable(filtered);
+
+    // ── Special flat-rate commission rule (e.g. Amanda) ──
+    renderSpecialCommissionPanel(agent);
+}
+
+// ── Special per-agent flat-rate commission rules ─────────────────────────────
+// Some agents are paid a flat dollar amount per transaction instead of the
+// percentage-based agency/agent split. Scoped to the current month (ET),
+// matching the rest of the My Commissions view.
+const SPECIAL_COMMISSION_RULES = {
+    'Amanda Montano': {
+        label: "Amanda's Commission Rule",
+        policyItems: [
+            { label: 'New Business', rate: 15, match: pt => /^new/i.test(pt) },
+            { label: 'Renew A-B',    rate: 10, match: pt => (pt || '').trim().toLowerCase() === 'renew a-b' },
+            { label: 'Rewrites',     rate: 10, match: pt => /^rewrite/i.test((pt || '').trim()) }
+        ],
+        underwriting: { label: 'Cleared Underwriting', rate: 10 }
+    }
+};
+
+function _tsMonthLabelET(ts) {
+    try {
+        const p = new Intl.DateTimeFormat('en-US', { timeZone: _ET, month: 'long', year: 'numeric' }).formatToParts(new Date(ts));
+        return `${p.find(x => x.type === 'month').value} ${p.find(x => x.type === 'year').value}`;
+    } catch (e) { return ''; }
+}
+
+function renderSpecialCommissionPanel(agent) {
+    const panel = document.getElementById('specialCommissionPanel');
+    if (!panel) return;
+    const rule = SPECIAL_COMMISSION_RULES[agent];
+    if (!rule) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
+    const { month, year } = _currentMonthYearET();
+    const monthLabel = `${month} ${year}`;
+
+    // Current-month policy entries for this agent (all policy types).
+    const agentEntries = allData.filter(d => d.agent === agent && _entryMonth(d) === monthLabel);
+
+    const rows = [];
+    let total = 0;
+
+    rule.policyItems.forEach(item => {
+        const count = agentEntries.filter(e => item.match(e.policyType)).length;
+        const amount = count * item.rate;
+        total += amount;
+        rows.push({ label: item.label, count, rate: item.rate, amount });
+    });
+
+    // Cleared underwriting: clients this agent cleared in the current month.
+    if (rule.underwriting) {
+        let uwCount = 0;
+        try {
+            uwCount = uwBuildList().filter(r =>
+                r.cleared &&
+                uwClearedBy(r) === agent &&
+                _tsMonthLabelET(uwClearedAt(r)) === monthLabel
+            ).length;
+        } catch (e) { uwCount = 0; }
+        const amount = uwCount * rule.underwriting.rate;
+        total += amount;
+        rows.push({ label: rule.underwriting.label, count: uwCount, rate: rule.underwriting.rate, amount });
+    }
+
+    const $ = v => `$${(v || 0).toFixed(2)}`;
+    const rowsHtml = rows.map(r => `
+        <tr>
+            <td style="padding:10px 14px;font-weight:600;color:#3730a3;">${r.label}</td>
+            <td style="padding:10px 14px;text-align:center;color:#475569;">${r.count}</td>
+            <td style="padding:10px 14px;text-align:center;color:#475569;">$${r.rate.toFixed(2)} each</td>
+            <td style="padding:10px 14px;text-align:right;font-weight:700;font-family:monospace;color:#166534;">${$(r.amount)}</td>
+        </tr>`).join('');
+
+    panel.innerHTML = `
+        <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1.5px solid #a5b4fc;border-radius:14px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+                <span style="font-size:16px;font-weight:800;color:#3730a3;">⭐ ${rule.label}</span>
+                <span style="font-size:12px;color:#4338ca;background:#c7d2fe;font-weight:700;padding:2px 10px;border-radius:10px;">📅 ${monthLabel}</span>
+            </div>
+            <div style="font-size:12px;color:#4338ca;margin-bottom:12px;">Flat per-transaction rate for this month.</div>
+            <div style="overflow-x:auto;background:#fff;border:1px solid #c7d2fe;border-radius:10px;">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                        <tr style="background:#eef2ff;">
+                            <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#4338ca;">Type</th>
+                            <th style="padding:10px 14px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#4338ca;">Count</th>
+                            <th style="padding:10px 14px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#4338ca;">Rate</th>
+                            <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#4338ca;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                    <tfoot>
+                        <tr style="background:linear-gradient(135deg,#4f46e5,#4338ca);">
+                            <td colspan="3" style="padding:12px 14px;font-weight:800;color:#fff;">TOTAL</td>
+                            <td style="padding:12px 14px;text-align:right;font-weight:800;font-family:monospace;color:#fff;font-size:15px;">${$(total)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>`;
+    panel.style.display = 'block';
+    if (window.refreshIcons) refreshIcons();
 }
 
 function _renderCommDetailTable(filtered) {
