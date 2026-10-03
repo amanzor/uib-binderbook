@@ -380,4 +380,4 @@ header p { color: #dbe4ff; }
 /* Login overlay keeps its own lighter field (above) */
 @media print { body::before { display: none !important; } body, .container { background: #fff !important; } .page-body > div > label, .section.active > h3, #agentSection > div > h3 { color: #000 !important; } }
 /* Headings inside light cards stay dark */
-.section.active .chart-container h3, .section.active .table-container h3, .section.active .filter-section h3, .section.active .form-section h3 { color: var(--uib-navy) !important; text-shadow: none; }
+#agentSection .chart-container h3, #adminSection .chart-container h3, #agentSection .table-container h3, #adminSection .table-container h3, #agentSection .filter-section h3, #adminSection .filter-section h3, #agentSection .form-section h3, #adminSection .form-section h3, .section.active .chart-container h3 { color: var(--uib-navy) !important; text-shadow: none; }
