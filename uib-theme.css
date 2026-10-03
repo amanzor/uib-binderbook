@@ -381,3 +381,46 @@ header p { color: #dbe4ff; }
 @media print { body::before { display: none !important; } body, .container { background: #fff !important; } .page-body > div > label, .section.active > h3, #agentSection > div > h3 { color: #000 !important; } }
 /* Headings inside light cards stay dark */
 #agentSection .chart-container h3, #adminSection .chart-container h3, #agentSection .table-container h3, #adminSection .table-container h3, #agentSection .filter-section h3, #adminSection .filter-section h3, #agentSection .form-section h3, #adminSection .form-section h3, .section.active .chart-container h3 { color: var(--uib-navy) !important; text-shadow: none; }
+
+/* ── 16. White login card + white app background (owner request) ─── */
+#loginSection div[style*="max-width:420px"], #amsLoginScreen .login-card, #loginScreen .login-card {
+  background: #fff !important; border: 1px solid rgba(255,255,255,.9) !important; color: var(--uib-navy);
+  box-shadow: 0 40px 90px -30px rgba(2,6,23,.7), 0 30px 60px -30px rgba(29,78,216,.45), inset 0 1px 0 #fff !important;
+}
+#loginSection div[style*="max-width:420px"] h2, #amsLoginScreen .login-card h2, #loginScreen .login-brand h2 { color: var(--uib-navy) !important; -webkit-text-fill-color: var(--uib-navy) !important; text-shadow: none; }
+#loginSection div[style*="max-width:420px"] > div:first-child p, #amsLoginScreen .login-card .brand p, #loginScreen .login-brand p { color: #64748b !important; }
+#loginSection img[alt="UIB Logo"] { background: #fff; box-shadow: 0 14px 34px -16px rgba(29,78,216,.55), 0 0 0 1px #e2e8f0; }
+#amsLoginScreen .brand-badge, #loginScreen .login-brand-badge { background: linear-gradient(135deg, var(--uib-navy), var(--uib-blue)) !important; border: none; color: #fff !important; box-shadow: 0 12px 28px -14px rgba(29,78,216,.8); }
+#loginSection div[style*="max-width:420px"] label, #amsLoginScreen .login-card label, #loginScreen .login-card label, #loginScreen .login-field .hint { color: #374151 !important; }
+#amsLoginScreen .login-card span[style*="color:var(--gray-400)"], #amsLoginScreen .login-card span[style*="color:var(--gray-500)"], #amsLoginScreen .login-card div[style*="color:var(--gray-400)"], #amsLoginScreen .login-card div[style*="color:var(--gray-500)"],
+#loginSection div[style*="max-width:420px"] span[style*="color:#9ca3af"], #loginScreen .login-footer { color: #6b7280 !important; }
+#amsLoginScreen .login-card span[style*="color:var(--blue)"], #amsLoginScreen .login-back, #loginScreen .login-footer a { color: var(--uib-blue) !important; }
+#loginSection div[style*="max-width:420px"] input:not([type="checkbox"]), #amsLoginScreen .login-field input, #loginScreen .login-field input {
+  background: #fff !important; border: 1.5px solid #d1d5db !important; color: var(--uib-navy) !important; caret-color: var(--uib-blue);
+}
+#loginSection div[style*="max-width:420px"] input::placeholder, #amsLoginScreen .login-field input::placeholder, #loginScreen .login-field input::placeholder { color: #9ca3af; }
+#loginSection div[style*="max-width:420px"] input:not([type="checkbox"]):focus, #amsLoginScreen .login-field input:focus, #loginScreen .login-field input:focus {
+  border-color: #60a5fa !important; background: #fff !important; box-shadow: 0 0 0 4px rgba(59,130,246,.16) !important;
+}
+#loginSection div[style*="max-width:420px"] input[type="checkbox"], #amsLoginScreen .login-card input[type="checkbox"] { accent-color: var(--uib-blue) !important; }
+#loginSection div[style*="max-width:420px"] button[onclick^="togglePasswordVisibility"], #amsLoginScreen .login-card button[onclick^="togglePasswordVisibility"],
+#loginSection div[style*="max-width:420px"] button[onclick^="togglePasswordVisibility"] svg, #amsLoginScreen .login-card button[onclick^="togglePasswordVisibility"] svg { color: #9ca3af !important; }
+#agentLoginError, #amsLoginScreen .login-error, #loginScreen .login-error { background: #fef2f2 !important; border: 1px solid #fca5a5 !important; color: #991b1b !important; }
+#loginSection div[style*="max-width:420px"] button[onclick="showAdminLogin()"] { background: transparent !important; color: #6b7280 !important; border: 1.5px solid #e5e7eb !important; }
+#loginSection div[style*="max-width:420px"] button[onclick="showAdminLogin()"]:hover { background: #f8fafc !important; border-color: #9ca3af !important; color: #374151 !important; }
+#loginSection div[style*="max-width:420px"] div[style*="height:1px"], #loginScreen .login-divider, #amsLoginScreen .login-card hr { background: #e5e7eb !important; }
+#amsLoginScreen .login-card div[style*="border-top"] { border-color: #e5e7eb !important; }
+#amsLoginScreen .login-card .btn-secondary { background: linear-gradient(to right, #c8d5e3 0%, #dde6f0 55%, #f1f5f9 100%) !important; color: var(--gray-700) !important; border-color: var(--gray-200) !important; }
+
+/* App pages: white background again (header keeps its aurora) */
+body, .container { background: #fff; }
+body::before { display: none; }
+#agentSection > div > h3, #adminSection > div > h3, #agentSection > h3, #adminSection > h3, .section.active > h3,
+.section.active > div > h3[style*="color: #333"], .section.active > div > h3[style*="color:#333"] { color: #333 !important; text-shadow: none; }
+#agentFilterCount, #adminFilterCount, .section.active > div > div[style*="color:#64748b"] { color: #64748b !important; }
+.footer-buttons { border-top-color: var(--gray-200); }
+.page-body > div > label, .page-body > form > div > label, .page-body > label { color: #374151 !important; }
+.page-body .form-actions + div, .page-body > p { color: inherit; }
+::-webkit-scrollbar-thumb { background: #c3cbd8; background-clip: padding-box; }
+.stats-grid .stat-card { box-shadow: inset 0 0 0 1px rgba(147,197,253,.28), 0 14px 32px -18px rgba(29,78,216,.8); }
+.chart-container, .table-container, .form-section { box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 10px 30px -22px rgba(13,31,60,.45); }
