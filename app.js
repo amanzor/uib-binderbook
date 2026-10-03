@@ -4394,6 +4394,13 @@ function openEditModal(id) {
     cancelEditNewSource();
     cancelEditNewReferral();
     document.getElementById('editCustomerName').value = entry.customerName || '';
+    // Office location is editable after the fact; keep an unknown legacy value selectable.
+    const editLoc = document.getElementById('editLocation');
+    if (editLoc) {
+        const loc = entry.location || '';
+        if (loc && ![...editLoc.options].some(o => o.value === loc)) editLoc.add(new Option(loc, loc));
+        editLoc.value = loc;
+    }
     document.getElementById('editSource').value = entry.source || '';
     document.getElementById('editPolicyType').value = entry.policyType || '';
     document.getElementById('editLineOfBusiness').value = entry.lineOfBusiness || '';
@@ -4482,6 +4489,7 @@ function updateEntry() {
         return;
     }
     entry.customerName = toTitleCase(document.getElementById('editCustomerName').value);
+    entry.location = document.getElementById('editLocation')?.value || entry.location || '';
     entry.source = document.getElementById('editSource').value;
     entry.referredBy = toTitleCase(document.getElementById('editReferredBy').value);
     entry.policyType = document.getElementById('editPolicyType').value;
