@@ -427,10 +427,10 @@ body::before { display: none; }
 
 /* ── 17. Darker header band, title with more volume ─────────────── */
 body > .container > header { background: radial-gradient(140% 120% at 50% 0%, #142f6e 0%, #0d1f3c 45%, #08142b 100%);
-  box-shadow: 0 24px 60px -20px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.07), inset 0 -1px 0 rgba(255,255,255,.05); }
+  box-shadow: none; }
 body > .container > header::before { background: radial-gradient(ellipse 80% 70% at 50% -20%, rgba(255,255,255,.1) 0%, transparent 70%); }
 body > .container > header .uib-aurora > i { opacity: .55; }
-.app-header { background: radial-gradient(140% 160% at 50% 0%, #142f6e 0%, #0d1f3c 50%, #08142b 100%); }
+.app-header { background: radial-gradient(140% 160% at 50% 0%, #142f6e 0%, #0d1f3c 50%, #08142b 100%); box-shadow: none; }
 header h1 {
   font-weight: 800; letter-spacing: -0.02em;
   background: linear-gradient(180deg, #ffffff 0%, #e0e7ff 55%, #a5b4fc 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
