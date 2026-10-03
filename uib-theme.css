@@ -337,3 +337,12 @@ html.uib-reduce *, html.uib-reduce *::before, html.uib-reduce *::after { animati
 #amsLoginScreen .login-card .btn-secondary { background: rgba(255,255,255,.08) !important; color: #fff !important; border-color: rgba(255,255,255,.2) !important; }
 @media (prefers-reduced-motion: reduce) { #loginSignInBtn, #amsLoginScreen .login-card .btn-primary, #loginScreen .login-btn { animation: none; } }
 @media print { #loginSection div[style*="max-width:420px"], #amsLoginScreen .login-card, #loginScreen .login-card { background: #fff !important; color: #000; } }
+
+/* Lighter sign-in background for contrast against the glass card */
+#amsLoginScreen, #loginScreen, #loginSection > div[style*="position:fixed"] {
+  background: radial-gradient(120% 90% at 50% 0%, #3b63c4 0%, #2347a3 40%, #17336f 75%, #112a5c 100%) !important;
+}
+#amsLoginScreen .uib-aurora > i, #loginScreen .uib-aurora > i, #loginSection > div[style*="position:fixed"] .uib-aurora > i { opacity: .7; }
+#amsLoginScreen .uib-aurora > i:nth-child(3), #loginScreen .uib-aurora > i:nth-child(3), #loginSection > div[style*="position:fixed"] .uib-aurora > i:nth-child(3) { opacity: .55; }
+#amsLoginScreen .uib-aurora::after, #loginScreen .uib-aurora::after, #loginSection > div[style*="position:fixed"] .uib-aurora::after { background-image: radial-gradient(rgba(255,255,255,.22) 1px, transparent 1.2px); }
+#loginSection div[style*="max-width:420px"], #amsLoginScreen .login-card, #loginScreen .login-card { background: rgba(255,255,255,.11) !important; border-color: rgba(255,255,255,.26) !important; }
