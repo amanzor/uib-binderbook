@@ -1,0 +1,286 @@
+/* ============================================================
+   UIB BINDER BOOK — "Aurora Navy" visual layer
+   ------------------------------------------------------------
+   Additive stylesheet loaded AFTER each page's inline <style>.
+   It changes LOOKS only: surfaces, depth, type, motion polish.
+   It never changes layout (no size/position/order changes) and
+   never repaints a button's base background — every button
+   keeps the color the page gave it (class or inline style).
+   Pairs with uib-motion.js (optional: everything here works
+   without JS; JS adds springs, glow color, spotlight, aurora).
+   ============================================================ */
+
+:root {
+  --uib-navy: #0d1f3c; --uib-navy-deep: #0b1a33; --uib-navy-3: #122a52;
+  --uib-blue: #1d4ed8; --uib-blue-light: #3b82f6; --uib-violet: #7c3aed; --uib-cyan: #06b6d4;
+  --uib-page: #f5f7fb;
+  --uib-display: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --uib-ease: cubic-bezier(.22, 1, .36, 1);
+  --uib-glow: rgba(29, 78, 216, .45);
+  --uib-hairline: linear-gradient(90deg, transparent, rgba(165,180,252,.65) 35%, rgba(103,232,249,.7) 65%, transparent);
+  --uib-ring: 0 0 0 4px rgba(59,130,246,.16), 0 8px 20px -14px rgba(29,78,216,.6);
+}
+
+/* ── 1. Page & type ──────────────────────────────────────── */
+body, .container { background: var(--uib-page); }
+::selection { background: rgba(37,99,235,.22); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c3cbd8; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #a9b4c6; background-clip: padding-box; }
+
+header h1, .app-header h1, .modal-content h3, .form-section h3, .ams-modal-box h3, .info-card h3,
+.login-card h2, #loginSection h2, .client-header-info h2, .portal-hero h1, .dash-chart-card h3,
+.rpt-section-title, .section-card-header h3,
+div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] h2,
+div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] h3 {
+  font-family: var(--uib-display); letter-spacing: -0.02em;
+}
+/* Numbers only — never the uppercase labels (a wider face would wrap them and change card heights). */
+.stat-card .number, .kpi-value, .rk-val, .sc-value, .hero-stat .val {
+  font-family: var(--uib-display); font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+}
+
+/* ── 2. Aurora decoration (spans injected by uib-motion.js) ─ */
+/* Hosts become their own stacking context so the aurora (z:-1) sits above the host
+   background but under its content. Hosts that are fixed/sticky already are untouched. */
+body > .container > header, .app-header, .ams-header, .portal-header, .portal-hero,
+#amsLoginScreen, #loginScreen, #loginSection > div[style*="position:fixed"],
+div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] { isolation: isolate; }
+.portal-hero, #amsLoginScreen, #loginScreen,
+div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] { position: relative; }
+
+.uib-aurora { position: absolute; inset: 0; overflow: hidden; z-index: -1; pointer-events: none; }
+.uib-aurora > i { position: absolute; display: block; border-radius: 50%; filter: blur(60px); opacity: .5; will-change: transform; animation: uibDrift 24s ease-in-out infinite alternate; }
+.uib-aurora > i:nth-child(1) { width: 55vmax; height: 55vmax; left: -8%; top: -60%; background: radial-gradient(circle, #2563eb, rgba(37,99,235,0) 65%); }
+.uib-aurora > i:nth-child(2) { width: 50vmax; height: 50vmax; right: -12%; top: -50%; background: radial-gradient(circle, #7c3aed, rgba(124,58,237,0) 65%); animation-duration: 29s; animation-delay: -9s; }
+.uib-aurora > i:nth-child(3) { width: 40vmax; height: 40vmax; left: 35%; bottom: -70%; background: radial-gradient(circle, #06b6d4, rgba(6,182,212,0) 65%); animation-duration: 33s; animation-delay: -17s; opacity: .35; }
+.uib-aurora::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.14) 1px, transparent 1.2px); background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,.9), transparent); mask-image: linear-gradient(to bottom, rgba(0,0,0,.9), transparent); }
+/* Tall login screens: let the blobs breathe over the whole viewport */
+#amsLoginScreen .uib-aurora > i, #loginScreen .uib-aurora > i, #loginSection > div[style*="position:fixed"] .uib-aurora > i { top: auto; bottom: auto; }
+#amsLoginScreen .uib-aurora > i:nth-child(1), #loginScreen .uib-aurora > i:nth-child(1), #loginSection > div[style*="position:fixed"] .uib-aurora > i:nth-child(1) { top: -20%; }
+#amsLoginScreen .uib-aurora > i:nth-child(2), #loginScreen .uib-aurora > i:nth-child(2), #loginSection > div[style*="position:fixed"] .uib-aurora > i:nth-child(2) { top: -10%; }
+#amsLoginScreen .uib-aurora > i:nth-child(3), #loginScreen .uib-aurora > i:nth-child(3), #loginSection > div[style*="position:fixed"] .uib-aurora > i:nth-child(3) { bottom: -35%; }
+/* Small bars (modal/section headers): subtler */
+div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] .uib-aurora > i { filter: blur(40px); opacity: .45; }
+.uib-aurora.uib-paused > i, html.uib-paused .uib-aurora > i { animation-play-state: paused; }
+@keyframes uibDrift { 0% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(5%,4%,0) scale(1.07); } 100% { transform: translate3d(-4%,6%,0) scale(.96); } }
+
+/* Page-load hairline (injected, removed after it plays) */
+.uib-progress { position: fixed; top: 0; left: 0; height: 2px; width: 100%; z-index: 100010; pointer-events: none; transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--uib-blue), var(--uib-violet), var(--uib-cyan)); animation: uibProgress .9s var(--uib-ease) forwards; }
+@keyframes uibProgress { 0% { transform: scaleX(0); opacity: 1; } 70% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+
+/* ── 3. Chrome: headers & login screens ─────────────────── */
+body > .container > header { background: radial-gradient(120% 90% at 50% 0%, var(--uib-navy-3) 0%, var(--uib-navy) 50%, var(--uib-navy-deep) 100%); }
+header::after { background: var(--uib-hairline); }
+header h1 { text-shadow: 0 0 36px rgba(99,102,241,.35), 0 1px 2px rgba(0,0,0,.25); }
+.header-icon { filter: drop-shadow(0 6px 16px rgba(59,130,246,.55)); }
+
+.app-header { background: radial-gradient(140% 120% at 50% 0%, var(--uib-navy-3) 0%, var(--uib-navy) 55%, var(--uib-navy-deep) 100%); overflow: hidden; }
+.app-header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--uib-hairline); pointer-events: none; }
+.app-header h1 { text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+
+.ams-header { background: radial-gradient(140% 160% at 50% 0%, var(--uib-navy-3) 0%, var(--uib-navy) 55%, var(--uib-navy-deep) 100%); overflow: hidden; }
+.ams-header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--uib-hairline); pointer-events: none; }
+.ams-tabbar { box-shadow: 0 6px 16px -14px rgba(13,31,60,.5); }
+.portal-header { background: radial-gradient(140% 160% at 50% 0%, var(--uib-navy-3) 0%, var(--uib-navy) 55%, var(--uib-navy-deep) 100%); overflow: hidden; }
+.portal-header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--uib-hairline); pointer-events: none; }
+.portal-hero { overflow: hidden; background: radial-gradient(120% 140% at 50% 0%, var(--uib-navy-3) 0%, var(--uib-navy) 55%, var(--uib-navy-deep) 100%); box-shadow: 0 24px 50px -30px rgba(13,31,60,.8); }
+
+#amsLoginScreen, #loginScreen { background: radial-gradient(120% 90% at 50% 0%, var(--uib-navy-3) 0%, var(--uib-navy) 50%, var(--uib-navy-deep) 100%); }
+#loginScreen::before { opacity: .6; }
+/* Login cards: a soft brand glow behind them (shadow/radius are inline on index — filter is free) */
+#loginSection div[style*="max-width:420px"] { filter: drop-shadow(0 30px 50px rgba(29,78,216,.28)); }
+.login-card { box-shadow: 0 40px 90px -30px rgba(2,6,23,.75), 0 0 0 1px rgba(255,255,255,.12), 0 30px 50px -30px rgba(29,78,216,.5); }
+#loginSection img[alt="UIB Logo"] { filter: drop-shadow(0 10px 24px rgba(29,78,216,.4)); }
+#loginSection h2 { background: linear-gradient(180deg, var(--uib-navy) 0%, var(--uib-blue) 140%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+
+/* Inline navy bars (Production Dashboard, Daily Sales, My Commissions, Verifications…) */
+div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"]::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--uib-hairline); pointer-events: none; }
+div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] h2,
+div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] h3 { text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+
+/* ── 4. Buttons — same size & color, new finish ──────────── */
+button { isolation: isolate; border-radius: 10px; transition: box-shadow .25s var(--uib-ease), filter .25s var(--uib-ease), scale .12s ease, background .18s ease, border-color .18s ease, color .18s ease; }
+.btn-sm { border-radius: 8px; }
+button > svg.lucide { transition: transform .35s var(--uib-ease); }
+button:hover > svg.lucide { transform: translateX(1px) scale(1.06); }
+button:focus-visible { outline: 3px solid rgba(59,130,246,.55); outline-offset: 2px; box-shadow: 0 0 0 6px rgba(59,130,246,.12); }
+
+/* "Filled" buttons: depth, inner highlight, shine sweep, color-matched glow.
+   Covered without JS: every color class + every button with an inline gradient. uib-motion.js tags
+   the rest as [data-uib-btn="fill"] after reading their computed background. */
+.btn-primary, .btn-success, .btn-danger, .btn-purple, .btn-warning, .login-btn,
+button[style*="background:linear-gradient"], button[style*="background: linear-gradient"], button[data-uib-btn="fill"] {
+  position: relative; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15,23,42,.18), 0 6px 16px -10px var(--uib-glow), inset 0 1px 0 rgba(255,255,255,.18);
+}
+.btn-primary::before, .btn-success::before, .btn-danger::before, .btn-purple::before, .btn-warning::before, .btn-secondary::before, .login-btn::before,
+button[style*="background:linear-gradient"]::before, button[style*="background: linear-gradient"]::before, button[data-uib-btn="fill"]::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.12);
+}
+.btn-primary::after, .btn-success::after, .btn-danger::after, .btn-purple::after, .btn-warning::after, .login-btn::after,
+button[style*="background:linear-gradient"]::after, button[style*="background: linear-gradient"]::after, button[data-uib-btn="fill"]::after {
+  content: ''; position: absolute; top: -40%; bottom: -40%; width: 45%; left: -30%; pointer-events: none; z-index: 1;
+  background: linear-gradient(105deg, transparent 20%, rgba(255,255,255,.42) 50%, transparent 80%);
+  transform: translateX(-140%) skewX(-18deg); transition: transform .7s var(--uib-ease);
+}
+.btn-primary:hover::after, .btn-success:hover::after, .btn-danger:hover::after, .btn-purple:hover::after, .btn-warning:hover::after, .login-btn:hover::after,
+button[style*="background:linear-gradient"]:hover::after, button[style*="background: linear-gradient"]:hover::after, button[data-uib-btn="fill"]:hover::after { transform: translateX(380%) skewX(-18deg); }
+
+/* Default glow per color family (JS refines inline-colored ones) */
+.btn-primary { --uib-glow: rgba(29,78,216,.55); }
+.btn-success { --uib-glow: rgba(5,150,105,.55); }
+.btn-danger  { --uib-glow: rgba(220,38,38,.5); }
+.btn-purple  { --uib-glow: rgba(124,58,237,.55); }
+.btn-warning { --uib-glow: rgba(217,119,6,.55); }
+.btn-secondary { --uib-glow: rgba(15,23,42,.22); box-shadow: 0 1px 2px rgba(15,23,42,.08), 0 6px 16px -10px var(--uib-glow), inset 0 1px 0 rgba(255,255,255,.8); }
+.btn-secondary::before { box-shadow: inset 0 1px 0 rgba(255,255,255,.85), inset 0 -1px 0 rgba(15,23,42,.06); }
+
+.btn-primary:hover, .btn-success:hover, .btn-danger:hover, .btn-purple:hover, .btn-warning:hover, .login-btn:hover,
+button[style*="background:linear-gradient"]:hover, button[style*="background: linear-gradient"]:hover, button[data-uib-btn="fill"]:hover {
+  box-shadow: 0 2px 4px rgba(15,23,42,.14), 0 14px 28px -10px var(--uib-glow), inset 0 1px 0 rgba(255,255,255,.22); filter: saturate(1.08) brightness(1.04);
+}
+.btn-secondary:hover { box-shadow: 0 2px 4px rgba(15,23,42,.08), 0 12px 24px -12px var(--uib-glow), inset 0 1px 0 rgba(255,255,255,.85); }
+/* CSS-only press when the motion engine is absent (independent `scale` is not overridden by inline transforms) */
+html:not(.uib-has-motion) button:active:not([disabled]) { scale: .97; }
+button[disabled] { filter: saturate(.6) opacity(.75); }
+
+/* Tab-style buttons keep their flat look, gain a soft glow when active */
+.prod-tab { transition: color .2s, background .25s var(--uib-ease), box-shadow .25s; }
+.prod-tab-active { box-shadow: 0 1px 3px rgba(15,23,42,.12), 0 4px 10px -6px rgba(29,78,216,.45); }
+.ams-tab-btn.active { box-shadow: 0 4px 12px -6px rgba(29,78,216,.6); }
+.portal-tab.active, .ams-tab.active, .report-tab.active, .acct-tab.active { text-shadow: 0 0 1px rgba(29,78,216,.2); }
+
+/* Floating cloud / AI bubbles */
+#uibCloudBtn:hover { transform: translateY(-2px) scale(1.04); filter: brightness(1.08); }
+#aiBubbleBtn { box-shadow: 0 14px 34px -10px rgba(29,78,216,.8), 0 2px 6px rgba(15,23,42,.2); }
+
+/* ── 5. Agent / section bars ─────────────────────────────── */
+.user-info { position: relative; background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(240,245,255,.95)); border: 1px solid rgba(37,99,235,.12);
+  box-shadow: 0 10px 30px -14px rgba(29,78,216,.35), 0 1px 3px rgba(15,23,42,.06); }
+.user-info::before { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(120deg, rgba(37,99,235,.5), rgba(124,58,237,.25), rgba(6,182,212,.4));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude; }
+.user-info > span, .user-info > strong { text-shadow: 0 0 1px rgba(29,78,216,.15); }
+
+/* ── 6. Panels, cards, tiles ─────────────────────────────── */
+.form-section, .filter-section, .chart-container, .info-card, .section-card, .client-header, .dash-chart-card, .rpt-chart-wrap, .note-entry, .reports-panel {
+  box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 10px 30px -22px rgba(13,31,60,.45); transition: box-shadow .3s var(--uib-ease);
+}
+.form-section:hover, .chart-container:hover, .info-card:hover, .section-card:hover { box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 18px 40px -22px rgba(13,31,60,.5); }
+/* Entry-page section cards, search box & AI panel (colors are inline — depth only) */
+.page-body div[style*="border-radius:10px"][style*="border:1.5px solid"],
+.modal-content div[style*="border-radius:10px"][style*="border:1.5px solid"],
+#agentSection div[style*="background:linear-gradient(135deg,#f0f9ff,#e0f2fe)"], [data-uib-panel],
+#claudeInlineSection, #claudeAdminSection, #claudeRenewalSection {
+  box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 12px 30px -24px rgba(13,31,60,.55); transition: box-shadow .3s var(--uib-ease);
+}
+#claudeInlineSection, #claudeAdminSection, #claudeRenewalSection { box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 12px 30px -20px rgba(217,119,87,.55); }
+#claudeInlineMessages, #claudeAdminMessages, #claudeRenewalMessages { box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 1px 2px rgba(15,23,42,.04); }
+
+/* Navy stat cards (My Commissions / admin / statements) → spotlight cards */
+.stats-grid .stat-card { background: linear-gradient(150deg, #0f2a5e 0%, var(--uib-navy) 60%, var(--uib-navy-deep) 100%);
+  box-shadow: inset 0 0 0 1px rgba(147,197,253,.28), 0 14px 32px -18px rgba(29,78,216,.8); transition: translate .3s var(--uib-ease), box-shadow .3s var(--uib-ease); }
+.stats-grid .stat-card:hover { translate: 0 -2px; box-shadow: inset 0 0 0 1px rgba(147,197,253,.45), 0 22px 44px -20px rgba(29,78,216,.9); }
+.stats-grid .stat-card::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5; transition: opacity .3s;
+  background: radial-gradient(240px circle at var(--uib-mx, 50%) var(--uib-my, 0%), rgba(255,255,255,.16), transparent 60%); }
+.stats-grid .stat-card:hover::after { opacity: 1; }
+.stats-grid .stat-card h4 { color: rgba(199,210,254,.9); opacity: 1; }
+.stats-grid .stat-card .number { text-shadow: 0 2px 18px rgba(59,130,246,.45); }
+/* Inline KPI tiles (pastel; colors stay) + AMS/portal KPIs → soft spotlight & depth */
+#prodStatsRow > div, #apd_statsRow > div, #pdash_statsRow > div, #vldash_statsRow > div, #uw_statsRow > div, .dash-kpi, .rpt-kpi, .stat-row .stat-card {
+  position: relative; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 12px 28px -22px rgba(13,31,60,.55);
+  transition: translate .3s var(--uib-ease), box-shadow .3s var(--uib-ease);
+}
+#prodStatsRow > div:hover, #apd_statsRow > div:hover, #pdash_statsRow > div:hover, #vldash_statsRow > div:hover, #uw_statsRow > div:hover, .dash-kpi:hover, .rpt-kpi:hover, .stat-row .stat-card:hover {
+  translate: 0 -2px; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 18px 36px -20px rgba(29,78,216,.5);
+}
+#prodStatsRow > div::after, #apd_statsRow > div::after, #pdash_statsRow > div::after, #vldash_statsRow > div::after, #uw_statsRow > div::after, .dash-kpi::after, .rpt-kpi::after, .stat-row .stat-card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .3s;
+  background: radial-gradient(200px circle at var(--uib-mx, 50%) var(--uib-my, 0%), rgba(255,255,255,.7), transparent 60%);
+}
+#prodStatsRow > div:hover::after, #apd_statsRow > div:hover::after, #pdash_statsRow > div:hover::after, #vldash_statsRow > div:hover::after, #uw_statsRow > div:hover::after, .dash-kpi:hover::after, .rpt-kpi:hover::after, .stat-row .stat-card:hover::after { opacity: 1; }
+.client-card, .file-card, .doc-card { transition: translate .25s var(--uib-ease), box-shadow .25s var(--uib-ease), background .15s, border-color .15s; }
+.client-card:hover, .file-card:hover, .doc-card:hover { translate: 0 -1px; box-shadow: 0 10px 24px -16px rgba(13,31,60,.5); }
+
+/* ── 7. Tables ───────────────────────────────────────────── */
+.table-container, .policies-table-wrap, .rpt-tbl-wrap { box-shadow: 0 1px 3px rgba(15,23,42,.06), 0 12px 30px -24px rgba(13,31,60,.5); }
+table thead, .policies-table thead, .rpt-tbl thead { background: linear-gradient(135deg, var(--uib-navy) 0%, var(--uib-blue) 100%); }
+.table-container thead th, .policies-table thead th, .rpt-tbl thead th, .al3-parsed-table th { box-shadow: inset 0 -1px 0 rgba(103,232,249,.55); }
+table tbody tr { transition: background .15s, box-shadow .15s; }
+.table-container table tbody tr:hover { background: #eef4ff !important; }
+table tbody tr:hover > td:first-child, .policies-table tbody tr:hover > td:first-child, .rpt-tbl tbody tr:hover > td:first-child, .policy-table tr:hover > td:first-child { box-shadow: inset 3px 0 0 var(--uib-blue); }
+.policy-table th { box-shadow: inset 0 -1px 0 rgba(29,78,216,.18); }
+
+/* ── 8. Inputs ───────────────────────────────────────────── */
+.form-group input, .form-group select, .form-group textarea, .filter-group input, .filter-group select,
+.login-field input, .info-field input, .info-field select, .info-field textarea, .rpt-filter-group input, .rpt-filter-group select,
+.sidebar-search input, .sidebar-filters select, .add-note-area textarea, #aiChatInput, .password-input, .lob-multiselect-btn {
+  transition: border-color .2s, box-shadow .25s var(--uib-ease), background .2s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus, .filter-group input:focus, .filter-group select:focus,
+.login-field input:focus, .info-field input:focus, .info-field select:focus, .info-field textarea:focus, .rpt-filter-group input:focus, .rpt-filter-group select:focus,
+.sidebar-search input:focus, .sidebar-filters select:focus, .add-note-area textarea:focus, #aiChatInput:focus, .password-input:focus {
+  outline: none; border-color: #60a5fa; box-shadow: var(--uib-ring);
+}
+/* Inline-styled inputs/selects (border & radius are theirs; the ring is ours) */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):focus-visible,
+select:focus-visible, textarea:focus-visible { outline: none; box-shadow: var(--uib-ring); }
+#agentGlobalSearch:focus, #clientLookupInput:focus, #amsGlobalSearch:focus { box-shadow: 0 0 0 4px rgba(14,165,233,.18); }
+#claudeInlineInput:focus, #claudeAdminInput:focus { box-shadow: 0 0 0 4px rgba(249,115,22,.16); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--uib-blue); }
+.lob-dropdown { box-shadow: 0 20px 50px -20px rgba(2,6,23,.5), 0 0 0 1px rgba(99,102,241,.2); }
+
+/* ── 9. Modals & overlays ────────────────────────────────── */
+.modal:not([style*="backdrop-filter:none"]), .ams-modal { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); background: rgba(8,15,35,.55); }
+.modal-content:not([style*="width:100vw"]), .ams-modal-box, #healthCarrierModal > div {
+  box-shadow: 0 40px 90px -30px rgba(2,6,23,.65), 0 0 0 1px rgba(99,102,241,.22), 0 1px 0 rgba(255,255,255,.6) inset;
+}
+/* Spring-style entrance where no motion engine animates modals (AMS, health carrier dialog). Ends at transform:none. */
+.ams-modal.open .ams-modal-box, #healthCarrierModal > div { animation: uibModalIn .32s var(--uib-ease); }
+@keyframes uibModalIn { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+.preview-modal { backdrop-filter: blur(12px); }
+
+/* ── 10. Toasts, banners, pills ──────────────────────────── */
+.success-message { border-radius: 10px; box-shadow: 0 10px 24px -16px rgba(5,150,105,.6); }
+.ams-sync-banner, #rnwToast { box-shadow: 0 16px 40px -16px rgba(2,6,23,.6); }
+span[style*="border-radius:999px"], span[style*="border-radius:20px"], .cc-badge, .tag, .status-pill, .carrier-pill, .lob-pill, .tab-badge { box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+
+/* ── 11. Responsive guards (layout untouched; only lighten effects on small screens) ─ */
+@media (max-width: 768px) {
+  .uib-aurora > i { filter: blur(40px); }
+  .stats-grid .stat-card:hover, #prodStatsRow > div:hover, #apd_statsRow > div:hover, .dash-kpi:hover, .rpt-kpi:hover { translate: none; }
+}
+
+/* ── 12. Reduced motion ──────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .uib-aurora > i, .uib-progress { animation: none !important; }
+  .uib-progress { display: none !important; }
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+html.uib-reduce .uib-aurora > i, html.uib-reduce .uib-progress { animation: none !important; }
+html.uib-reduce *, html.uib-reduce *::before, html.uib-reduce *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+
+/* ── 13. Print: flat, light, no decoration ───────────────── */
+@media print {
+  .uib-aurora, .uib-progress, [data-uib-decor] { display: none !important; }
+  *, *::before, *::after { animation: none !important; transition: none !important; box-shadow: none !important; text-shadow: none !important; filter: none !important; backdrop-filter: none !important; }
+  html, body, .container { background: #fff !important; }
+  header, .app-header, .ams-header, .portal-header, .portal-hero, .stats-grid .stat-card,
+  div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] { background: #fff !important; color: var(--uib-navy) !important; border-bottom: 1px solid #cbd5e1 !important; }
+  header h1, header p, .app-header h1, .stat-card h4, .stat-card .number,
+  div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] h2,
+  div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] h3,
+  div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] p { color: var(--uib-navy) !important; opacity: 1 !important; -webkit-text-fill-color: initial !important; }
+  #loginSection h2 { -webkit-text-fill-color: var(--uib-navy) !important; }
+  #uibCloudBtn, #uibCloudPanel, #syncBanner, #aiBubbleBtn, #aiChatPanel, #rnwToast, #uibOutdatedBanner, #uibStorageWarn, .ams-sync-banner, .lob-dropdown, .m-ripple { display: none !important; }
+  .user-info, .modal-content, .chart-container, .form-section, .filter-section { background: #fff !important; border: 1px solid #cbd5e1 !important; }
+  table thead, .policies-table thead, .rpt-tbl thead { background: #eef2f7 !important; }
+  table thead th, .policies-table thead th, .rpt-tbl thead th { color: var(--uib-navy) !important; }
+  button::before, button::after { display: none !important; }
+}
