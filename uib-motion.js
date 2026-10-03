@@ -45,11 +45,14 @@
     'div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"]',
   ].join(',');
   const SKIP = '#uibCloudPanel,#uibOutdatedBanner,#uibStorageWarn,#syncBanner,#amsSyncBanner,#rnwToast,.lob-dropdown,.m-ripple,#amsPolicyActionMenu,canvas,select,option,[data-uib-skip]';
-  const BTN_NO_LIFT = '.prod-tab,.uw-tab,.uw-line-tab,.ams-tab-btn,.ams-tab,.portal-tab,.report-tab,.acct-tab,.cat-chip,.lob-multiselect-btn,[onmouseover],[onmouseout],[disabled],#uibCloudBtn,#aiBubbleBtn,button[style*="transform"]';
-  const BTN_NO_PRESS = '.lob-multiselect-btn,[onmouseover],[onmouseout],[disabled],button[style*="transform"]';
+  // [data-uib-tf] marks buttons whose AUTHOR set an inline transform (e.g. absolute "✕" clears);
+  // Motion's own inline writes must never trigger this exclusion.
+  const BTN_NO_LIFT = '.prod-tab,.uw-tab,.uw-line-tab,.ams-tab-btn,.ams-tab,.portal-tab,.report-tab,.acct-tab,.cat-chip,.lob-multiselect-btn,[onmouseover],[onmouseout],[disabled],#uibCloudBtn,#aiBubbleBtn,[data-uib-tf]';
+  const BTN_NO_PRESS = '.lob-multiselect-btn,[onmouseover],[onmouseout],[disabled],[data-uib-tf]';
+  const PANEL = '.page-body div[style*="border-radius:10px"][style*="border:1.5px solid"], .modal-content div[style*="border-radius:10px"][style*="border:1.5px solid"], #agentSection div[style*="background:linear-gradient(135deg,#f0f9ff,#e0f2fe)"]';
   const MAGNETIC = '.footer-buttons button:not(.btn-sm), .form-actions .btn-success, .form-actions .btn-primary, .modal-actions .btn-primary, .modal-actions .btn-success, #claudeInlineSendBtn, #claudeAdminSendBtn, .login-btn';
   const SPOT = '.stats-grid .stat-card, .dash-kpi, .rpt-kpi, #prodStatsRow > div, #apd_statsRow > div, #pdash_statsRow > div, #vldash_statsRow > div, #uw_statsRow > div, .stat-row .stat-card';
-  const REVEAL = '.form-section, .filter-section, .table-container, .chart-container, .footer-buttons, .stats-grid, .dash-kpi, .dash-chart-card, .rpt-kpi, .file-card, .doc-card, .client-card, .section-card, .client-header, #underwritingList > div, #prodStatsRow > div, #apd_statsRow > div, #uw_statsRow > div, #agentSection div[style*="background:linear-gradient(135deg,#f0f9ff,#e0f2fe)"], #claudeInlineSection, .page-body div[style*="border-radius:10px"][style*="border:1.5px solid"]';
+  const REVEAL = '.form-section, .filter-section, .table-container, .chart-container, .footer-buttons, .stats-grid, .dash-kpi, .dash-chart-card, .rpt-kpi, .file-card, .doc-card, .client-card, .section-card, .client-header, #underwritingList > div, #prodStatsRow > div, #apd_statsRow > div, #uw_statsRow > div, #claudeInlineSection, [data-uib-panel]';
   const NAV = '.user-info, .footer-buttons, .ams-tabbar';
 
   // ── Aurora decoration ─────────────────────────────────────
@@ -75,13 +78,14 @@
   // and large batches are chunked across frames to keep every task well under 50ms.
   function classify(btn) {
     const cs = getComputedStyle(btn);
+    const tf = !btn.dataset.uibAnim && /transform\s*:/.test(btn.getAttribute('style') || '');
     const grad = cs.backgroundImage && cs.backgroundImage !== 'none';
     const cols = parseFirstColors(grad ? cs.backgroundImage : cs.backgroundColor).filter(c => c.a > 0.05);
-    if (!cols.length) return { btn, kind: 'flat', glow: null };
+    if (!cols.length) return { btn, tf, kind: 'flat', glow: null };
     const c = cols[Math.min(cols.length - 1, Math.floor(cols.length / 2))];
     const lum = (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255;
-    if (grad || lum < 0.85) return { btn, kind: 'fill', glow: lum > 0.8 ? 'rgba(15,23,42,.28)' : `rgba(${c.r},${c.g},${c.b},.55)` };
-    return { btn, kind: 'flat', glow: null };
+    if (grad || lum < 0.85) return { btn, tf, kind: 'fill', glow: lum > 0.8 ? 'rgba(15,23,42,.28)' : `rgba(${c.r},${c.g},${c.b},.55)` };
+    return { btn, tf, kind: 'flat', glow: null };
   }
   const CHUNK = 120;
   function tagButtons(list) {
@@ -91,6 +95,7 @@
     const reads = slice.map(classify);               // reads only
     for (const r of reads) {                          // then writes only
       if (r.glow) r.btn.style.setProperty('--uib-glow', r.glow);
+      if (r.tf) r.btn.dataset.uibTf = '1';
       r.btn.dataset.uibBtn = r.kind;
     }
     if (todo.length > CHUNK) requestAnimationFrame(() => tagButtons(todo.slice(CHUNK)));
@@ -102,6 +107,7 @@
     if (!(root instanceof Element) && root !== document.body) return;
     if (root.closest && root.closest(SKIP)) return;
     safe(() => addAurora(root));
+    safe(() => { const list = root.matches && root.matches(PANEL) ? [root] : []; root.querySelectorAll(PANEL).forEach(e => list.push(e)); list.forEach(e => { e.dataset.uibPanel = '1'; }); });
     safe(() => {
       const list = root.matches && root.matches('button') ? [root] : [];
       root.querySelectorAll('button:not([data-uib-btn])').forEach(b => list.push(b));
@@ -118,7 +124,7 @@
     for (const el of list) {
       if (el.dataset.uibRevealed || el.style.opacity !== '' || el.closest('.modal, .ams-modal, ' + SKIP)) continue;
       el.dataset.uibRevealed = '1';
-      M.inView(el, () => { M.animate(el, { opacity: [0, 1], y: [10, 0] }, { duration: .4, ease: EASE }); }, { amount: 0.15, margin: '0px 0px -6% 0px' });
+      M.inView(el, () => { if (!motionOK()) return; M.animate(el, { opacity: [0, 1], y: [10, 0] }, { duration: .4, ease: EASE }); }, { amount: 0.15, margin: '0px 0px -6% 0px' });
     }
   }
 
@@ -128,9 +134,11 @@
     root.querySelectorAll(NAV).forEach(b => bars.push(b));
     for (const bar of bars) {
       if (bar.dataset.uibNav || bar.closest('.modal')) continue;
-      const btns = [...bar.querySelectorAll(':scope > button, :scope > .ams-tab-btn')].filter(b => b.style.opacity === '');
+      if (!bar.getClientRects().length) continue;            // hidden section: try again when it is shown
+      const btns = [...bar.querySelectorAll('button, .ams-tab-btn')].filter(b => b.closest(NAV) === bar && b.style.opacity === '' && !b.matches('[data-uib-tf],[onmouseover]'));
       bar.dataset.uibNav = '1';
       if (!btns.length) continue;
+      btns.forEach(b => { b.dataset.uibAnim = '1'; });
       M.animate(btns, { opacity: [0, 1], y: [6, 0] }, { duration: .35, delay: M.stagger(0.035), ease: EASE });
     }
   }
@@ -197,6 +205,10 @@
   const IGNORE_NODE = 'svg, .m-ripple, option, .uib-aurora, .uib-progress';
   const mo = new MutationObserver(records => {
     for (const r of records) {
+      if (r.type === 'attributes') {                      // a .section just became active → stagger its nav bar once
+        const t = r.target; if (t.nodeType === 1 && t.matches('.section.active')) safe(() => navStagger(t));
+        continue;
+      }
       if (r.type !== 'childList' || !r.addedNodes.length) continue;
       const t = r.target;
       if (!t || t.nodeType !== 1 || t.matches(IGNORE_TARGET)) continue;
@@ -235,7 +247,7 @@
     document.addEventListener('pointercancel', onUp, { capture: true, passive: true });
     document.addEventListener('pointermove', onMove, { capture: true, passive: true });
     document.addEventListener('visibilitychange', onVisibility);
-    safe(() => mo.observe(document.body, { childList: true, subtree: true }));
+    safe(() => mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] }));
   }
   function destroy() {
     safe(() => mo.disconnect());

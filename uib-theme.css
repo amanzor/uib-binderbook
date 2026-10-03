@@ -103,7 +103,7 @@ div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] h2,
 div[style*="background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%)"] h3 { text-shadow: 0 1px 2px rgba(0,0,0,.25); }
 
 /* ── 4. Buttons — same size & color, new finish ──────────── */
-button { isolation: isolate; border-radius: 10px; transition: box-shadow .25s var(--uib-ease), filter .25s var(--uib-ease), transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease; }
+button { isolation: isolate; border-radius: 10px; transition: box-shadow .25s var(--uib-ease), filter .25s var(--uib-ease), scale .12s ease, background .18s ease, border-color .18s ease, color .18s ease; }
 .btn-sm { border-radius: 8px; }
 button > svg.lucide { transition: transform .35s var(--uib-ease); }
 button:hover > svg.lucide { transform: translateX(1px) scale(1.06); }
@@ -114,6 +114,7 @@ button:focus-visible { outline: 3px solid rgba(59,130,246,.55); outline-offset: 
    the rest as [data-uib-btn="fill"] after reading their computed background. */
 .btn-primary, .btn-success, .btn-danger, .btn-purple, .btn-warning, .login-btn,
 button[style*="background:linear-gradient"], button[style*="background: linear-gradient"], button[data-uib-btn="fill"] {
+  position: relative; overflow: hidden;
   box-shadow: 0 1px 2px rgba(15,23,42,.18), 0 6px 16px -10px var(--uib-glow), inset 0 1px 0 rgba(255,255,255,.18);
 }
 .btn-primary::before, .btn-success::before, .btn-danger::before, .btn-purple::before, .btn-warning::before, .btn-secondary::before, .login-btn::before,
@@ -175,7 +176,7 @@ button[disabled] { filter: saturate(.6) opacity(.75); }
 /* Entry-page section cards, search box & AI panel (colors are inline — depth only) */
 .page-body div[style*="border-radius:10px"][style*="border:1.5px solid"],
 .modal-content div[style*="border-radius:10px"][style*="border:1.5px solid"],
-#agentSection div[style*="background:linear-gradient(135deg,#f0f9ff,#e0f2fe)"],
+#agentSection div[style*="background:linear-gradient(135deg,#f0f9ff,#e0f2fe)"], [data-uib-panel],
 #claudeInlineSection, #claudeAdminSection, #claudeRenewalSection {
   box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 12px 30px -24px rgba(13,31,60,.55); transition: box-shadow .3s var(--uib-ease);
 }
@@ -212,7 +213,7 @@ button[disabled] { filter: saturate(.6) opacity(.75); }
 table thead, .policies-table thead, .rpt-tbl thead { background: linear-gradient(135deg, var(--uib-navy) 0%, var(--uib-blue) 100%); }
 .table-container thead th, .policies-table thead th, .rpt-tbl thead th, .al3-parsed-table th { box-shadow: inset 0 -1px 0 rgba(103,232,249,.55); }
 table tbody tr { transition: background .15s, box-shadow .15s; }
-table tbody tr:hover { background: #eef4ff !important; }
+.table-container table tbody tr:hover { background: #eef4ff !important; }
 table tbody tr:hover > td:first-child, .policies-table tbody tr:hover > td:first-child, .rpt-tbl tbody tr:hover > td:first-child, .policy-table tr:hover > td:first-child { box-shadow: inset 3px 0 0 var(--uib-blue); }
 .policy-table th { box-shadow: inset 0 -1px 0 rgba(29,78,216,.18); }
 
