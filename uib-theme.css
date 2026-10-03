@@ -284,3 +284,56 @@ html.uib-reduce *, html.uib-reduce *::before, html.uib-reduce *::after { animati
   table thead th, .policies-table thead th, .rpt-tbl thead th { color: var(--uib-navy) !important; }
   button::before, button::after { display: none !important; }
 }
+
+/* ── 14. Glass login cards (Binder Book, AMS, Insured Portal) ───────
+   The owner asked for the preview's frosted-glass sign-in card. The Binder Book
+   card is inline-styled, so this section deliberately uses !important, scoped
+   strictly to the three login cards. */
+:root { --uib-glass-bg: rgba(255,255,255,.08); --uib-glass-line: rgba(255,255,255,.16); --uib-glass-muted: rgba(226,232,240,.72); --uib-glass-label: rgba(226,232,240,.88); }
+
+/* Card */
+#loginSection div[style*="max-width:420px"], #amsLoginScreen .login-card, #loginScreen .login-card {
+  background: var(--uib-glass-bg) !important; border: 1px solid var(--uib-glass-line) !important; border-radius: 22px !important;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); color: #fff;
+  box-shadow: 0 30px 70px -30px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.22), 0 0 0 1px rgba(255,255,255,.04) !important;
+  filter: none !important;
+}
+/* Brand */
+#loginSection div[style*="max-width:420px"] h2, #amsLoginScreen .login-card h2, #loginScreen .login-brand h2 { color: #fff !important; -webkit-text-fill-color: #fff !important; background: none !important; text-shadow: 0 0 30px rgba(99,102,241,.45); }
+#loginSection div[style*="max-width:420px"] > div:first-child p, #amsLoginScreen .login-card .brand p, #loginScreen .login-brand p { color: var(--uib-glass-muted) !important; }
+#loginSection img[alt="UIB Logo"] { background: linear-gradient(145deg, rgba(255,255,255,.95), rgba(226,232,240,.9)); border-radius: 22px; padding: 10px; box-shadow: 0 18px 44px -18px rgba(59,130,246,.9), 0 0 0 1px rgba(255,255,255,.3); }
+#amsLoginScreen .brand-badge, #loginScreen .login-brand-badge { background: linear-gradient(145deg, rgba(255,255,255,.16), rgba(255,255,255,.06)) !important; border: 1px solid rgba(255,255,255,.22); color: #fff !important; box-shadow: 0 14px 34px -16px rgba(59,130,246,.9), inset 0 1px 0 rgba(255,255,255,.25); }
+/* Labels & helper text */
+#loginSection div[style*="max-width:420px"] label, #amsLoginScreen .login-card label, #loginScreen .login-card label, #loginScreen .login-field .hint { color: var(--uib-glass-label) !important; }
+#amsLoginScreen .login-card span[style*="color:var(--gray-400)"], #amsLoginScreen .login-card span[style*="color:var(--gray-500)"], #amsLoginScreen .login-card div[style*="color:var(--gray-400)"], #amsLoginScreen .login-card div[style*="color:var(--gray-500)"],
+#loginSection div[style*="max-width:420px"] span[style*="color:#9ca3af"], #loginScreen .login-footer { color: var(--uib-glass-muted) !important; }
+#amsLoginScreen .login-card span[style*="color:var(--blue)"], #amsLoginScreen .login-back, #loginScreen .login-footer a { color: #93c5fd !important; }
+/* Fields */
+#loginSection div[style*="max-width:420px"] input:not([type="checkbox"]), #amsLoginScreen .login-field input, #loginScreen .login-field input {
+  background: rgba(255,255,255,.06) !important; border: 1.5px solid rgba(255,255,255,.18) !important; color: #fff !important; border-radius: 10px !important; caret-color: #67e8f9;
+  transition: border-color .2s, box-shadow .25s var(--uib-ease), background .2s;
+}
+#loginSection div[style*="max-width:420px"] input::placeholder, #amsLoginScreen .login-field input::placeholder, #loginScreen .login-field input::placeholder { color: rgba(226,232,240,.45); }
+#loginSection div[style*="max-width:420px"] input:not([type="checkbox"]):focus, #amsLoginScreen .login-field input:focus, #loginScreen .login-field input:focus {
+  border-color: #67e8f9 !important; background: rgba(255,255,255,.09) !important; box-shadow: 0 0 0 4px rgba(6,182,212,.22) !important; outline: none;
+}
+#loginSection div[style*="max-width:420px"] input[type="checkbox"], #amsLoginScreen .login-card input[type="checkbox"] { accent-color: #38bdf8 !important; }
+#loginSection div[style*="max-width:420px"] button[onclick^="togglePasswordVisibility"], #amsLoginScreen .login-card button[onclick^="togglePasswordVisibility"] { color: rgba(226,232,240,.7) !important; }
+#loginSection div[style*="max-width:420px"] button[onclick^="togglePasswordVisibility"] svg, #amsLoginScreen .login-card button[onclick^="togglePasswordVisibility"] svg { color: rgba(226,232,240,.7); }
+/* Error */
+#agentLoginError, #amsLoginScreen .login-error, #loginScreen .login-error { background: rgba(239,68,68,.16) !important; border: 1px solid rgba(252,165,165,.5) !important; color: #fecaca !important; }
+/* Sign In: shimmering primary */
+#loginSignInBtn, #amsLoginScreen .login-card .btn-primary, #loginScreen .login-btn {
+  background: linear-gradient(110deg, #0f2a78 0%, #1d4ed8 45%, #4f46e5 70%, #1d4ed8 100%) !important; background-size: 220% 100% !important; animation: uibSheen 3.2s linear infinite;
+  color: #fff !important; border-radius: 12px !important; --uib-glow: rgba(79,70,229,.75);
+  box-shadow: 0 14px 30px -12px rgba(79,70,229,.9), inset 0 1px 0 rgba(255,255,255,.25) !important;
+}
+@keyframes uibSheen { to { background-position: -220% 0; } }
+/* Secondary (Admin Access) & dividers */
+#loginSection div[style*="max-width:420px"] button[onclick="showAdminLogin()"] { background: rgba(255,255,255,.07) !important; color: #fff !important; border: 1.5px solid rgba(255,255,255,.2) !important; }
+#loginSection div[style*="max-width:420px"] button[onclick="showAdminLogin()"]:hover { background: rgba(255,255,255,.12) !important; border-color: rgba(255,255,255,.35) !important; }
+#loginSection div[style*="max-width:420px"] div[style*="height:1px"], #loginScreen .login-divider, #amsLoginScreen .login-card hr { background: rgba(255,255,255,.14) !important; }
+#amsLoginScreen .login-card div[style*="border-top"] { border-color: rgba(255,255,255,.16) !important; }
+#amsLoginScreen .login-card .btn-secondary { background: rgba(255,255,255,.08) !important; color: #fff !important; border-color: rgba(255,255,255,.2) !important; }
+@media (prefers-reduced-motion: reduce) { #loginSignInBtn, #amsLoginScreen .login-card .btn-primary, #loginScreen .login-btn { animation: none; } }
+@media print { #loginSection div[style*="max-width:420px"], #amsLoginScreen .login-card, #loginScreen .login-card { background: #fff !important; color: #000; } }
