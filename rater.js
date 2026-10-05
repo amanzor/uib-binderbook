@@ -25,6 +25,8 @@
     const SUPABASE_URL  = 'https://jgjmobktucyimupelfxd.supabase.co';
     const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
     const RATE_FN       = SUPABASE_URL + '/functions/v1/rate';
+    const CLAUDE_FN     = SUPABASE_URL + '/functions/v1/claude';   // same proxy the Binder Book uses (holds the API key)
+    const MAX_MODEL     = 'claude-haiku-4-5';
     const RATE_TIMEOUT  = 45000;
 
     // ────────────────────────────────────────────────────────────
@@ -1209,6 +1211,7 @@
         $('actionBar').style.display = (name === 'quote' || name === 'results') ? '' : 'none';
         if (name === 'saved') renderSaved();
         if (name === 'carriers') renderCarriers();
+        if (name === 'max') { Max.greet(); refreshIcons(); }
         hideMessages();
     }
     let msgTimer = null;
@@ -1308,11 +1311,202 @@
         boot();
     });
 
+    // ────────────────────────────────────────────────────────────
+    //  MAX — AI assistant (Claude Haiku 4.5 via the Supabase proxy)
+    //  Reads driver's licenses and VIN plates from photos, answers
+    //  questions, and fills the quote. Chat lives in memory only.
+    // ────────────────────────────────────────────────────────────
+    const Max = (function () {
+        let history = [];        // API messages: [{ role, content }]
+        let pending = [];        // attached photos waiting to be sent: [{ b64, media, kind, url }]
+        let busy = false;
+        let pickKind = 'any';
+
+        const GENDER = { m: 'Male', male: 'Male', f: 'Female', female: 'Female', x: 'Non-binary' };
+        const MARITAL = ['Single', 'Married', 'Divorced', 'Widowed', 'Separated', 'Domestic Partner'];
+
+        function quoteSnapshot() {
+            const q = quote; const c = q.client;
+            return {
+                client: { firstName: c.firstName, lastName: c.lastName, address: c.address, zip: c.zip, phone: (c.phones[0] || {}).number, email: c.email },
+                drivers: q.drivers.map((d, i) => ({ index: i + 1, firstName: d.firstName, lastName: d.lastName, dob: d.dob, dlNumber: d.dlNumber, dlState: d.dlState, gender: d.gender, marital: d.marital })),
+                vehicles: q.vehicles.map((v, i) => ({ index: i + 1, vin: v.vin, year: v.year, make: v.make, model: v.model }))
+            };
+        }
+
+        function systemPrompt() {
+            return [
+                'You are MAX, the friendly AI assistant inside the UIB Auto Rater, a Florida personal-auto insurance quoting app used by agents at Universal Insurance Brokers. Keep replies short (1-3 sentences), warm and plain. Never invent data.',
+                '',
+                'YOU CAN: (1) read a photo of a driver\'s license and extract the driver\'s details; (2) read a photo of a VIN (dash plate, door sticker, registration, insurance card) and extract the 17-character VIN; (3) answer questions about the quote; (4) take details typed in chat (e.g. "add a driver named John Smith born 3/4/1990").',
+                '',
+                'CURRENT QUOTE (JSON): ' + JSON.stringify(quoteSnapshot()),
+                '',
+                'WHEN YOU HAVE DATA TO PUT INTO THE QUOTE, end your reply with exactly one fenced block:',
+                '```json',
+                '{"updates":{"client":{...},"drivers":[{"index":1,...}],"vehicles":[{"index":1,...}]}}',
+                '```',
+                'Allowed keys — client: firstName, middleName, lastName, address (one line: street, city, ST zip), email, phone. drivers[]: index (1-based; use "new" to add a driver), firstName, middleName (initial), lastName, dob (YYYY-MM-DD), gender (Male/Female), marital (Single/Married/Divorced/Widowed/Separated/Domestic Partner), dlNumber, dlState (2-letter), address. vehicles[]: index (1-based or "new"), vin (17 chars, no I/O/Q), year, make, model.',
+                'Rules: only include keys you actually read or were told. For a driver\'s license, if driver 1 has no name yet, use index 1 AND also fill client firstName/lastName/address from the license; if driver 1 already has a different name, use "new". For a VIN, just return the vin (the app decodes year/make/model). If a photo is unreadable or not a license/VIN, say so and send no block. Omit the block entirely when there is nothing to update. Do not put anything after the block.'
+            ].join('\n');
+        }
+
+        // Resize photos client-side so the request stays small and fast.
+        function fileToImage(file) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                    const maxSide = 1600; const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+                    const cv = document.createElement('canvas'); cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+                    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+                    URL.revokeObjectURL(url);
+                    const dataUrl = cv.toDataURL('image/jpeg', 0.85);
+                    resolve({ b64: dataUrl.split(',')[1], media: 'image/jpeg', url: dataUrl });
+                };
+                img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read that image')); };
+                img.src = url;
+            });
+        }
+
+        function pick(kind) { pickKind = kind || 'any'; const f = $('maxFile'); if (f) { f.value = ''; f.click(); } }
+        async function filesChosen(input) {
+            const files = Array.from(input.files || []); if (!files.length) return;
+            for (const f of files) {
+                try { const im = await fileToImage(f); im.kind = pickKind; pending.push(im); }
+                catch (e) { addMsg('err', e.message); }
+            }
+            renderAttach();
+            if (pickKind === 'dl' || pickKind === 'vin') { const inp = $('maxInput'); if (inp && !inp.value.trim()) inp.value = pickKind === 'dl' ? "Here is the driver's license. Please add this driver to the quote." : 'Here is the VIN. Please add this vehicle to the quote.'; }
+            $('maxInput').focus();
+        }
+        function removeAttach(i) { pending.splice(i, 1); renderAttach(); }
+        function renderAttach() {
+            const w = $('maxAttach'); if (!w) return;
+            w.innerHTML = pending.map((p, i) => '<div class="th"><img src="' + p.url + '" alt=""><span class="kind">' + (p.kind === 'dl' ? "DL" : p.kind === 'vin' ? 'VIN' : 'photo') + '</span><button type="button" class="x" title="Remove" onclick="Rater.max.removeAttach(' + i + ')">✕</button></div>').join('');
+        }
+
+        function addMsg(role, html, extra) {
+            const log = $('maxLog'); if (!log) return null;
+            const d = document.createElement('div');
+            d.className = 'max-msg ' + (role === 'user' ? 'user' : role === 'err' ? 'bot err' : 'bot');
+            d.innerHTML = (extra && extra.thumbs ? '<div class="thumbs">' + extra.thumbs.map((u) => '<img src="' + u + '" alt="">').join('') + '</div>' : '') + html;
+            log.appendChild(d); log.scrollTop = log.scrollHeight;
+            return d;
+        }
+        function setTyping(on) {
+            const log = $('maxLog'); if (!log) return;
+            let t = $('maxTyping');
+            if (on && !t) { t = document.createElement('div'); t.id = 'maxTyping'; t.className = 'max-typing'; t.innerHTML = '<i></i><i></i><i></i> MAX is thinking'; log.appendChild(t); log.scrollTop = log.scrollHeight; }
+            if (!on && t) t.remove();
+            const bot = document.querySelector('.max-bot'); if (bot) bot.classList.toggle('thinking', !!on);
+        }
+        function greet() {
+            if ($('maxLog') && !$('maxLog').children.length) addMsg('bot', "Hi, I'm MAX. Snap a photo of a driver's license or a VIN and I'll put the details straight into the quote. You can also just tell me what to add.");
+        }
+        function clear() { history = []; pending = []; renderAttach(); const log = $('maxLog'); if (log) log.innerHTML = ''; greet(); }
+        function keydown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
+        function ask(text) { const inp = $('maxInput'); if (inp) inp.value = text; send(); }
+
+        async function send() {
+            if (busy) return;
+            const inp = $('maxInput'); const text = (inp.value || '').trim();
+            if (!text && !pending.length) return;
+            const photos = pending.slice(); pending = []; renderAttach();
+            inp.value = '';
+            addMsg('user', esc(text || (photos.length ? '(photo)' : '')), { thumbs: photos.map((p) => p.url) });
+            const content = photos.map((p) => ({ type: 'image', source: { type: 'base64', media_type: p.media, data: p.b64 } }));
+            content.push({ type: 'text', text: text || (photos.some((p) => p.kind === 'vin') ? 'Read the VIN in this photo and add the vehicle.' : "Read this driver's license and add the driver.") });
+            history.push({ role: 'user', content });
+            busy = true; $('maxSendBtn').disabled = true; setTyping(true);
+            try {
+                const res = await fetch(CLAUDE_FN, {
+                    method: 'POST',
+                    headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: MAX_MODEL, max_tokens: 1200, system: systemPrompt(), messages: history })
+                });
+                const j = await res.json().catch(() => ({}));
+                if (!res.ok || j.error) throw new Error((j.error && (j.error.message || j.error.type)) || ('HTTP ' + res.status));
+                const reply = (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+                history.push({ role: 'assistant', content: reply });
+                // keep photos out of the running history after they were read (saves tokens on every later turn)
+                history = history.map((m) => (m.role === 'user' && Array.isArray(m.content)) ? { role: 'user', content: m.content.map((b) => b.type === 'image' ? { type: 'text', text: '[photo attached]' } : b) } : m);
+                const { text: shown, updates } = splitReply(reply);
+                const el = addMsg('bot', esc(shown || (updates ? 'Got it.' : '…')));
+                if (updates) { const filled = applyUpdates(updates); if (el && filled.length) el.insertAdjacentHTML('beforeend', '<div class="filled"><b>✔ Added to the quote</b><ul>' + filled.map((f) => '<li>' + esc(f) + '</li>').join('') + '</ul></div><div class="actions"><button type="button" class="btn-primary btn-xs" onclick="Rater.showTab(\'quote\')">Open Quote</button></div>'); }
+            } catch (e) {
+                history.pop();
+                addMsg('err', 'MAX could not reach the AI service: ' + esc(e.message) + '. The Supabase function "claude" must be deployed with the ANTHROPIC_API_KEY secret (see the setup guide).');
+            } finally { busy = false; $('maxSendBtn').disabled = false; setTyping(false); refreshIcons(); }
+        }
+
+        function splitReply(reply) {
+            const m = reply.match(/```json\s*([\s\S]*?)```/i);
+            if (!m) return { text: reply, updates: null };
+            let updates = null;
+            try { const o = JSON.parse(m[1]); updates = o.updates || o; } catch (e) { updates = null; }
+            return { text: reply.replace(m[0], '').trim(), updates };
+        }
+
+        const clean = (v) => (v == null ? '' : String(v).trim());
+        function normDate(v) { const t = clean(v); let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0]; m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/); return m ? m[3] + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0') : ''; }
+
+        // Put the extracted values into the quote and describe what changed.
+        function applyUpdates(u) {
+            const filled = [];
+            const c = u.client || {};
+            if (clean(c.firstName)) { quote.client.firstName = clean(c.firstName); filled.push('Client first name: ' + quote.client.firstName); }
+            if (clean(c.middleName)) quote.client.middleName = clean(c.middleName).slice(0, 2).toUpperCase();
+            if (clean(c.lastName)) { quote.client.lastName = clean(c.lastName); filled.push('Client last name: ' + quote.client.lastName); }
+            if (clean(c.address)) { quote.client.address = clean(c.address); quote.client.addressVerified = false; parseAddress(quote.client.address); filled.push('Client address: ' + quote.client.address + ' (press Verify)'); }
+            if (clean(c.email)) { quote.client.email = clean(c.email); filled.push('Email: ' + quote.client.email); }
+            if (clean(c.phone)) { const num = formatPhone(c.phone); if (!quote.client.phones[0].number) quote.client.phones[0].number = num; else quote.client.phones.push({ type: 'Mobile', number: num }); derivePhones(); filled.push('Phone: ' + num); }
+
+            (u.drivers || []).forEach((d) => {
+                let i = d.index === 'new' || d.index == null ? -1 : (+d.index - 1);
+                if (i < 0 || i >= quote.drivers.length) { const nd = blankRecord(DRIVER_FIELDS); nd.relationship = quote.drivers.length ? 'Spouse' : 'Insured'; quote.drivers.push(nd); i = quote.drivers.length - 1; }
+                const dr = quote.drivers[i]; const who = 'Driver ' + (i + 1);
+                if (clean(d.firstName)) dr.firstName = clean(d.firstName);
+                if (clean(d.middleName)) dr.middleName = clean(d.middleName).slice(0, 2).toUpperCase();
+                if (clean(d.lastName)) dr.lastName = clean(d.lastName);
+                const dob = normDate(d.dob); if (dob) { dr.dob = dob; dr.age = ageFrom(dob); }
+                const g = GENDER[clean(d.gender).toLowerCase()]; if (g) dr.gender = g;
+                const mar = MARITAL.find((x) => x.toLowerCase() === clean(d.marital).toLowerCase()); if (mar) dr.marital = mar;
+                if (clean(d.dlNumber)) dr.dlNumber = clean(d.dlNumber).toUpperCase();
+                if (/^[A-Za-z]{2}$/.test(clean(d.dlState))) dr.dlState = clean(d.dlState).toUpperCase();
+                filled.push(who + ': ' + [dr.firstName, dr.lastName].filter(Boolean).join(' ') + (dob ? ', DOB ' + dob : '') + (dr.dlNumber && clean(d.dlNumber) ? ', DL ' + dr.dlNumber : '') + (g ? ', ' + g : ''));
+            });
+
+            const vinsToDecode = [];
+            (u.vehicles || []).forEach((v) => {
+                let i = v.index === 'new' || v.index == null ? -1 : (+v.index - 1);
+                if (i < 0 || i >= quote.vehicles.length) {
+                    // reuse an empty first car instead of adding a second one
+                    const empty = quote.vehicles.findIndex((x) => !x.vin && !x.make && !x.model);
+                    if (empty >= 0) i = empty; else { const nv = blankRecord(VEHICLE_FIELDS); nv.zip = quote.client.zip || ''; nv.county = quote.client.county || ''; nv.city = quote.client.city || ''; quote.vehicles.push(nv); i = quote.vehicles.length - 1; }
+                }
+                const vh = quote.vehicles[i];
+                const vin = clean(v.vin).toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
+                if (vin.length === 17) { vh.vin = vin; vinsToDecode.push(i); }
+                if (clean(v.year)) vh.year = clean(v.year);
+                if (clean(v.make)) vh.make = clean(v.make);
+                if (clean(v.model)) vh.model = clean(v.model);
+                filled.push('Car ' + (i + 1) + ': ' + (vin.length === 17 ? 'VIN ' + vin : [vh.year, vh.make, vh.model].filter(Boolean).join(' ')));
+            });
+
+            renderForm(); renderResults(); scheduleDraft();
+            vinsToDecode.forEach((i) => decodeVin('vehicles.' + i));
+            return filled;
+        }
+
+        return { pick, filesChosen, removeAttach, send, keydown, ask, clear, greet };
+    })();
+
     window.Rater = {
         showTab, newQuote, fillSample, saveQuote: () => saveQuote(false), rate, decodeVin, addDriver, removeDriver, addVehicle, removeVehicle,
         editCarrier, closeCarrier, saveCarrier, deleteCarrier, toggleCarrier, carrierMethodChanged, exportCarriers, importCarriers, testCarrier, addStarterCarriers, setDemo,
         setManual, select, openPortal, copySummary, renderSaved, openSaved, duplicateSaved, deleteSaved, exportSaved, showKeys,
-        login, install, dismissInstall, toggleDensity, verifyAddress, addPhone, removePhone,
+        login, install, dismissInstall, toggleDensity, verifyAddress, addPhone, removePhone, max: Max,
         get quote() { return quote; }, get results() { return results; }, get carriers() { return carriers; }
     };
 })();

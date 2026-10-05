@@ -161,6 +161,28 @@ do not offer an API are still fully usable through **Portal link** or
 imported as a JSON file from the Carriers tab, so you set a carrier up once
 and share it with every agent.
 
+## MAX, the AI assistant
+
+The **MAX** tab (left of Quote) is a chat assistant powered by Claude Haiku
+4.5. Agents can take a photo of a driver's license or a VIN (dash plate,
+door sticker, registration card) and MAX reads it and fills the quote: name,
+date of birth, license number and state, address, and the VIN (which the
+app then decodes into year, make and model). Typed instructions work too,
+for example "add a driver named John Smith born 3/4/1990".
+
+MAX talks to Claude through the Supabase edge function named `claude` that
+the Binder Book already uses, so the API key never reaches the browser. If
+that function is not deployed yet:
+
+1. Supabase ▸ Edge Functions ▸ Deploy a new function named exactly `claude`
+   and paste `supabase/functions/claude/index.ts` from the uib-binderbook
+   repository.
+2. Edge Functions ▸ Manage secrets ▸ add `ANTHROPIC_API_KEY` with your key
+   from console.anthropic.com.
+
+Photos are resized in the browser before upload and are not kept in the
+chat history after MAX has read them.
+
 ## 5. Try it
 
 1. Quote tab ▸ **Sample Data**.

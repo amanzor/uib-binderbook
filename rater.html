@@ -329,6 +329,65 @@
             .add-card .plus { width: 34px; height: 34px; font-size: 24px; }
         }
 
+        /* ── MAX assistant ───────────────────────────────────────── */
+        .max-wrap { display:grid; grid-template-columns: 240px 1fr; gap:16px; align-items:start; }
+        .max-side { background:#fff; border:1px solid var(--gray-200); border-radius: var(--radius-lg); padding:18px 14px; text-align:center; box-shadow: var(--shadow-sm); position: sticky; top: 120px; }
+        .max-name { font-family: var(--uib-display, inherit); font-weight:800; font-size:22px; color:var(--navy); letter-spacing:.5px; margin-top:6px; }
+        .max-tag { font-size:12px; color:var(--gray-500); margin-bottom:12px; }
+        .max-chips { display:flex; flex-direction:column; gap:8px; }
+        .max-chips button { width:100%; white-space:normal; }
+
+        /* A 3D-looking bot drawn with gradients and shadows */
+        .max-bot { position:relative; width:150px; height:190px; margin:0 auto; animation: maxFloat 4s ease-in-out infinite; }
+        .max-bot .antenna { position:absolute; left:50%; top:0; width:6px; height:26px; margin-left:-3px; background: linear-gradient(90deg,#94a3b8,#e2e8f0,#64748b); border-radius:3px; }
+        .max-bot .antenna span { position:absolute; left:50%; top:-10px; width:16px; height:16px; margin-left:-8px; border-radius:50%; background: radial-gradient(circle at 35% 35%, #fde68a, #f59e0b 60%, #b45309); box-shadow: 0 0 14px rgba(245,158,11,.8); animation: maxBlink 2.2s ease-in-out infinite; }
+        .max-bot .head { position:absolute; left:15px; top:22px; width:120px; height:92px; border-radius:30px; background: radial-gradient(ellipse at 30% 25%, #ffffff 0%, #dbe4f3 35%, #8ea2c4 75%, #51688e 100%); box-shadow: inset -8px -10px 18px rgba(13,31,60,.25), inset 6px 6px 12px rgba(255,255,255,.7), 0 14px 24px -10px rgba(13,31,60,.55); }
+        .max-bot .visor { position:absolute; left:14px; top:20px; width:92px; height:42px; border-radius:22px; background: linear-gradient(180deg,#0d1f3c,#1e3a8a 60%,#1d4ed8); box-shadow: inset 0 3px 8px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.25); display:flex; align-items:center; justify-content:center; gap:18px; }
+        .max-bot .eye { width:18px; height:18px; border-radius:50%; background: radial-gradient(circle at 40% 40%, #ffffff, #67e8f9 40%, #06b6d4 70%, #0e7490); box-shadow: 0 0 12px rgba(103,232,249,.9), 0 0 24px rgba(6,182,212,.5); animation: maxEye 3.4s ease-in-out infinite; }
+        .max-bot .mouth { position:absolute; left:46px; bottom:12px; width:28px; height:6px; border-radius:3px; background: linear-gradient(90deg,#1d4ed8,#67e8f9,#1d4ed8); box-shadow: 0 0 8px rgba(103,232,249,.7); }
+        .max-bot .neck { position:absolute; left:63px; top:112px; width:24px; height:12px; background: linear-gradient(90deg,#64748b,#cbd5e1,#64748b); border-radius:4px; }
+        .max-bot .body { position:absolute; left:28px; top:122px; width:94px; height:56px; border-radius:26px 26px 18px 18px; background: radial-gradient(ellipse at 30% 20%, #ffffff 0%, #c7d2fe 35%, #1d4ed8 80%, #0d1f3c 100%); box-shadow: inset -8px -8px 16px rgba(13,31,60,.35), inset 6px 6px 12px rgba(255,255,255,.5), 0 14px 24px -10px rgba(13,31,60,.55); }
+        .max-bot .core { position:absolute; left:50%; top:16px; width:22px; height:22px; margin-left:-11px; border-radius:50%; background: radial-gradient(circle at 40% 40%, #fff, #a5b4fc 40%, #7c3aed 75%, #3b1a8c); box-shadow: 0 0 14px rgba(124,58,237,.8); animation: maxBlink 2.8s ease-in-out infinite; }
+        .max-bot .shadow { position:absolute; left:35px; bottom:0; width:80px; height:12px; border-radius:50%; background: radial-gradient(ellipse, rgba(13,31,60,.35), rgba(13,31,60,0) 70%); animation: maxShadow 4s ease-in-out infinite; }
+        @keyframes maxFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        @keyframes maxShadow { 0%,100% { transform: scale(1); opacity:.9; } 50% { transform: scale(.85); opacity:.6; } }
+        @keyframes maxBlink { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+        @keyframes maxEye { 0%,88%,100% { transform: scaleY(1); } 92%,96% { transform: scaleY(.15); } }
+        .max-bot.thinking .eye { animation: maxBlink .7s ease-in-out infinite; }
+
+        .max-chat { background:#fff; border:1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); display:flex; flex-direction:column; min-height: 520px; max-height: calc(100vh - 220px); }
+        .max-log { flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+        .max-msg { max-width: 80%; padding:10px 14px; border-radius:14px; font-size:14px; line-height:1.45; white-space:pre-wrap; word-break: break-word; }
+        .max-msg.bot { align-self:flex-start; background: var(--gray-100); color: var(--gray-900); border-bottom-left-radius:4px; }
+        .max-msg.user { align-self:flex-end; background: linear-gradient(135deg,#0d1f3c,#1d4ed8); color:#fff; border-bottom-right-radius:4px; }
+        .max-msg.err { background: var(--red-pale); color:#991b1b; border:1px solid #fecaca; }
+        .max-msg .thumbs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+        .max-msg .thumbs img { width:72px; height:54px; object-fit:cover; border-radius:6px; border:1px solid rgba(255,255,255,.4); }
+        .max-msg .filled { margin-top:8px; background:#fff; border:1px solid var(--gray-200); border-radius:8px; padding:8px 10px; font-size:12.5px; }
+        .max-msg .filled b { color: var(--green); }
+        .max-msg .filled ul { margin:4px 0 0 16px; }
+        .max-msg .actions { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
+        .max-typing { align-self:flex-start; color: var(--gray-500); font-size:13px; padding:4px 14px; }
+        .max-typing i { display:inline-block; width:6px; height:6px; margin-right:3px; border-radius:50%; background: var(--blue-light); animation: maxBlink 1s ease-in-out infinite; }
+        .max-typing i:nth-child(2) { animation-delay:.2s; } .max-typing i:nth-child(3) { animation-delay:.4s; }
+        .max-attach { display:flex; gap:8px; flex-wrap:wrap; padding:0 14px; }
+        .max-attach .th { position:relative; }
+        .max-attach img { width:84px; height:64px; object-fit:cover; border-radius:8px; border:2px solid var(--blue-light); }
+        .max-attach .kind { position:absolute; left:4px; bottom:4px; font-size:10px; font-weight:700; background: rgba(13,31,60,.8); color:#fff; padding:1px 5px; border-radius:4px; }
+        .max-attach .x { position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%; background: var(--red); color:#fff; border:none; padding:0; font-size:12px; line-height:20px; }
+        .max-composer { display:flex; gap:8px; align-items:flex-end; padding:12px 14px; border-top:1px solid var(--gray-200); }
+        .max-composer textarea { flex:1; resize:none; padding:10px 12px; border:1.5px solid var(--gray-200); border-radius: 10px; font-family: inherit; font-size:14px; min-height:42px; max-height:140px; }
+        .max-composer textarea:focus { outline:none; border-color: var(--blue-light); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+        @media (max-width: 768px) {
+            .max-wrap { grid-template-columns: 1fr; }
+            .max-side { position: static; padding:12px; }
+            .max-bot { height:140px; transform: scale(.72); transform-origin: top center; }
+            .max-chips { flex-direction:row; flex-wrap:wrap; justify-content:center; }
+            .max-chips button { width:auto; }
+            .max-chat { min-height: 420px; max-height:none; }
+            .max-msg { max-width: 92%; }
+        }
+
         /* ── Carriers ────────────────────────────────────────────── */
         .carrier-list { display:grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap:14px; }
         .carrier-card {
@@ -521,6 +580,7 @@
 
 <div id="app" style="display:none;">
     <div class="tabs">
+        <button class="tab" data-tab="max" onclick="Rater.showTab('max')"><i data-lucide="bot"></i> MAX</button>
         <button class="tab active" data-tab="quote" onclick="Rater.showTab('quote')"><i data-lucide="file-text"></i> Quote</button>
         <button class="tab" data-tab="results" onclick="Rater.showTab('results')"><i data-lucide="bar-chart-2"></i> Results<span class="badge" id="resultsBadge" style="display:none;">0</span></button>
         <button class="tab" data-tab="saved" onclick="Rater.showTab('saved')"><i data-lucide="folder-open"></i> Saved<span class="badge" id="savedBadge" style="display:none;">0</span></button>
@@ -537,6 +597,42 @@
         </div>
         <div class="success-message" id="successMessage"></div>
         <div class="error-message" id="errorMessage"></div>
+
+        <!-- ═══ MAX (AI assistant) ═══ -->
+        <div class="panel" id="panel-max">
+            <div class="max-wrap">
+                <div class="max-side">
+                    <div class="max-bot" aria-hidden="true">
+                        <div class="antenna"><span></span></div>
+                        <div class="head">
+                            <div class="visor"><span class="eye"></span><span class="eye"></span></div>
+                            <div class="mouth"></div>
+                        </div>
+                        <div class="neck"></div>
+                        <div class="body"><div class="core"></div></div>
+                        <div class="shadow"></div>
+                    </div>
+                    <div class="max-name">MAX</div>
+                    <div class="max-tag">Your quoting assistant</div>
+                    <div class="max-chips">
+                        <button type="button" class="btn-primary btn-sm" onclick="Rater.max.pick('dl')"><i data-lucide="camera"></i> Scan driver's license</button>
+                        <button type="button" class="btn-purple btn-sm" onclick="Rater.max.pick('vin')"><i data-lucide="scan-line"></i> Scan VIN</button>
+                        <button type="button" class="btn-secondary btn-sm" onclick="Rater.max.ask('What can you do?')"><i data-lucide="circle-help"></i> What can you do?</button>
+                        <button type="button" class="btn-secondary btn-sm" onclick="Rater.max.clear()"><i data-lucide="eraser"></i> Clear chat</button>
+                    </div>
+                </div>
+                <div class="max-chat">
+                    <div class="max-log" id="maxLog"></div>
+                    <div class="max-attach" id="maxAttach"></div>
+                    <div class="max-composer">
+                        <button type="button" class="btn-secondary btn-sm" title="Take or choose a photo" onclick="Rater.max.pick('any')"><i data-lucide="image-plus"></i></button>
+                        <textarea id="maxInput" rows="1" placeholder="Ask MAX, or attach a photo of a driver's license or VIN…" onkeydown="Rater.max.keydown(event)"></textarea>
+                        <button type="button" class="btn-primary btn-sm" id="maxSendBtn" onclick="Rater.max.send()"><i data-lucide="send"></i> Send</button>
+                    </div>
+                    <input type="file" id="maxFile" accept="image/*" capture="environment" multiple style="display:none;" onchange="Rater.max.filesChosen(this)">
+                </div>
+            </div>
+        </div>
 
         <!-- ═══ QUOTE ═══ -->
         <div class="panel active" id="panel-quote">
@@ -700,7 +796,7 @@
 </div>
 
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<script src="rater.js?v=20261005u"></script>
+<script src="rater.js?v=20261006a"></script>
 <script src="supabase.js?v=20260916a"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>
