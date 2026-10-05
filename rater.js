@@ -134,15 +134,15 @@
     // Prior insurance is answered once for the policy (section below Client Contact Information)
     const hasPrior = (r) => r.priorInsurance === 'Yes';
     const PRIOR_Q = [
-        { k: 'priorInsurance', l: 'Does the client have prior insurance?', t: 'select', opts: ['', 'Yes', 'No'], req: true, wide: true }
+        { k: 'priorInsurance', l: 'Does the client have prior insurance?', t: 'select', opts: ['', 'Yes', 'No'], req: true }
     ];
-    // Shown only when the answer above is Yes
+    // Shown to the right of the question, only when the answer is Yes
     const PRIOR_FIELDS = [
-        { k: 'timeWithPriorYears', l: 'Time w/ Prior Ins. (yrs)', full: 'Time with Prior Insurance (years)', t: 'select', opts: [['', '—'], '1', '2', '3', '4', '5', '6'], reqIf: hasPrior },
-        { k: 'priorExpiration', l: 'Prior Exp. Date', full: 'Prior Expiration Date', t: 'date', reqIf: hasPrior },
-        { k: 'priorInAgency', l: 'Prior In Agency', t: 'yn' },
-        { k: 'priorCarrier', l: 'Prior Carrier', full: 'Prior Insurance Carrier', t: 'text', list: 'priorCarriers', reqIf: hasPrior },
-        { k: 'priorLimits', l: 'Prior Limits', full: 'Prior Liability Limits', t: 'select', opts: O.priorLimits, def: '25/50' }
+        { k: 'timeWithPriorYears', l: 'Time w/ Prior Ins. (yrs)', full: 'Time with Prior Insurance (years)', t: 'select', opts: [['', '—'], '1', '2', '3', '4', '5', '6'], reqIf: hasPrior, showIf: hasPrior },
+        { k: 'priorExpiration', l: 'Prior Exp. Date', full: 'Prior Expiration Date', t: 'date', reqIf: hasPrior, showIf: hasPrior },
+        { k: 'priorInAgency', l: 'Prior In Agency', t: 'yn', showIf: hasPrior },
+        { k: 'priorCarrier', l: 'Prior Carrier', full: 'Prior Insurance Carrier', t: 'text', list: 'priorCarriers', reqIf: hasPrior, showIf: hasPrior },
+        { k: 'priorLimits', l: 'Prior Limits', full: 'Prior Liability Limits', t: 'select', opts: O.priorLimits, def: '25/50', showIf: hasPrior }
     ];
     const PRIOR_ALL = [...PRIOR_Q, ...PRIOR_FIELDS];
     const hasFiling = (d) => d.stateFiling === 'Yes';
@@ -333,7 +333,9 @@
     }
     // Hide / show fields with a showIf rule (e.g. Prior Address only when < 1 year at residence)
     function applyShowIf() {
-        CLIENT_FIELDS.forEach((f) => { if (!f.showIf) return; document.querySelectorAll('[data-showif="' + f.k + '"]').forEach((el) => { el.style.display = f.showIf(quote.client) ? '' : 'none'; }); });
+        [[CLIENT_FIELDS, quote.client], [PRIOR_ALL, quote.prior]].forEach(([fields, rec]) => {
+            fields.forEach((f) => { if (!f.showIf) return; document.querySelectorAll('[data-showif="' + f.k + '"]').forEach((el) => { el.style.display = f.showIf(rec) ? '' : 'none'; }); });
+        });
     }
 
     function gridHTML(fields, base, rec) {
@@ -428,9 +430,7 @@
         form.innerHTML =
             datalists() +
             sectionHTML('client', 'user', 'Client Contact Information', gridHTML(CLIENT_FIELDS, 'client', quote.client)) +
-            sectionHTML('prior', 'shield-check', 'Prior Insurance',
-                gridHTML(PRIOR_Q, 'prior', quote.prior) +
-                '<div id="priorFields" style="margin-top:12px;' + (hasPrior(quote.prior) ? '' : 'display:none;') + '">' + gridHTML(PRIOR_FIELDS, 'prior', quote.prior) + '</div>') +
+            sectionHTML('prior', 'shield-check', 'Prior Insurance', gridHTML(PRIOR_ALL, 'prior', quote.prior)) +
             sectionHTML('coverages', 'shield', 'General Information / Coverages', gridHTML(COVERAGE_FIELDS, 'coverages', quote.coverages)) +
             sectionHTML('drivers', 'users', 'Drivers',
                 '<div class="repeat-head"><span class="title">Drivers: ' + quote.drivers.length + '</span><span class="note">each column is one driver: information, state filings, attributes</span></div>' +
@@ -486,7 +486,7 @@
         if (path === 'client.firstName' || path === 'client.lastName') updateMeta();
         if (path === 'client.address') { quote.client.addressVerified = false; parseAddress(val); setAddrStatus(); copyGarageFromClient(); }
         if (path === 'client.timeAtResidenceYears') applyShowIf();
-        if (path === 'prior.priorInsurance') { const g = $('priorFields'); if (g) g.style.display = hasPrior(quote.prior) ? '' : 'none'; }
+        if (path === 'prior.priorInsurance') applyShowIf();
         if (/^client\.phones\./.test(path)) derivePhones();
         scheduleDraft();
     }
