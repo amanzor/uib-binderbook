@@ -176,16 +176,10 @@
         { k: 'model', l: 'Model', t: 'text', req: true },
         { k: 'trim', l: 'Trim / Body', t: 'text' },
         { k: 'zip', l: 'Garaging Zip', t: 'text', req: true, max: 10, full: 'Garaging Zip (filled from the client address; change it only if the car is kept elsewhere)' },
-        { k: 'alternateGarage', l: 'Alternate Garage', t: 'yn' },
-        { k: 'lossPayeeType', l: 'Loss Payee Type', t: 'select', opts: O.lossPayee },
-        { k: 'lossPayeeName', l: 'Lienholder / Lessor', full: 'Lienholder / Lessor Name', t: 'text', wide: true },
         { k: 'comp', l: 'Comp Ded.', full: 'Comprehensive Deductible', t: 'select', opts: O.ded, def: '500' },
         { k: 'coll', l: 'Coll Ded.', full: 'Collision Deductible', t: 'select', opts: O.ded, def: '500' },
         { k: 'roadside', l: 'Roadside', t: 'select', opts: O.roadside },
-        { k: 'rental', l: 'Rental', t: 'select', opts: O.rental },
-        { k: 'customEquipment', l: 'Custom Equipment ($)', t: 'money' },
-        { k: 'gap', l: 'Gap', t: 'yn' },
-        { k: 'safetyGlass', l: 'Safety Glass', t: 'yn' }
+        { k: 'rental', l: 'Rental', t: 'select', opts: O.rental }
     ];
     const VEHICLE_ATTR = [
         { k: 'usage', l: 'Usage', t: 'select', opts: ['', ...O.usage], req: true },
@@ -706,7 +700,7 @@
         Object.assign(quote.coverages, { bi: '25/50', pd: '25', allowCreditScore: 'Yes', um: '25/50', medPay: '1000' });
         Object.assign(quote.drivers[0], { firstName: 'Maria', middleName: 'L', lastName: 'Gonzalez', dob: '1988-04-12', age: ageFrom('1988-04-12'), gender: 'Female', marital: 'Married', dlNumber: 'G524-310-88-634-0', priorInsurance: 'Yes', stateFiling: 'No', timeWithPriorYears: '2', timeWithPriorMonths: '6', priorExpiration: todayISO(), priorCarrier: 'Progressive', industry: 'Healthcare', occupation: 'Nurse', education: 'Bachelor Degree', residenceType: 'Single Family Home', residenceStatus: 'Own' });
         lastClientZip = '33166';
-        Object.assign(quote.vehicles[0], { vin: '1HGCV1F34LA012345', year: '2020', make: 'Honda', model: 'Accord', trim: 'EX / Sedan', zip: '33166', county: 'Miami-Dade', city: 'Doral', usage: 'Commute to Work/School', telematics: 'No', purchaseDate: '2021-06-15', lossPayeeType: 'Lienholder', lossPayeeName: 'Honda Financial Services', });
+        Object.assign(quote.vehicles[0], { vin: '1HGCV1F34LA012345', year: '2020', make: 'Honda', model: 'Accord', trim: 'EX / Sedan', zip: '33166', county: 'Miami-Dade', city: 'Doral', usage: 'Commute to Work/School', telematics: 'No', purchaseDate: '2021-06-15', });
         results = [];
         renderForm(); renderResults(); scheduleDraft();
         showSuccess('Sample quote loaded. Turn on Demo mode on the Carriers tab, then press Rate Quote.');
@@ -955,7 +949,7 @@
         });
         q.vehicles.forEach((v, i) => {
             lines.push('CAR ' + (i + 1) + ': ' + [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ') + ' | VIN ' + (v.vin || '—') + ' | Garage ' + v.zip + ' ' + v.city + ' | ' + v.usage + ' | Telematics ' + v.telematics);
-            lines.push('   Comp ' + v.comp + ' / Coll ' + v.coll + ' / Roadside ' + v.roadside + ' / Rental ' + v.rental + (v.gap === 'Yes' ? ' / GAP' : '') + ' | purchased ' + v.purchaseDate + ' | ' + v.lossPayeeType + (v.lossPayeeName ? ' ' + v.lossPayeeName : ''));
+            lines.push('   Comp ' + v.comp + ' / Coll ' + v.coll + ' / Roadside ' + v.roadside + ' / Rental ' + v.rental + ' | purchased ' + v.purchaseDate);
         });
         return lines.join('\n');
     }
