@@ -162,8 +162,6 @@
         { k: 'foreignLicensed', l: 'Foreign Licensed', t: 'select', opts: O.foreign },
         { k: 'licenseStatus', l: 'License Status', t: 'select', opts: O.licenseStatus },
         { k: 'timeSinceSuspension', l: 'Since Suspension', full: 'Time Since Suspension', t: 'ym', def: { y: '5', m: '0' } },
-        { k: 'violations', l: 'Violations (count)', t: 'number', def: '0', min: 0 },
-        { k: 'violationNotes', l: 'Violation / Accident Details', full: 'Violation / Accident Details', t: 'text', wide: true },
         { k: 'industry', l: 'Industry', t: 'text', list: 'industries', req: true },
         { k: 'occupation', l: 'Occupation', t: 'text' },
         { k: 'education', l: 'Education Level', t: 'select', opts: ['', ...O.education], req: true },
@@ -933,7 +931,7 @@
         const biIdx = Math.max(0, O.bi.indexOf(q.coverages.bi)); base += biIdx * 85;
         base += q.vehicles.length * 310;
         q.vehicles.forEach((v) => { if (v.comp !== 'No Covg') base += 140; if (v.coll !== 'No Covg') base += 260; if (v.rental !== 'No Covg') base += 35; if (v.roadside !== 'No Covg') base += 12; });
-        q.drivers.forEach((d) => { const a = +d.age || 35; if (a < 25) base += 420; else if (a > 70) base += 160; if (d.stateFiling === 'Yes' && d.sr22 === 'Yes') base += 150; if (+d.violations > 0) base += 95 * +d.violations; if (d.priorInsurance === 'No') base += 180; });
+        q.drivers.forEach((d) => { const a = +d.age || 35; if (a < 25) base += 420; else if (a > 70) base += 160; if (d.stateFiling === 'Yes' && d.sr22 === 'Yes') base += 150; if (d.priorInsurance === 'No') base += 180; });
         if (q.coverages.um !== 'No Coverage') base += 120;
         if (q.coverages.medPay !== 'No Coverage') base += 30;
         const premium = Math.round(base * (0.78 + rnd * 0.55) * 100) / 100;
@@ -953,7 +951,7 @@
         lines.push('BI ' + q.coverages.bi + ' / PD ' + q.coverages.pd + ' / PIP ' + q.coverages.pipType + ' ded ' + q.coverages.pipDed + ' ' + q.coverages.pipDedOption + (q.coverages.wageLossExclusion === 'Yes' ? ' (wage loss excl.)' : '') + ' / UM ' + q.coverages.um + (q.umStacked ? ' stacked' : '') + ' / MedPay ' + q.coverages.medPay + ' / AD ' + q.coverages.accidentalDeath);
         q.drivers.forEach((d, i) => {
             lines.push('DRIVER ' + (i + 1) + ': ' + [d.firstName, d.lastName].filter(Boolean).join(' ') + ' | DOB ' + d.dob + ' (' + d.age + ') | ' + d.gender + ' / ' + d.marital + ' / ' + d.relationship + ' | DL ' + (d.dlNumber || '—') + ' ' + d.dlState + ' | ' + d.driverType);
-            lines.push('   Prior: ' + d.priorInsurance + (d.priorInsurance === 'Yes' ? ' ' + d.priorCarrier + ' ' + d.priorLimits + ' ' + d.timeWithPriorYears + 'yr exp ' + d.priorExpiration : '') + ' | Lic US ' + d.timeLicensedUSYears + 'y FL ' + d.timeLicensedFLYears + 'y | ' + d.licenseStatus + (d.stateFiling === 'Yes' && d.sr22 === 'Yes' ? ' SR-22 ' + d.sr22State + (d.sr22Reason ? ' (' + d.sr22Reason + ')' : '') : '') + (d.stateFiling === 'Yes' && d.fr44 === 'Yes' ? ' FR-44' : '') + ' | Viol ' + d.violations + ' | ' + d.industry + (d.occupation ? '/' + d.occupation : '') + ' | ' + d.education + ' | ' + d.residenceType + ' (' + d.residenceStatus + ')');
+            lines.push('   Prior: ' + d.priorInsurance + (d.priorInsurance === 'Yes' ? ' ' + d.priorCarrier + ' ' + d.priorLimits + ' ' + d.timeWithPriorYears + 'yr exp ' + d.priorExpiration : '') + ' | Lic US ' + d.timeLicensedUSYears + 'y FL ' + d.timeLicensedFLYears + 'y | ' + d.licenseStatus + (d.stateFiling === 'Yes' && d.sr22 === 'Yes' ? ' SR-22 ' + d.sr22State + (d.sr22Reason ? ' (' + d.sr22Reason + ')' : '') : '') + (d.stateFiling === 'Yes' && d.fr44 === 'Yes' ? ' FR-44' : '') + ' | ' + d.industry + (d.occupation ? '/' + d.occupation : '') + ' | ' + d.education + ' | ' + d.residenceType + ' (' + d.residenceStatus + ')');
         });
         q.vehicles.forEach((v, i) => {
             lines.push('CAR ' + (i + 1) + ': ' + [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ') + ' | VIN ' + (v.vin || '—') + ' | Garage ' + v.zip + ' ' + v.city + ' | ' + v.usage + ' | Telematics ' + v.telematics);
