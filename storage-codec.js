@@ -25,7 +25,7 @@
         console.warn('storage-codec: lz-string not loaded — storing plain.');
         return;
     }
-    const KEYS = new Set(['binderData', 'amsClientData', 'commissionStatements', 'verificationLogs']);
+    const KEYS = new Set(['binderData', 'amsClientData', 'commissionStatements', 'verificationLogs', 'raterQuotes']);
     const MARK = 'LZ1:';           // never appears at the start of JSON
     const nativeGet = Storage.prototype.getItem;
     const nativeSet = Storage.prototype.setItem;
