@@ -375,6 +375,7 @@
         .max-attach img { width:84px; height:64px; object-fit:cover; border-radius:8px; border:2px solid var(--blue-light); }
         .max-attach .kind { position:absolute; left:4px; bottom:4px; font-size:10px; font-weight:700; background: rgba(13,31,60,.8); color:#fff; padding:1px 5px; border-radius:4px; }
         .max-attach .x { position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%; background: var(--red); color:#fff; border:none; padding:0; font-size:12px; line-height:20px; }
+        .max-attach .rot { position:absolute; top:-6px; left:-6px; width:22px; height:22px; border-radius:50%; background: var(--blue); color:#fff; border:none; padding:0; font-size:14px; line-height:22px; }
         .max-composer { display:flex; gap:8px; align-items:flex-end; padding:12px 14px; border-top:1px solid var(--gray-200); }
         .max-composer textarea { flex:1; resize:none; padding:10px 12px; border:1.5px solid var(--gray-200); border-radius: 10px; font-family: inherit; font-size:14px; min-height:42px; max-height:140px; }
         .max-composer textarea:focus { outline:none; border-color: var(--blue-light); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
@@ -617,6 +618,7 @@
                     <div class="max-chips">
                         <button type="button" class="btn-primary btn-sm" onclick="Rater.max.pick('dl')"><i data-lucide="camera"></i> Scan driver's license</button>
                         <button type="button" class="btn-purple btn-sm" onclick="Rater.max.pick('vin')"><i data-lucide="scan-line"></i> Scan VIN</button>
+                        <button type="button" class="btn-success btn-sm" onclick="Rater.max.sendInquiry()"><i data-lucide="mail"></i> Send inquiry to office</button>
                         <button type="button" class="btn-secondary btn-sm" onclick="Rater.max.ask('What can you do?')"><i data-lucide="circle-help"></i> What can you do?</button>
                         <button type="button" class="btn-secondary btn-sm" onclick="Rater.max.clear()"><i data-lucide="eraser"></i> Clear chat</button>
                     </div>
@@ -626,7 +628,7 @@
                     <div class="max-attach" id="maxAttach"></div>
                     <div class="max-composer">
                         <button type="button" class="btn-secondary btn-sm" title="Take or choose a photo" onclick="Rater.max.pick('any')"><i data-lucide="image-plus"></i></button>
-                        <textarea id="maxInput" rows="1" placeholder="Ask MAX, or attach a photo of a driver's license or VIN…" onkeydown="Rater.max.keydown(event)"></textarea>
+                        <textarea id="maxInput" rows="1" placeholder="Ask MAX, attach a license or VIN photo, or type the client's phone and email…" onkeydown="Rater.max.keydown(event)"></textarea>
                         <button type="button" class="btn-primary btn-sm" id="maxSendBtn" onclick="Rater.max.send()"><i data-lucide="send"></i> Send</button>
                     </div>
                     <input type="file" id="maxFile" accept="image/*" capture="environment" multiple style="display:none;" onchange="Rater.max.filesChosen(this)">
@@ -796,7 +798,7 @@
 </div>
 
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<script src="rater.js?v=20261006a"></script>
+<script src="rater.js?v=20261006c"></script>
 <script src="supabase.js?v=20260916a"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>

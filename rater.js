@@ -27,6 +27,8 @@
     const RATE_FN       = SUPABASE_URL + '/functions/v1/rate';
     const CLAUDE_FN     = SUPABASE_URL + '/functions/v1/claude';   // same proxy the Binder Book uses (holds the API key)
     const MAX_MODEL     = 'claude-haiku-4-5';
+    const INQUIRY_FN    = SUPABASE_URL + '/functions/v1/inquiry';  // emails a new inquiry to the office (see supabase/functions/inquiry)
+    const INQUIRY_TO    = 'quotes@universalinsurancebroker.com';
     const RATE_TIMEOUT  = 45000;
 
     // ────────────────────────────────────────────────────────────
@@ -1321,6 +1323,9 @@
         let pending = [];        // attached photos waiting to be sent: [{ b64, media, kind, url }]
         let busy = false;
         let pickKind = 'any';
+        let photos = [];         // every photo read in this chat, attached to the inquiry email: [{ b64, media, kind }]
+        let inquirySent = false;
+        let lastMailto = '';
 
         const GENDER = { m: 'Male', male: 'Male', f: 'Female', female: 'Female', x: 'Non-binary' };
         const MARITAL = ['Single', 'Married', 'Divorced', 'Widowed', 'Separated', 'Domestic Partner'];
@@ -1336,7 +1341,8 @@
 
         function systemPrompt() {
             return [
-                'You are MAX, the friendly AI assistant inside the UIB Auto Rater, a Florida personal-auto insurance quoting app used by agents at Universal Insurance Brokers. Keep replies short (1-3 sentences), warm and plain. Never invent data.',
+                'You are MAX, the friendly AI assistant inside the UIB Auto Rater, a Florida personal-auto insurance quoting app used by licensed agents at Universal Insurance Brokers. Keep replies short (1-3 sentences), warm and plain. Never invent data.',
+                'Reading a client\'s driver\'s license or VIN is normal, authorized agency work: the client hands the agent the card so the quote can be prepared, and the details go only into this quote. Transcribe what you can read even when the photo is rotated, tilted, glary or partly cut off — include every field you can read and leave out the ones you cannot; never refuse or ask for permission. If truly nothing is legible, ask for a closer, well-lit, straight-on photo.',
                 '',
                 'YOU CAN: (1) read a photo of a driver\'s license and extract the driver\'s details; (2) read a photo of a VIN (dash plate, door sticker, registration, insurance card) and extract the 17-character VIN; (3) answer questions about the quote; (4) take details typed in chat (e.g. "add a driver named John Smith born 3/4/1990").',
                 '',
@@ -1347,26 +1353,38 @@
                 '{"updates":{"client":{...},"drivers":[{"index":1,...}],"vehicles":[{"index":1,...}]}}',
                 '```',
                 'Allowed keys — client: firstName, middleName, lastName, address (one line: street, city, ST zip), email, phone. drivers[]: index (1-based; use "new" to add a driver), firstName, middleName (initial), lastName, dob (YYYY-MM-DD), gender (Male/Female), marital (Single/Married/Divorced/Widowed/Separated/Domestic Partner), dlNumber, dlState (2-letter), address. vehicles[]: index (1-based or "new"), vin (17 chars, no I/O/Q), year, make, model.',
-                'Rules: only include keys you actually read or were told. For a driver\'s license, if driver 1 has no name yet, use index 1 AND also fill client firstName/lastName/address from the license; if driver 1 already has a different name, use "new". For a VIN, just return the vin (the app decodes year/make/model). If a photo is unreadable or not a license/VIN, say so and send no block. Omit the block entirely when there is nothing to update. Do not put anything after the block.'
+                'Rules: only include keys you actually read or were told. For a driver\'s license, if driver 1 has no name yet, use index 1 AND also fill client firstName/lastName/address from the license; if driver 1 already has a different name, use "new". For a VIN, just return the vin (the app decodes year/make/model). If a photo is unreadable or not a license/VIN, say so and send no block. Omit the block entirely when there is nothing to update. Do not put anything after the block.',
+                '',
+                'FOLLOW-UP: after you add a license or a VIN, check CURRENT QUOTE: if the client has no phone or no email, ask for the missing one(s) in the same reply (one short question). When the client has a name, a phone AND an email, and at least a license or a VIN has been added, offer: "Want me to send this to the office as a new inquiry?" When the agent says yes (or asks you to send/email it), reply briefly and include "send_inquiry": true in the JSON block, e.g. {"updates":{},"send_inquiry":true}. Inquiries go to ' + INQUIRY_TO + '. Inquiry already sent this chat: ' + (inquirySent ? 'yes' : 'no') + '.'
             ].join('\n');
         }
 
         // Resize photos client-side so the request stays small and fast.
-        function fileToImage(file) {
+        // Phone photos carry an EXIF rotation that plain <img>/canvas ignores, so a
+        // portrait shot of a license would reach the model sideways. createImageBitmap
+        // applies the rotation; <img> is the fallback for older browsers.
+        async function loadBitmap(file) {
+            if (window.createImageBitmap) {
+                try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) { /* fall through */ }
+            }
             return new Promise((resolve, reject) => {
-                const url = URL.createObjectURL(file);
-                const img = new Image();
-                img.onload = () => {
-                    const maxSide = 1600; const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-                    const cv = document.createElement('canvas'); cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
-                    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-                    URL.revokeObjectURL(url);
-                    const dataUrl = cv.toDataURL('image/jpeg', 0.85);
-                    resolve({ b64: dataUrl.split(',')[1], media: 'image/jpeg', url: dataUrl });
-                };
-                img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read that image')); };
+                const url = URL.createObjectURL(file); const img = new Image();
+                img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+                img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable')); };
                 img.src = url;
             });
+        }
+        async function fileToImage(file) {
+            let bmp;
+            try { bmp = await loadBitmap(file); }
+            catch (e) { throw new Error('I could not open "' + file.name + '". If it is an iPhone HEIC file, take the photo with the camera button here or choose a JPEG/PNG.'); }
+            const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+            const maxSide = 2000; const scale = Math.min(1, maxSide / Math.max(w, h));
+            const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(w * scale)); cv.height = Math.max(1, Math.round(h * scale));
+            const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(bmp, 0, 0, cv.width, cv.height);
+            if (bmp.close) bmp.close();
+            const dataUrl = cv.toDataURL('image/jpeg', 0.9);
+            return { b64: dataUrl.split(',')[1], media: 'image/jpeg', url: dataUrl };
         }
 
         function pick(kind) { pickKind = kind || 'any'; const f = $('maxFile'); if (f) { f.value = ''; f.click(); } }
@@ -1381,9 +1399,23 @@
             $('maxInput').focus();
         }
         function removeAttach(i) { pending.splice(i, 1); renderAttach(); }
+        // Rotate a pending photo 90° clockwise (for a card photographed sideways)
+        function rotateAttach(i) {
+            const p = pending[i]; if (!p) return;
+            const img = new Image();
+            img.onload = () => {
+                const cv = document.createElement('canvas'); cv.width = img.height; cv.height = img.width;
+                const ctx = cv.getContext('2d'); ctx.translate(cv.width, 0); ctx.rotate(Math.PI / 2); ctx.drawImage(img, 0, 0);
+                const dataUrl = cv.toDataURL('image/jpeg', 0.9); p.url = dataUrl; p.b64 = dataUrl.split(',')[1]; renderAttach();
+            };
+            img.src = p.url;
+        }
         function renderAttach() {
             const w = $('maxAttach'); if (!w) return;
-            w.innerHTML = pending.map((p, i) => '<div class="th"><img src="' + p.url + '" alt=""><span class="kind">' + (p.kind === 'dl' ? "DL" : p.kind === 'vin' ? 'VIN' : 'photo') + '</span><button type="button" class="x" title="Remove" onclick="Rater.max.removeAttach(' + i + ')">✕</button></div>').join('');
+            w.innerHTML = pending.map((p, i) => '<div class="th"><img src="' + p.url + '" alt=""><span class="kind">' + (p.kind === 'dl' ? "DL" : p.kind === 'vin' ? 'VIN' : 'photo') + '</span>' +
+                '<button type="button" class="x" title="Remove" onclick="Rater.max.removeAttach(' + i + ')">✕</button>' +
+                '<button type="button" class="rot" title="Rotate (if the card is sideways)" onclick="Rater.max.rotateAttach(' + i + ')">⟳</button></div>').join('') +
+                (pending.length ? '<div class="note" style="width:100%;">Tip: hold the card flat, fill the frame, avoid glare. Use ⟳ if it shows sideways.</div>' : '');
         }
 
         function addMsg(role, html, extra) {
@@ -1412,11 +1444,12 @@
             if (busy) return;
             const inp = $('maxInput'); const text = (inp.value || '').trim();
             if (!text && !pending.length) return;
-            const photos = pending.slice(); pending = []; renderAttach();
+            const photosNow = pending.slice(); pending = []; renderAttach();
+            photosNow.forEach((p) => photos.push({ b64: p.b64, media: p.media, kind: p.kind }));
             inp.value = '';
-            addMsg('user', esc(text || (photos.length ? '(photo)' : '')), { thumbs: photos.map((p) => p.url) });
-            const content = photos.map((p) => ({ type: 'image', source: { type: 'base64', media_type: p.media, data: p.b64 } }));
-            content.push({ type: 'text', text: text || (photos.some((p) => p.kind === 'vin') ? 'Read the VIN in this photo and add the vehicle.' : "Read this driver's license and add the driver.") });
+            addMsg('user', esc(text || (photosNow.length ? '(photo)' : '')), { thumbs: photosNow.map((p) => p.url) });
+            const content = photosNow.map((p) => ({ type: 'image', source: { type: 'base64', media_type: p.media, data: p.b64 } }));
+            content.push({ type: 'text', text: text || (photosNow.some((p) => p.kind === 'vin') ? 'Read the VIN in this photo and add the vehicle.' : "Read this driver's license and add the driver.") });
             history.push({ role: 'user', content });
             busy = true; $('maxSendBtn').disabled = true; setTyping(true);
             try {
@@ -1431,9 +1464,16 @@
                 history.push({ role: 'assistant', content: reply });
                 // keep photos out of the running history after they were read (saves tokens on every later turn)
                 history = history.map((m) => (m.role === 'user' && Array.isArray(m.content)) ? { role: 'user', content: m.content.map((b) => b.type === 'image' ? { type: 'text', text: '[photo attached]' } : b) } : m);
-                const { text: shown, updates } = splitReply(reply);
+                let parsed = splitReply(reply);
+                if (!parsed.updates && photosNow.length) {
+                    // The model chatted but sent no data for a photo: ask once more for the fields only.
+                    const retry = await extractOnly(photosNow);
+                    if (retry) { parsed = { text: parsed.text, updates: retry, sendNow: false }; history[history.length - 1] = { role: 'assistant', content: reply + '\n```json\n' + JSON.stringify({ updates: retry }) + '\n```' }; }
+                }
+                const { text: shown, updates, sendNow } = parsed;
                 const el = addMsg('bot', esc(shown || (updates ? 'Got it.' : '…')));
-                if (updates) { const filled = applyUpdates(updates); if (el && filled.length) el.insertAdjacentHTML('beforeend', '<div class="filled"><b>✔ Added to the quote</b><ul>' + filled.map((f) => '<li>' + esc(f) + '</li>').join('') + '</ul></div><div class="actions"><button type="button" class="btn-primary btn-xs" onclick="Rater.showTab(\'quote\')">Open Quote</button></div>'); }
+                if (updates) { const filled = applyUpdates(updates); if (el && filled.length) el.insertAdjacentHTML('beforeend', '<div class="filled"><b>✔ Added to the quote</b><ul>' + filled.map((f) => '<li>' + esc(f) + '</li>').join('') + '</ul></div><div class="actions"><button type="button" class="btn-primary btn-xs" onclick="Rater.showTab(\'quote\')">Open Quote</button><button type="button" class="btn-success btn-xs" onclick="Rater.max.sendInquiry()">Send inquiry to office</button></div>'); }
+                if (sendNow) await sendInquiry();
             } catch (e) {
                 history.pop();
                 addMsg('err', 'MAX could not reach the AI service: ' + esc(e.message) + '. The Supabase function "claude" must be deployed with the ANTHROPIC_API_KEY secret (see the setup guide).');
@@ -1441,11 +1481,105 @@
         }
 
         function splitReply(reply) {
-            const m = reply.match(/```json\s*([\s\S]*?)```/i);
-            if (!m) return { text: reply, updates: null };
-            let updates = null;
-            try { const o = JSON.parse(m[1]); updates = o.updates || o; } catch (e) { updates = null; }
-            return { text: reply.replace(m[0], '').trim(), updates };
+            let raw = null, whole = '';
+            const fenced = reply.match(/```(?:json)?\s*([\s\S]*?)```/i);
+            if (fenced) { raw = fenced[1]; whole = fenced[0]; }
+            else {
+                // bare JSON object somewhere in the text: find the outermost {...} that mentions "updates" or "send_inquiry"
+                const start = reply.search(/\{\s*"(updates|send_inquiry)"/);
+                if (start >= 0) { let depth = 0; for (let i = start; i < reply.length; i++) { if (reply[i] === '{') depth++; else if (reply[i] === '}' && --depth === 0) { raw = reply.slice(start, i + 1); whole = raw; break; } } }
+            }
+            if (!raw) return { text: reply, updates: null, sendNow: false };
+            let updates = null, sendNow = false;
+            try { const o = JSON.parse(raw); updates = o.updates || (o.send_inquiry == null ? o : null); sendNow = o.send_inquiry === true; } catch (e) { updates = null; }
+            if (updates && typeof updates === 'object' && !Object.keys(updates).length) updates = null;
+            return { text: reply.replace(whole, '').trim(), updates, sendNow };
+        }
+
+        async function extractOnly(ph) {
+            try {
+                const res = await fetch(CLAUDE_FN, {
+                    method: 'POST',
+                    headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: MAX_MODEL, max_tokens: 700, system: systemPrompt(), messages: [{ role: 'user', content: ph.map((p) => ({ type: 'image', source: { type: 'base64', media_type: p.media, data: p.b64 } })).concat([{ type: 'text', text: 'Extract every field you can read from this photo (driver\'s license and/or VIN) and answer with ONLY the fenced json block described in your instructions — no sentences. If nothing at all is legible, answer with the single word UNREADABLE.' }]) }] })
+                });
+                const j = await res.json().catch(() => ({}));
+                if (!res.ok || j.error) return null;
+                const txt = (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+                const r = splitReply(txt);
+                return r.updates && Object.keys(r.updates).length ? r.updates : null;
+            } catch (e) { return null; }
+        }
+
+        // ── New inquiry email to the office ──────────────────────
+        function inquiryText() {
+            const c = quote.client;
+            const lines = ['NEW INQUIRY — UIB Auto Rater', 'Agent: ' + (currentUser || '—') + '   Date: ' + new Date().toLocaleString('en-US') + '   Quote: ' + quote.id.slice(-6).toUpperCase(), ''];
+            lines.push('CLIENT');
+            lines.push('  Name: ' + [c.firstName, c.middleName, c.lastName].filter(Boolean).join(' '));
+            lines.push('  Address: ' + (c.address || '—') + (c.county ? ' (' + c.county + ' County)' : '') + (c.addressVerified ? ' [verified]' : ''));
+            lines.push('  Phone: ' + ((c.phones || []).filter((p) => p.number).map((p) => p.type + ' ' + p.number).join(', ') || '—'));
+            lines.push('  Email: ' + (c.email || '—'));
+            lines.push('');
+            quote.drivers.forEach((d, i) => {
+                if (!d.firstName && !d.lastName && !d.dlNumber) return;
+                lines.push('DRIVER ' + (i + 1) + ' (driver\'s license)');
+                lines.push('  Name: ' + [d.firstName, d.middleName, d.lastName].filter(Boolean).join(' ') + '   DOB: ' + (d.dob || '—') + (d.age ? ' (' + d.age + ')' : ''));
+                lines.push('  DL #: ' + (d.dlNumber || '—') + '   State: ' + (d.dlState || '—') + '   Sex: ' + (d.gender || '—') + '   Marital: ' + (d.marital || '—'));
+                lines.push('');
+            });
+            quote.vehicles.forEach((v, i) => {
+                if (!v.vin && !v.make && !v.model) return;
+                lines.push('VEHICLE ' + (i + 1) + ' (VIN)');
+                lines.push('  VIN: ' + (v.vin || '—') + '   ' + [v.year, v.make, v.model, v.trim].filter(Boolean).join(' '));
+                lines.push('  Garaging zip: ' + (v.zip || '—') + '   Usage: ' + (v.usage || '—'));
+                lines.push('');
+            });
+            const cv = quote.coverages;
+            lines.push('REQUESTED COVERAGE');
+            lines.push('  Effective ' + cv.effectiveDate + ' · ' + cv.term + ' mo · BI ' + (cv.bi || '—') + ' / PD ' + cv.pd + ' · PIP ' + cv.pipType + ' ded ' + cv.pipDed + ' · UM ' + cv.um + ' · MedPay ' + cv.medPay);
+            lines.push('  Prior insurance: ' + (quote.prior.priorInsurance || '—') + (quote.prior.priorInsurance === 'Yes' ? ' (' + quote.prior.priorCarrier + ', ' + quote.prior.timeWithPriorYears + ' yr, exp ' + quote.prior.priorExpiration + ')' : ''));
+            lines.push('', photos.length ? photos.length + ' photo(s) attached.' : 'No photos attached.');
+            return lines.join('\n');
+        }
+        function inquirySubject() {
+            const c = quote.client; const who = [c.firstName, c.lastName].filter(Boolean).join(' ') || 'Unnamed client';
+            return 'New Inquiry – ' + who + ' – ' + new Date().toLocaleDateString('en-US');
+        }
+        async function sendInquiry() {
+            const c = quote.client;
+            const missing = [];
+            if (!c.firstName && !c.lastName) missing.push('the client\'s name');
+            if (!(c.phones || []).some((p) => p.number)) missing.push('a phone number');
+            if (!c.email) missing.push('an email');
+            if (missing.length) { addMsg('bot', 'Before I send the inquiry I still need ' + missing.join(' and ') + '. Type it here and I\'ll add it.'); return false; }
+            const text = inquiryText(); const subject = inquirySubject();
+            const el = addMsg('bot', '<span class="spinner dark"></span> Sending the inquiry to ' + esc(INQUIRY_TO) + '…');
+            try {
+                const res = await fetch(INQUIRY_FN, {
+                    method: 'POST',
+                    headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subject, text, html: '<pre style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;white-space:pre-wrap;">' + esc(text) + '</pre>', replyTo: c.email || undefined,
+                        attachments: photos.map((p, i) => ({ filename: (p.kind === 'dl' ? 'drivers-license' : p.kind === 'vin' ? 'vin' : 'photo') + '-' + (i + 1) + '.jpg', content: p.b64 })) })
+                });
+                const j = await res.json().catch(() => ({}));
+                if (res.status === 404) throw Object.assign(new Error('not deployed'), { notDeployed: true });
+                if (!res.ok || !j.ok) throw new Error(j.error || ('HTTP ' + res.status));
+                inquirySent = true;
+                el.innerHTML = '✔ Inquiry sent to <b>' + esc(INQUIRY_TO) + '</b>' + (photos.length ? ' with ' + photos.length + ' photo(s) attached' : '') + '.';
+                history.push({ role: 'user', content: '[system note: the inquiry email was sent successfully to ' + INQUIRY_TO + ']' });
+                history.push({ role: 'assistant', content: 'The inquiry has been sent to the office.' });
+                return true;
+            } catch (e) {
+                // Fallback: open the agent's mail app with the inquiry prefilled (photos cannot be attached this way).
+                lastMailto = 'mailto:' + INQUIRY_TO + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(text.slice(0, 1800));
+                const a = document.createElement('a'); a.href = lastMailto; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
+                el.className = 'max-msg bot err';
+                el.innerHTML = (e.notDeployed ? 'The email function is not deployed yet' : 'The email service answered: ' + esc(e.message)) + ', so I opened your mail app with the inquiry prefilled for <b>' + esc(INQUIRY_TO) + '</b> instead (photos are not attached that way). ' +
+                    'To send automatically with photos, deploy the Supabase function <code>inquiry</code> and add the <code>RESEND_API_KEY</code> secret (see the setup guide). ' +
+                    '<div class="actions"><a class="btn-secondary btn-xs" href="' + lastMailto + '" style="text-decoration:none;">Open mail app again</a></div>';
+                return false;
+            } finally { refreshIcons(); }
         }
 
         const clean = (v) => (v == null ? '' : String(v).trim());
@@ -1499,7 +1633,8 @@
             return filled;
         }
 
-        return { pick, filesChosen, removeAttach, send, keydown, ask, clear, greet };
+        function clearAll() { photos = []; inquirySent = false; clear(); }
+        return { pick, filesChosen, removeAttach, rotateAttach, send, keydown, ask, clear: clearAll, greet, sendInquiry, get lastMailto() { return lastMailto; }, get pending() { return pending; } };
     })();
 
     window.Rater = {
