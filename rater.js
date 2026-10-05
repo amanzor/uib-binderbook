@@ -129,9 +129,7 @@
         { k: 'marital', l: 'Marital Status', t: 'select', opts: ['', ...O.marital], req: true },
         { k: 'relationship', l: 'Relationship', t: 'select', opts: O.relationship },
         { k: 'dlNumber', l: 'DL Number', t: 'text' },
-        { k: 'dlState', l: 'DL State', t: 'select', opts: O.states, def: 'FL' },
-        { k: 'violations', l: 'Violations (count)', t: 'number', def: '0', min: 0 },
-        { k: 'violationNotes', l: 'Violation / Accident Details', full: 'Violation / Accident Details', t: 'text', wide: true }
+        { k: 'dlState', l: 'DL State', t: 'select', opts: O.states, def: 'FL' }
     ];
     const hasPrior = (d) => d.priorInsurance === 'Yes';
     // The question that decides whether the Prior Insurance group is shown
@@ -160,6 +158,8 @@
         { k: 'fr44', l: 'FR-44', t: 'yn' },
         { k: 'licenseStatus', l: 'License Status', t: 'select', opts: O.licenseStatus },
         { k: 'timeSinceSuspension', l: 'Since Suspension', full: 'Time Since Suspension', t: 'ym', def: { y: '5', m: '0' } },
+        { k: 'violations', l: 'Violations (count)', t: 'number', def: '0', min: 0 },
+        { k: 'violationNotes', l: 'Violation / Accident Details', full: 'Violation / Accident Details', t: 'text', wide: true },
         { k: 'industry', l: 'Industry', t: 'text', list: 'industries', req: true },
         { k: 'occupation', l: 'Occupation', t: 'text' },
         { k: 'timeEmployed', l: 'Time Employed', t: 'ym' },
