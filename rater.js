@@ -142,9 +142,7 @@
         { k: 'priorExpiration', l: 'Prior Exp. Date', full: 'Prior Expiration Date', t: 'date', reqIf: hasPrior },
         { k: 'priorInAgency', l: 'Prior In Agency', t: 'yn' },
         { k: 'priorCarrier', l: 'Prior Carrier', full: 'Prior Insurance Carrier', t: 'text', list: 'priorCarriers', reqIf: hasPrior },
-        { k: 'priorLimits', l: 'Prior Limits', full: 'Prior Liability Limits', t: 'select', opts: O.priorLimits, def: '25/50' },
-        { k: 'priorTransfer', l: 'Transfer Level', full: 'Prior Transfer Level', t: 'select', opts: O.transfer },
-        { k: 'parentsPolicy', l: "Parent's Policy", t: 'yn' }
+        { k: 'priorLimits', l: 'Prior Limits', full: 'Prior Liability Limits', t: 'select', opts: O.priorLimits, def: '25/50' }
     ];
     const hasFiling = (d) => d.stateFiling === 'Yes';
     const DRIVER_FILING_Q = [
