@@ -160,7 +160,6 @@
         { k: 'timeLicensedFL', l: 'Time Licensed Florida', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'mvrExperienceUS', l: 'MVR Experience U.S.', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'foreignLicensed', l: 'Foreign Licensed', t: 'select', opts: O.foreign },
-        { k: 'foreignExperience', l: 'Foreign Lic. Exp.', full: 'Foreign License Experience', t: 'ym' },
         { k: 'licenseStatus', l: 'License Status', t: 'select', opts: O.licenseStatus },
         { k: 'timeSinceSuspension', l: 'Since Suspension', full: 'Time Since Suspension', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'violations', l: 'Violations (count)', t: 'number', def: '0', min: 0 },
