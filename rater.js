@@ -405,15 +405,29 @@
             '</div>';
     }
 
-    // "Driver Attributes" section: one card per driver with the rating attributes
+    // Card heading for the per-driver cards outside Driver Information: only
+    // shown when there is more than one driver, so the cards can be told apart.
+    function driverCardHead(i, icon) {
+        if (quote.drivers.length < 2) return '';
+        return '<h4><i data-lucide="' + icon + '"></i> Driver #' + (i + 1) + ' <span class="note">' + esc(driverName(quote.drivers[i])) + '</span></h4>';
+    }
+
+    // "Prior Insurance" section: the yes/no question, then the prior-insurance fields when Yes
+    function driverPriorHTML(i) {
+        const d = quote.drivers[i];
+        const base = 'drivers.' + i;
+        return '<div class="sub-block" id="driverprior_' + i + '">' + driverCardHead(i, 'shield-check') +
+            gridHTML(DRIVER_PRIOR_Q, base, d) +
+            '<div id="driverpriorfields_' + i + '" style="margin-top:10px;' + (hasPrior(d) ? '' : 'display:none;') + '">' + gridHTML(DRIVER_PRIOR, base, d) + '</div>' +
+            '</div>';
+    }
+
+    // "Driver Attributes" section: licensing, occupation, residence + the folded Additional Attributes
     function driverAttrHTML(i) {
         const d = quote.drivers[i];
         const base = 'drivers.' + i;
-        return '<div class="sub-block" id="driverattr_' + i + '">' +
-            '<h4><i data-lucide="sliders-horizontal"></i> Driver #' + (i + 1) + ' <span class="note">' + esc(driverName(d)) + '</span></h4>' +
-            gridHTML(DRIVER_PRIOR_Q, base, d) +
-            '<div id="driverprior_' + i + '" style="' + (hasPrior(d) ? '' : 'display:none;') + '">' + subGroup('shield-check', 'Prior Insurance', DRIVER_PRIOR, base, d, false) + '</div>' +
-            subGroup('id-card', 'Licensing, Occupation & Residence', DRIVER_ATTR, base, d, false) +
+        return '<div class="sub-block" id="driverattr_' + i + '">' + driverCardHead(i, 'sliders-horizontal') +
+            gridHTML(DRIVER_ATTR, base, d) +
             subGroup('list-plus', 'Additional Attributes', DRIVER_EXTRA, base, d, true) +
             '</div>';
     }
@@ -457,8 +471,10 @@
                 '<div class="repeat-head"><span class="title">Drivers: ' + quote.drivers.length + '</span></div>' +
                 '<div class="card-row"><div class="cards" id="driversWrap">' + quote.drivers.map((_, i) => driverHTML(i)).join('') + '</div>' +
                 '<button type="button" class="add-card" onclick="Rater.addDriver()" title="Add another driver"><span class="plus">+</span><span>Add Driver</span></button></div>') +
+            sectionHTML('priorIns', 'shield-check', 'Prior Insurance',
+                '<div id="priorInsWrap">' + quote.drivers.map((_, i) => driverPriorHTML(i)).join('') + '</div>') +
             sectionHTML('driverAttrs', 'sliders-horizontal', 'Driver Attributes',
-                '<div id="driverAttrsWrap">' + quote.drivers.map((_, i) => driverAttrHTML(i)).join('') + '</div>', { sub: 'prior insurance, licensing, SR-22, occupation, residence' }) +
+                '<div id="driverAttrsWrap">' + quote.drivers.map((_, i) => driverAttrHTML(i)).join('') + '</div>', { sub: 'licensing, SR-22, occupation, residence' }) +
             sectionHTML('vehicles', 'car', 'Vehicle Information',
                 '<div class="repeat-head"><span class="title">Cars: ' + quote.vehicles.length + '</span><span class="spacer"></span>' +
                 '<button type="button" class="btn-primary btn-sm" onclick="Rater.addVehicle()"><i data-lucide="plus"></i> Add Vehicle</button></div>' +
@@ -496,10 +512,10 @@
         const m = path.match(/^drivers\.(\d+)\.(\w+)$/);
         if (m) {
             const i = +m[1];
-            if (m[2] === 'priorInsurance') { const g = $('driverprior_' + i); if (g) g.style.display = hasPrior(quote.drivers[i]) ? '' : 'none'; }
+            if (m[2] === 'priorInsurance') { const g = $('driverpriorfields_' + i); if (g) g.style.display = hasPrior(quote.drivers[i]) ? '' : 'none'; }
             if (m[2] === 'dob') { quote.drivers[i].age = ageFrom(val); const a = document.querySelector('[data-path="drivers.' + i + '.age"]'); if (a) a.value = quote.drivers[i].age; }
             if (m[2] === 'firstName' || m[2] === 'lastName') {
-                document.querySelectorAll('#driver_' + i + ' > h4 .note, #driverattr_' + i + ' > h4 .note').forEach((h) => { h.textContent = driverName(quote.drivers[i]); });
+                document.querySelectorAll('#driver_' + i + ' > h4 .note, #driverprior_' + i + ' > h4 .note, #driverattr_' + i + ' > h4 .note').forEach((h) => { h.textContent = driverName(quote.drivers[i]); });
                 refreshOperatorSelects();
             }
         }
