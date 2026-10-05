@@ -134,7 +134,7 @@
     // Prior insurance is answered once for the policy (section below Client Contact Information)
     const hasPrior = (r) => r.priorInsurance === 'Yes';
     const PRIOR_Q = [
-        { k: 'priorInsurance', l: 'Does the client have prior insurance?', t: 'select', opts: ['', 'Yes', 'No'], req: true }
+        { k: 'priorInsurance', l: 'Does the client have prior insurance?', t: 'select', opts: ['', 'Yes', 'No'], req: true, wide: true }
     ];
     // Shown to the right of the question, only when the answer is Yes
     const PRIOR_FIELDS = [
