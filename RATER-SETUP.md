@@ -215,18 +215,16 @@ app with the inquiry text prefilled (photos cannot be attached that way).
 3. Press **Rate Quote**. The Results tab fills in with a ranked comparison.
 4. Untick Demo mode when your real carriers are configured.
 
-## MAX by UIB — the consumer lead app and store apps
+## MAX by UIB — the consumer lead app
 
-`max/` is a separate, public, no-login app for prospects: MAX asks for
-name, phone and email, photographs the driver's license and VIN, asks about
-current insurance, takes consent, and emails the lead to
-quotes@universalinsurancebroker.com (and stores it in the `max_leads` table
-when `supabase-max-leads.sql` has been run). A **Dealer sign up** button
-lets auto-dealer staff register as referral partners (full name, dealership,
-address, phone, email). It is served at `/max` next to the rater and
-installs as a home-screen app; `native/` in the uibautorater repository
-holds the Capacitor shells for the App Store and Google Play — see
-`STORE-RELEASE.md` there for the step-by-step publishing guide.
+The public, no-login lead app (prospects photograph their license and VIN,
+leave phone and email, and the lead is emailed to
+quotes@universalinsurancebroker.com; auto dealers can sign up as referral
+partners) lives in its own repository, **amanzor/uibautorater**, together
+with the App Store / Google Play shells and its `STORE-RELEASE.md`
+publishing guide. It shares this project's Supabase functions (`claude`
+and `inquiry`) and the optional `max_leads` table from
+`supabase-max-leads.sql`.
 
 ## Files added
 
