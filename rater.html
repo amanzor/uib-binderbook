@@ -259,6 +259,9 @@
         .form-group .pair { display:flex; gap:6px; align-items:center; }
         .form-group .pair input { width: 0; flex:1; }
         .form-group .ym input { min-width: 34px; padding-left: 6px; padding-right: 2px; text-align: center; }
+        .form-group.inline { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+        .form-group.inline label { margin: 0; flex: 1; white-space: normal; }
+        .form-group.inline .pair { flex: 0 0 96px; }
         .form-group .namemi input.mi { flex: 0 0 48px; text-align: center; text-transform: uppercase; }
         .form-group.wide3 { grid-column: span 3; }
         .form-group .pair.addr button { white-space: nowrap; }
@@ -299,7 +302,8 @@
         body.dense .card-row .driver-col { flex-basis: calc((100% - 104px - 40px) / 4); }
         .card-row .cards .sub-block { margin-top:0; box-shadow: var(--shadow-sm); border-left: 4px solid var(--blue); }
         .card-row .cards .sub-block + .sub-block { border-left-color: var(--purple); }
-        .card-row .cards .sub-block + .sub-block + .sub-block { border-left-color: var(--green); }
+        .card-row .cards .sub-block + .sub-block + .sub-block { border-left-color: var(--amber); }
+        .card-row .cards .sub-block + .sub-block + .sub-block + .sub-block { border-left-color: var(--green); }
         .card-row .add-card { align-self: flex-start; min-height: 180px; }
         .card-row .cards .form-grid { grid-template-columns: 1fr; }
         .card-row .cards .form-group.wide { grid-column: 1 / -1; }
@@ -696,7 +700,7 @@
 </div>
 
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<script src="rater.js?v=20261005h"></script>
+<script src="rater.js?v=20261005l"></script>
 <script src="supabase.js?v=20260916a"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>

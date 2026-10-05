@@ -146,34 +146,32 @@
         { k: 'priorTransfer', l: 'Transfer Level', full: 'Prior Transfer Level', t: 'select', opts: O.transfer },
         { k: 'parentsPolicy', l: "Parent's Policy", t: 'yn' }
     ];
+    const hasFiling = (d) => d.stateFiling === 'Yes';
+    const DRIVER_FILING_Q = [
+        { k: 'stateFiling', l: 'Is there any state filing?', t: 'select', opts: ['', 'Yes', 'No'], req: true, wide: true }
+    ];
+    // Shown only when the answer above is Yes
+    const DRIVER_FILING = [
+        { k: 'sr22', l: 'SR-22', t: 'yn' },
+        { k: 'sr22State', l: 'SR-22 State', t: 'select', opts: O.states, def: 'FL' },
+        { k: 'sr22Reason', l: 'SR-22 Reason Filing', t: 'select', opts: O.sr22Reason },
+        { k: 'fr44', l: 'FR-44', t: 'yn' }
+    ];
     const DRIVER_ATTR = [
         { k: 'timeLicensedUS', l: 'Time Licensed U.S.', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'timeLicensedFL', l: 'Time Licensed Florida', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'mvrExperienceUS', l: 'MVR Experience U.S.', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'foreignLicensed', l: 'Foreign Licensed', t: 'select', opts: O.foreign },
         { k: 'foreignExperience', l: 'Foreign Lic. Exp.', full: 'Foreign License Experience', t: 'ym' },
-        { k: 'sr22', l: 'SR-22', t: 'yn' },
-        { k: 'sr22State', l: 'SR-22 State', t: 'select', opts: O.states, def: 'FL' },
-        { k: 'sr22Reason', l: 'SR-22 Reason Filing', t: 'select', opts: O.sr22Reason },
-        { k: 'fr44', l: 'FR-44', t: 'yn' },
         { k: 'licenseStatus', l: 'License Status', t: 'select', opts: O.licenseStatus },
         { k: 'timeSinceSuspension', l: 'Since Suspension', full: 'Time Since Suspension', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'violations', l: 'Violations (count)', t: 'number', def: '0', min: 0 },
         { k: 'violationNotes', l: 'Violation / Accident Details', full: 'Violation / Accident Details', t: 'text', wide: true },
         { k: 'industry', l: 'Industry', t: 'text', list: 'industries', req: true },
         { k: 'occupation', l: 'Occupation', t: 'text' },
-        { k: 'timeEmployed', l: 'Time Employed', t: 'ym' },
         { k: 'education', l: 'Education Level', t: 'select', opts: ['', ...O.education], req: true },
         { k: 'residenceType', l: 'Residence Type', t: 'select', opts: ['', ...O.residenceType], req: true },
-        { k: 'residenceStatus', l: 'Residence Status', t: 'select', opts: ['', ...O.residenceStatus], req: true },
-        { k: 'propertyInsurance', l: 'Property Insurance', t: 'yn' },
-        { k: 'companionHome', l: 'Companion Home', t: 'yn' },
-        { k: 'driversTraining', l: "Driver's Training", t: 'yn' },
-        { k: 'accPrevention', l: 'Acc. Prev. Course', full: 'Accident Prevention Course', t: 'yn' }
-    ];
-    const DRIVER_EXTRA = [
-        { k: 'milesToWork', l: 'Miles to Work', t: 'number', def: '0', min: 0 },
-        { k: 'occasionalOperator', l: 'Occasional Operator', t: 'yn' }
+        { k: 'residenceStatus', l: 'Residence Status', t: 'select', opts: ['', ...O.residenceStatus], req: true }
     ];
     const VEHICLE_INFO = [
         { k: 'carType', l: 'Car Type', t: 'select', opts: O.carType },
@@ -182,10 +180,7 @@
         { k: 'make', l: 'Make', t: 'text', req: true },
         { k: 'model', l: 'Model', t: 'text', req: true },
         { k: 'trim', l: 'Trim / Body', t: 'text' },
-        { k: 'plate', l: 'License Plate No.', t: 'text' },
-        { k: 'zip', l: 'Garaging Zip', t: 'text', req: true, max: 10 },
-        { k: 'county', l: 'Garaging County', t: 'text', list: 'flCounties' },
-        { k: 'city', l: 'Garaging City', t: 'text' },
+        { k: 'zip', l: 'Garaging Zip', t: 'text', req: true, max: 10, full: 'Garaging Zip (filled from the client address; change it only if the car is kept elsewhere)' },
         { k: 'alternateGarage', l: 'Alternate Garage', t: 'yn' },
         { k: 'lossPayeeType', l: 'Loss Payee Type', t: 'select', opts: O.lossPayee },
         { k: 'lossPayeeName', l: 'Lienholder / Lessor', full: 'Lienholder / Lessor Name', t: 'text', wide: true },
@@ -234,7 +229,7 @@
         { k: 'vinEtching', l: 'VIN Etching', t: 'yn' }
     ];
 
-    const DRIVER_FIELDS = [...DRIVER_INFO, ...DRIVER_PRIOR_Q, ...DRIVER_PRIOR, ...DRIVER_ATTR, ...DRIVER_EXTRA];
+    const DRIVER_FIELDS = [...DRIVER_INFO, ...DRIVER_PRIOR_Q, ...DRIVER_PRIOR, ...DRIVER_FILING_Q, ...DRIVER_FILING, ...DRIVER_ATTR];
     const VEHICLE_FIELDS = [...VEHICLE_INFO, ...VEHICLE_ATTR, ...VEHICLE_EXTRA];
 
     // ────────────────────────────────────────────────────────────
@@ -328,9 +323,9 @@
                 '<input type="text" id="' + id + '" data-path="' + path + '" value="' + esc(v) + '" placeholder="First" autocomplete="given-name"' + (f.req ? ' data-req="1"' : '') + '>' +
                 '<input type="text" class="mi" data-path="' + base + '.' + f.mi + '" value="' + esc(rec[f.mi]) + '" maxlength="2" placeholder="MI" title="Middle initial" autocomplete="additional-name"></div>';
         } else if (f.t === 'ym') {
-            ctrl = '<div class="pair ym">' +
-                '<input type="number" min="0" max="99" inputmode="numeric" data-path="' + path + 'Years" value="' + esc(rec[f.k + 'Years']) + '" title="Years"' + (f.req || f.reqIf ? ' data-req="1"' : '') + '><span>yr</span>' +
-                '<input type="number" min="0" max="11" inputmode="numeric" data-path="' + path + 'Months" value="' + esc(rec[f.k + 'Months']) + '" title="Months"><span>mo</span></div>';
+            // Years only, on the same line as the label (months are no longer asked)
+            return '<div class="form-group inline"' + (f.showIf ? ' data-showif="' + f.k + '"' : '') + '>' + label +
+                '<div class="pair ym"><input type="number" min="0" max="99" inputmode="numeric" id="' + id + '" data-path="' + path + 'Years" value="' + esc(rec[f.k + 'Years']) + '" title="Years"' + (f.req || f.reqIf ? ' data-req="1"' : '') + '><span>yr</span></div></div>';
         } else if (f.t === 'address') {
             const c = rec;
             return '<div class="form-group wide3" data-showif="' + f.k + '"><label for="' + id + '" title="' + esc(f.full || f.l) + '">' + esc(f.l) + '<span class="req">*</span></label>' +
@@ -419,20 +414,30 @@
             '</div>';
     }
 
-    // Driver Attributes card: licensing, record, occupation, residence + the folded Additional Attributes
+    // State Filings card: the yes/no question, then SR-22 / FR-44 fields when Yes
+    function driverFilingHTML(i) {
+        const d = quote.drivers[i];
+        const base = 'drivers.' + i;
+        return '<div class="sub-block" id="driverfiling_' + i + '">' +
+            '<h4><i data-lucide="file-badge"></i> State Filings</h4>' +
+            gridHTML(DRIVER_FILING_Q, base, d) +
+            '<div id="driverfilingfields_' + i + '" style="margin-top:10px;' + (hasFiling(d) ? '' : 'display:none;') + '">' + gridHTML(DRIVER_FILING, base, d) + '</div>' +
+            '</div>';
+    }
+
+    // Driver Attributes card: licensing, record, occupation, residence
     function driverAttrHTML(i) {
         const d = quote.drivers[i];
         const base = 'drivers.' + i;
         return '<div class="sub-block" id="driverattr_' + i + '">' +
             '<h4><i data-lucide="sliders-horizontal"></i> Driver Attributes</h4>' +
             gridHTML(DRIVER_ATTR, base, d) +
-            subGroup('list-plus', 'Additional Attributes', DRIVER_EXTRA, base, d, true) +
             '</div>';
     }
 
     // One vertical column per driver: information card, then Prior Insurance, then Driver Attributes
     function driverColumnHTML(i) {
-        return '<div class="driver-col" id="drivercol_' + i + '">' + driverHTML(i) + driverPriorHTML(i) + driverAttrHTML(i) + '</div>';
+        return '<div class="driver-col" id="drivercol_' + i + '">' + driverHTML(i) + driverPriorHTML(i) + driverFilingHTML(i) + driverAttrHTML(i) + '</div>';
     }
 
     function vehicleHTML(i) {
@@ -513,6 +518,7 @@
         if (m) {
             const i = +m[1];
             if (m[2] === 'priorInsurance') { const g = $('driverpriorfields_' + i); if (g) g.style.display = hasPrior(quote.drivers[i]) ? '' : 'none'; }
+            if (m[2] === 'stateFiling') { const g = $('driverfilingfields_' + i); if (g) g.style.display = hasFiling(quote.drivers[i]) ? '' : 'none'; }
             if (m[2] === 'dob') { quote.drivers[i].age = ageFrom(val); const a = document.querySelector('[data-path="drivers.' + i + '.age"]'); if (a) a.value = quote.drivers[i].age; }
             if (m[2] === 'firstName' || m[2] === 'lastName') {
                 document.querySelectorAll('#driver_' + i + ' > h4 .note, #driverprior_' + i + ' > h4 .note, #driverattr_' + i + ' > h4 .note').forEach((h) => { h.textContent = driverName(quote.drivers[i]); });
@@ -522,7 +528,7 @@
         const mv = path.match(/^vehicles\.(\d+)\.(year|make|model)$/);
         if (mv) { const i = +mv[1]; const v = quote.vehicles[i]; const h = document.querySelector('#vehicle_' + i + ' h4 .note'); if (h) h.textContent = [v.year, v.make, v.model].filter(Boolean).join(' '); }
         if (path === 'client.firstName' || path === 'client.lastName') updateMeta();
-        if (path === 'client.address') { quote.client.addressVerified = false; parseAddress(val); setAddrStatus(); }
+        if (path === 'client.address') { quote.client.addressVerified = false; parseAddress(val); setAddrStatus(); copyGarageFromClient(); }
         if (path === 'client.timeAtResidenceYears') applyShowIf();
         if (/^client\.phones\./.test(path)) derivePhones();
         scheduleDraft();
@@ -568,11 +574,17 @@
         el.className = 'addr-status' + (cls ? ' ' + cls : quote.client.addressVerified ? ' ok' : '');
         el.innerHTML = extra || addressStatusText(quote.client);
     }
+    // Garaging zip (and the county/city carriers may need) follow the client's address.
+    // A vehicle the agent pointed at a different zip is left alone.
+    let lastClientZip = '';
     function copyGarageFromClient() {
-        const c = quote.client; const v = quote.vehicles[0]; if (!v) return;
-        [['zip', 'zip'], ['county', 'county'], ['city', 'city']].forEach(([ck, vk]) => {
-            if (c[ck] && !v[vk]) { v[vk] = c[ck]; const el = document.querySelector('[data-path="vehicles.0.' + vk + '"]'); if (el) { el.value = c[ck]; el.classList.remove('need'); } }
+        const c = quote.client; if (!c.zip) return;
+        quote.vehicles.forEach((v, i) => {
+            if (v.zip && v.zip !== lastClientZip && v.zip !== c.zip) return;
+            v.zip = c.zip; v.county = c.county || ''; v.city = c.city || '';
+            const el = document.querySelector('[data-path="vehicles.' + i + '.zip"]'); if (el) { el.value = c.zip; el.classList.remove('need'); }
         });
+        lastClientZip = c.zip;
     }
     // "52 st" → "52nd St", "ne 3 ave" → "NE 3rd Ave": the geocoder wants ordinal street numbers.
     function normalizeStreet(text) {
@@ -685,7 +697,7 @@
         d.relationship = quote.drivers.length === 1 ? 'Spouse' : 'Child';
         // copy household-level answers from driver 1 so the agent doesn't retype them
         const d1 = quote.drivers[0];
-        ['priorInsurance', 'timeWithPriorYears', 'timeWithPriorMonths', 'priorExpiration', 'priorCarrier', 'priorLimits', 'residenceType', 'residenceStatus', 'propertyInsurance', 'lastName'].forEach((k) => { if (d1[k] != null) d[k] = d1[k]; });
+        ['priorInsurance', 'timeWithPriorYears', 'timeWithPriorMonths', 'priorExpiration', 'priorCarrier', 'priorLimits', 'residenceType', 'residenceStatus', 'lastName'].forEach((k) => { if (d1[k] != null) d[k] = d1[k]; });
         quote.drivers.push(d);
         renderForm();
         setTimeout(() => { const el = $('drivercol_' + (quote.drivers.length - 1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' }); }, 50);
@@ -701,7 +713,8 @@
     function addVehicle() {
         const v = blankRecord(VEHICLE_FIELDS);
         const v1 = quote.vehicles[0];
-        ['zip', 'county', 'city', 'comp', 'coll', 'roadside', 'rental'].forEach((k) => { if (v1[k] != null) v[k] = v1[k]; });
+        ['comp', 'coll', 'roadside', 'rental'].forEach((k) => { if (v1[k] != null) v[k] = v1[k]; });
+        v.zip = quote.client.zip || ''; v.county = quote.client.county || ''; v.city = quote.client.city || '';
         v.primaryOperator = String(Math.min(quote.vehicles.length + 1, quote.drivers.length));
         quote.vehicles.push(v);
         renderForm();
@@ -737,7 +750,8 @@
         Object.assign(quote.client, { firstName: 'Maria', middleName: 'L', lastName: 'Gonzalez', address: '8420 NW 52nd St, Doral, FL 33166', street: '8420 NW 52nd St', zip: '33166', county: 'Miami-Dade', city: 'Doral', state: 'FL', addressVerified: false, timeAtResidenceYears: '3', phones: [{ type: 'Mobile', number: '(305) 555-0147' }], email: 'maria.gonzalez@example.com' });
         derivePhones();
         Object.assign(quote.coverages, { bi: '25/50', pd: '25', allowCreditScore: 'Yes', um: '25/50', medPay: '1000' });
-        Object.assign(quote.drivers[0], { firstName: 'Maria', middleName: 'L', lastName: 'Gonzalez', dob: '1988-04-12', age: ageFrom('1988-04-12'), gender: 'Female', marital: 'Married', dlNumber: 'G524-310-88-634-0', priorInsurance: 'Yes', timeWithPriorYears: '2', timeWithPriorMonths: '6', priorExpiration: todayISO(), priorCarrier: 'Progressive', industry: 'Healthcare', occupation: 'Nurse', timeEmployedYears: '4', education: 'Bachelor Degree', residenceType: 'Single Family Home', residenceStatus: 'Own', propertyInsurance: 'Yes' });
+        Object.assign(quote.drivers[0], { firstName: 'Maria', middleName: 'L', lastName: 'Gonzalez', dob: '1988-04-12', age: ageFrom('1988-04-12'), gender: 'Female', marital: 'Married', dlNumber: 'G524-310-88-634-0', priorInsurance: 'Yes', stateFiling: 'No', timeWithPriorYears: '2', timeWithPriorMonths: '6', priorExpiration: todayISO(), priorCarrier: 'Progressive', industry: 'Healthcare', occupation: 'Nurse', education: 'Bachelor Degree', residenceType: 'Single Family Home', residenceStatus: 'Own' });
+        lastClientZip = '33166';
         Object.assign(quote.vehicles[0], { vin: '1HGCV1F34LA012345', year: '2020', make: 'Honda', model: 'Accord', trim: 'EX / Sedan', zip: '33166', county: 'Miami-Dade', city: 'Doral', usage: 'Commute to Work/School', telematics: 'No', milesToWork: '12', annualMiles: '12000', odometer: '41000', purchaseDate: '2021-06-15', newUsed: 'Used', lossPayeeType: 'Lienholder', lossPayeeName: 'Honda Financial Services', airBags: 'Front & Side', antiLockBrakes: '4 Wheel', passiveRestraint: 'Air Bags', runningLights: 'Yes' });
         results = [];
         renderForm(); renderResults(); scheduleDraft();
@@ -963,7 +977,7 @@
         const biIdx = Math.max(0, O.bi.indexOf(q.coverages.bi)); base += biIdx * 85;
         base += q.vehicles.length * 310;
         q.vehicles.forEach((v) => { if (v.comp !== 'No Covg') base += 140; if (v.coll !== 'No Covg') base += 260; if (v.rental !== 'No Covg') base += 35; if (v.roadside !== 'No Covg') base += 12; });
-        q.drivers.forEach((d) => { const a = +d.age || 35; if (a < 25) base += 420; else if (a > 70) base += 160; if (d.sr22 === 'Yes') base += 150; if (+d.violations > 0) base += 95 * +d.violations; if (d.priorInsurance === 'No') base += 180; });
+        q.drivers.forEach((d) => { const a = +d.age || 35; if (a < 25) base += 420; else if (a > 70) base += 160; if (d.stateFiling === 'Yes' && d.sr22 === 'Yes') base += 150; if (+d.violations > 0) base += 95 * +d.violations; if (d.priorInsurance === 'No') base += 180; });
         if (q.coverages.um !== 'No Coverage') base += 120;
         if (q.coverages.medPay !== 'No Coverage') base += 30;
         const premium = Math.round(base * (0.78 + rnd * 0.55) * 100) / 100;
@@ -983,7 +997,7 @@
         lines.push('BI ' + q.coverages.bi + ' / PD ' + q.coverages.pd + ' / PIP ' + q.coverages.pipType + ' ded ' + q.coverages.pipDed + ' ' + q.coverages.pipDedOption + (q.coverages.wageLossExclusion === 'Yes' ? ' (wage loss excl.)' : '') + ' / UM ' + q.coverages.um + (q.umStacked ? ' stacked' : '') + ' / MedPay ' + q.coverages.medPay + ' / AD ' + q.coverages.accidentalDeath);
         q.drivers.forEach((d, i) => {
             lines.push('DRIVER ' + (i + 1) + ': ' + [d.firstName, d.lastName].filter(Boolean).join(' ') + ' | DOB ' + d.dob + ' (' + d.age + ') | ' + d.gender + ' / ' + d.marital + ' / ' + d.relationship + ' | DL ' + (d.dlNumber || '—') + ' ' + d.dlState + ' | ' + d.driverType);
-            lines.push('   Prior: ' + d.priorInsurance + (d.priorInsurance === 'Yes' ? ' ' + d.priorCarrier + ' ' + d.priorLimits + ' ' + d.timeWithPriorYears + 'y' + d.timeWithPriorMonths + 'm exp ' + d.priorExpiration : '') + ' | Lic US ' + d.timeLicensedUSYears + 'y FL ' + d.timeLicensedFLYears + 'y | ' + d.licenseStatus + (d.sr22 === 'Yes' ? ' SR-22' : '') + (d.fr44 === 'Yes' ? ' FR-44' : '') + ' | Viol ' + d.violations + ' | ' + d.industry + (d.occupation ? '/' + d.occupation : '') + ' | ' + d.education + ' | ' + d.residenceType + ' (' + d.residenceStatus + ')');
+            lines.push('   Prior: ' + d.priorInsurance + (d.priorInsurance === 'Yes' ? ' ' + d.priorCarrier + ' ' + d.priorLimits + ' ' + d.timeWithPriorYears + 'y exp ' + d.priorExpiration : '') + ' | Lic US ' + d.timeLicensedUSYears + 'y FL ' + d.timeLicensedFLYears + 'y | ' + d.licenseStatus + (d.stateFiling === 'Yes' && d.sr22 === 'Yes' ? ' SR-22 ' + d.sr22State + (d.sr22Reason ? ' (' + d.sr22Reason + ')' : '') : '') + (d.stateFiling === 'Yes' && d.fr44 === 'Yes' ? ' FR-44' : '') + ' | Viol ' + d.violations + ' | ' + d.industry + (d.occupation ? '/' + d.occupation : '') + ' | ' + d.education + ' | ' + d.residenceType + ' (' + d.residenceStatus + ')');
         });
         q.vehicles.forEach((v, i) => {
             lines.push('CAR ' + (i + 1) + ': ' + [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ') + ' | VIN ' + (v.vin || '—') + ' | Garage ' + v.zip + ' ' + v.city + ' | ' + v.usage + ' | Op: Driver ' + v.primaryOperator);
@@ -1222,6 +1236,7 @@
         lines.push('', '# coverages'); add('coverages.', COVERAGE_FIELDS);
         lines.push('', '# drivers.N  (N = 0,1,2…)'); add('drivers.0.', DRIVER_FIELDS);
         lines.push('', '# vehicles.N'); add('vehicles.0.', VEHICLE_FIELDS);
+        lines.push('vehicles.0.county   (garaging county, from the client address)', 'vehicles.0.city   (garaging city, from the client address)');
         lines.push('', '# whole arrays / objects (raw JSON)', 'json:drivers', 'json:vehicles', 'json:client', 'json:coverages', 'json:quote');
         lines.push('', '# credentials (filled by the rating function from Supabase secrets)', 'USERNAME  PASSWORD  APIKEY  TOKEN');
         $('keysBody').textContent = lines.join('\n');
@@ -1320,6 +1335,7 @@
         const draft = load('raterDraft', null);
         quote = draft && draft.client ? upgradeQuote(draft) : blankQuote();
         if (!quote.agent) quote.agent = currentUser;
+        lastClientZip = quote.client.zip || '';
         applyDensity();
         renderForm(); renderResults(); renderSaved(); renderCarriers();
         setupInstall();
