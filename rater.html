@@ -290,9 +290,15 @@
         .repeat-head .spacer { flex:1; }
 
         /* ── Driver cards + "add" tile ───────────────────────────── */
-        .card-row { display:flex; gap:12px; align-items:stretch; }
-        .card-row .cards { flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; }
-        .card-row .cards .sub-block { margin-top:0; box-shadow: var(--shadow-sm); border-left: 4px solid var(--blue); }
+        /* Driver cards sit side by side as narrow vertical cards: four fit across with the
+           add tile after the last one; a fifth and beyond scroll horizontally. */
+        .card-row { display:flex; gap:10px; align-items:stretch; overflow-x:auto; padding-bottom:6px; scroll-snap-type: x proximity; }
+        .card-row .cards { display: contents; }
+        .card-row .cards .sub-block { flex: 0 0 calc((100% - 120px - 40px) / 4); min-width: 220px; margin-top:0; box-shadow: var(--shadow-sm); border-left: 4px solid var(--blue); scroll-snap-align: start; }
+        body.dense .card-row .cards .sub-block { flex-basis: calc((100% - 104px - 40px) / 4); }
+        .card-row .cards .form-grid { grid-template-columns: 1fr; }
+        .card-row .cards .form-group.wide { grid-column: 1 / -1; }
+        .card-row .cards .sub-block > h4 { flex-wrap: wrap; }
         .add-card {
             flex: 0 0 120px; min-height: 160px; align-self: stretch;
             display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
@@ -307,7 +313,9 @@
         .add-card:active { transform: translateY(0); }
         body.dense .add-card { flex-basis: 104px; }
         @media (max-width: 768px) {
-            .card-row { flex-direction: column; }
+            .card-row { flex-direction: column; overflow: visible; }
+            .card-row .cards .sub-block { flex: none; width: 100%; }
+            .card-row .cards .form-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
             .add-card { flex: none; min-height: 0; flex-direction: row; justify-content:center; gap: 10px; padding: 10px; }
             .add-card .plus { width: 34px; height: 34px; font-size: 24px; }
         }
