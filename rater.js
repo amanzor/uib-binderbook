@@ -408,31 +408,31 @@
             '</div>';
     }
 
-    // Card heading for the per-driver cards outside Driver Information: only
-    // shown when there is more than one driver, so the cards can be told apart.
-    function driverCardHead(i, icon) {
-        if (quote.drivers.length < 2) return '';
-        return '<h4><i data-lucide="' + icon + '"></i> Driver #' + (i + 1) + ' <span class="note">' + esc(driverName(quote.drivers[i])) + '</span></h4>';
-    }
-
-    // "Prior Insurance" section: the yes/no question, then the prior-insurance fields when Yes
+    // Prior Insurance card: the yes/no question, then the prior-insurance fields when Yes
     function driverPriorHTML(i) {
         const d = quote.drivers[i];
         const base = 'drivers.' + i;
-        return '<div class="sub-block" id="driverprior_' + i + '">' + driverCardHead(i, 'shield-check') +
+        return '<div class="sub-block" id="driverprior_' + i + '">' +
+            '<h4><i data-lucide="shield-check"></i> Prior Insurance</h4>' +
             gridHTML(DRIVER_PRIOR_Q, base, d) +
             '<div id="driverpriorfields_' + i + '" style="margin-top:10px;' + (hasPrior(d) ? '' : 'display:none;') + '">' + gridHTML(DRIVER_PRIOR, base, d) + '</div>' +
             '</div>';
     }
 
-    // "Driver Attributes" section: licensing, occupation, residence + the folded Additional Attributes
+    // Driver Attributes card: licensing, record, occupation, residence + the folded Additional Attributes
     function driverAttrHTML(i) {
         const d = quote.drivers[i];
         const base = 'drivers.' + i;
-        return '<div class="sub-block" id="driverattr_' + i + '">' + driverCardHead(i, 'sliders-horizontal') +
+        return '<div class="sub-block" id="driverattr_' + i + '">' +
+            '<h4><i data-lucide="sliders-horizontal"></i> Driver Attributes</h4>' +
             gridHTML(DRIVER_ATTR, base, d) +
             subGroup('list-plus', 'Additional Attributes', DRIVER_EXTRA, base, d, true) +
             '</div>';
+    }
+
+    // One vertical column per driver: information card, then Prior Insurance, then Driver Attributes
+    function driverColumnHTML(i) {
+        return '<div class="driver-col" id="drivercol_' + i + '">' + driverHTML(i) + driverPriorHTML(i) + driverAttrHTML(i) + '</div>';
     }
 
     function vehicleHTML(i) {
@@ -470,14 +470,10 @@
             datalists() +
             sectionHTML('client', 'user', 'Client Contact Information', gridHTML(CLIENT_FIELDS, 'client', quote.client)) +
             sectionHTML('coverages', 'shield', 'General Information / Coverages', gridHTML(COVERAGE_FIELDS, 'coverages', quote.coverages)) +
-            sectionHTML('drivers', 'users', 'Driver Information',
-                '<div class="repeat-head"><span class="title">Drivers: ' + quote.drivers.length + '</span></div>' +
-                '<div class="card-row"><div class="cards" id="driversWrap">' + quote.drivers.map((_, i) => driverHTML(i)).join('') + '</div>' +
-                '<button type="button" class="add-card" onclick="Rater.addDriver()" title="Add another driver"><span class="plus">+</span><span>Add Driver</span></button></div>') +
-            sectionHTML('priorIns', 'shield-check', 'Prior Insurance',
-                '<div id="priorInsWrap">' + quote.drivers.map((_, i) => driverPriorHTML(i)).join('') + '</div>') +
-            sectionHTML('driverAttrs', 'sliders-horizontal', 'Driver Attributes',
-                '<div id="driverAttrsWrap">' + quote.drivers.map((_, i) => driverAttrHTML(i)).join('') + '</div>', { sub: 'licensing, SR-22, occupation, residence' }) +
+            sectionHTML('drivers', 'users', 'Drivers',
+                '<div class="repeat-head"><span class="title">Drivers: ' + quote.drivers.length + '</span><span class="note">each column is one driver: information, prior insurance, attributes</span></div>' +
+                '<div class="card-row"><div class="cards" id="driversWrap">' + quote.drivers.map((_, i) => driverColumnHTML(i)).join('') + '</div>' +
+                '<button type="button" class="add-card" onclick="Rater.addDriver()" title="Add another driver"><span class="plus">+</span><span>Add Driver</span></button></div>', { sub: 'information, prior insurance, attributes' }) +
             sectionHTML('vehicles', 'car', 'Vehicle Information',
                 '<div class="repeat-head"><span class="title">Cars: ' + quote.vehicles.length + '</span><span class="spacer"></span>' +
                 '<button type="button" class="btn-primary btn-sm" onclick="Rater.addVehicle()"><i data-lucide="plus"></i> Add Vehicle</button></div>' +
@@ -692,7 +688,7 @@
         ['priorInsurance', 'timeWithPriorYears', 'timeWithPriorMonths', 'priorExpiration', 'priorCarrier', 'priorLimits', 'residenceType', 'residenceStatus', 'propertyInsurance', 'lastName'].forEach((k) => { if (d1[k] != null) d[k] = d1[k]; });
         quote.drivers.push(d);
         renderForm();
-        setTimeout(() => { const el = $('driver_' + (quote.drivers.length - 1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+        setTimeout(() => { const el = $('drivercol_' + (quote.drivers.length - 1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' }); }, 50);
         scheduleDraft();
     }
     function removeDriver(i) {

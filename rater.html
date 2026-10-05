@@ -295,8 +295,12 @@
            add tile after the last one; a fifth and beyond scroll horizontally. */
         .card-row { display:flex; gap:10px; align-items:stretch; overflow-x:auto; padding-bottom:6px; scroll-snap-type: x proximity; }
         .card-row .cards { display: contents; }
-        .card-row .cards .sub-block { flex: 0 0 calc((100% - 120px - 40px) / 4); min-width: 220px; margin-top:0; box-shadow: var(--shadow-sm); border-left: 4px solid var(--blue); scroll-snap-align: start; }
-        body.dense .card-row .cards .sub-block { flex-basis: calc((100% - 104px - 40px) / 4); }
+        .card-row .driver-col { flex: 0 0 calc((100% - 120px - 40px) / 4); min-width: 220px; display:flex; flex-direction:column; gap:10px; scroll-snap-align: start; }
+        body.dense .card-row .driver-col { flex-basis: calc((100% - 104px - 40px) / 4); }
+        .card-row .cards .sub-block { margin-top:0; box-shadow: var(--shadow-sm); border-left: 4px solid var(--blue); }
+        .card-row .cards .sub-block + .sub-block { border-left-color: var(--purple); }
+        .card-row .cards .sub-block + .sub-block + .sub-block { border-left-color: var(--green); }
+        .card-row .add-card { align-self: flex-start; min-height: 180px; }
         .card-row .cards .form-grid { grid-template-columns: 1fr; }
         .card-row .cards .form-group.wide { grid-column: 1 / -1; }
         .card-row .cards .sub-block > h4 { flex-wrap: wrap; }
@@ -315,7 +319,7 @@
         body.dense .add-card { flex-basis: 104px; }
         @media (max-width: 768px) {
             .card-row { flex-direction: column; overflow: visible; }
-            .card-row .cards .sub-block { flex: none; width: 100%; }
+            .card-row .driver-col { flex: none; width: 100%; }
             .card-row .cards .form-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
             .add-card { flex: none; min-height: 0; flex-direction: row; justify-content:center; gap: 10px; padding: 10px; }
             .add-card .plus { width: 34px; height: 34px; font-size: 24px; }
@@ -692,7 +696,7 @@
 </div>
 
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<script src="rater.js?v=20261005g"></script>
+<script src="rater.js?v=20261005h"></script>
 <script src="supabase.js?v=20260916a"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>
