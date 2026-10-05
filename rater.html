@@ -257,7 +257,7 @@
         /* Required-but-empty fields get the same soft amber outline the quoting system uses */
         .form-group input.need, .form-group select.need { border-color:#f59e0b; background:#fffbeb; }
         .form-group .pair { display:flex; gap:6px; align-items:center; }
-        .form-group .pair input { width: 0; flex:1; }
+        .form-group .pair input { width: 0; flex:1; min-width: 34px; padding-left: 6px; padding-right: 2px; text-align: center; }
         .form-group .pair span { font-size:12px; color:var(--gray-500); white-space:nowrap; }
         .form-group .check { display:flex; align-items:center; gap:8px; min-height:40px; font-size:14px; }
         .form-group .check input { width:18px; height:18px; min-height:0; accent-color: var(--blue); }
@@ -387,6 +387,30 @@
         }
         .install-banner .spacer { flex:1; }
 
+        /* ── Compact density (default; toggle in the Quote toolbar) ── */
+        body.dense .page-body { padding-top: 12px; }
+        body.dense .form-section { padding: 12px 14px; margin-bottom: 12px; border-radius: 12px; }
+        body.dense .form-section h3 { font-size: .95rem; margin-bottom: 10px; padding-bottom: 8px; }
+        body.dense .form-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 10px; }
+        body.dense .form-group label { font-size: 11.5px; margin-bottom: 3px; }
+        body.dense .form-group input,
+        body.dense .form-group select,
+        body.dense .form-group textarea { padding: 5px 8px; min-height: 32px; font-size: 13px; border-width: 1px; }
+        body.dense .form-group .check { min-height: 32px; font-size: 13px; }
+        body.dense .form-group .pair { gap: 4px; }
+        body.dense .form-group .pair span { font-size: 11px; }
+        body.dense .form-group .pair input { padding-left: 4px; padding-right: 0; }
+        body.dense .sub-block { padding: 10px 12px; margin-top: 10px; }
+        body.dense .sub-block h4 { font-size: 13px; margin-bottom: 8px; }
+        body.dense .repeat-head { padding: 6px 10px; margin-bottom: 8px; }
+        body.dense .toolbar { margin-bottom: 10px; }
+        /* Collapsible field groups inside a driver / vehicle card */
+        .sub-group h4 { cursor: pointer; user-select: none; }
+        .sub-group h4 .chev { transition: transform .2s; margin-left: auto; }
+        .sub-group.collapsed h4 .chev { transform: rotate(-90deg); }
+        .sub-group.collapsed .form-grid { display: none; }
+        .sub-group h4 .count { font-size: 11px; font-weight: 500; color: var(--gray-500); }
+
         /* Keep the floating cloud-sync button clear of the bottom action bar */
         #uibCloudBtn { bottom: calc(84px + env(safe-area-inset-bottom)) !important; }
         #uibCloudPanel { bottom: calc(144px + env(safe-area-inset-bottom)) !important; }
@@ -399,7 +423,7 @@
             .form-section { padding: 14px 12px; border-radius: 12px; }
             .form-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
             .form-group.wide { grid-column: 1 / -1; }
-            .form-group input, .form-group select { font-size:16px; } /* stops iOS zoom-on-focus */
+            .form-group input, .form-group select, body.dense .form-group input, body.dense .form-group select { font-size:16px; } /* stops iOS zoom-on-focus */
             .results-table { display:none; }
             .result-cards { display:grid; }
             .tabs { top: calc(50px + env(safe-area-inset-top)); padding:6px 8px 0; }
@@ -471,6 +495,7 @@
             <div class="toolbar">
                 <button class="btn-secondary btn-sm" onclick="Rater.newQuote()"><i data-lucide="file-plus"></i> New Quote</button>
                 <button class="btn-secondary btn-sm" onclick="Rater.fillSample()" title="Fill the form with sample data to test the rater"><i data-lucide="wand-2"></i> Sample Data</button>
+                <button class="btn-secondary btn-sm" id="densityBtn" onclick="Rater.toggleDensity()" title="Switch between compact and comfortable spacing"><i data-lucide="rows-3"></i> Compact</button>
                 <span class="spacer"></span>
                 <span class="note" id="quoteMeta"></span>
             </div>
@@ -627,7 +652,7 @@
 </div>
 
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<script src="rater.js?v=20261005a"></script>
+<script src="rater.js?v=20261005b"></script>
 <script src="supabase.js?v=20260916a"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>

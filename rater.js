@@ -120,7 +120,7 @@
         { k: 'pipDed', l: 'PIP Deductible', t: 'select', opts: O.pipDed },
         { k: 'pipDedOption', l: 'PIP Ded Option', t: 'select', opts: O.pipDedOpt, def: 'NIRR' },
         { k: 'wageLossExclusion', l: 'Wage Loss Exclusion', t: 'yn', def: 'Yes' },
-        { k: 'um', l: 'Uninsured Motorist BI', t: 'select', opts: O.um },
+        { k: 'um', l: 'UM BI', full: 'Uninsured Motorist BI', t: 'select', opts: O.um },
         { k: 'umStacked', l: 'UM Stacked', t: 'check' },
         { k: 'medPay', l: 'Medical Payments', t: 'select', opts: O.medpay },
         { k: 'accidentalDeath', l: 'Accidental Death', t: 'select', opts: O.accDeath }
@@ -133,9 +133,9 @@
         { k: 'quoteDescription', l: 'Quote Description', t: 'select', opts: O.quoteDesc },
         { k: 'language', l: 'Native Language', t: 'select', opts: O.language },
         { k: 'paperless', l: 'Paperless Discount', t: 'yn', def: 'Yes' },
-        { k: 'pipClaims0to12', l: 'Prior PIP Claims 0–12 Mo', t: 'number', def: '0', min: 0 },
-        { k: 'pipClaims13to36', l: 'Prior PIP Claims 13–36 Mo', t: 'number', def: '0', min: 0 },
-        { k: 'pipClaims37to60', l: 'Prior PIP Claims 37–60 Mo', t: 'number', def: '0', min: 0 },
+        { k: 'pipClaims0to12', l: 'PIP Claims 0–12 Mo', full: 'Prior PIP Claims 0–12 Months', t: 'number', def: '0', min: 0 },
+        { k: 'pipClaims13to36', l: 'PIP Claims 13–36 Mo', full: 'Prior PIP Claims 13–36 Months', t: 'number', def: '0', min: 0 },
+        { k: 'pipClaims37to60', l: 'PIP Claims 37–60 Mo', full: 'Prior PIP Claims 37–60 Months', t: 'number', def: '0', min: 0 },
         { k: 'notes', l: 'Additional Details / Notes', t: 'text', wide: true }
     ];
     const DRIVER_INFO = [
@@ -151,28 +151,28 @@
         { k: 'dlNumber', l: 'DL Number', t: 'text' },
         { k: 'dlState', l: 'DL State', t: 'select', opts: O.states, def: 'FL' },
         { k: 'violations', l: 'Violations (count)', t: 'number', def: '0', min: 0 },
-        { k: 'violationNotes', l: 'Violation / Accident Details', t: 'text', wide: true }
+        { k: 'violationNotes', l: 'Violation / Accident Details', full: 'Violation / Accident Details', t: 'text', wide: true }
     ];
     const DRIVER_ATTR = [
         { k: 'priorInsurance', l: 'Prior Insurance', t: 'yn', def: 'Yes' },
-        { k: 'timeWithPrior', l: 'Time with Prior Insurance', t: 'ym', req: true },
-        { k: 'priorExpiration', l: 'Prior Expiration Date', t: 'date', req: true },
+        { k: 'timeWithPrior', l: 'Time w/ Prior Ins.', full: 'Time with Prior Insurance', t: 'ym', req: true },
+        { k: 'priorExpiration', l: 'Prior Exp. Date', full: 'Prior Expiration Date', t: 'date', req: true },
         { k: 'priorInAgency', l: 'Prior In Agency', t: 'yn' },
-        { k: 'priorCarrier', l: 'Prior Insurance Carrier', t: 'text', list: 'priorCarriers', req: true },
-        { k: 'priorLimits', l: 'Prior Liability Limits', t: 'select', opts: O.priorLimits, def: '25/50' },
-        { k: 'priorTransfer', l: 'Prior Transfer Level', t: 'select', opts: O.transfer },
+        { k: 'priorCarrier', l: 'Prior Carrier', full: 'Prior Insurance Carrier', t: 'text', list: 'priorCarriers', req: true },
+        { k: 'priorLimits', l: 'Prior Limits', full: 'Prior Liability Limits', t: 'select', opts: O.priorLimits, def: '25/50' },
+        { k: 'priorTransfer', l: 'Transfer Level', full: 'Prior Transfer Level', t: 'select', opts: O.transfer },
         { k: 'parentsPolicy', l: "Parent's Policy", t: 'yn' },
         { k: 'timeLicensedUS', l: 'Time Licensed U.S.', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'timeLicensedFL', l: 'Time Licensed Florida', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'mvrExperienceUS', l: 'MVR Experience U.S.', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'foreignLicensed', l: 'Foreign Licensed', t: 'select', opts: O.foreign },
-        { k: 'foreignExperience', l: 'Foreign License Experience', t: 'ym' },
+        { k: 'foreignExperience', l: 'Foreign Lic. Exp.', full: 'Foreign License Experience', t: 'ym' },
         { k: 'sr22', l: 'SR-22', t: 'yn' },
         { k: 'sr22State', l: 'SR-22 State', t: 'select', opts: O.states, def: 'FL' },
         { k: 'sr22Reason', l: 'SR-22 Reason Filing', t: 'select', opts: O.sr22Reason },
         { k: 'fr44', l: 'FR-44', t: 'yn' },
         { k: 'licenseStatus', l: 'License Status', t: 'select', opts: O.licenseStatus },
-        { k: 'timeSinceSuspension', l: 'Time Since Suspension', t: 'ym', def: { y: '5', m: '0' } },
+        { k: 'timeSinceSuspension', l: 'Since Suspension', full: 'Time Since Suspension', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'industry', l: 'Industry', t: 'text', list: 'industries', req: true },
         { k: 'occupation', l: 'Occupation', t: 'text' },
         { k: 'timeEmployed', l: 'Time Employed', t: 'ym' },
@@ -182,7 +182,7 @@
         { k: 'propertyInsurance', l: 'Property Insurance', t: 'yn' },
         { k: 'companionHome', l: 'Companion Home', t: 'yn' },
         { k: 'driversTraining', l: "Driver's Training", t: 'yn' },
-        { k: 'accPrevention', l: 'Acc. Prevention Course', t: 'yn' }
+        { k: 'accPrevention', l: 'Acc. Prev. Course', full: 'Accident Prevention Course', t: 'yn' }
     ];
     const DRIVER_EXTRA = [
         { k: 'milesToWork', l: 'Miles to Work', t: 'number', def: '0', min: 0 },
@@ -201,9 +201,9 @@
         { k: 'city', l: 'Garaging City', t: 'text' },
         { k: 'alternateGarage', l: 'Alternate Garage', t: 'yn' },
         { k: 'lossPayeeType', l: 'Loss Payee Type', t: 'select', opts: O.lossPayee },
-        { k: 'lossPayeeName', l: 'Lienholder / Lessor Name', t: 'text', wide: true },
-        { k: 'comp', l: 'Comprehensive Ded.', t: 'select', opts: O.ded, def: '500' },
-        { k: 'coll', l: 'Collision Ded.', t: 'select', opts: O.ded, def: '500' },
+        { k: 'lossPayeeName', l: 'Lienholder / Lessor', full: 'Lienholder / Lessor Name', t: 'text', wide: true },
+        { k: 'comp', l: 'Comp Ded.', full: 'Comprehensive Deductible', t: 'select', opts: O.ded, def: '500' },
+        { k: 'coll', l: 'Coll Ded.', full: 'Collision Deductible', t: 'select', opts: O.ded, def: '500' },
         { k: 'roadside', l: 'Roadside', t: 'select', opts: O.roadside },
         { k: 'rental', l: 'Rental', t: 'select', opts: O.rental },
         { k: 'customEquipment', l: 'Custom Equipment ($)', t: 'money' },
@@ -214,10 +214,10 @@
         { k: 'usage', l: 'Usage', t: 'select', opts: ['', ...O.usage], req: true },
         { k: 'rideShare', l: 'Ride Share', t: 'yn' },
         { k: 'primaryOperator', l: 'Primary Operator', t: 'select', opts: [], dynamic: 'drivers' },
-        { k: 'percentToWork', l: 'Percent Driven to Work', t: 'number', def: '100', min: 0, max: 100 },
+        { k: 'percentToWork', l: '% Driven to Work', full: 'Percent Driven to Work', t: 'number', def: '100', min: 0, max: 100 },
         { k: 'telematics', l: 'Telematics', t: 'select', opts: ['', 'Yes', 'No'], req: true },
-        { k: 'milesToWork', l: 'Miles Driven to Work', t: 'number', def: '0', min: 0 },
-        { k: 'annualMiles', l: 'Annual Miles Driven', t: 'number', def: '0', min: 0 },
+        { k: 'milesToWork', l: 'Miles to Work', full: 'Miles Driven to Work', t: 'number', def: '0', min: 0 },
+        { k: 'annualMiles', l: 'Annual Miles', full: 'Annual Miles Driven', t: 'number', def: '0', min: 0 },
         { k: 'odometer', l: 'Odometer', t: 'number', def: '0', min: 0 },
         { k: 'purchaseCost', l: 'Purchase Cost', t: 'money' },
         { k: 'msrp', l: 'MSRP', t: 'money' },
@@ -231,18 +231,18 @@
     ];
     const VEHICLE_EXTRA = [
         { k: 'vehicleType', l: 'Vehicle Type', t: 'select', opts: O.vehicleType },
-        { k: 'cylinders', l: 'Number of Cylinders', t: 'number', def: '4', min: 0 },
+        { k: 'cylinders', l: 'Cylinders', full: 'Number of Cylinders', t: 'number', def: '4', min: 0 },
         { k: 'truckSize', l: 'Truck Size', t: 'select', opts: O.truckSize },
         { k: 'dualie', l: 'Dualie', t: 'yn' },
         { k: 'turbo', l: 'Turbo Charged', t: 'yn' },
         { k: 'fuelType', l: 'Fuel Type', t: 'select', opts: O.fuel },
-        { k: 'fourWheelDrive', l: 'Four Wheel Drive', t: 'yn' },
-        { k: 'fourWheelSteering', l: 'Four Wheel Steering', t: 'yn' },
+        { k: 'fourWheelDrive', l: '4-Wheel Drive', full: 'Four Wheel Drive', t: 'yn' },
+        { k: 'fourWheelSteering', l: '4-Wheel Steering', full: 'Four Wheel Steering', t: 'yn' },
         { k: 'airBags', l: 'Air Bags', t: 'select', opts: O.airbags },
         { k: 'passiveRestraint', l: 'Passive Restraint', t: 'select', opts: O.passive },
         { k: 'runningLights', l: 'Running Lights', t: 'yn' },
         { k: 'antiLockBrakes', l: 'Anti-lock Brakes', t: 'select', opts: O.abs },
-        { k: 'hoodLock', l: 'Hood Locking Device', t: 'yn' },
+        { k: 'hoodLock', l: 'Hood Lock', full: 'Hood Locking Device', t: 'yn' },
         { k: 'homingDevice', l: 'Homing Device', t: 'yn' },
         { k: 'vinEtching', l: 'VIN Etching', t: 'yn' }
     ];
@@ -323,7 +323,7 @@
     function fieldHTML(f, base, rec) {
         const path = base + '.' + f.k;
         const id = 'f_' + path.replace(/\./g, '_');
-        const label = '<label for="' + id + '">' + esc(f.l) + (f.req ? '<span class="req">*</span>' : '') + '</label>';
+        const label = '<label for="' + id + '" title="' + esc(f.full || f.l) + '">' + esc(f.l) + (f.req ? '<span class="req">*</span>' : '') + '</label>';
         const cls = 'form-group' + (f.wide ? ' wide' : '');
         let ctrl = '';
         const v = rec[f.k];
@@ -338,8 +338,8 @@
             ctrl = '<select id="' + id + '" data-path="' + path + '">' + O.yn.map((o) => '<option' + (o === v ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
         } else if (f.t === 'ym') {
             ctrl = '<div class="pair">' +
-                '<input type="number" min="0" max="99" inputmode="numeric" data-path="' + path + 'Years" value="' + esc(rec[f.k + 'Years']) + '"' + (f.req ? ' data-req="1"' : '') + '><span>Years</span>' +
-                '<input type="number" min="0" max="11" inputmode="numeric" data-path="' + path + 'Months" value="' + esc(rec[f.k + 'Months']) + '"><span>Months</span></div>';
+                '<input type="number" min="0" max="99" inputmode="numeric" data-path="' + path + 'Years" value="' + esc(rec[f.k + 'Years']) + '" title="Years"' + (f.req ? ' data-req="1"' : '') + '><span>yr</span>' +
+                '<input type="number" min="0" max="11" inputmode="numeric" data-path="' + path + 'Months" value="' + esc(rec[f.k + 'Months']) + '" title="Months"><span>mo</span></div>';
         } else if (f.t === 'check') {
             ctrl = '<div class="check"><input type="checkbox" id="' + id + '" data-path="' + path + '"' + (v ? ' checked' : '') + '><label for="' + id + '" style="margin:0;font-weight:500;">' + esc(f.l) + '</label></div>';
             return '<div class="' + cls + '"><label>&nbsp;</label>' + ctrl + '</div>';
@@ -384,10 +384,8 @@
             (quote.drivers.length > 1 ? '<button type="button" class="btn-danger btn-xs" onclick="Rater.removeDriver(' + i + ')"><i data-lucide="trash-2"></i> Remove</button>' : '') +
             '</h4>' +
             gridHTML(DRIVER_INFO, base, d) +
-            '<h4 style="margin-top:14px;"><i data-lucide="sliders-horizontal"></i> Driver Attributes</h4>' +
-            gridHTML(DRIVER_ATTR, base, d) +
-            '<h4 style="margin-top:14px;"><i data-lucide="list-plus"></i> Additional Attributes</h4>' +
-            gridHTML(DRIVER_EXTRA, base, d) +
+            subGroup('sliders-horizontal', 'Driver Attributes', DRIVER_ATTR, base, d, false) +
+            subGroup('list-plus', 'Additional Attributes', DRIVER_EXTRA, base, d, true) +
             '</div>';
     }
 
@@ -400,11 +398,19 @@
             (quote.vehicles.length > 1 ? '<button type="button" class="btn-danger btn-xs" onclick="Rater.removeVehicle(' + i + ')"><i data-lucide="trash-2"></i> Remove</button>' : '') +
             '</h4>' +
             gridHTML(VEHICLE_INFO, base, v) +
-            '<h4 style="margin-top:14px;"><i data-lucide="sliders-horizontal"></i> Vehicle Attributes</h4>' +
-            gridHTML(VEHICLE_ATTR, base, v) +
-            '<h4 style="margin-top:14px;"><i data-lucide="list-plus"></i> Additional Attributes</h4>' +
-            gridHTML(VEHICLE_EXTRA, base, v) +
+            subGroup('sliders-horizontal', 'Vehicle Attributes', VEHICLE_ATTR, base, v, false) +
+            subGroup('list-plus', 'Additional Attributes', VEHICLE_EXTRA, base, v, true) +
             '</div>';
+    }
+
+    // A collapsible group of fields inside a driver / vehicle card.
+    // Groups that hold a required field always start open.
+    function subGroup(icon, title, fields, base, rec, startCollapsed) {
+        const collapsed = startCollapsed && !fields.some((f) => f.req);
+        return '<div class="sub-group' + (collapsed ? ' collapsed' : '') + '">' +
+            '<h4 style="margin-top:12px;" onclick="this.parentElement.classList.toggle(\'collapsed\')"><i data-lucide="' + icon + '"></i> ' + esc(title) +
+            ' <span class="count">' + fields.length + ' fields</span><i data-lucide="chevron-down" class="chev"></i></h4>' +
+            gridHTML(fields, base, rec) + '</div>';
     }
 
     function datalists() {
@@ -858,7 +864,7 @@
         if (missing.length) {
             showError('Please complete the required fields: ' + esc(missing.slice(0, 6).join(', ')) + (missing.length > 6 ? ' and ' + (missing.length - 6) + ' more' : ''));
             showTab('quote');
-            const first = document.querySelector('#quoteForm .need'); if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+            const first = document.querySelector('#quoteForm .need'); if (first) { const g = first.closest('.sub-group.collapsed'); if (g) g.classList.remove('collapsed'); const sec = first.closest('.form-section.collapsed'); if (sec) sec.classList.remove('collapsed'); first.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
             return;
         }
         const active = carriers.filter((c) => c.enabled);
@@ -1064,7 +1070,7 @@
     // ────────────────────────────────────────────────────────────
     function showKeys() {
         const lines = [];
-        const add = (prefix, fields) => fields.forEach((f) => { if (f.t === 'ym') { lines.push(prefix + f.k + 'Years'); lines.push(prefix + f.k + 'Months'); } else lines.push(prefix + f.k + '   (' + f.l + ')'); });
+        const add = (prefix, fields) => fields.forEach((f) => { if (f.t === 'ym') { lines.push(prefix + f.k + 'Years'); lines.push(prefix + f.k + 'Months'); } else lines.push(prefix + f.k + '   (' + (f.full || f.l) + ')'); });
         lines.push('# client'); add('client.', CLIENT_FIELDS);
         lines.push('', '# coverages'); add('coverages.', COVERAGE_FIELDS);
         lines.push('', '# details'); add('details.', DETAIL_FIELDS);
@@ -1093,6 +1099,18 @@
     function hideMessages() { $('successMessage').style.display = 'none'; $('errorMessage').style.display = 'none'; }
     function scrollMsg(el) { const r = el.getBoundingClientRect(); if (r.top < 0 || r.top > window.innerHeight) window.scrollTo({ top: 0, behavior: 'smooth' }); }
     function refreshIcons() { try { if (window.lucide && lucide.createIcons) lucide.createIcons(); } catch (e) {} }
+    function applyDensity() {
+        let dense = true;
+        try { dense = localStorage.getItem('raterDensity') !== 'comfortable'; } catch (e) {}
+        document.body.classList.toggle('dense', dense);
+        const b = $('densityBtn');
+        if (b) { b.innerHTML = dense ? '<i data-lucide="rows-3"></i> Compact' : '<i data-lucide="rows-2"></i> Comfortable'; b.title = dense ? 'Compact spacing — click for a roomier layout' : 'Comfortable spacing — click for a compact layout'; }
+    }
+    function toggleDensity() {
+        const dense = document.body.classList.contains('dense');
+        try { (window.uibCloud ? window.uibCloud.rawSet : localStorage.setItem.bind(localStorage))('raterDensity', dense ? 'comfortable' : 'compact'); } catch (e) {}
+        applyDensity(); refreshIcons();
+    }
     function setDemo(on) { demo = !!on; try { (window.uibCloud ? window.uibCloud.rawSet : localStorage.setItem.bind(localStorage))('raterDemo', demo ? '1' : '0'); } catch (e) {} if (demo) showSuccess('Demo mode ON — Rate Quote returns sample premiums without contacting any carrier.'); }
 
     // ────────────────────────────────────────────────────────────
@@ -1156,6 +1174,7 @@
         const draft = load('raterDraft', null);
         quote = draft && draft.client ? upgradeQuote(draft) : blankQuote();
         if (!quote.agent) quote.agent = currentUser;
+        applyDensity();
         renderForm(); renderResults(); renderSaved(); renderCarriers();
         setupInstall();
         refreshIcons();
@@ -1174,7 +1193,7 @@
         showTab, newQuote, fillSample, saveQuote: () => saveQuote(false), rate, decodeVin, addDriver, removeDriver, addVehicle, removeVehicle,
         editCarrier, closeCarrier, saveCarrier, deleteCarrier, toggleCarrier, carrierMethodChanged, exportCarriers, importCarriers, testCarrier, addStarterCarriers, setDemo,
         setManual, select, openPortal, copySummary, renderSaved, openSaved, duplicateSaved, deleteSaved, exportSaved, showKeys,
-        login, install, dismissInstall,
+        login, install, dismissInstall, toggleDensity,
         get quote() { return quote; }, get results() { return results; }, get carriers() { return carriers; }
     };
 })();
