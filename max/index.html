@@ -33,7 +33,15 @@
 
         .hdr { background: linear-gradient(135deg,#0d1f3c 0%,#163057 55%,#1d4ed8 100%); color:#fff; padding: calc(12px + env(safe-area-inset-top)) 18px 12px; display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:10; box-shadow:0 2px 12px rgba(0,0,0,.2); }
         .hdr img { height:28px; width:auto; border-radius:6px; }
-        .hdr .t { font-family:'Plus Jakarta Sans','Inter',sans-serif; font-weight:800; font-size:18px; letter-spacing:-.2px; }
+        .hdr .t { font-family:'Plus Jakarta Sans','Inter',sans-serif; font-weight:800; font-size:18px; letter-spacing:-.2px; white-space:nowrap; }
+        .hdr .s { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .hdr .txtblk { min-width:0; }
+        @media (max-width: 480px) {
+            .hdr { padding-left:12px; padding-right:12px; gap:8px; }
+            .hdr .s { display:none; }
+            .hdr button { padding:7px 9px; font-size:12px; }
+            .hdr button.restart { width:34px; padding:7px 0; text-align:center; }
+        }
         .hdr .s { font-size:11px; opacity:.75; margin-top:-2px; }
         .hdr .spacer { flex:1; }
         .hdr button { background: rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:8px; padding:6px 10px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap; }
@@ -101,6 +109,7 @@
         .b.big { width:100%; padding:15px 18px; font-size:16px; }
         .chips { display:flex; gap:8px; flex-wrap:wrap; }
         .chips .b { flex:1 1 auto; }
+        .hdr .short { display:none; } @media (max-width: 480px) { .hdr .full { display:none; } .hdr .short { display:inline; font-size:16px; line-height:1; } }
         .consent { display:flex; gap:10px; align-items:flex-start; font-size:13px; color: var(--gray-700); background:#fff; border:1.5px solid var(--gray-200); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
         .consent input { width:20px; height:20px; flex:0 0 20px; margin-top:1px; accent-color: var(--blue); }
         .consent a { color: var(--blue); }
@@ -118,10 +127,10 @@
 <body>
 <div class="hdr">
     <img src="../icon.png" alt="UIB">
-    <div><div class="t">MAX <span style="font-weight:500;opacity:.8;">by UIB</span></div><div class="s">Universal Insurance Brokers · Quick car quote</div></div>
+    <div class="txtblk"><div class="t">MAX <span style="font-weight:500;opacity:.8;">by UIB</span></div><div class="s">Universal Insurance Brokers · Quick car quote</div></div>
     <div class="spacer"></div>
     <button type="button" class="dealer" onclick="MaxLead.dealerSignup()">🤝 Dealer sign up</button>
-    <button type="button" onclick="MaxLead.restart()">Start over</button>
+    <button type="button" class="restart" onclick="MaxLead.restart()" title="Start over"><span class="full">Start over</span><span class="short">↺</span></button>
 </div>
 
 <div class="wrap">

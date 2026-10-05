@@ -146,7 +146,7 @@
             (lead.vin ? '<div><b>Vehicle:</b> ' + esc([v.year, v.make, v.model].filter(Boolean).join(' ') || 'VIN') + ' (' + esc(lead.vin) + ')</div>' : '') +
             '<div><b>Current insurance:</b> ' + esc(lead.currentInsurer || '—') + '</div></div>';
         await say('Here\'s what I have. Ready to send it to an agent?' + card);
-        compose('<label class="consent"><input type="checkbox" id="consent"> I agree that Universal Insurance Brokers may contact me by phone, text or email about this quote, and I accept the <a href="privacy.html" target="_blank">privacy policy</a>.</label>' +
+        compose('<label class="consent"><input type="checkbox" id="consent"><span>I agree that Universal Insurance Brokers may contact me by phone, text or email about this quote, and I accept the <a href="privacy.html" target="_blank">privacy policy</a>.</span></label>' +
             '<button class="b ok big" id="sendBtn" onclick="MaxLead.submit()">Send my quote request</button>');
     }
 
