@@ -375,16 +375,27 @@
             '</h3>' + inner + '</div>';
     }
 
+    function driverName(d) { return (d.firstName || d.lastName) ? (d.firstName + ' ' + d.lastName).trim() : ''; }
+
+    // "Driver Information" section: one card per driver with the basics
     function driverHTML(i) {
         const d = quote.drivers[i];
         const base = 'drivers.' + i;
-        const name = (d.firstName || d.lastName) ? (d.firstName + ' ' + d.lastName).trim() : '';
         return '<div class="sub-block" id="driver_' + i + '">' +
-            '<h4><i data-lucide="user"></i> Driver #' + (i + 1) + ' <span class="note">' + esc(name) + '</span><span class="spacer"></span>' +
+            '<h4><i data-lucide="user"></i> Driver #' + (i + 1) + ' <span class="note">' + esc(driverName(d)) + '</span><span class="spacer"></span>' +
             (quote.drivers.length > 1 ? '<button type="button" class="btn-danger btn-xs" onclick="Rater.removeDriver(' + i + ')"><i data-lucide="trash-2"></i> Remove</button>' : '') +
             '</h4>' +
             gridHTML(DRIVER_INFO, base, d) +
-            subGroup('sliders-horizontal', 'Driver Attributes', DRIVER_ATTR, base, d, false) +
+            '</div>';
+    }
+
+    // "Driver Attributes" section: one card per driver with the rating attributes
+    function driverAttrHTML(i) {
+        const d = quote.drivers[i];
+        const base = 'drivers.' + i;
+        return '<div class="sub-block" id="driverattr_' + i + '">' +
+            '<h4><i data-lucide="sliders-horizontal"></i> Driver #' + (i + 1) + ' <span class="note">' + esc(driverName(d)) + '</span></h4>' +
+            gridHTML(DRIVER_ATTR, base, d) +
             subGroup('list-plus', 'Additional Attributes', DRIVER_EXTRA, base, d, true) +
             '</div>';
     }
@@ -426,9 +437,11 @@
             sectionHTML('coverages', 'shield', 'General Information / Coverages', gridHTML(COVERAGE_FIELDS, 'coverages', quote.coverages)) +
             sectionHTML('details', 'clipboard-list', 'Quote Details', gridHTML(DETAIL_FIELDS, 'details', quote.details), { collapsible: true }) +
             sectionHTML('drivers', 'users', 'Driver Information',
-                '<div class="repeat-head"><span class="title">Drivers: ' + quote.drivers.length + '</span><span class="spacer"></span>' +
-                '<button type="button" class="btn-primary btn-sm" onclick="Rater.addDriver()"><i data-lucide="user-plus"></i> Add Driver</button></div>' +
-                '<div id="driversWrap">' + quote.drivers.map((_, i) => driverHTML(i)).join('') + '</div>') +
+                '<div class="repeat-head"><span class="title">Drivers: ' + quote.drivers.length + '</span></div>' +
+                '<div class="card-row"><div class="cards" id="driversWrap">' + quote.drivers.map((_, i) => driverHTML(i)).join('') + '</div>' +
+                '<button type="button" class="add-card" onclick="Rater.addDriver()" title="Add another driver"><span class="plus">+</span><span>Add Driver</span></button></div>') +
+            sectionHTML('driverAttrs', 'sliders-horizontal', 'Driver Attributes',
+                '<div id="driverAttrsWrap">' + quote.drivers.map((_, i) => driverAttrHTML(i)).join('') + '</div>', { sub: 'prior insurance, licensing, SR-22, occupation, residence' }) +
             sectionHTML('vehicles', 'car', 'Vehicle Information',
                 '<div class="repeat-head"><span class="title">Cars: ' + quote.vehicles.length + '</span><span class="spacer"></span>' +
                 '<button type="button" class="btn-primary btn-sm" onclick="Rater.addVehicle()"><i data-lucide="plus"></i> Add Vehicle</button></div>' +
@@ -467,7 +480,7 @@
             const i = +m[1];
             if (m[2] === 'dob') { quote.drivers[i].age = ageFrom(val); const a = document.querySelector('[data-path="drivers.' + i + '.age"]'); if (a) a.value = quote.drivers[i].age; }
             if (m[2] === 'firstName' || m[2] === 'lastName') {
-                const h = document.querySelector('#driver_' + i + ' h4 .note'); if (h) h.textContent = (quote.drivers[i].firstName + ' ' + quote.drivers[i].lastName).trim();
+                document.querySelectorAll('#driver_' + i + ' > h4 .note, #driverattr_' + i + ' > h4 .note').forEach((h) => { h.textContent = driverName(quote.drivers[i]); });
                 refreshOperatorSelects();
             }
         }

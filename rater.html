@@ -281,6 +281,29 @@
         .repeat-head .title { font-weight:800; color:#1e40af; font-size:14px; }
         .repeat-head .spacer { flex:1; }
 
+        /* ── Driver cards + "add" tile ───────────────────────────── */
+        .card-row { display:flex; gap:12px; align-items:stretch; }
+        .card-row .cards { flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; }
+        .card-row .cards .sub-block { margin-top:0; box-shadow: var(--shadow-sm); border-left: 4px solid var(--blue); }
+        .add-card {
+            flex: 0 0 120px; min-height: 160px; align-self: stretch;
+            display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+            background: linear-gradient(180deg, #eff6ff, #dbeafe); border: 2px dashed #60a5fa; border-radius: var(--radius-md);
+            color: #1e40af; font-weight: 700; font-size: 13px; cursor: pointer; padding: 12px 8px; text-align:center;
+            box-shadow: none; white-space: normal; transition: background .15s, border-color .15s, transform .15s;
+        }
+        .add-card .plus { width: 54px; height: 54px; border-radius: 50%; display:flex; align-items:center; justify-content:center;
+            background: linear-gradient(135deg, #0d1f3c 0%, #1d4ed8 100%); color:#fff; font-size: 34px; line-height:1; font-weight: 800;
+            box-shadow: 0 4px 12px rgba(29,78,216,.35); }
+        .add-card:hover { background: linear-gradient(180deg, #dbeafe, #bfdbfe); border-color: var(--blue); transform: translateY(-1px); }
+        .add-card:active { transform: translateY(0); }
+        body.dense .add-card { flex-basis: 104px; }
+        @media (max-width: 768px) {
+            .card-row { flex-direction: column; }
+            .add-card { flex: none; min-height: 0; flex-direction: row; justify-content:center; gap: 10px; padding: 10px; }
+            .add-card .plus { width: 34px; height: 34px; font-size: 24px; }
+        }
+
         /* ── Carriers ────────────────────────────────────────────── */
         .carrier-list { display:grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap:14px; }
         .carrier-card {
@@ -421,7 +444,7 @@
             #userDisplay { display:none; }
             .page-body { padding: 12px 12px 130px; }
             .form-section { padding: 14px 12px; border-radius: 12px; }
-            .form-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+            .form-grid, body.dense .form-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:8px; }
             .form-group.wide { grid-column: 1 / -1; }
             .form-group input, .form-group select, body.dense .form-group input, body.dense .form-group select { font-size:16px; } /* stops iOS zoom-on-focus */
             .results-table { display:none; }
@@ -652,7 +675,7 @@
 </div>
 
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<script src="rater.js?v=20261005b"></script>
+<script src="rater.js?v=20261005c"></script>
 <script src="supabase.js?v=20260916a"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>
