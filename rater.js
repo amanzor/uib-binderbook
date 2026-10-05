@@ -91,8 +91,7 @@
     const PHONE_TYPES = ['Mobile', 'Home', 'Work'];
     const MAX_PHONES = 3;
     const CLIENT_FIELDS = [
-        { k: 'firstName', l: 'First Name', t: 'text', req: true },
-        { k: 'middleName', l: 'Middle', t: 'text' },
+        { k: 'firstName', l: 'First Name / MI', t: 'namemi', mi: 'middleName', req: true, full: 'First Name and Middle Initial' },
         { k: 'lastName', l: 'Last Name', t: 'text', req: true },
         { k: 'address', l: 'Address', t: 'address', req: true, full: 'Address (street, city, state, zip)' },
         { k: 'timeAtResidenceYears', l: 'Time at Residence', t: 'select', opts: RESIDENCE_YEARS, req: true, full: 'Time at Residence (years)' },
@@ -122,8 +121,7 @@
     ];
     const DRIVER_INFO = [
         { k: 'driverType', l: 'Driver Type', t: 'select', opts: O.driverType },
-        { k: 'firstName', l: 'First Name', t: 'text', req: true },
-        { k: 'middleName', l: 'Middle', t: 'text' },
+        { k: 'firstName', l: 'First Name / MI', t: 'namemi', mi: 'middleName', req: true, full: 'First Name and Middle Initial' },
         { k: 'lastName', l: 'Last Name', t: 'text', req: true },
         { k: 'dob', l: 'Date of Birth', t: 'date', req: true },
         { k: 'age', l: 'Age', t: 'text', ro: true },
@@ -268,6 +266,7 @@
         const r = {};
         fields.forEach((f) => {
             if (f.t === 'ym') { r[f.k + 'Years'] = f.def ? f.def.y : '0'; r[f.k + 'Months'] = f.def ? f.def.m : '0'; }
+            else if (f.t === 'namemi') { r[f.k] = ''; r[f.mi] = ''; }
             else if (f.t === 'check') r[f.k] = false;
             else if (f.t === 'yn') r[f.k] = f.def || 'No';
             else if (f.t === 'select') r[f.k] = f.def != null ? f.def : optValue(f.opts && f.opts[0]);
@@ -324,6 +323,10 @@
                 '</select>';
         } else if (f.t === 'yn') {
             ctrl = '<select id="' + id + '" data-path="' + path + '">' + O.yn.map((o) => '<option' + (o === v ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
+        } else if (f.t === 'namemi') {
+            ctrl = '<div class="pair namemi">' +
+                '<input type="text" id="' + id + '" data-path="' + path + '" value="' + esc(v) + '" placeholder="First" autocomplete="given-name"' + (f.req ? ' data-req="1"' : '') + '>' +
+                '<input type="text" class="mi" data-path="' + base + '.' + f.mi + '" value="' + esc(rec[f.mi]) + '" maxlength="2" placeholder="MI" title="Middle initial" autocomplete="additional-name"></div>';
         } else if (f.t === 'ym') {
             ctrl = '<div class="pair ym">' +
                 '<input type="number" min="0" max="99" inputmode="numeric" data-path="' + path + 'Years" value="' + esc(rec[f.k + 'Years']) + '" title="Years"' + (f.req || f.reqIf ? ' data-req="1"' : '') + '><span>yr</span>' +
@@ -505,6 +508,7 @@
         let val = el.type === 'checkbox' ? el.checked : el.value;
         if (el.type === 'tel') { val = formatPhone(val); el.value = val; }
         if (/\.vin$/.test(path)) { val = String(val).toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, ''); el.value = val; }
+        if (/\.middleName$/.test(path)) { val = String(val).toUpperCase().slice(0, 2); el.value = val; }
         setPath(quote, path, val);
         if (el.dataset.req != null) el.classList.toggle('need', val === '');
 
@@ -1179,7 +1183,7 @@
     // fills in any fields added after a quote was saved
     function upgradeQuote(q) {
         const b = blankQuote();
-        const merge = (fields, rec, blank) => { fields.forEach((f) => { if (f.t === 'ym') { if (rec[f.k + 'Years'] == null) rec[f.k + 'Years'] = blank[f.k + 'Years']; if (rec[f.k + 'Months'] == null) rec[f.k + 'Months'] = blank[f.k + 'Months']; } else if (rec[f.k] == null) rec[f.k] = blank[f.k]; }); return rec; };
+        const merge = (fields, rec, blank) => { fields.forEach((f) => { if (f.t === 'namemi' && rec[f.mi] == null) rec[f.mi] = ''; if (f.t === 'ym') { if (rec[f.k + 'Years'] == null) rec[f.k + 'Years'] = blank[f.k + 'Years']; if (rec[f.k + 'Months'] == null) rec[f.k + 'Months'] = blank[f.k + 'Months']; } else if (rec[f.k] == null) rec[f.k] = blank[f.k]; }); return rec; };
         q.client = merge(CLIENT_FIELDS, q.client || {}, b.client);
         Object.keys(CLIENT_DERIVED).forEach((k) => { if (q.client[k] == null) q.client[k] = CLIENT_DERIVED[k]; });
         if (!Array.isArray(q.client.phones) || !q.client.phones.length) {
@@ -1215,7 +1219,7 @@
     // ────────────────────────────────────────────────────────────
     function showKeys() {
         const lines = [];
-        const add = (prefix, fields) => fields.forEach((f) => { if (f.t === 'ym') { lines.push(prefix + f.k + 'Years'); lines.push(prefix + f.k + 'Months'); } else lines.push(prefix + f.k + '   (' + (f.full || f.l) + ')'); });
+        const add = (prefix, fields) => fields.forEach((f) => { if (f.t === 'ym') { lines.push(prefix + f.k + 'Years'); lines.push(prefix + f.k + 'Months'); } else if (f.t === 'namemi') { lines.push(prefix + f.k + '   (First Name)'); lines.push(prefix + f.mi + '   (Middle Initial)'); } else lines.push(prefix + f.k + '   (' + (f.full || f.l) + ')'); });
         lines.push('# client');
         lines.push('client.firstName', 'client.middleName', 'client.lastName', 'client.address   (full one-line address)', 'client.street', 'client.city', 'client.state', 'client.zip', 'client.county', 'client.addressVerified', 'client.timeAtResidenceYears   (0 = less than 1, 5 = 5+)', 'client.priorAddress', 'client.email');
         lines.push('client.phones.0.type   (Mobile / Home / Work)', 'client.phones.0.number', 'client.mobilePhone', 'client.homePhone', 'client.workPhone   (derived from phones)');
