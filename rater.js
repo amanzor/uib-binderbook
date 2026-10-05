@@ -191,21 +191,8 @@
     ];
     const VEHICLE_ATTR = [
         { k: 'usage', l: 'Usage', t: 'select', opts: ['', ...O.usage], req: true },
-        { k: 'rideShare', l: 'Ride Share', t: 'yn' },
-        { k: 'primaryOperator', l: 'Primary Operator', t: 'select', opts: [], dynamic: 'drivers' },
-        { k: 'percentToWork', l: '% Driven to Work', full: 'Percent Driven to Work', t: 'number', def: '100', min: 0, max: 100 },
         { k: 'telematics', l: 'Telematics', t: 'select', opts: ['', 'Yes', 'No'], req: true },
-        { k: 'milesToWork', l: 'Miles to Work', full: 'Miles Driven to Work', t: 'number', def: '0', min: 0 },
-        { k: 'annualMiles', l: 'Annual Miles', full: 'Annual Miles Driven', t: 'number', def: '0', min: 0 },
-        { k: 'odometer', l: 'Odometer', t: 'number', def: '0', min: 0 },
-        { k: 'purchaseCost', l: 'Purchase Cost', t: 'money' },
-        { k: 'msrp', l: 'MSRP', t: 'money' },
-        { k: 'acv', l: 'ACV', t: 'money' },
-        { k: 'purchaseDate', l: 'Purchase Date', t: 'date', req: true },
-        { k: 'newUsed', l: 'New / Used', t: 'select', opts: O.newUsed },
-        { k: 'leased', l: 'Leased Vehicle', t: 'yn' },
-        { k: 'salvaged', l: 'Salvaged', t: 'yn' },
-        { k: 'antiTheft', l: 'Anti Theft', t: 'select', opts: O.antiTheft }
+        { k: 'purchaseDate', l: 'Purchase Date', t: 'date', req: true }
     ];
 
     const DRIVER_FIELDS = [...DRIVER_INFO, ...DRIVER_PRIOR_Q, ...DRIVER_PRIOR, ...DRIVER_FILING_Q, ...DRIVER_FILING, ...DRIVER_ATTR];
@@ -263,7 +250,6 @@
         };
         q.coverages.effectiveDate = todayISO();
         q.drivers[0].relationship = 'Insured';
-        q.vehicles[0].primaryOperator = '1';
         return q;
     }
 
@@ -679,7 +665,6 @@
         if (quote.drivers.length <= 1) return;
         if (!confirm('Remove Driver #' + (i + 1) + '?')) return;
         quote.drivers.splice(i, 1);
-        quote.vehicles.forEach((v) => { if (+v.primaryOperator > quote.drivers.length) v.primaryOperator = '1'; });
         renderForm(); scheduleDraft();
     }
     function addVehicle() {
@@ -687,7 +672,6 @@
         const v1 = quote.vehicles[0];
         ['comp', 'coll', 'roadside', 'rental'].forEach((k) => { if (v1[k] != null) v[k] = v1[k]; });
         v.zip = quote.client.zip || ''; v.county = quote.client.county || ''; v.city = quote.client.city || '';
-        v.primaryOperator = String(Math.min(quote.vehicles.length + 1, quote.drivers.length));
         quote.vehicles.push(v);
         renderForm();
         setTimeout(() => { const el = $('vehicle_' + (quote.vehicles.length - 1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
@@ -724,7 +708,7 @@
         Object.assign(quote.coverages, { bi: '25/50', pd: '25', allowCreditScore: 'Yes', um: '25/50', medPay: '1000' });
         Object.assign(quote.drivers[0], { firstName: 'Maria', middleName: 'L', lastName: 'Gonzalez', dob: '1988-04-12', age: ageFrom('1988-04-12'), gender: 'Female', marital: 'Married', dlNumber: 'G524-310-88-634-0', priorInsurance: 'Yes', stateFiling: 'No', timeWithPriorYears: '2', timeWithPriorMonths: '6', priorExpiration: todayISO(), priorCarrier: 'Progressive', industry: 'Healthcare', occupation: 'Nurse', education: 'Bachelor Degree', residenceType: 'Single Family Home', residenceStatus: 'Own' });
         lastClientZip = '33166';
-        Object.assign(quote.vehicles[0], { vin: '1HGCV1F34LA012345', year: '2020', make: 'Honda', model: 'Accord', trim: 'EX / Sedan', zip: '33166', county: 'Miami-Dade', city: 'Doral', usage: 'Commute to Work/School', telematics: 'No', milesToWork: '12', annualMiles: '12000', odometer: '41000', purchaseDate: '2021-06-15', newUsed: 'Used', lossPayeeType: 'Lienholder', lossPayeeName: 'Honda Financial Services', });
+        Object.assign(quote.vehicles[0], { vin: '1HGCV1F34LA012345', year: '2020', make: 'Honda', model: 'Accord', trim: 'EX / Sedan', zip: '33166', county: 'Miami-Dade', city: 'Doral', usage: 'Commute to Work/School', telematics: 'No', purchaseDate: '2021-06-15', lossPayeeType: 'Lienholder', lossPayeeName: 'Honda Financial Services', });
         results = [];
         renderForm(); renderResults(); scheduleDraft();
         showSuccess('Sample quote loaded. Turn on Demo mode on the Carriers tab, then press Rate Quote.');
@@ -972,8 +956,8 @@
             lines.push('   Prior: ' + d.priorInsurance + (d.priorInsurance === 'Yes' ? ' ' + d.priorCarrier + ' ' + d.priorLimits + ' ' + d.timeWithPriorYears + 'yr exp ' + d.priorExpiration : '') + ' | Lic US ' + d.timeLicensedUSYears + 'y FL ' + d.timeLicensedFLYears + 'y | ' + d.licenseStatus + (d.stateFiling === 'Yes' && d.sr22 === 'Yes' ? ' SR-22 ' + d.sr22State + (d.sr22Reason ? ' (' + d.sr22Reason + ')' : '') : '') + (d.stateFiling === 'Yes' && d.fr44 === 'Yes' ? ' FR-44' : '') + ' | Viol ' + d.violations + ' | ' + d.industry + (d.occupation ? '/' + d.occupation : '') + ' | ' + d.education + ' | ' + d.residenceType + ' (' + d.residenceStatus + ')');
         });
         q.vehicles.forEach((v, i) => {
-            lines.push('CAR ' + (i + 1) + ': ' + [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ') + ' | VIN ' + (v.vin || '—') + ' | Garage ' + v.zip + ' ' + v.city + ' | ' + v.usage + ' | Op: Driver ' + v.primaryOperator);
-            lines.push('   Comp ' + v.comp + ' / Coll ' + v.coll + ' / Roadside ' + v.roadside + ' / Rental ' + v.rental + (v.gap === 'Yes' ? ' / GAP' : '') + ' | ' + v.newUsed + ' purch ' + v.purchaseDate + ' | ' + v.lossPayeeType + (v.lossPayeeName ? ' ' + v.lossPayeeName : '') + ' | Miles/yr ' + v.annualMiles + ' | Telematics ' + v.telematics);
+            lines.push('CAR ' + (i + 1) + ': ' + [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ') + ' | VIN ' + (v.vin || '—') + ' | Garage ' + v.zip + ' ' + v.city + ' | ' + v.usage + ' | Telematics ' + v.telematics);
+            lines.push('   Comp ' + v.comp + ' / Coll ' + v.coll + ' / Roadside ' + v.roadside + ' / Rental ' + v.rental + (v.gap === 'Yes' ? ' / GAP' : '') + ' | purchased ' + v.purchaseDate + ' | ' + v.lossPayeeType + (v.lossPayeeName ? ' ' + v.lossPayeeName : ''));
         });
         return lines.join('\n');
     }
