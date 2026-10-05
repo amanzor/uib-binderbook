@@ -87,26 +87,21 @@
     //  Field schema — abstracted from the quoting-system screens
     //  t: text|tel|email|date|number|money|select|yn|ym|check
     // ────────────────────────────────────────────────────────────
+    const RESIDENCE_YEARS = [['', '— Select —'], ['0', 'Less than 1 year'], ['1', '1 year'], ['2', '2 years'], ['3', '3 years'], ['4', '4 years'], ['5', '5+ years']];
+    const PHONE_TYPES = ['Mobile', 'Home', 'Work'];
+    const MAX_PHONES = 3;
     const CLIENT_FIELDS = [
         { k: 'firstName', l: 'First Name', t: 'text', req: true },
         { k: 'middleName', l: 'Middle', t: 'text' },
         { k: 'lastName', l: 'Last Name', t: 'text', req: true },
-        { k: 'address', l: 'Address', t: 'text', req: true, wide: true },
-        { k: 'apt', l: 'Apt / Unit', t: 'text' },
-        { k: 'zip', l: 'Zip Code', t: 'text', req: true, ph: '33101', max: 10 },
-        { k: 'county', l: 'County', t: 'text', req: true, list: 'flCounties' },
-        { k: 'city', l: 'City', t: 'text', req: true },
-        { k: 'state', l: 'State', t: 'select', opts: O.states, def: 'FL' },
-        { k: 'timeAtResidence', l: 'Time at Residence', t: 'ym' },
-        { k: 'priorAddress', l: 'Prior Address (if < 1 year)', t: 'text', wide: true },
-        { k: 'homePhone', l: 'Home Phone', t: 'tel' },
-        { k: 'mobilePhone', l: 'Mobile Phone', t: 'tel', req: true },
-        { k: 'workPhone', l: 'Work Phone', t: 'tel' },
-        { k: 'workExt', l: 'Ext', t: 'text', max: 6 },
-        { k: 'noPhone', l: 'No Phone', t: 'check' },
-        { k: 'email', l: 'Email', t: 'email', wide: true },
-        { k: 'emailStatus', l: 'Email Status', t: 'select', opts: ['Has Email', 'No Email', 'Declined'] }
+        { k: 'address', l: 'Address', t: 'address', req: true, full: 'Address (street, city, state, zip)' },
+        { k: 'timeAtResidenceYears', l: 'Time at Residence', t: 'select', opts: RESIDENCE_YEARS, req: true, full: 'Time at Residence (years)' },
+        { k: 'priorAddress', l: 'Prior Address', t: 'text', wide: true, showIf: (c) => c.timeAtResidenceYears === '0', full: 'Prior Address (lived at current address less than 1 year)' },
+        { k: 'phones', l: 'Phone', t: 'phones', req: true },
+        { k: 'email', l: 'Email', t: 'email', wide: true }
     ];
+    // Filled by address verification (or parsed from the typed address); not shown as separate inputs.
+    const CLIENT_DERIVED = { street: '', city: '', state: 'FL', zip: '', county: '', addressVerified: false, mobilePhone: '', homePhone: '', workPhone: '' };
     const COVERAGE_FIELDS = [
         { k: 'effectiveDate', l: 'Effective Date', t: 'date', req: true },
         { k: 'term', l: 'Policy Term', t: 'select', opts: O.term, def: '6' },
@@ -125,19 +120,6 @@
         { k: 'medPay', l: 'Medical Payments', t: 'select', opts: O.medpay },
         { k: 'accidentalDeath', l: 'Accidental Death', t: 'select', opts: O.accDeath }
     ];
-    const DETAIL_FIELDS = [
-        { k: 'contactMethod', l: 'Contact Method', t: 'select', opts: O.contactMethod },
-        { k: 'preferredContact', l: 'Preferred Contact', t: 'select', opts: O.preferred },
-        { k: 'leadSource', l: 'Lead Source', t: 'select', opts: O.leadSource },
-        { k: 'marketingNumber', l: 'Marketing Number', t: 'text' },
-        { k: 'quoteDescription', l: 'Quote Description', t: 'select', opts: O.quoteDesc },
-        { k: 'language', l: 'Native Language', t: 'select', opts: O.language },
-        { k: 'paperless', l: 'Paperless Discount', t: 'yn', def: 'Yes' },
-        { k: 'pipClaims0to12', l: 'PIP Claims 0–12 Mo', full: 'Prior PIP Claims 0–12 Months', t: 'number', def: '0', min: 0 },
-        { k: 'pipClaims13to36', l: 'PIP Claims 13–36 Mo', full: 'Prior PIP Claims 13–36 Months', t: 'number', def: '0', min: 0 },
-        { k: 'pipClaims37to60', l: 'PIP Claims 37–60 Mo', full: 'Prior PIP Claims 37–60 Months', t: 'number', def: '0', min: 0 },
-        { k: 'notes', l: 'Additional Details / Notes', t: 'text', wide: true }
-    ];
     const DRIVER_INFO = [
         { k: 'driverType', l: 'Driver Type', t: 'select', opts: O.driverType },
         { k: 'firstName', l: 'First Name', t: 'text', req: true },
@@ -153,15 +135,22 @@
         { k: 'violations', l: 'Violations (count)', t: 'number', def: '0', min: 0 },
         { k: 'violationNotes', l: 'Violation / Accident Details', full: 'Violation / Accident Details', t: 'text', wide: true }
     ];
-    const DRIVER_ATTR = [
-        { k: 'priorInsurance', l: 'Prior Insurance', t: 'yn', def: 'Yes' },
-        { k: 'timeWithPrior', l: 'Time w/ Prior Ins.', full: 'Time with Prior Insurance', t: 'ym', req: true },
-        { k: 'priorExpiration', l: 'Prior Exp. Date', full: 'Prior Expiration Date', t: 'date', req: true },
+    const hasPrior = (d) => d.priorInsurance === 'Yes';
+    // The question that decides whether the Prior Insurance group is shown
+    const DRIVER_PRIOR_Q = [
+        { k: 'priorInsurance', l: 'Does the client have prior insurance?', t: 'select', opts: ['', 'Yes', 'No'], req: true, wide: true }
+    ];
+    // Shown only when the answer above is Yes
+    const DRIVER_PRIOR = [
+        { k: 'timeWithPrior', l: 'Time w/ Prior Ins.', full: 'Time with Prior Insurance', t: 'ym', reqIf: hasPrior },
+        { k: 'priorExpiration', l: 'Prior Exp. Date', full: 'Prior Expiration Date', t: 'date', reqIf: hasPrior },
         { k: 'priorInAgency', l: 'Prior In Agency', t: 'yn' },
-        { k: 'priorCarrier', l: 'Prior Carrier', full: 'Prior Insurance Carrier', t: 'text', list: 'priorCarriers', req: true },
+        { k: 'priorCarrier', l: 'Prior Carrier', full: 'Prior Insurance Carrier', t: 'text', list: 'priorCarriers', reqIf: hasPrior },
         { k: 'priorLimits', l: 'Prior Limits', full: 'Prior Liability Limits', t: 'select', opts: O.priorLimits, def: '25/50' },
         { k: 'priorTransfer', l: 'Transfer Level', full: 'Prior Transfer Level', t: 'select', opts: O.transfer },
-        { k: 'parentsPolicy', l: "Parent's Policy", t: 'yn' },
+        { k: 'parentsPolicy', l: "Parent's Policy", t: 'yn' }
+    ];
+    const DRIVER_ATTR = [
         { k: 'timeLicensedUS', l: 'Time Licensed U.S.', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'timeLicensedFL', l: 'Time Licensed Florida', t: 'ym', def: { y: '5', m: '0' } },
         { k: 'mvrExperienceUS', l: 'MVR Experience U.S.', t: 'ym', def: { y: '5', m: '0' } },
@@ -247,7 +236,7 @@
         { k: 'vinEtching', l: 'VIN Etching', t: 'yn' }
     ];
 
-    const DRIVER_FIELDS = [...DRIVER_INFO, ...DRIVER_ATTR, ...DRIVER_EXTRA];
+    const DRIVER_FIELDS = [...DRIVER_INFO, ...DRIVER_PRIOR_Q, ...DRIVER_PRIOR, ...DRIVER_ATTR, ...DRIVER_EXTRA];
     const VEHICLE_FIELDS = [...VEHICLE_INFO, ...VEHICLE_ATTR, ...VEHICLE_EXTRA];
 
     // ────────────────────────────────────────────────────────────
@@ -294,9 +283,8 @@
             createdAt: new Date().toISOString(),
             updatedAt: null,
             agent: currentUser,
-            client: blankRecord(CLIENT_FIELDS),
+            client: Object.assign(blankRecord(CLIENT_FIELDS), CLIENT_DERIVED, { phones: [{ type: 'Mobile', number: '' }] }),
             coverages: blankRecord(COVERAGE_FIELDS),
-            details: blankRecord(DETAIL_FIELDS),
             drivers: [blankRecord(DRIVER_FIELDS)],
             vehicles: [blankRecord(VEHICLE_FIELDS)]
         };
@@ -323,7 +311,7 @@
     function fieldHTML(f, base, rec) {
         const path = base + '.' + f.k;
         const id = 'f_' + path.replace(/\./g, '_');
-        const label = '<label for="' + id + '" title="' + esc(f.full || f.l) + '">' + esc(f.l) + (f.req ? '<span class="req">*</span>' : '') + '</label>';
+        const label = '<label for="' + id + '" title="' + esc(f.full || f.l) + '">' + esc(f.l) + (f.req || f.reqIf ? '<span class="req">*</span>' : '') + '</label>';
         const cls = 'form-group' + (f.wide ? ' wide' : '');
         let ctrl = '';
         const v = rec[f.k];
@@ -337,9 +325,17 @@
         } else if (f.t === 'yn') {
             ctrl = '<select id="' + id + '" data-path="' + path + '">' + O.yn.map((o) => '<option' + (o === v ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
         } else if (f.t === 'ym') {
-            ctrl = '<div class="pair">' +
-                '<input type="number" min="0" max="99" inputmode="numeric" data-path="' + path + 'Years" value="' + esc(rec[f.k + 'Years']) + '" title="Years"' + (f.req ? ' data-req="1"' : '') + '><span>yr</span>' +
+            ctrl = '<div class="pair ym">' +
+                '<input type="number" min="0" max="99" inputmode="numeric" data-path="' + path + 'Years" value="' + esc(rec[f.k + 'Years']) + '" title="Years"' + (f.req || f.reqIf ? ' data-req="1"' : '') + '><span>yr</span>' +
                 '<input type="number" min="0" max="11" inputmode="numeric" data-path="' + path + 'Months" value="' + esc(rec[f.k + 'Months']) + '" title="Months"><span>mo</span></div>';
+        } else if (f.t === 'address') {
+            const c = rec;
+            return '<div class="form-group wide3" data-showif="' + f.k + '"><label for="' + id + '" title="' + esc(f.full || f.l) + '">' + esc(f.l) + '<span class="req">*</span></label>' +
+                '<div class="pair addr"><input type="text" id="' + id + '" data-path="' + path + '" value="' + esc(c.address) + '" placeholder="8420 NW 52nd St, Doral, FL 33166" autocomplete="street-address" data-req="1">' +
+                '<button type="button" class="btn-success btn-sm" id="verifyAddrBtn" style="flex:0 0 auto;" onclick="Rater.verifyAddress()"><i data-lucide="map-pin-check"></i> Verify</button></div>' +
+                '<div class="addr-status' + (c.addressVerified ? ' ok' : '') + '" id="addrStatus">' + addressStatusText(c) + '</div></div>';
+        } else if (f.t === 'phones') {
+            return '<div class="form-group wide" id="phonesGroup"><label title="Phone numbers">' + esc(f.l) + '<span class="req">*</span></label><div id="phonesWrap">' + phonesHTML(rec) + '</div></div>';
         } else if (f.t === 'check') {
             ctrl = '<div class="check"><input type="checkbox" id="' + id + '" data-path="' + path + '"' + (v ? ' checked' : '') + '><label for="' + id + '" style="margin:0;font-weight:500;">' + esc(f.l) + '</label></div>';
             return '<div class="' + cls + '"><label>&nbsp;</label>' + ctrl + '</div>';
@@ -352,6 +348,7 @@
                 (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') +
                 (f.list ? ' list="' + f.list + '"' : '') +
                 (f.ro ? ' readonly tabindex="-1"' : '') +
+                (f.reqIf ? ' data-req="1"' : '') +
                 (f.vin ? ' style="text-transform:uppercase;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:1px;"' : '') +
                 (f.req ? ' data-req="1"' : '');
             ctrl = '<input type="' + type + '" id="' + id + '" data-path="' + path + '" value="' + esc(v) + '"' + extra + '>';
@@ -359,7 +356,26 @@
                 ctrl = '<div class="pair">' + ctrl + '<button type="button" class="btn-success btn-sm" style="flex:0 0 auto;" onclick="Rater.decodeVin(\'' + base + '\')"><i data-lucide="search"></i> Lookup</button></div>';
             }
         }
-        return '<div class="' + cls + '">' + label + ctrl + '</div>';
+        return '<div class="' + cls + '"' + (f.showIf ? ' data-showif="' + f.k + '"' : '') + '>' + label + ctrl + '</div>';
+    }
+
+    function phonesHTML(c) {
+        const phones = c.phones && c.phones.length ? c.phones : [{ type: 'Mobile', number: '' }];
+        return phones.map((p, i) => '<div class="pair phone-row">' +
+            '<select data-path="client.phones.' + i + '.type" style="flex:0 0 92px;">' + PHONE_TYPES.map((t) => '<option' + (t === p.type ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>' +
+            '<input type="tel" inputmode="tel" data-path="client.phones.' + i + '.number" value="' + esc(p.number) + '" placeholder="(305) 555-1234" maxlength="14"' + (i === 0 ? ' data-req="1"' : '') + '>' +
+            (i > 0 ? '<button type="button" class="btn-danger btn-xs" title="Remove this phone" onclick="Rater.removePhone(' + i + ')">✕</button>' : '') +
+            (i === phones.length - 1 && phones.length < MAX_PHONES ? '<button type="button" class="btn-primary btn-xs" title="Add another phone" onclick="Rater.addPhone()">+</button>' : '') +
+            '</div>').join('');
+    }
+    function addressStatusText(c) {
+        if (c.addressVerified) return '✔ Verified · ' + esc([c.city, c.state, c.zip].filter(Boolean).join(', ')) + (c.county ? ' · ' + esc(c.county) + ' County' : '');
+        if (c.zip) return 'Not verified · using ' + esc([c.city, c.state, c.zip].filter(Boolean).join(', ')) + ' as typed. Press Verify to confirm.';
+        return 'Type the full address (street, city, state, zip) and press Verify.';
+    }
+    // Hide / show fields with a showIf rule (e.g. Prior Address only when < 1 year at residence)
+    function applyShowIf() {
+        CLIENT_FIELDS.forEach((f) => { if (!f.showIf) return; document.querySelectorAll('[data-showif="' + f.k + '"]').forEach((el) => { el.style.display = f.showIf(quote.client) ? '' : 'none'; }); });
     }
 
     function gridHTML(fields, base, rec) {
@@ -395,7 +411,9 @@
         const base = 'drivers.' + i;
         return '<div class="sub-block" id="driverattr_' + i + '">' +
             '<h4><i data-lucide="sliders-horizontal"></i> Driver #' + (i + 1) + ' <span class="note">' + esc(driverName(d)) + '</span></h4>' +
-            gridHTML(DRIVER_ATTR, base, d) +
+            gridHTML(DRIVER_PRIOR_Q, base, d) +
+            '<div id="driverprior_' + i + '" style="' + (hasPrior(d) ? '' : 'display:none;') + '">' + subGroup('shield-check', 'Prior Insurance', DRIVER_PRIOR, base, d, false) + '</div>' +
+            subGroup('id-card', 'Licensing, Occupation & Residence', DRIVER_ATTR, base, d, false) +
             subGroup('list-plus', 'Additional Attributes', DRIVER_EXTRA, base, d, true) +
             '</div>';
     }
@@ -435,7 +453,6 @@
             datalists() +
             sectionHTML('client', 'user', 'Client Contact Information', gridHTML(CLIENT_FIELDS, 'client', quote.client)) +
             sectionHTML('coverages', 'shield', 'General Information / Coverages', gridHTML(COVERAGE_FIELDS, 'coverages', quote.coverages)) +
-            sectionHTML('details', 'clipboard-list', 'Quote Details', gridHTML(DETAIL_FIELDS, 'details', quote.details), { collapsible: true }) +
             sectionHTML('drivers', 'users', 'Driver Information',
                 '<div class="repeat-head"><span class="title">Drivers: ' + quote.drivers.length + '</span></div>' +
                 '<div class="card-row"><div class="cards" id="driversWrap">' + quote.drivers.map((_, i) => driverHTML(i)).join('') + '</div>' +
@@ -448,6 +465,7 @@
                 '<div id="vehiclesWrap">' + quote.vehicles.map((_, i) => vehicleHTML(i)).join('') + '</div>') +
             '<div style="text-align:center;margin:6px 0 10px;"><button type="button" class="btn-secondary btn-sm" onclick="Rater.showKeys()"><i data-lucide="key"></i> Show field keys (for carrier templates)</button></div>';
         markRequired();
+        applyShowIf();
         updateMeta();
         refreshIcons();
     }
@@ -478,6 +496,7 @@
         const m = path.match(/^drivers\.(\d+)\.(\w+)$/);
         if (m) {
             const i = +m[1];
+            if (m[2] === 'priorInsurance') { const g = $('driverprior_' + i); if (g) g.style.display = hasPrior(quote.drivers[i]) ? '' : 'none'; }
             if (m[2] === 'dob') { quote.drivers[i].age = ageFrom(val); const a = document.querySelector('[data-path="drivers.' + i + '.age"]'); if (a) a.value = quote.drivers[i].age; }
             if (m[2] === 'firstName' || m[2] === 'lastName') {
                 document.querySelectorAll('#driver_' + i + ' > h4 .note, #driverattr_' + i + ' > h4 .note').forEach((h) => { h.textContent = driverName(quote.drivers[i]); });
@@ -487,12 +506,9 @@
         const mv = path.match(/^vehicles\.(\d+)\.(year|make|model)$/);
         if (mv) { const i = +mv[1]; const v = quote.vehicles[i]; const h = document.querySelector('#vehicle_' + i + ' h4 .note'); if (h) h.textContent = [v.year, v.make, v.model].filter(Boolean).join(' '); }
         if (path === 'client.firstName' || path === 'client.lastName') updateMeta();
-        if (path === 'client.zip' && /^\d{5}$/.test(val)) {
-            lookupZip(val);
-            if (quote.vehicles.length && !quote.vehicles[0].zip) { quote.vehicles[0].zip = val; const z = document.querySelector('[data-path="vehicles.0.zip"]'); if (z) { z.value = val; z.classList.remove('need'); } }
-        }
-        if (path === 'client.county' && quote.vehicles.length && !quote.vehicles[0].county) { quote.vehicles[0].county = val; const z = document.querySelector('[data-path="vehicles.0.county"]'); if (z) z.value = val; }
-        if (path === 'client.city' && quote.vehicles.length && !quote.vehicles[0].city) { quote.vehicles[0].city = val; const z = document.querySelector('[data-path="vehicles.0.city"]'); if (z) z.value = val; }
+        if (path === 'client.address') { quote.client.addressVerified = false; parseAddress(val); setAddrStatus(); }
+        if (path === 'client.timeAtResidenceYears') applyShowIf();
+        if (/^client\.phones\./.test(path)) derivePhones();
         scheduleDraft();
     }
 
@@ -519,16 +535,98 @@
         return '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6);
     }
 
-    async function lookupZip(zip) {
-        try {
-            const r = await fetch('https://api.zippopotam.us/us/' + zip);
-            if (!r.ok) return;
-            const j = await r.json();
-            const p = j.places && j.places[0]; if (!p) return;
-            if (!quote.client.city) { quote.client.city = p['place name']; const c = document.querySelector('[data-path="client.city"]'); if (c) { c.value = quote.client.city; c.classList.remove('need'); } }
-            if (p['state abbreviation']) { quote.client.state = p['state abbreviation']; const s = document.querySelector('[data-path="client.state"]'); if (s) s.value = quote.client.state; }
-        } catch (e) { /* offline — leave as typed */ }
+    // ── Address: one line, verified against OpenStreetMap (Nominatim) ──
+    // Best-effort parse of "street, city, ST 12345" so rating can proceed even unverified.
+    function parseAddress(text) {
+        const c = quote.client;
+        const t = String(text || '').trim();
+        c.street = ''; c.city = ''; c.zip = ''; c.county = '';
+        const m = t.match(/^(.*?),\s*([^,]+?),?\s+([A-Za-z]{2})\.?,?\s+(\d{5})(?:-\d{4})?\s*$/);
+        if (m) { c.street = m[1].trim(); c.city = m[2].trim(); c.state = m[3].toUpperCase(); c.zip = m[4]; return; }
+        const z = t.match(/(\d{5})(?:-\d{4})?\s*$/); if (z) c.zip = z[1];
+        const st = t.match(/\b([A-Za-z]{2})\.?,?\s+\d{5}/); if (st && STATES.includes(st[1].toUpperCase())) c.state = st[1].toUpperCase();
+        c.street = t.split(',')[0].trim();
     }
+    function setAddrStatus(extra, cls) {
+        const el = $('addrStatus'); if (!el) return;
+        el.className = 'addr-status' + (cls ? ' ' + cls : quote.client.addressVerified ? ' ok' : '');
+        el.innerHTML = extra || addressStatusText(quote.client);
+    }
+    function copyGarageFromClient() {
+        const c = quote.client; const v = quote.vehicles[0]; if (!v) return;
+        [['zip', 'zip'], ['county', 'county'], ['city', 'city']].forEach(([ck, vk]) => {
+            if (c[ck] && !v[vk]) { v[vk] = c[ck]; const el = document.querySelector('[data-path="vehicles.0.' + vk + '"]'); if (el) { el.value = c[ck]; el.classList.remove('need'); } }
+        });
+    }
+    // "52 st" → "52nd St", "ne 3 ave" → "NE 3rd Ave": the geocoder wants ordinal street numbers.
+    function normalizeStreet(text) {
+        const ord = (n) => { const x = +n, m = x % 100; return n + ((m >= 11 && m <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[x % 10] || 'th')); };
+        return String(text)
+            .replace(/\b(\d+)\s+(st|street|ave|avenue|ter|terrace|pl|place|ct|court|ln|lane|rd|road|dr|drive|way|blvd|boulevard|cir|circle|pkwy|parkway|hwy|highway)\b/gi, (m, n, t) => ord(n) + ' ' + t)
+            .replace(/\b(nw|ne|sw|se)\b/gi, (m) => m.toUpperCase());
+    }
+    const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+    let verifying = false;
+    async function nominatim(params) {
+        const url = 'https://nominatim.openstreetmap.org/search?' + new URLSearchParams(Object.assign({ format: 'jsonv2', addressdetails: '1', countrycodes: 'us', limit: '1' }, params));
+        const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const arr = await r.json();
+        return arr && arr[0] && arr[0].address && arr[0].address.house_number ? arr[0] : null;
+    }
+    async function verifyAddress() {
+        const c = quote.client;
+        const q = String(c.address || '').trim();
+        if (q.length < 8) { setAddrStatus('Type the full address first (street, city, state, zip).', 'warn'); return; }
+        if (verifying) return; verifying = true;
+        const btn = $('verifyAddrBtn'); if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Verifying'; }
+        setAddrStatus('<span class="spinner dark"></span> Checking address…', '');
+        try {
+            // Try as typed, then with ordinal street numbers, then as a structured query — one request per second (service limit).
+            parseAddress(q);
+            const attempts = [{ q }];
+            const nq = normalizeStreet(q); if (nq !== q) attempts.push({ q: nq });
+            if (c.street && c.zip) attempts.push({ street: normalizeStreet(c.street), postalcode: c.zip, state: c.state || 'FL', country: 'us' });
+            else if (c.street && c.city) attempts.push({ street: normalizeStreet(c.street), city: c.city, state: c.state || 'FL', country: 'us' });
+            let hit = null;
+            for (let i = 0; i < attempts.length && !hit; i++) { if (i) await sleep(1100); hit = await nominatim(attempts[i]); }
+            const a = hit && hit.address;
+            if (!a) { parseAddress(q); setAddrStatus('✖ Address not found. Check the spelling and zip, or keep it as typed.', 'warn'); return; }
+            const street = [a.house_number, a.road].filter(Boolean).join(' ');
+            const city = a.city || a.town || a.village || a.hamlet || a.municipality || a.suburb || a.county || '';
+            const state = (a['ISO3166-2-lvl4'] || '').replace(/^US-/, '') || c.state || 'FL';
+            const zip = (a.postcode || '').slice(0, 5);
+            const county = (a.county || '').replace(/\s+County$/i, '');
+            if (!a.house_number || !zip) { parseAddress(q); if (county) c.county = county; if (!c.city && city) c.city = city; setAddrStatus('⚠ Found the street but not the exact house number — kept as typed' + (c.zip ? ' (zip ' + esc(c.zip) + ')' : '') + '. Double-check the number.', 'warn'); return; }
+            c.street = street; c.city = city; c.state = state; c.zip = zip; c.county = county; c.addressVerified = true;
+            c.address = street + ', ' + city + ', ' + state + ' ' + zip;
+            const inp = document.querySelector('[data-path="client.address"]'); if (inp) { inp.value = c.address; inp.classList.remove('need'); }
+            setAddrStatus();
+            copyGarageFromClient();
+            scheduleDraft();
+        } catch (e) {
+            parseAddress(q);
+            setAddrStatus('⚠ Could not reach the address service — kept as typed' + (c.zip ? ' (zip ' + esc(c.zip) + ')' : '') + '.', 'warn');
+        } finally {
+            verifying = false;
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="map-pin-check"></i> Verify'; refreshIcons(); }
+        }
+    }
+
+    // ── Phones ───────────────────────────────────────────────────
+    function derivePhones() {
+        const c = quote.client; const ph = c.phones || [];
+        const first = (t) => { const p = ph.find((x) => x.type === t && x.number); return p ? p.number : ''; };
+        c.mobilePhone = first('Mobile') || (ph[0] && ph[0].number) || '';
+        c.homePhone = first('Home'); c.workPhone = first('Work');
+    }
+    function renderPhones() { const w = $('phonesWrap'); if (w) w.innerHTML = phonesHTML(quote.client); markRequired(); }
+    function addPhone() {
+        const ph = quote.client.phones; if (ph.length >= MAX_PHONES) return;
+        const used = ph.map((p) => p.type); ph.push({ type: PHONE_TYPES.find((t) => !used.includes(t)) || 'Mobile', number: '' });
+        renderPhones(); const last = document.querySelector('[data-path="client.phones.' + (ph.length - 1) + '.number"]'); if (last) last.focus(); scheduleDraft();
+    }
+    function removePhone(i) { quote.client.phones.splice(i, 1); if (!quote.client.phones.length) quote.client.phones.push({ type: 'Mobile', number: '' }); derivePhones(); renderPhones(); scheduleDraft(); }
 
     // VIN decode via the free NHTSA vPIC service (no credentials needed)
     async function decodeVin(base) {
@@ -620,9 +718,10 @@
     function fillSample() {
         if (hasContent() && !confirm('Replace the current quote with sample data?')) return;
         quote = blankQuote();
-        Object.assign(quote.client, { firstName: 'Maria', middleName: 'L', lastName: 'Gonzalez', address: '8420 NW 52nd St', apt: '', zip: '33166', county: 'Miami-Dade', city: 'Doral', state: 'FL', timeAtResidenceYears: '3', timeAtResidenceMonths: '2', mobilePhone: '(305) 555-0147', email: 'maria.gonzalez@example.com' });
+        Object.assign(quote.client, { firstName: 'Maria', middleName: 'L', lastName: 'Gonzalez', address: '8420 NW 52nd St, Doral, FL 33166', street: '8420 NW 52nd St', zip: '33166', county: 'Miami-Dade', city: 'Doral', state: 'FL', addressVerified: false, timeAtResidenceYears: '3', phones: [{ type: 'Mobile', number: '(305) 555-0147' }], email: 'maria.gonzalez@example.com' });
+        derivePhones();
         Object.assign(quote.coverages, { bi: '25/50', pd: '25', allowCreditScore: 'Yes', um: '25/50', medPay: '1000' });
-        Object.assign(quote.drivers[0], { firstName: 'Maria', middleName: 'L', lastName: 'Gonzalez', dob: '1988-04-12', age: ageFrom('1988-04-12'), gender: 'Female', marital: 'Married', dlNumber: 'G524-310-88-634-0', timeWithPriorYears: '2', timeWithPriorMonths: '6', priorExpiration: todayISO(), priorCarrier: 'Progressive', industry: 'Healthcare', occupation: 'Nurse', timeEmployedYears: '4', education: 'Bachelor Degree', residenceType: 'Single Family Home', residenceStatus: 'Own', propertyInsurance: 'Yes' });
+        Object.assign(quote.drivers[0], { firstName: 'Maria', middleName: 'L', lastName: 'Gonzalez', dob: '1988-04-12', age: ageFrom('1988-04-12'), gender: 'Female', marital: 'Married', dlNumber: 'G524-310-88-634-0', priorInsurance: 'Yes', timeWithPriorYears: '2', timeWithPriorMonths: '6', priorExpiration: todayISO(), priorCarrier: 'Progressive', industry: 'Healthcare', occupation: 'Nurse', timeEmployedYears: '4', education: 'Bachelor Degree', residenceType: 'Single Family Home', residenceStatus: 'Own', propertyInsurance: 'Yes' });
         Object.assign(quote.vehicles[0], { vin: '1HGCV1F34LA012345', year: '2020', make: 'Honda', model: 'Accord', trim: 'EX / Sedan', zip: '33166', county: 'Miami-Dade', city: 'Doral', usage: 'Commute to Work/School', telematics: 'No', milesToWork: '12', annualMiles: '12000', odometer: '41000', purchaseDate: '2021-06-15', newUsed: 'Used', lossPayeeType: 'Lienholder', lossPayeeName: 'Honda Financial Services', airBags: 'Front & Side', antiLockBrakes: '4 Wheel', passiveRestraint: 'Air Bags', runningLights: 'Yes' });
         results = [];
         renderForm(); renderResults(); scheduleDraft();
@@ -636,11 +735,17 @@
         markRequired();
         const missing = [];
         const check = (fields, rec, label) => fields.forEach((f) => {
-            if (!f.req) return;
+            if (!(f.req || (f.reqIf && f.reqIf(rec)))) return;
             const v = f.t === 'ym' ? rec[f.k + 'Years'] : rec[f.k];
             if (v === '' || v == null) missing.push(label + f.l);
         });
-        check(CLIENT_FIELDS, quote.client, '');
+        const c = quote.client;
+        if (!c.firstName) missing.push('First Name');
+        if (!c.lastName) missing.push('Last Name');
+        if (!c.address) missing.push('Address');
+        else if (!c.zip) missing.push('Address zip code (press Verify or type "street, city, FL zip")');
+        if (c.timeAtResidenceYears === '' || c.timeAtResidenceYears == null) missing.push('Time at Residence');
+        if (!(c.phones && c.phones.some((p) => p.number && p.number.replace(/\D/g, '').length === 10))) missing.push('Phone (10 digits)');
         check(COVERAGE_FIELDS, quote.coverages, '');
         quote.drivers.forEach((d, i) => check(DRIVER_FIELDS, d, 'Driver ' + (i + 1) + ': '));
         quote.vehicles.forEach((v, i) => check(VEHICLE_FIELDS, v, 'Car ' + (i + 1) + ': '));
@@ -856,8 +961,8 @@
         const q = quote; const c = q.client;
         const lines = [];
         lines.push('UIB AUTO QUOTE — ' + [c.firstName, c.middleName, c.lastName].filter(Boolean).join(' '));
-        lines.push(c.address + (c.apt ? ' ' + c.apt : '') + ', ' + c.city + ', ' + c.state + ' ' + c.zip + ' (' + c.county + ' County)');
-        lines.push('Phone: ' + (c.mobilePhone || c.homePhone || c.workPhone || '—') + '   Email: ' + (c.email || '—'));
+        lines.push(c.address + (c.county ? ' (' + c.county + ' County)' : '') + (c.addressVerified ? ' [verified]' : '') + ' · at residence: ' + (c.timeAtResidenceYears === '0' ? '< 1 yr' : (c.timeAtResidenceYears || '?') + ' yr') + (c.priorAddress && c.timeAtResidenceYears === '0' ? ' · prior: ' + c.priorAddress : ''));
+        lines.push('Phone: ' + ((c.phones || []).filter((p) => p.number).map((p) => p.type + ' ' + p.number).join(', ') || '—') + '   Email: ' + (c.email || '—'));
         lines.push('Effective: ' + q.coverages.effectiveDate + '   Term: ' + q.coverages.term + ' mo   Pay: ' + q.coverages.paymentOption + '   Credit: ' + q.coverages.allowCreditScore);
         lines.push('BI ' + q.coverages.bi + ' / PD ' + q.coverages.pd + ' / PIP ' + q.coverages.pipType + ' ded ' + q.coverages.pipDed + ' ' + q.coverages.pipDedOption + (q.coverages.wageLossExclusion === 'Yes' ? ' (wage loss excl.)' : '') + ' / UM ' + q.coverages.um + (q.umStacked ? ' stacked' : '') + ' / MedPay ' + q.coverages.medPay + ' / AD ' + q.coverages.accidentalDeath);
         q.drivers.forEach((d, i) => {
@@ -1060,8 +1165,19 @@
         const b = blankQuote();
         const merge = (fields, rec, blank) => { fields.forEach((f) => { if (f.t === 'ym') { if (rec[f.k + 'Years'] == null) rec[f.k + 'Years'] = blank[f.k + 'Years']; if (rec[f.k + 'Months'] == null) rec[f.k + 'Months'] = blank[f.k + 'Months']; } else if (rec[f.k] == null) rec[f.k] = blank[f.k]; }); return rec; };
         q.client = merge(CLIENT_FIELDS, q.client || {}, b.client);
+        Object.keys(CLIENT_DERIVED).forEach((k) => { if (q.client[k] == null) q.client[k] = CLIENT_DERIVED[k]; });
+        if (!Array.isArray(q.client.phones) || !q.client.phones.length) {
+            q.client.phones = [];
+            [['Mobile', 'mobilePhone'], ['Home', 'homePhone'], ['Work', 'workPhone']].forEach(([t, k]) => { if (q.client[k]) q.client.phones.push({ type: t, number: q.client[k] }); });
+            if (!q.client.phones.length) q.client.phones.push({ type: 'Mobile', number: '' });
+        }
+        // Older quotes stored street / apt / city / zip separately — fold them into the one-line address.
+        if (q.client.address && !/,/.test(q.client.address) && q.client.city) {
+            q.client.street = q.client.address;
+            q.client.address = q.client.address + (q.client.apt ? ' ' + q.client.apt : '') + ', ' + q.client.city + ', ' + (q.client.state || 'FL') + ' ' + (q.client.zip || '');
+        }
+        if (q.client.timeAtResidenceYears != null && q.client.timeAtResidenceYears !== '' && +q.client.timeAtResidenceYears > 5) q.client.timeAtResidenceYears = '5';
         q.coverages = merge(COVERAGE_FIELDS, q.coverages || {}, b.coverages);
-        q.details = merge(DETAIL_FIELDS, q.details || {}, b.details);
         q.drivers = (q.drivers && q.drivers.length ? q.drivers : [{}]).map((d) => merge(DRIVER_FIELDS, d, b.drivers[0]));
         q.vehicles = (q.vehicles && q.vehicles.length ? q.vehicles : [{}]).map((v) => merge(VEHICLE_FIELDS, v, b.vehicles[0]));
         if (!q.id) q.id = uid();
@@ -1084,9 +1200,10 @@
     function showKeys() {
         const lines = [];
         const add = (prefix, fields) => fields.forEach((f) => { if (f.t === 'ym') { lines.push(prefix + f.k + 'Years'); lines.push(prefix + f.k + 'Months'); } else lines.push(prefix + f.k + '   (' + (f.full || f.l) + ')'); });
-        lines.push('# client'); add('client.', CLIENT_FIELDS);
+        lines.push('# client');
+        lines.push('client.firstName', 'client.middleName', 'client.lastName', 'client.address   (full one-line address)', 'client.street', 'client.city', 'client.state', 'client.zip', 'client.county', 'client.addressVerified', 'client.timeAtResidenceYears   (0 = less than 1, 5 = 5+)', 'client.priorAddress', 'client.email');
+        lines.push('client.phones.0.type   (Mobile / Home / Work)', 'client.phones.0.number', 'client.mobilePhone', 'client.homePhone', 'client.workPhone   (derived from phones)');
         lines.push('', '# coverages'); add('coverages.', COVERAGE_FIELDS);
-        lines.push('', '# details'); add('details.', DETAIL_FIELDS);
         lines.push('', '# drivers.N  (N = 0,1,2…)'); add('drivers.0.', DRIVER_FIELDS);
         lines.push('', '# vehicles.N'); add('vehicles.0.', VEHICLE_FIELDS);
         lines.push('', '# whole arrays / objects (raw JSON)', 'json:drivers', 'json:vehicles', 'json:client', 'json:coverages', 'json:quote');
@@ -1206,7 +1323,7 @@
         showTab, newQuote, fillSample, saveQuote: () => saveQuote(false), rate, decodeVin, addDriver, removeDriver, addVehicle, removeVehicle,
         editCarrier, closeCarrier, saveCarrier, deleteCarrier, toggleCarrier, carrierMethodChanged, exportCarriers, importCarriers, testCarrier, addStarterCarriers, setDemo,
         setManual, select, openPortal, copySummary, renderSaved, openSaved, duplicateSaved, deleteSaved, exportSaved, showKeys,
-        login, install, dismissInstall, toggleDensity,
+        login, install, dismissInstall, toggleDensity, verifyAddress, addPhone, removePhone,
         get quote() { return quote; }, get results() { return results; }, get carriers() { return carriers; }
     };
 })();
