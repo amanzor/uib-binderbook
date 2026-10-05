@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="lz-string.min.js"></script>
+    <script src="storage-codec.js?v=20260914a"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Auto Rater - UIB Binder Book</title>
+
+    <!-- PWA: installable on iPhone / Android home screens -->
+    <link rel="manifest" href="rater.webmanifest">
+    <meta name="theme-color" content="#0d1f3c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="UIB Rater">
+    <link rel="apple-touch-icon" href="icons/rater-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/rater-192.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ── Design Tokens (same as index.html) ─────────────────── */
+        :root {
+            --navy:       #0d1f3c;
+            --blue:       #1d4ed8;
+            --blue-mid:   #2563eb;
+            --blue-light: #3b82f6;
+            --blue-pale:  #eff6ff;
+            --green:      #059669;
+            --green-pale: #ecfdf5;
+            --red:        #dc2626;
+            --red-pale:   #fef2f2;
+            --purple:     #7c3aed;
+            --amber:      #d97706;
+            --amber-pale: #fffbeb;
+            --gray-50:    #f8fafc;
+            --gray-100:   #f1f5f9;
+            --gray-200:   #e2e8f0;
+            --gray-300:   #cbd5e1;
+            --gray-400:   #94a3b8;
+            --gray-500:   #64748b;
+            --gray-700:   #334155;
+            --gray-900:   #0f172a;
+            --white:      #ffffff;
+            --radius-sm:  6px;
+            --radius-md:  10px;
+            --radius-lg:  16px;
+            --radius-xl:  22px;
+            --shadow-sm:  0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
+            --shadow-md:  0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.05);
+            --shadow-lg:  0 12px 32px rgba(0,0,0,.1),0 4px 8px rgba(0,0,0,.06);
+            --shadow-xl:  0 30px 60px rgba(0,0,0,.18);
+        }
+
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: var(--white);
+            min-height: 100%;
+            -webkit-font-smoothing: antialiased;
+            color: var(--gray-900);
+        }
+
+        /* ── Header (same as the entry pages) ───────────────────── */
+        .app-header {
+            background: linear-gradient(135deg, #0d1f3c 0%, #163057 55%, #1d4ed8 100%);
+            color: white;
+            padding: 14px 24px;
+            padding-top: calc(14px + env(safe-area-inset-top));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            box-shadow: 0 2px 12px rgba(0,0,0,.2);
+        }
+        .app-header .title-group { display:flex; align-items:center; gap:12px; min-width:0; }
+        .app-header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; color:#fff; white-space:nowrap; }
+        .app-header .header-icon { height: 28px; width: auto; border-radius:6px; }
+        .app-header .header-right { display:flex; align-items:center; gap:8px; }
+        #userDisplay { font-size:13px; font-weight:600; opacity:.9; white-space:nowrap; }
+
+        /* ── Buttons ─────────────────────────────────────────────── */
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: .2px;
+            transition: all .18s ease;
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+        button:focus-visible { outline: 3px solid rgba(37,99,235,.5); outline-offset: 2px; }
+        button:disabled { opacity:.55; cursor:not-allowed; transform:none !important; }
+        .btn-primary {
+            background: linear-gradient(to right, #0f2a78 0%, #1d4ed8 60%, #2563eb 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(29,78,216,.35), 0 1px 8px rgba(29,78,216,.18), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-primary:hover  { background:linear-gradient(to right,#0c2268 0%,#1539a8 60%,#1d4ed8 100%); box-shadow:0 4px 14px rgba(29,78,216,.45); transform:translateY(-1px); }
+        .btn-secondary {
+            background: linear-gradient(to right, #c8d5e3 0%, #dde6f0 55%, #f1f5f9 100%);
+            color: var(--gray-700);
+            box-shadow: 0 1px 3px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.7);
+            border: 1px solid var(--gray-200);
+        }
+        .btn-secondary:hover { background:linear-gradient(to right,#b0c2d4 0%,#c8d5e3 55%,#dde6f0 100%); transform:translateY(-1px); }
+        .btn-success {
+            background: linear-gradient(to right, #024b36 0%, #059669 60%, #10b981 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(5,150,105,.35), 0 1px 8px rgba(5,150,105,.18), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-success:hover { background:linear-gradient(to right,#013d2c 0%,#047857 60%,#059669 100%); transform:translateY(-1px); }
+        .btn-danger {
+            background: linear-gradient(to right, #7f1010 0%, #dc2626 60%, #ef4444 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(220,38,38,.35), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-danger:hover { background:linear-gradient(to right,#6b0d0d 0%,#b91c1c 60%,#dc2626 100%); transform:translateY(-1px); }
+        .btn-purple {
+            background: linear-gradient(to right, #3b1a8c 0%, #7c3aed 60%, #8b5cf6 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(124,58,237,.35), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-purple:hover { background:linear-gradient(to right,#2e1570 0%,#6d28d9 60%,#7c3aed 100%); transform:translateY(-1px); }
+        .btn-warning {
+            background: linear-gradient(to right, #7c3a06 0%, #d97706 60%, #f59e0b 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(217,119,6,.35), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-warning:hover { background:linear-gradient(to right,#652f05 0%,#b45309 60%,#d97706 100%); transform:translateY(-1px); }
+        .btn-navy {
+            background: linear-gradient(to right, #0d1f3c 0%, #12336e 60%, #1d4ed8 100%);
+            color: #fff; border: none;
+            box-shadow: 0 1px 3px rgba(13,31,60,.35), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-navy:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(13,31,60,.45); }
+        .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
+        .btn-xs { padding: 4px 9px; font-size: 11px; border-radius: 5px; }
+        .btn-block { width:100%; }
+
+        svg.lucide { width:16px; height:16px; vertical-align:-3px; stroke-width:2; }
+        button svg.lucide { margin-right:5px; }
+        .btn-sm svg.lucide, .btn-xs svg.lucide { width:13px; height:13px; }
+        h3 svg.lucide { width:18px; height:18px; }
+
+        /* ── Tabs ────────────────────────────────────────────────── */
+        .tabs {
+            position: sticky;
+            top: calc(56px + env(safe-area-inset-top));
+            z-index: 25;
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            gap: 4px;
+            padding: 8px 16px 0;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .tabs::-webkit-scrollbar { display:none; }
+        .tab {
+            background: transparent;
+            color: var(--gray-500);
+            border-radius: 8px 8px 0 0;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            border-bottom: 3px solid transparent;
+            box-shadow: none;
+        }
+        .tab.active { color: var(--blue); border-bottom-color: var(--blue); background: var(--blue-pale); }
+        .tab .badge { display:inline-block; min-width:18px; padding:1px 6px; border-radius:999px; background:var(--blue); color:#fff; font-size:10px; margin-left:6px; text-align:center; }
+        .panel { display:none; }
+        .panel.active { display:block; }
+
+        /* ── Page body ───────────────────────────────────────────── */
+        .page-body { padding: 18px 20px 120px; max-width: 1400px; margin: 0 auto; }
+
+        /* ── Sections (same as .form-section in the Binder Book) ─── */
+        .form-section {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            padding: 20px 22px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 18px;
+        }
+        .form-section h3 {
+            color: var(--navy);
+            margin-bottom: 16px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--blue-light);
+        }
+        .form-section h3 .spacer { flex:1; }
+        .form-section h3 .sub { font-size:12px; font-weight:500; color:var(--gray-500); font-style:italic; }
+        .form-section.collapsible h3 { cursor:pointer; user-select:none; }
+        .form-section.collapsed > *:not(h3) { display:none; }
+        .form-section.collapsed h3 { margin-bottom:0; border-bottom:none; padding-bottom:0; }
+        .form-section .chev { transition: transform .2s; }
+        .form-section.collapsed .chev { transform: rotate(-90deg); }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px 14px;
+        }
+        .form-group { display:flex; flex-direction:column; min-width:0; }
+        .form-group.wide { grid-column: span 2; }
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: var(--gray-700);
+            font-size: 12.5px;
+            letter-spacing: .1px;
+            white-space: nowrap; overflow:hidden; text-overflow:ellipsis;
+        }
+        .form-group label .req { color: var(--red); margin-left:2px; }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 9px 11px;
+            border: 1.5px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--gray-900);
+            background: var(--white);
+            transition: border-color .15s, box-shadow .15s;
+            width: 100%;
+            min-height: 40px;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--blue-light);
+            box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+        }
+        .form-group select { appearance: auto; }
+        .form-group input[readonly] { background: var(--gray-100); color: var(--gray-500); }
+        /* Required-but-empty fields get the same soft amber outline the quoting system uses */
+        .form-group input.need, .form-group select.need { border-color:#f59e0b; background:#fffbeb; }
+        .form-group .pair { display:flex; gap:6px; align-items:center; }
+        .form-group .pair input { width: 0; flex:1; }
+        .form-group .pair span { font-size:12px; color:var(--gray-500); white-space:nowrap; }
+        .form-group .check { display:flex; align-items:center; gap:8px; min-height:40px; font-size:14px; }
+        .form-group .check input { width:18px; height:18px; min-height:0; accent-color: var(--blue); }
+
+        .sub-block {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            margin-top: 14px;
+        }
+        .sub-block h4 {
+            font-size: 13.5px; font-weight: 700; color: var(--blue); margin-bottom: 12px;
+            display:flex; align-items:center; gap:8px;
+        }
+        .sub-block h4 .spacer { flex:1; }
+        .repeat-head {
+            display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;
+            padding:10px 12px; background: linear-gradient(135deg,#eff6ff,#dbeafe); border:1.5px solid #93c5fd; border-radius:10px;
+        }
+        .repeat-head .title { font-weight:800; color:#1e40af; font-size:14px; }
+        .repeat-head .spacer { flex:1; }
+
+        /* ── Carriers ────────────────────────────────────────────── */
+        .carrier-list { display:grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap:14px; }
+        .carrier-card {
+            background: var(--white); border:1px solid var(--gray-200); border-radius: var(--radius-md);
+            padding: 14px 16px; box-shadow: var(--shadow-sm); display:flex; flex-direction:column; gap:8px;
+            border-left: 5px solid var(--blue);
+        }
+        .carrier-card.off { opacity:.6; border-left-color: var(--gray-300); }
+        .carrier-card .name { font-weight:800; font-size:15px; color:var(--navy); display:flex; align-items:center; gap:8px; }
+        .carrier-card .meta { font-size:12px; color:var(--gray-500); word-break:break-all; }
+        .carrier-card .row { display:flex; gap:6px; flex-wrap:wrap; }
+        .pill { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--gray-100); color:var(--gray-700); }
+        .pill.api { background:#dbeafe; color:#1e40af; }
+        .pill.portal { background:#ede9fe; color:#5b21b6; }
+        .pill.manual { background:#fef3c7; color:#92400e; }
+        .pill.on { background:var(--green-pale); color:var(--green); }
+        .pill.off { background:var(--red-pale); color:var(--red); }
+
+        /* ── Results ─────────────────────────────────────────────── */
+        .results-table { width:100%; border-collapse:collapse; background:#fff; border-radius:var(--radius-md); overflow:hidden; box-shadow:var(--shadow-sm); }
+        .results-table th { background:linear-gradient(135deg,#0d1f3c,#1d4ed8); color:#fff; text-align:left; padding:10px 12px; font-size:12px; letter-spacing:.3px; text-transform:uppercase; }
+        .results-table td { padding:10px 12px; border-bottom:1px solid var(--gray-100); font-size:14px; vertical-align:middle; }
+        .results-table tr:last-child td { border-bottom:none; }
+        .results-table tr.best td { background: var(--green-pale); }
+        .results-table .money { font-weight:800; font-variant-numeric: tabular-nums; color:var(--navy); }
+        .results-table .err { color:var(--red); font-size:12px; }
+        .results-table input.manual-premium { width:110px; padding:6px 8px; border:1.5px solid var(--gray-200); border-radius:6px; font-size:14px; font-family:inherit; }
+        .result-cards { display:none; gap:12px; }
+        .result-card { background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius-md); padding:14px; box-shadow:var(--shadow-sm); border-left:5px solid var(--blue); }
+        .result-card.best { border-left-color: var(--green); background: var(--green-pale); }
+        .result-card .name { font-weight:800; font-size:15px; color:var(--navy); }
+        .result-card .big { font-size:24px; font-weight:800; color:var(--navy); font-variant-numeric: tabular-nums; margin:4px 0; }
+        .result-card .kv { display:flex; justify-content:space-between; font-size:13px; color:var(--gray-700); padding:3px 0; }
+
+        .stat-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap:10px; margin-bottom:16px; }
+        .stat-card { background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius-md); padding:12px 14px; box-shadow:var(--shadow-sm); }
+        .stat-card .label { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--gray-500); font-weight:700; }
+        .stat-card .number { font-size:22px; font-weight:800; color:var(--navy); margin-top:2px; }
+
+        /* ── Saved quotes ────────────────────────────────────────── */
+        .saved-list { display:flex; flex-direction:column; gap:10px; }
+        .saved-item { background:#fff; border:1px solid var(--gray-200); border-radius:var(--radius-md); padding:12px 14px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow:var(--shadow-sm); }
+        .saved-item .who { font-weight:800; color:var(--navy); }
+        .saved-item .when { font-size:12px; color:var(--gray-500); }
+        .saved-item .spacer { flex:1; }
+
+        /* ── Misc ────────────────────────────────────────────────── */
+        .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+        .toolbar .spacer { flex:1; }
+        .toolbar input[type=search] { padding:9px 12px; border:1.5px solid var(--gray-200); border-radius:var(--radius-sm); font-family:inherit; font-size:14px; min-width:220px; }
+        .note { font-size:13px; color:var(--gray-500); line-height:1.5; }
+        .note code { background:var(--gray-100); padding:1px 5px; border-radius:4px; font-size:12px; }
+        .empty { text-align:center; padding:40px 20px; color:var(--gray-500); font-size:14px; }
+        .empty svg.lucide { width:36px; height:36px; color:var(--gray-300); display:block; margin:0 auto 10px; }
+        .success-message {
+            display:none; background: var(--green-pale); border:1.5px solid #a7f3d0; color:#065f46;
+            padding:12px 16px; border-radius:var(--radius-md); margin-bottom:14px; font-weight:600; font-size:14px;
+        }
+        .error-message {
+            display:none; background: var(--red-pale); border:1.5px solid #fecaca; color:#991b1b;
+            padding:12px 16px; border-radius:var(--radius-md); margin-bottom:14px; font-weight:600; font-size:14px;
+        }
+
+        /* Sticky action bar (mobile friendly) */
+        .action-bar {
+            position: fixed; left:0; right:0; bottom:0; z-index:40;
+            background: rgba(255,255,255,.96); backdrop-filter: blur(8px);
+            border-top: 1px solid var(--gray-200);
+            padding: 10px 16px; padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            display:flex; gap:8px; justify-content:center; flex-wrap:wrap;
+            box-shadow: 0 -4px 20px rgba(0,0,0,.08);
+        }
+        .action-bar button { flex:1; max-width:260px; min-width:120px; padding:12px 14px; }
+
+        /* Modal (same visual as the Binder Book modals) */
+        .modal { display:none; position:fixed; inset:0; background:rgba(13,31,60,.55); z-index:1000; align-items:center; justify-content:center; padding:16px; }
+        .modal.open { display:flex; }
+        .modal-content {
+            background:#fff; border-radius:var(--radius-lg); width:100%; max-width:760px; max-height:92vh; overflow:auto;
+            box-shadow: var(--shadow-xl);
+        }
+        .modal-content .modal-head {
+            background:linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%); color:#fff; padding:16px 20px;
+            display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:2;
+        }
+        .modal-content .modal-head h3 { font-size:17px; font-weight:800; }
+        .modal-content .modal-body { padding:18px 20px; }
+        .modal-content .modal-foot { padding:12px 20px 18px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+
+        /* Login gate */
+        .login-wrap { min-height: calc(100vh - 56px); display:flex; align-items:center; justify-content:center; padding:24px; background: linear-gradient(135deg, #0d1f3c 0%, #163057 55%, #1d4ed8 100%); }
+        .login-card { background:#fff; border-radius:var(--radius-xl); padding:28px; width:100%; max-width:400px; box-shadow: var(--shadow-xl); }
+        .login-card h2 { color:var(--navy); font-size:22px; font-weight:800; margin-bottom:4px; }
+        .login-card p { color:var(--gray-500); font-size:13px; margin-bottom:18px; }
+        .login-card .form-group { margin-bottom:12px; }
+
+        .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation: spin .8s linear infinite; vertical-align:-2px; margin-right:6px; }
+        .spinner.dark { border-color: rgba(29,78,216,.25); border-top-color: var(--blue); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .install-banner {
+            display:none; background: linear-gradient(135deg,#eff6ff,#dbeafe); border:1.5px solid #93c5fd; border-radius:10px;
+            padding:10px 14px; margin-bottom:14px; font-size:13px; color:#1e3a8a; align-items:center; gap:10px; flex-wrap:wrap;
+        }
+        .install-banner .spacer { flex:1; }
+
+        /* Keep the floating cloud-sync button clear of the bottom action bar */
+        #uibCloudBtn { bottom: calc(84px + env(safe-area-inset-bottom)) !important; }
+        #uibCloudPanel { bottom: calc(144px + env(safe-area-inset-bottom)) !important; }
+
+        @media (max-width: 768px) {
+            .app-header { padding-left:14px; padding-right:14px; }
+            .app-header h1 { font-size:16px; }
+            #userDisplay { display:none; }
+            .page-body { padding: 12px 12px 130px; }
+            .form-section { padding: 14px 12px; border-radius: 12px; }
+            .form-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+            .form-group.wide { grid-column: 1 / -1; }
+            .form-group input, .form-group select { font-size:16px; } /* stops iOS zoom-on-focus */
+            .results-table { display:none; }
+            .result-cards { display:grid; }
+            .tabs { top: calc(50px + env(safe-area-inset-top)); padding:6px 8px 0; }
+            .tab { padding: 9px 12px; font-size:12.5px; }
+        }
+        @media print {
+            .app-header, .tabs, .action-bar, #uibCloudBtn, #uibCloudPanel, .toolbar { display:none !important; }
+            .page-body { padding:0; }
+            .results-table { display:table !important; }
+            .result-cards { display:none !important; }
+        }
+    </style>
+    <link rel="stylesheet" href="uib-theme.css?v=20261003a">
+</head>
+<body>
+
+<div class="app-header">
+    <div class="title-group">
+        <img src="icon.png" alt="UIB" class="header-icon">
+        <h1><i data-lucide="calculator" style="width:20px;height:20px;margin-right:6px;vertical-align:-3px;"></i>Auto Rater</h1>
+    </div>
+    <div class="header-right">
+        <span id="userDisplay"></span>
+        <button type="button" class="btn-secondary btn-sm" id="installBtn" style="display:none;" onclick="Rater.install()"><i data-lucide="download"></i> Install</button>
+        <button type="button" class="btn-danger btn-sm" onclick="window.location.href='./'">✕ Close</button>
+    </div>
+</div>
+
+<!-- Sign-in gate (shown only when no agent is signed in on this device) -->
+<div id="loginGate" class="login-wrap" style="display:none;">
+    <div class="login-card">
+        <h2><i data-lucide="lock"></i> Agent Sign In</h2>
+        <p>Use the same agent name and password as the Binder Book.</p>
+        <div class="form-group">
+            <label>Agent</label>
+            <select id="loginAgent"></select>
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="loginPassword" autocomplete="current-password">
+        </div>
+        <div id="loginMsg" class="note" style="margin-bottom:10px;"></div>
+        <button class="btn-primary btn-block" onclick="Rater.login()"><i data-lucide="log-in"></i> Sign In</button>
+        <button class="btn-secondary btn-block" style="margin-top:8px;" onclick="window.location.href='./'">Open Binder Book</button>
+    </div>
+</div>
+
+<div id="app" style="display:none;">
+    <div class="tabs">
+        <button class="tab active" data-tab="quote" onclick="Rater.showTab('quote')"><i data-lucide="file-text"></i> Quote</button>
+        <button class="tab" data-tab="results" onclick="Rater.showTab('results')"><i data-lucide="bar-chart-2"></i> Results<span class="badge" id="resultsBadge" style="display:none;">0</span></button>
+        <button class="tab" data-tab="saved" onclick="Rater.showTab('saved')"><i data-lucide="folder-open"></i> Saved<span class="badge" id="savedBadge" style="display:none;">0</span></button>
+        <button class="tab" data-tab="carriers" onclick="Rater.showTab('carriers')"><i data-lucide="building-2"></i> Carriers<span class="badge" id="carriersBadge" style="display:none;">0</span></button>
+    </div>
+
+    <div class="page-body">
+        <div class="install-banner" id="installBanner">
+            <i data-lucide="smartphone"></i>
+            <span><b>Add to your phone:</b> install the Auto Rater as an app for one-tap access.</span>
+            <span class="spacer"></span>
+            <button class="btn-primary btn-sm" onclick="Rater.install()"><i data-lucide="download"></i> Install</button>
+            <button class="btn-secondary btn-sm" onclick="Rater.dismissInstall()">Later</button>
+        </div>
+        <div class="success-message" id="successMessage"></div>
+        <div class="error-message" id="errorMessage"></div>
+
+        <!-- ═══ QUOTE ═══ -->
+        <div class="panel active" id="panel-quote">
+            <div class="toolbar">
+                <button class="btn-secondary btn-sm" onclick="Rater.newQuote()"><i data-lucide="file-plus"></i> New Quote</button>
+                <button class="btn-secondary btn-sm" onclick="Rater.fillSample()" title="Fill the form with sample data to test the rater"><i data-lucide="wand-2"></i> Sample Data</button>
+                <span class="spacer"></span>
+                <span class="note" id="quoteMeta"></span>
+            </div>
+            <form id="quoteForm" autocomplete="off" onsubmit="return false;"></form>
+        </div>
+
+        <!-- ═══ RESULTS ═══ -->
+        <div class="panel" id="panel-results">
+            <div class="toolbar">
+                <button class="btn-primary btn-sm" onclick="Rater.rate()"><i data-lucide="refresh-cw"></i> Re-rate</button>
+                <button class="btn-secondary btn-sm" onclick="window.print()"><i data-lucide="printer"></i> Print</button>
+                <button class="btn-secondary btn-sm" onclick="Rater.copySummary()"><i data-lucide="clipboard-copy"></i> Copy Summary</button>
+                <span class="spacer"></span>
+                <span class="note" id="resultsMeta"></span>
+            </div>
+            <div id="resultsBody"></div>
+        </div>
+
+        <!-- ═══ SAVED ═══ -->
+        <div class="panel" id="panel-saved">
+            <div class="toolbar">
+                <input type="search" id="savedSearch" placeholder="Search by name, phone, VIN…" oninput="Rater.renderSaved()">
+                <span class="spacer"></span>
+                <button class="btn-secondary btn-sm" onclick="Rater.exportSaved()"><i data-lucide="download"></i> Export CSV</button>
+            </div>
+            <div id="savedBody"></div>
+        </div>
+
+        <!-- ═══ CARRIERS ═══ -->
+        <div class="panel" id="panel-carriers">
+            <div class="toolbar">
+                <button class="btn-primary btn-sm" onclick="Rater.editCarrier()"><i data-lucide="plus"></i> Add Carrier</button>
+                <button class="btn-secondary btn-sm" onclick="Rater.importCarriers()"><i data-lucide="upload"></i> Import</button>
+                <button class="btn-secondary btn-sm" onclick="Rater.exportCarriers()"><i data-lucide="download"></i> Export</button>
+                <span class="spacer"></span>
+                <label class="note" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="demoMode" onchange="Rater.setDemo(this.checked)" style="accent-color:var(--blue);width:16px;height:16px;"> Demo mode (sample premiums, no carrier calls)
+                </label>
+            </div>
+            <div class="form-section" style="padding:14px 16px;">
+                <div class="note">
+                    <b>How rating works:</b> each carrier is rated one of three ways.
+                    <b>API</b> – the app sends the quote to your secure rating function, which signs in with the credentials you store in Supabase (never in the browser) and returns the premium.
+                    <b>Portal</b> – the app opens the carrier's quoting site and copies a one-page quote summary so you can paste it.
+                    <b>Manual</b> – you type the premium you got from the carrier and the app keeps it in the comparison.
+                    Full setup steps are in <code>RATER-SETUP.md</code>.
+                </div>
+            </div>
+            <div class="carrier-list" id="carrierList"></div>
+        </div>
+    </div>
+
+    <div class="action-bar" id="actionBar">
+        <button class="btn-secondary" onclick="Rater.saveQuote()"><i data-lucide="save"></i> Save</button>
+        <button class="btn-success" id="rateBtn" onclick="Rater.rate()"><i data-lucide="zap"></i> Rate Quote</button>
+    </div>
+</div>
+
+<!-- Carrier editor modal -->
+<div class="modal" id="carrierModal">
+    <div class="modal-content">
+        <div class="modal-head">
+            <h3 id="carrierModalTitle"><i data-lucide="building-2"></i> Carrier</h3>
+            <button class="btn-danger btn-sm" onclick="Rater.closeCarrier()">✕</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="c_id">
+            <div class="form-grid">
+                <div class="form-group"><label>Carrier Name<span class="req">*</span></label><input type="text" id="c_name" placeholder="e.g. Progressive"></div>
+                <div class="form-group"><label>Short Code<span class="req">*</span></label><input type="text" id="c_code" placeholder="e.g. PROG" style="text-transform:uppercase;"></div>
+                <div class="form-group"><label>Rating Method</label>
+                    <select id="c_method" onchange="Rater.carrierMethodChanged()">
+                        <option value="api">API (automatic)</option>
+                        <option value="portal">Portal link (open &amp; paste)</option>
+                        <option value="manual">Manual premium entry</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Enabled</label><select id="c_enabled"><option value="1">Yes</option><option value="0">No</option></select></div>
+                <div class="form-group"><label>Card Color</label><input type="color" id="c_color" value="#1d4ed8" style="padding:4px;height:40px;"></div>
+                <div class="form-group"><label>Sort Order</label><input type="number" id="c_order" value="10"></div>
+            </div>
+
+            <div id="c_portalFields" class="sub-block" style="display:none;">
+                <h4><i data-lucide="external-link"></i> Portal</h4>
+                <div class="form-grid">
+                    <div class="form-group wide"><label>Portal / Quoting URL</label><input type="url" id="c_portalUrl" placeholder="https://agents.carrier.com/quote"></div>
+                </div>
+            </div>
+
+            <div id="c_apiFields" class="sub-block">
+                <h4><i data-lucide="plug"></i> API connection</h4>
+                <div class="form-grid">
+                    <div class="form-group wide"><label>Rating Endpoint URL</label><input type="url" id="c_endpoint" placeholder="https://api.carrier.com/v1/rate"></div>
+                    <div class="form-group"><label>HTTP Method</label><select id="c_httpMethod"><option>POST</option><option>PUT</option><option>GET</option></select></div>
+                    <div class="form-group"><label>Body Format</label><select id="c_contentType"><option value="json">JSON</option><option value="form">Form (urlencoded)</option><option value="xml">XML / SOAP</option></select></div>
+                    <div class="form-group"><label>Authentication</label>
+                        <select id="c_authType">
+                            <option value="none">None / in body</option>
+                            <option value="bearer">Bearer token (TOKEN)</option>
+                            <option value="basic">Basic (USERNAME + PASSWORD)</option>
+                            <option value="apikey">API key header (APIKEY)</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>API Key Header Name</label><input type="text" id="c_apiKeyHeader" placeholder="x-api-key"></div>
+                    <div class="form-group wide"><label>Secret Prefix (Supabase secrets)</label><input type="text" id="c_secretPrefix" placeholder="PROG" style="text-transform:uppercase;"></div>
+                </div>
+                <div class="note" style="margin-top:8px;">
+                    Store credentials in Supabase as <code>RATER_&lt;PREFIX&gt;_USERNAME</code>, <code>RATER_&lt;PREFIX&gt;_PASSWORD</code>, <code>RATER_&lt;PREFIX&gt;_APIKEY</code>, <code>RATER_&lt;PREFIX&gt;_TOKEN</code>.
+                    The browser never sees them.
+                </div>
+                <div class="form-grid" style="margin-top:12px;">
+                    <div class="form-group wide" style="grid-column:1/-1;">
+                        <label>Request Template (optional — blank sends the whole quote as JSON)</label>
+                        <textarea id="c_requestTemplate" rows="6" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;" placeholder='{"user":"{{USERNAME}}","pass":"{{PASSWORD}}","zip":"{{client.zip}}","dob":"{{drivers.0.dob}}","vin":"{{vehicles.0.vin}}","drivers":{{json:drivers}}}'></textarea>
+                    </div>
+                </div>
+                <div class="note">Placeholders: <code>{{client.firstName}}</code>, <code>{{drivers.0.dob}}</code>, <code>{{vehicles.0.vin}}</code>, <code>{{coverages.bi}}</code>, <code>{{json:drivers}}</code> (raw JSON), <code>{{USERNAME}}</code>, <code>{{PASSWORD}}</code>, <code>{{APIKEY}}</code>, <code>{{TOKEN}}</code>. Use <b>Show field keys</b> on the Quote tab for the full list.</div>
+                <h4 style="margin-top:14px;"><i data-lucide="corner-down-left"></i> Response mapping (dot paths into the carrier's JSON, or <code>regex:pattern</code>)</h4>
+                <div class="form-grid">
+                    <div class="form-group"><label>Total Premium</label><input type="text" id="c_mapPremium" placeholder="quote.totalPremium"></div>
+                    <div class="form-group"><label>Down Payment</label><input type="text" id="c_mapDown" placeholder="quote.downPayment"></div>
+                    <div class="form-group"><label>Monthly Payment</label><input type="text" id="c_mapMonthly" placeholder="quote.installment"></div>
+                    <div class="form-group"><label>Term (months)</label><input type="text" id="c_mapTerm" placeholder="quote.term"></div>
+                    <div class="form-group"><label>Quote Number</label><input type="text" id="c_mapQuoteId" placeholder="quote.id"></div>
+                    <div class="form-group"><label>Bridge / Link</label><input type="text" id="c_mapLink" placeholder="quote.bridgeUrl"></div>
+                    <div class="form-group"><label>Error Message</label><input type="text" id="c_mapError" placeholder="errors.0.message"></div>
+                </div>
+            </div>
+
+            <div class="form-grid" style="margin-top:12px;">
+                <div class="form-group wide" style="grid-column:1/-1;"><label>Notes (underwriting rules, login hints…)</label><textarea id="c_notes" rows="2"></textarea></div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-danger btn-sm" id="c_deleteBtn" onclick="Rater.deleteCarrier()" style="margin-right:auto;"><i data-lucide="trash-2"></i> Delete</button>
+            <button class="btn-secondary" onclick="Rater.closeCarrier()">Cancel</button>
+            <button class="btn-primary" onclick="Rater.saveCarrier()"><i data-lucide="save"></i> Save Carrier</button>
+        </div>
+    </div>
+</div>
+
+<!-- Field keys reference modal -->
+<div class="modal" id="keysModal">
+    <div class="modal-content" style="max-width:640px;">
+        <div class="modal-head">
+            <h3><i data-lucide="key"></i> Quote field keys</h3>
+            <button class="btn-danger btn-sm" onclick="document.getElementById('keysModal').classList.remove('open')">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="note" style="margin-bottom:10px;">Use these inside a carrier's request template as <code>{{key}}</code>. Drivers and vehicles are arrays: <code>drivers.0.dob</code>, <code>vehicles.1.vin</code>.</p>
+            <pre id="keysBody" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:12px;white-space:pre-wrap;max-height:60vh;overflow:auto;"></pre>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="rater.js?v=20261005a"></script>
+<script src="supabase.js?v=20260916a"></script>
+<script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
+<script src="uib-motion.js?v=20261002a"></script>
+</body>
+</html>
