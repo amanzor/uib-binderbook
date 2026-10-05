@@ -183,12 +183,48 @@ that function is not deployed yet:
 Photos are resized in the browser before upload and are not kept in the
 chat history after MAX has read them.
 
+### New-inquiry emails from MAX
+
+After reading a license or VIN, MAX asks for the client's phone and email
+and then offers to send everything to the office as a **New Inquiry**
+email (client, license details, VIN and vehicle, requested coverage, with
+the photos attached) to **quotes@universalinsurancebroker.com**. The agent
+can also press **Send inquiry to office** at any time.
+
+Sending goes through a second Supabase function, `inquiry`, which uses the
+Resend email service:
+
+1. Create a free account at https://resend.com **using the
+   quotes@universalinsurancebroker.com mailbox** (Resend's default sender can
+   only deliver to the address the account was created with; verifying your
+   domain in Resend lifts that limit and lets you set a nicer `INQUIRY_FROM`).
+2. Resend ▸ API Keys ▸ create a key.
+3. Supabase ▸ Edge Functions ▸ Deploy a new function named exactly
+   `inquiry`, paste `supabase/functions/inquiry/index.ts`, Deploy.
+4. Edge Functions ▸ Manage secrets ▸ add `RESEND_API_KEY`. Optional:
+   `INQUIRY_TO` (defaults to quotes@universalinsurancebroker.com) and
+   `INQUIRY_FROM`.
+
+Until that function is deployed, MAX falls back to opening the agent's mail
+app with the inquiry text prefilled (photos cannot be attached that way).
+
 ## 5. Try it
 
 1. Quote tab ▸ **Sample Data**.
 2. Carriers tab ▸ tick **Demo mode** (sample premiums, no carrier calls).
 3. Press **Rate Quote**. The Results tab fills in with a ranked comparison.
 4. Untick Demo mode when your real carriers are configured.
+
+## MAX by UIB — the consumer lead app
+
+The public, no-login lead app (prospects photograph their license and VIN,
+leave phone and email, and the lead is emailed to
+quotes@universalinsurancebroker.com; auto dealers can sign up as referral
+partners) lives in its own repository, **amanzor/uibautorater**, together
+with the App Store / Google Play shells and its `STORE-RELEASE.md`
+publishing guide. It shares this project's Supabase functions (`claude`
+and `inquiry`) and the optional `max_leads` table from
+`supabase-max-leads.sql`.
 
 ## Files added
 
