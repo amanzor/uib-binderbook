@@ -223,7 +223,7 @@ current insurance, takes consent, and emails the lead to
 quotes@universalinsurancebroker.com (and stores it in the `max_leads` table
 when `supabase-max-leads.sql` has been run). A **Dealer sign up** button
 lets auto-dealer staff register as referral partners (full name, dealership,
-address, phone, email). It is served at `/max/` next to the rater and
+address, phone, email). It is served at `/max` next to the rater and
 installs as a home-screen app; `native/` in the uibautorater repository
 holds the Capacitor shells for the App Store and Google Play — see
 `STORE-RELEASE.md` there for the step-by-step publishing guide.

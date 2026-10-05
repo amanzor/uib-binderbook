@@ -146,7 +146,7 @@
             (lead.vin ? '<div><b>Vehicle:</b> ' + esc([v.year, v.make, v.model].filter(Boolean).join(' ') || 'VIN') + ' (' + esc(lead.vin) + ')</div>' : '') +
             '<div><b>Current insurance:</b> ' + esc(lead.currentInsurer || '—') + '</div></div>';
         await say('Here\'s what I have. Ready to send it to an agent?' + card);
-        compose('<label class="consent"><input type="checkbox" id="consent"><span>I agree that Universal Insurance Brokers may contact me by phone, text or email about this quote, and I accept the <a href="privacy.html" target="_blank">privacy policy</a>.</span></label>' +
+        compose('<label class="consent"><input type="checkbox" id="consent"><span>I agree that Universal Insurance Brokers may contact me by phone, text or email about this quote, and I accept the <a href="/max/privacy" target="_blank">privacy policy</a>.</span></label>' +
             '<button class="b ok big" id="sendBtn" onclick="MaxLead.submit()">Send my quote request</button>');
     }
 
@@ -290,7 +290,8 @@
     }
 
     // ── boot ─────────────────────────────────────────────────────
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    // The site serves this page at /max (no trailing slash), so the worker lives at the site root and is scoped to /max.
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/max-sw.js', { scope: '/max' }).catch(() => {});
     document.addEventListener('DOMContentLoaded', start);
 
     window.MaxLead = { enter: onEnter, saveName, savePhone, saveEmail, fmtPhone, pick, fileChosen, confirmDL, typeDL, saveTypedDL, typeVIN, saveTypedVIN, skipVIN, insured, saveInsurer, submit, restart, dealerSignup, submitDealer, get lead() { return lead; } };

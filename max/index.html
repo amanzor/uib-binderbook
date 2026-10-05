@@ -8,14 +8,14 @@
     <meta name="description" content="Get a car insurance quote in 2 minutes. Snap your license and VIN and a Universal Insurance Brokers agent will call you.">
 
     <!-- App install (PWA) + native wrappers load this same page -->
-    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="manifest" href="/max/manifest.webmanifest">
     <meta name="theme-color" content="#0d1f3c">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MAX">
-    <link rel="apple-touch-icon" href="../icons/rater-180.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="../icons/rater-192.png">
+    <link rel="apple-touch-icon" href="/icons/rater-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/rater-192.png">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
@@ -126,7 +126,7 @@
 </head>
 <body>
 <div class="hdr">
-    <img src="../icon.png" alt="UIB">
+    <img src="/icon.png" alt="UIB">
     <div class="txtblk"><div class="t">MAX <span style="font-weight:500;opacity:.8;">by UIB</span></div><div class="s">Universal Insurance Brokers · Quick car quote</div></div>
     <div class="spacer"></div>
     <button type="button" class="dealer" onclick="MaxLead.dealerSignup()">🤝 Dealer sign up</button>
@@ -148,10 +148,10 @@
     <div class="log" id="log"></div>
 
     <div class="composer" id="composer"></div>
-    <div class="note">Your details are sent only to Universal Insurance Brokers. <a href="privacy.html">Privacy policy</a> · Auto dealer? <a href="#" onclick="MaxLead.dealerSignup();return false;">Sign up to refer customers</a></div>
+    <div class="note">Your details are sent only to Universal Insurance Brokers. <a href="/max/privacy">Privacy policy</a> · Auto dealer? <a href="#" onclick="MaxLead.dealerSignup();return false;">Sign up to refer customers</a></div>
     <input type="file" id="file" accept="image/*" capture="environment" style="display:none;" onchange="MaxLead.fileChosen(this)">
 </div>
 
-<script src="max.js?v=20261006a"></script>
+<script src="/max/max.js?v=20261006b"></script>
 </body>
 </html>
