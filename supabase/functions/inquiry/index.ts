@@ -59,6 +59,20 @@ Deno.serve(async (req) => {
   const from = Deno.env.get("INQUIRY_FROM") ?? DEFAULT_FROM;
   const replyTo = body.replyTo ? String(body.replyTo) : undefined;
 
+  // Log the lead to the max_leads table when it exists (see supabase-max-leads.sql). Never blocks the email.
+  if (body.lead && typeof body.lead === "object") {
+    try {
+      const sbUrl = Deno.env.get("SUPABASE_URL"); const sbKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (sbUrl && sbKey) {
+        await fetch(`${sbUrl}/rest/v1/max_leads`, {
+          method: "POST",
+          headers: { "apikey": sbKey, "authorization": `Bearer ${sbKey}`, "content-type": "application/json", "prefer": "return=minimal" },
+          body: JSON.stringify({ source: String(body.source ?? "max"), subject, lead: body.lead, text }),
+        });
+      }
+    } catch { /* table missing or offline: ignore */ }
+  }
+
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "authorization": `Bearer ${key}`, "content-type": "application/json" },
