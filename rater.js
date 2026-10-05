@@ -138,7 +138,7 @@
     ];
     // Shown only when the answer above is Yes
     const DRIVER_PRIOR = [
-        { k: 'timeWithPrior', l: 'Time w/ Prior Ins.', full: 'Time with Prior Insurance', t: 'ym', reqIf: hasPrior },
+        { k: 'timeWithPriorYears', l: 'Time w/ Prior Ins. (yrs)', full: 'Time with Prior Insurance (years)', t: 'select', opts: [['', '—'], '1', '2', '3', '4', '5', '6'], reqIf: hasPrior, inline: true },
         { k: 'priorExpiration', l: 'Prior Exp. Date', full: 'Prior Expiration Date', t: 'date', reqIf: hasPrior },
         { k: 'priorInAgency', l: 'Prior In Agency', t: 'yn' },
         { k: 'priorCarrier', l: 'Prior Carrier', full: 'Prior Insurance Carrier', t: 'text', list: 'priorCarriers', reqIf: hasPrior },
@@ -205,29 +205,11 @@
         { k: 'newUsed', l: 'New / Used', t: 'select', opts: O.newUsed },
         { k: 'leased', l: 'Leased Vehicle', t: 'yn' },
         { k: 'salvaged', l: 'Salvaged', t: 'yn' },
-        { k: 'antiTheft', l: 'Anti Theft', t: 'select', opts: O.antiTheft },
-        { k: 'greyMarket', l: 'Grey Market', t: 'yn' }
-    ];
-    const VEHICLE_EXTRA = [
-        { k: 'vehicleType', l: 'Vehicle Type', t: 'select', opts: O.vehicleType },
-        { k: 'cylinders', l: 'Cylinders', full: 'Number of Cylinders', t: 'number', def: '4', min: 0 },
-        { k: 'truckSize', l: 'Truck Size', t: 'select', opts: O.truckSize },
-        { k: 'dualie', l: 'Dualie', t: 'yn' },
-        { k: 'turbo', l: 'Turbo Charged', t: 'yn' },
-        { k: 'fuelType', l: 'Fuel Type', t: 'select', opts: O.fuel },
-        { k: 'fourWheelDrive', l: '4-Wheel Drive', full: 'Four Wheel Drive', t: 'yn' },
-        { k: 'fourWheelSteering', l: '4-Wheel Steering', full: 'Four Wheel Steering', t: 'yn' },
-        { k: 'airBags', l: 'Air Bags', t: 'select', opts: O.airbags },
-        { k: 'passiveRestraint', l: 'Passive Restraint', t: 'select', opts: O.passive },
-        { k: 'runningLights', l: 'Running Lights', t: 'yn' },
-        { k: 'antiLockBrakes', l: 'Anti-lock Brakes', t: 'select', opts: O.abs },
-        { k: 'hoodLock', l: 'Hood Lock', full: 'Hood Locking Device', t: 'yn' },
-        { k: 'homingDevice', l: 'Homing Device', t: 'yn' },
-        { k: 'vinEtching', l: 'VIN Etching', t: 'yn' }
+        { k: 'antiTheft', l: 'Anti Theft', t: 'select', opts: O.antiTheft }
     ];
 
     const DRIVER_FIELDS = [...DRIVER_INFO, ...DRIVER_PRIOR_Q, ...DRIVER_PRIOR, ...DRIVER_FILING_Q, ...DRIVER_FILING, ...DRIVER_ATTR];
-    const VEHICLE_FIELDS = [...VEHICLE_INFO, ...VEHICLE_ATTR, ...VEHICLE_EXTRA];
+    const VEHICLE_FIELDS = [...VEHICLE_INFO, ...VEHICLE_ATTR];
 
     // ────────────────────────────────────────────────────────────
     //  State
@@ -309,7 +291,7 @@
         if (f.t === 'select') {
             let opts = f.opts;
             if (f.dynamic === 'drivers') opts = quote.drivers.map((d, i) => [String(i + 1), 'Driver ' + (i + 1) + (d.firstName ? ' – ' + d.firstName : '')]);
-            ctrl = '<select id="' + id + '" data-path="' + path + '"' + (f.req ? ' data-req="1"' : '') + '>' +
+            ctrl = '<select id="' + id + '" data-path="' + path + '"' + (f.req || f.reqIf ? ' data-req="1"' : '') + '>' +
                 opts.map((o) => { const val = optValue(o); const lab = Array.isArray(o) ? o[1] : (o === '' ? '— Select —' : o);
                     return '<option value="' + esc(val) + '"' + (String(val) === String(v == null ? '' : v) ? ' selected' : '') + '>' + esc(lab) + '</option>'; }).join('') +
                 '</select>';
@@ -351,6 +333,7 @@
                 ctrl = '<div class="pair">' + ctrl + '<button type="button" class="btn-success btn-sm" style="flex:0 0 auto;" onclick="Rater.decodeVin(\'' + base + '\')"><i data-lucide="search"></i> Lookup</button></div>';
             }
         }
+        if (f.inline) return '<div class="form-group inline"' + (f.showIf ? ' data-showif="' + f.k + '"' : '') + '>' + label + ctrl + '</div>';
         return '<div class="' + cls + '"' + (f.showIf ? ' data-showif="' + f.k + '"' : '') + '>' + label + ctrl + '</div>';
     }
 
@@ -447,7 +430,6 @@
             '</h4>' +
             gridHTML(VEHICLE_INFO, base, v) +
             subGroup('sliders-horizontal', 'Vehicle Attributes', VEHICLE_ATTR, base, v, false) +
-            subGroup('list-plus', 'Additional Attributes', VEHICLE_EXTRA, base, v, true) +
             '</div>';
     }
 
@@ -670,13 +652,6 @@
             set('make', titleCase(d.Make));
             set('model', d.Model);
             set('trim', [d.Trim, d.BodyClass].filter(Boolean).join(' / '));
-            if (d.EngineCylinders) set('cylinders', d.EngineCylinders);
-            if (d.FuelTypePrimary) set('fuelType', /diesel/i.test(d.FuelTypePrimary) ? 'Diesel' : /electric/i.test(d.FuelTypePrimary) ? 'Electric' : /hybrid/i.test(d.ElectrificationLevel || '') ? 'Hybrid' : /flex|e85/i.test(d.FuelTypePrimary) ? 'Flex Fuel' : 'Gas');
-            if (d.DriveType && /4wd|awd|4x4|all/i.test(d.DriveType)) set('fourWheelDrive', 'Yes');
-            if (d.ABS && /standard|yes/i.test(d.ABS)) set('antiLockBrakes', '4 Wheel');
-            if (d.AirBagLocFront) set('airBags', d.AirBagLocSide ? 'Front & Side' : 'Both Front');
-            if (d.BodyClass) set('vehicleType', /pickup|truck/i.test(d.BodyClass) ? 'Truck' : /suv|sport utility|crossover/i.test(d.BodyClass) ? 'SUV' : /van/i.test(d.BodyClass) ? 'Van' : /motorcycle/i.test(d.BodyClass) ? 'Motorcycle' : 'Car');
-            if (d.Turbo && /yes/i.test(d.Turbo)) set('turbo', 'Yes');
             const h = document.querySelector('#vehicle_' + idx + ' h4 .note'); if (h) h.textContent = [v.year, v.make, v.model].filter(Boolean).join(' ');
             showSuccess('VIN decoded: ' + esc([v.year, v.make, v.model].filter(Boolean).join(' ')));
             scheduleDraft();
@@ -749,7 +724,7 @@
         Object.assign(quote.coverages, { bi: '25/50', pd: '25', allowCreditScore: 'Yes', um: '25/50', medPay: '1000' });
         Object.assign(quote.drivers[0], { firstName: 'Maria', middleName: 'L', lastName: 'Gonzalez', dob: '1988-04-12', age: ageFrom('1988-04-12'), gender: 'Female', marital: 'Married', dlNumber: 'G524-310-88-634-0', priorInsurance: 'Yes', stateFiling: 'No', timeWithPriorYears: '2', timeWithPriorMonths: '6', priorExpiration: todayISO(), priorCarrier: 'Progressive', industry: 'Healthcare', occupation: 'Nurse', education: 'Bachelor Degree', residenceType: 'Single Family Home', residenceStatus: 'Own' });
         lastClientZip = '33166';
-        Object.assign(quote.vehicles[0], { vin: '1HGCV1F34LA012345', year: '2020', make: 'Honda', model: 'Accord', trim: 'EX / Sedan', zip: '33166', county: 'Miami-Dade', city: 'Doral', usage: 'Commute to Work/School', telematics: 'No', milesToWork: '12', annualMiles: '12000', odometer: '41000', purchaseDate: '2021-06-15', newUsed: 'Used', lossPayeeType: 'Lienholder', lossPayeeName: 'Honda Financial Services', airBags: 'Front & Side', antiLockBrakes: '4 Wheel', passiveRestraint: 'Air Bags', runningLights: 'Yes' });
+        Object.assign(quote.vehicles[0], { vin: '1HGCV1F34LA012345', year: '2020', make: 'Honda', model: 'Accord', trim: 'EX / Sedan', zip: '33166', county: 'Miami-Dade', city: 'Doral', usage: 'Commute to Work/School', telematics: 'No', milesToWork: '12', annualMiles: '12000', odometer: '41000', purchaseDate: '2021-06-15', newUsed: 'Used', lossPayeeType: 'Lienholder', lossPayeeName: 'Honda Financial Services', });
         results = [];
         renderForm(); renderResults(); scheduleDraft();
         showSuccess('Sample quote loaded. Turn on Demo mode on the Carriers tab, then press Rate Quote.');
@@ -994,7 +969,7 @@
         lines.push('BI ' + q.coverages.bi + ' / PD ' + q.coverages.pd + ' / PIP ' + q.coverages.pipType + ' ded ' + q.coverages.pipDed + ' ' + q.coverages.pipDedOption + (q.coverages.wageLossExclusion === 'Yes' ? ' (wage loss excl.)' : '') + ' / UM ' + q.coverages.um + (q.umStacked ? ' stacked' : '') + ' / MedPay ' + q.coverages.medPay + ' / AD ' + q.coverages.accidentalDeath);
         q.drivers.forEach((d, i) => {
             lines.push('DRIVER ' + (i + 1) + ': ' + [d.firstName, d.lastName].filter(Boolean).join(' ') + ' | DOB ' + d.dob + ' (' + d.age + ') | ' + d.gender + ' / ' + d.marital + ' / ' + d.relationship + ' | DL ' + (d.dlNumber || '—') + ' ' + d.dlState + ' | ' + d.driverType);
-            lines.push('   Prior: ' + d.priorInsurance + (d.priorInsurance === 'Yes' ? ' ' + d.priorCarrier + ' ' + d.priorLimits + ' ' + d.timeWithPriorYears + 'y exp ' + d.priorExpiration : '') + ' | Lic US ' + d.timeLicensedUSYears + 'y FL ' + d.timeLicensedFLYears + 'y | ' + d.licenseStatus + (d.stateFiling === 'Yes' && d.sr22 === 'Yes' ? ' SR-22 ' + d.sr22State + (d.sr22Reason ? ' (' + d.sr22Reason + ')' : '') : '') + (d.stateFiling === 'Yes' && d.fr44 === 'Yes' ? ' FR-44' : '') + ' | Viol ' + d.violations + ' | ' + d.industry + (d.occupation ? '/' + d.occupation : '') + ' | ' + d.education + ' | ' + d.residenceType + ' (' + d.residenceStatus + ')');
+            lines.push('   Prior: ' + d.priorInsurance + (d.priorInsurance === 'Yes' ? ' ' + d.priorCarrier + ' ' + d.priorLimits + ' ' + d.timeWithPriorYears + 'yr exp ' + d.priorExpiration : '') + ' | Lic US ' + d.timeLicensedUSYears + 'y FL ' + d.timeLicensedFLYears + 'y | ' + d.licenseStatus + (d.stateFiling === 'Yes' && d.sr22 === 'Yes' ? ' SR-22 ' + d.sr22State + (d.sr22Reason ? ' (' + d.sr22Reason + ')' : '') : '') + (d.stateFiling === 'Yes' && d.fr44 === 'Yes' ? ' FR-44' : '') + ' | Viol ' + d.violations + ' | ' + d.industry + (d.occupation ? '/' + d.occupation : '') + ' | ' + d.education + ' | ' + d.residenceType + ' (' + d.residenceStatus + ')');
         });
         q.vehicles.forEach((v, i) => {
             lines.push('CAR ' + (i + 1) + ': ' + [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ') + ' | VIN ' + (v.vin || '—') + ' | Garage ' + v.zip + ' ' + v.city + ' | ' + v.usage + ' | Op: Driver ' + v.primaryOperator);
