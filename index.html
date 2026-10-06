@@ -318,7 +318,7 @@
         .nav-group { flex: 1 1 320px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,.65); border: 1px solid rgba(37,99,235,.14); }
         .nav-group-label { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1e3a8a !important; display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; }
         .nav-group-label svg { width: 14px; height: 14px; }
-        .nav-stats { flex-basis: 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding-top: 10px; border-top: 1px solid rgba(37,99,235,.14); }
+        .nav-stats { flex-basis: 100%; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding-top: 10px; border-top: 1px solid rgba(37,99,235,.14); }
         .nav-stats-title { grid-column: 1 / -1; font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1e3a8a !important; display: inline-flex; align-items: center; gap: 5px; }
         .nav-stats-title svg { width: 14px; height: 14px; }
         .nav-stat-card { background: linear-gradient(135deg, var(--navy) 0%, var(--blue-mid) 100%); color: #fff; padding: 14px 12px; border-radius: 12px; box-shadow: 0 6px 18px rgba(29,78,216,.22); text-align: center; position: relative; overflow: hidden; }
@@ -704,6 +704,7 @@
             .nav-group { flex-basis: auto; width: 100%; }
             .nav-groups, .nav-stats, .nav-search { flex-basis: auto; width: 100%; }
             .nav-stats { grid-template-columns: repeat(2, 1fr); }
+            .nav-stats .nav-stat-card:last-child:nth-child(even) { grid-column: 1 / -1; }
 
             /* ── Form actions ── */
             .form-actions { flex-direction: column; align-items: stretch; }
@@ -3870,7 +3871,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261006b"></script>
+    <script src="app.js?v=20261006c"></script>
     <script src="supabase.js?v=20260916a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 </body>

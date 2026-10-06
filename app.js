@@ -4015,6 +4015,7 @@ function renderNavMonthStats() {
     const monthLabel = `${month} ${year}`;
     const mine = allData.filter(d => d.agent === currentUser && _entryMonth(d) === monthLabel);
     const premium = mine.reduce((sum, d) => sum + (parseFloat(d.totalPremium) || 0), 0);
+    const agencyFees = mine.reduce((sum, d) => sum + (parseFloat(d.agencyFee) || 0), 0);
     const agencyComm = mine.reduce((sum, d) => sum + (parseFloat(d.agencyCommission) || 0), 0);
     const special = _specialCommissionRows(currentUser, monthLabel);
     const agentComm = special ? special.total : mine.reduce((sum, d) => sum + (parseFloat(d.agentCommissionShare) || 0), 0);
@@ -4023,6 +4024,7 @@ function renderNavMonthStats() {
         <div class="nav-stats-title"><i data-lucide="calendar-days"></i> ${monthLabel}</div>
         <div class="nav-stat-card"><h4>Policies</h4><div class="number">${mine.length}</div></div>
         <div class="nav-stat-card"><h4>Premium Sold</h4><div class="number">${$m(premium)}</div></div>
+        <div class="nav-stat-card"><h4>Agency Fees</h4><div class="number">${$m(agencyFees)}</div></div>
         <div class="nav-stat-card"><h4>Agency Commission</h4><div class="number">${$m(agencyComm)}</div></div>
         <div class="nav-stat-card"><h4>Agent Commission</h4><div class="number">${$m(agentComm)}</div></div>`;
     if (window.refreshIcons) refreshIcons();
