@@ -64,7 +64,7 @@ function fillTemplate(tpl: string, quote: Dict, creds: Dict, contentType: string
       const v = p === "quote" ? quote : getPath(quote, p);
       return v === undefined ? "null" : JSON.stringify(v);
     }
-    if (/^(USERNAME|PASSWORD|APIKEY|TOKEN)$/.test(key)) return esc(String(creds[key] ?? ""));
+    if (/^(USERNAME|PASSWORD|APIKEY|TOKEN|PRODUCER|SUBCODE)$/.test(key)) return esc(String(creds[key] ?? ""));
     const v = getPath(quote, key);
     if (v === undefined || v === null) return "";
     if (typeof v === "object") return esc(JSON.stringify(v));
@@ -106,13 +106,18 @@ Deno.serve(async (req) => {
   if (method !== "api") return json({ ok: false, error: `${name} is set to "${method}" rating, not API.` }, 400);
 
   const prefix = String(carrier.secretPrefix ?? "").toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  // Supabase secrets win; the carrier card's account fields are the fallback
+  // so a carrier works as soon as the agency types its login on the card.
   const creds: Dict = {
-    USERNAME: secret(prefix, "USERNAME"),
-    PASSWORD: secret(prefix, "PASSWORD"),
+    USERNAME: secret(prefix, "USERNAME") || String(carrier.username ?? ""),
+    PASSWORD: secret(prefix, "PASSWORD") || String(carrier.password ?? ""),
     APIKEY: secret(prefix, "APIKEY"),
     TOKEN: secret(prefix, "TOKEN"),
+    PRODUCER: String(carrier.producerCode ?? ""),
+    SUBCODE: String(carrier.subCode ?? ""),
   };
-  const secretsFound = Object.keys(creds).filter((k) => creds[k]);
+  const secretsFound = ["USERNAME", "PASSWORD", "APIKEY", "TOKEN"].filter((k) => secret(prefix, k));
+  const cardFound = ["username", "password", "producerCode"].filter((k) => String(carrier[k] ?? ""));
 
   const endpoint = String(carrier.endpoint ?? "").trim();
   if (!endpoint) return json({ ok: false, error: `${name}: no rating endpoint URL configured.` }, 400);
@@ -128,7 +133,7 @@ Deno.serve(async (req) => {
 
   // "Test connection" from the Carriers tab: confirm config + secrets without calling the carrier.
   if (test) {
-    return json({ ok: true, test: true, carrier: name, endpoint, secretsFound, allowedHosts: allowed });
+    return json({ ok: true, test: true, carrier: name, endpoint, secretsFound, cardFound, allowedHosts: allowed });
   }
 
   const contentType = String(carrier.contentType ?? "json");

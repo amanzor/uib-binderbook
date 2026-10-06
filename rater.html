@@ -674,6 +674,7 @@
         <div class="panel" id="panel-carriers">
             <div class="toolbar">
                 <button class="btn-primary btn-sm" onclick="Rater.editCarrier()"><i data-lucide="plus"></i> Add Carrier</button>
+                <button class="btn-secondary btn-sm" onclick="Rater.addTurboRaterCarriers()" title="Add the carriers active in TurboRater as Portal carriers"><i data-lucide="list-plus"></i> Load TurboRater carriers</button>
                 <button class="btn-secondary btn-sm" onclick="Rater.importCarriers()"><i data-lucide="upload"></i> Import</button>
                 <button class="btn-secondary btn-sm" onclick="Rater.exportCarriers()"><i data-lucide="download"></i> Export</button>
                 <span class="spacer"></span>
@@ -722,6 +723,22 @@
                 <div class="form-group"><label>Enabled</label><select id="c_enabled"><option value="1">Yes</option><option value="0">No</option></select></div>
                 <div class="form-group"><label>Card Color</label><input type="color" id="c_color" value="#1d4ed8" style="padding:4px;height:40px;"></div>
                 <div class="form-group"><label>Sort Order</label><input type="number" id="c_order" value="10"></div>
+            </div>
+
+            <div class="sub-block">
+                <h4><i data-lucide="id-card"></i> Carrier account (agency appointment)</h4>
+                <div class="form-grid">
+                    <div class="form-group"><label>Agent / Producer Code</label><input type="text" id="c_producerCode" placeholder="producer code" autocomplete="off"></div>
+                    <div class="form-group"><label>Sub-Code</label><input type="text" id="c_subCode" placeholder="optional" autocomplete="off"></div>
+                    <div class="form-group"><label>Rating Username</label><input type="text" id="c_username" placeholder="agency login" autocomplete="off"></div>
+                    <div class="form-group"><label>Rating Password</label>
+                        <div style="display:flex;gap:6px;">
+                            <input type="password" id="c_password" placeholder="••••••••" autocomplete="new-password" style="flex:1;">
+                            <button type="button" class="btn-secondary btn-sm" onclick="Rater.togglePassword()" title="Show / hide">👁</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="note" style="margin-top:8px;">Kept on the carrier card so the connection is ready once the carrier approves API access. For API carriers, Supabase secrets (below) take priority when set; otherwise these are used. Available in request templates as <code>{{PRODUCER}}</code>, <code>{{SUBCODE}}</code>, <code>{{USERNAME}}</code>, <code>{{PASSWORD}}</code>.</div>
             </div>
 
             <div id="c_portalFields" class="sub-block" style="display:none;">
@@ -798,7 +815,7 @@
 </div>
 
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<script src="rater.js?v=20261006c"></script>
+<script src="rater.js?v=20261006d"></script>
 <script src="supabase.js?v=20260916a"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>
