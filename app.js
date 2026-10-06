@@ -3982,7 +3982,50 @@ function loadAgentData() {
 
     populateAgentFilterOptions();
     applyAgentFilters();
+    renderNavMonthStats();
+    _restoreAgentSubmissionsState();
     apdInit();
+}
+
+// "Your Submissions" starts collapsed; the heading button expands it and the
+// choice is remembered per browser.
+function toggleAgentSubmissions(force) {
+    const body = document.getElementById('agentSubmissionsBody');
+    const btn = document.getElementById('agentSubmissionsToggle');
+    if (!body || !btn) return;
+    const open = typeof force === 'boolean' ? force : body.style.display === 'none';
+    body.style.display = open ? '' : 'none';
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const hint = document.getElementById('agentSubmissionsHint');
+    if (hint) hint.textContent = open ? 'Hide' : 'Show';
+    try { localStorage.setItem('uibSubmissionsOpen', open ? '1' : '0'); } catch (e) {}
+}
+function _restoreAgentSubmissionsState() {
+    let open = false;
+    try { open = localStorage.getItem('uibSubmissionsOpen') === '1'; } catch (e) {}
+    toggleAgentSubmissions(open);
+}
+
+// Current-month cards in the agent nav bar: this agent's own policies, premium,
+// agency commission and agent commission for the current calendar month (ET).
+function renderNavMonthStats() {
+    const host = document.getElementById('navMonthStats');
+    if (!host || !currentUser) return;
+    const { month, year } = _currentMonthYearET();
+    const monthLabel = `${month} ${year}`;
+    const mine = allData.filter(d => d.agent === currentUser && _entryMonth(d) === monthLabel);
+    const premium = mine.reduce((sum, d) => sum + (parseFloat(d.totalPremium) || 0), 0);
+    const agencyComm = mine.reduce((sum, d) => sum + (parseFloat(d.agencyCommission) || 0), 0);
+    const special = _specialCommissionRows(currentUser, monthLabel);
+    const agentComm = special ? special.total : mine.reduce((sum, d) => sum + (parseFloat(d.agentCommissionShare) || 0), 0);
+    const $m = v => '$' + (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    host.innerHTML = `
+        <div class="nav-stats-title"><i data-lucide="calendar-days"></i> ${monthLabel}</div>
+        <div class="nav-stat-card"><h4>Policies</h4><div class="number">${mine.length}</div></div>
+        <div class="nav-stat-card"><h4>Premium Sold</h4><div class="number">${$m(premium)}</div></div>
+        <div class="nav-stat-card"><h4>Agency Commission</h4><div class="number">${$m(agencyComm)}</div></div>
+        <div class="nav-stat-card"><h4>Agent Commission</h4><div class="number">${$m(agentComm)}</div></div>`;
+    if (window.refreshIcons) refreshIcons();
 }
 
 // Fill the LOB and Carrier dropdowns from this agent's own entries,
@@ -6970,18 +7013,12 @@ function _tsMonthLabelET(ts) {
     } catch (e) { return ''; }
 }
 
-function renderSpecialCommissionPanel(agent) {
-    const panel = document.getElementById('specialCommissionPanel');
-    if (!panel) return;
+// Flat per-item totals for an agent on a special rule, for one month label.
+// Shared by the My Commissions panel and the dashboard month cards.
+function _specialCommissionRows(agent, monthLabel) {
     const rule = SPECIAL_COMMISSION_RULES[agent];
-    if (!rule) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
-
-    // Follows the selected Month filter (defaults to the current month).
-    const monthLabel = _selectedCommMonthLabel();
-
-    // Policy entries for this agent in the selected month (all policy types).
+    if (!rule) return null;
     const agentEntries = allData.filter(d => d.agent === agent && _entryMonth(d) === monthLabel);
-
     const rows = [];
     let total = 0;
 
@@ -7006,6 +7043,20 @@ function renderSpecialCommissionPanel(agent) {
         total += amount;
         rows.push({ label: rule.underwriting.label, count: uwCount, rate: rule.underwriting.rate, amount });
     }
+
+    return { rows, total };
+}
+
+function renderSpecialCommissionPanel(agent) {
+    const panel = document.getElementById('specialCommissionPanel');
+    if (!panel) return;
+    const rule = SPECIAL_COMMISSION_RULES[agent];
+    if (!rule) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
+    // Follows the selected Month filter (defaults to the current month).
+    const monthLabel = _selectedCommMonthLabel();
+
+    const { rows, total } = _specialCommissionRows(agent, monthLabel);
 
     const $ = v => `$${(v || 0).toFixed(2)}`;
     const rowsHtml = rows.map(r => `

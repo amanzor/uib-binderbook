@@ -312,6 +312,26 @@
         }
         .user-info span { font-weight: 700; color: var(--blue); font-size: .95rem; }
         .user-info-actions { display:flex; gap:8px; flex-wrap:wrap; }
+        .nav-primary { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .nav-logout { margin-left: auto; }
+        .nav-groups { flex-basis: 100%; display: flex; gap: 12px; flex-wrap: wrap; padding-top: 10px; margin-top: 2px; border-top: 1px solid rgba(37,99,235,.14); }
+        .nav-group { flex: 1 1 320px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,.65); border: 1px solid rgba(37,99,235,.14); }
+        .nav-group-label { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1e3a8a !important; display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; }
+        .nav-group-label svg { width: 14px; height: 14px; }
+        .nav-stats { flex-basis: 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding-top: 10px; border-top: 1px solid rgba(37,99,235,.14); }
+        .nav-stats-title { grid-column: 1 / -1; font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1e3a8a !important; display: inline-flex; align-items: center; gap: 5px; }
+        .nav-stats-title svg { width: 14px; height: 14px; }
+        .nav-stat-card { background: linear-gradient(135deg, var(--navy) 0%, var(--blue-mid) 100%); color: #fff; padding: 14px 12px; border-radius: 12px; box-shadow: 0 6px 18px rgba(29,78,216,.22); text-align: center; position: relative; overflow: hidden; }
+        .nav-stat-card::before { content: ''; position: absolute; top: -40%; right: -20%; width: 160%; height: 160%; background: radial-gradient(circle, rgba(255,255,255,.08) 0%, transparent 65%); pointer-events: none; }
+        .nav-stat-card h4 { font-size: 10.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; opacity: .75; margin: 0 0 6px; color: #fff; }
+        .nav-stat-card .number { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+        .nav-search { flex-basis: 100%; padding-top: 12px; border-top: 1px solid rgba(37,99,235,.14); }
+        .collapse-toggle { width: 100%; display: flex; align-items: center; gap: 10px; margin: 30px 0 0; padding: 14px 18px; background: linear-gradient(180deg, #fff, #f3f6ff); border: 1px solid rgba(37,99,235,.18); border-radius: 12px; color: #1e3a8a; font-size: 1.15em; font-weight: 800; text-align: left; cursor: pointer; font-family: inherit; }
+        .collapse-toggle .collapse-hint { margin-left: auto; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #2563eb; }
+        .collapse-toggle .collapse-chev { width: 20px; height: 20px; color: #2563eb; transition: transform .25s ease; }
+        .collapse-toggle[aria-expanded="true"] .collapse-chev { transform: rotate(180deg); }
+        .collapse-toggle[aria-expanded="true"] { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+        .collapse-body { padding-top: 20px; }
 
         /* ── Forms ───────────────────────────────────────────────── */
         .form-section {
@@ -677,6 +697,13 @@
             .user-info { flex-direction: column; align-items: flex-start; gap: 8px; }
             .user-info-actions { width: 100%; }
             .user-info-actions button { flex: 1; }
+            .nav-primary { width: 100%; flex-direction: column; align-items: stretch; }
+            .nav-primary button { width: 100%; }
+            .nav-logout { margin-left: 0; width: 100%; }
+            .nav-groups { flex-direction: column; }
+            .nav-group { flex-basis: auto; width: 100%; }
+            .nav-groups, .nav-stats, .nav-search { flex-basis: auto; width: 100%; }
+            .nav-stats { grid-template-columns: repeat(2, 1fr); }
 
             /* ── Form actions ── */
             .form-actions { flex-direction: column; align-items: stretch; }
@@ -1394,17 +1421,47 @@
             <div id="agentSection" class="section">
                 <div class="user-info">
                     <span id="userDisplay"></span>
-                    <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
-                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(to right,#047857 0%,#10b981 60%,#34d399 100%);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
-                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
-                    <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
-                    <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(to right,#3b1a8c 0%,#5b21b6 60%,#7c3aed 100%);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
-                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./rater';" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);color:#fff;border:none;"><i data-lucide="calculator"></i> Auto Rater</button>
-                    <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
-                    <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
-                    <button class="btn-sm" onclick="showUnderwritingSection()" style="background:linear-gradient(to right,#c2410c 0%,#f97316 60%,#fb923c 100%);color:#fff;border:none;"><i data-lucide="shield-alert"></i> Underwriting</button>
-                    <button class="btn-danger btn-sm" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
+                    <div class="nav-primary">
+                        <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
+                        <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(to right,#047857 0%,#10b981 60%,#34d399 100%);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
+                        <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
+                    </div>
+                    <button class="btn-danger btn-sm nav-logout" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
+                    <div class="nav-groups">
+                        <div class="nav-group">
+                            <span class="nav-group-label"><i data-lucide="wrench"></i> Tools</span>
+                            <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./rater';" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);color:#fff;border:none;"><i data-lucide="calculator"></i> Auto Rater</button>
+                            <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
+                            <button class="btn-sm" onclick="showUnderwritingSection()" style="background:linear-gradient(to right,#c2410c 0%,#f97316 60%,#fb923c 100%);color:#fff;border:none;"><i data-lucide="shield-alert"></i> Underwriting</button>
+                            <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
+                        </div>
+                        <div class="nav-group">
+                            <span class="nav-group-label"><i data-lucide="bar-chart-3"></i> Reports</span>
+                            <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
+                            <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
+                            <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(to right,#3b1a8c 0%,#5b21b6 60%,#7c3aed 100%);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
+                        </div>
+                    </div>
+                    <div class="nav-stats" id="navMonthStats"></div>
+                    <!-- ── Universal Search ── -->
+                    <div class="nav-search">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                            <i data-lucide="search" style="width:18px;height:18px;color:#0369a1;flex-shrink:0;"></i>
+                            <span style="font-size:14px;font-weight:700;color:#0369a1;">Search All Entries</span>
+                            <span style="font-size:12px;color:#64748b;font-style:italic;">— any agent, any location</span>
+                        </div>
+                        <div style="position:relative;">
+                            <input type="text" id="agentGlobalSearch"
+                                placeholder="Search by customer, carrier, policy #, binder #, LOB, agent, location…"
+                                oninput="agentGlobalSearchRun(this.value)"
+                                autocomplete="off"
+                                style="width:100%;padding:11px 40px 11px 14px;border:1.5px solid #7dd3fc;border-radius:10px;font-size:14px;background:#fff;outline:none;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.07);">
+                            <button type="button" onclick="agentGlobalSearchClear()" id="agentGlobalSearchClearBtn"
+                                style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;color:#94a3b8;cursor:pointer;padding:4px;">✕</button>
+                        </div>
+                        <!-- Results -->
+                        <div id="agentGlobalSearchResults" style="margin-top:10px;"></div>
+                    </div>
                 </div>
 
                 <div class="success-message" id="successMessage"><i data-lucide="check-circle"></i> Policy entry saved successfully!</div>
@@ -1888,26 +1945,6 @@
                     </div>
                 </div><!-- end binderFileModal -->
 
-                <!-- ── Universal Search ── -->
-                <div style="margin:24px 0 0 0;background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border:1.5px solid #bae6fd;border-radius:14px;padding:18px 20px;">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                        <i data-lucide="search" style="width:18px;height:18px;color:#0369a1;flex-shrink:0;"></i>
-                        <span style="font-size:14px;font-weight:700;color:#0369a1;">Search All Entries</span>
-                        <span style="font-size:12px;color:#64748b;font-style:italic;">— any agent, any location</span>
-                    </div>
-                    <div style="position:relative;">
-                        <input type="text" id="agentGlobalSearch"
-                            placeholder="Search by customer, carrier, policy #, binder #, LOB, agent, location…"
-                            oninput="agentGlobalSearchRun(this.value)"
-                            autocomplete="off"
-                            style="width:100%;padding:11px 40px 11px 14px;border:1.5px solid #7dd3fc;border-radius:10px;font-size:14px;background:#fff;outline:none;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.07);">
-                        <button type="button" onclick="agentGlobalSearchClear()" id="agentGlobalSearchClearBtn"
-                            style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;color:#94a3b8;cursor:pointer;padding:4px;">✕</button>
-                    </div>
-                    <!-- Results -->
-                    <div id="agentGlobalSearchResults" style="margin-top:10px;"></div>
-                </div>
-
                 <!-- ── Claude AI Assistant (inline section) ── -->
                 <div id="claudeInlineSection" style="margin:18px 0 0 0;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;transition:border-color .15s,background .15s;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
@@ -2006,7 +2043,12 @@
                 </div><!-- end inline production dashboard -->
 
                 <div style="margin-top:36px;">
-                    <h3 style="color: #333; margin: 30px 0 20px 0; font-size: 1.3em;">📊 Your Submissions</h3>
+                    <button type="button" class="collapse-toggle" id="agentSubmissionsToggle" onclick="toggleAgentSubmissions()" aria-expanded="false" aria-controls="agentSubmissionsBody">
+                        <span class="collapse-title">📊 Your Submissions</span>
+                        <span class="collapse-hint" id="agentSubmissionsHint">Show</span>
+                        <i data-lucide="chevron-down" class="collapse-chev"></i>
+                    </button>
+                    <div id="agentSubmissionsBody" class="collapse-body" style="display:none;">
                     <div class="filter-section" style="flex-wrap:wrap;gap:10px;align-items:flex-end;">
                         <div class="filter-group" id="agentAgentFilterGroup" style="display:none;">
                             <label>Agent:</label>
@@ -2103,6 +2145,7 @@
                             </tbody>
                         </table>
                     </div>
+                    </div><!-- end agentSubmissionsBody -->
                 </div>
 
                 <div class="footer-buttons">
@@ -3827,7 +3870,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260916b"></script>
+    <script src="app.js?v=20261006b"></script>
     <script src="supabase.js?v=20260916a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 </body>
