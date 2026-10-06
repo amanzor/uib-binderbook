@@ -2410,6 +2410,7 @@ function saveProspect(e) {
     const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
     prospects.push(prospect);
     localStorage.setItem('prospectData', JSON.stringify(prospects));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
 
     document.getElementById('prospectForm').reset();
     document.getElementById('prospectDateAdded').value = getEasternDateTimeDisplay();
@@ -2452,9 +2453,35 @@ function uwGetStore() {
     try { return JSON.parse(localStorage.getItem(UW_STORE_KEY)) || {}; }
     catch (e) { return {}; }
 }
-function uwSaveStore(store) {
+// Undo history for this page: a snapshot of the store before each change,
+// kept in memory for this visit (up to 25 steps).
+const _uwUndoStack = [];
+function uwSaveStore(store, label) {
+    const before = localStorage.getItem(UW_STORE_KEY) || '{}';
+    _uwUndoStack.push({ label: label || 'last change', before });
+    if (_uwUndoStack.length > 25) _uwUndoStack.shift();
     // The wrapped setItem mirrors this to the cloud (key is in SYNC_KEYS).
     localStorage.setItem(UW_STORE_KEY, JSON.stringify(store));
+    uwUpdateUndoButton();
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
+}
+function uwUpdateUndoButton() {
+    const btn = document.getElementById('uwUndoBtn');
+    if (!btn) return;
+    const last = _uwUndoStack[_uwUndoStack.length - 1];
+    btn.disabled = !last;
+    btn.title = last ? 'Undo: ' + last.label : 'Nothing to undo';
+    const lbl = document.getElementById('uwUndoLabel');
+    if (lbl) lbl.textContent = last ? 'Undo ' + last.label : 'Undo';
+}
+function uwUndo() {
+    const last = _uwUndoStack.pop();
+    if (!last) return;
+    localStorage.setItem(UW_STORE_KEY, last.before);
+    _uwJustCleared.clear();
+    uwUpdateUndoButton();
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
+    renderUnderwriting();
 }
 function uwEsc(s) {
     return (typeof _claudeEsc === 'function') ? _claudeEsc(s) : String(s == null ? '' : s);
@@ -2517,6 +2544,7 @@ function uwClearedAt(r) {
 }
 
 function showUnderwritingSection() {
+    uwUpdateUndoButton();
     showSection('underwritingSection');
     _uwJustCleared.clear();
     const data = JSON.parse(localStorage.getItem('binderData')) || [];
@@ -2876,7 +2904,7 @@ function uwToggleItem(entryId, idx) {
         delete rec.clearedBy; delete rec.clearedAt;
         _uwJustCleared.delete(entryId);
     }
-    uwSaveStore(store);
+    uwSaveStore(store, (rec.items[item] ? 'marking "' : 'reopening "') + item + '" for ' + (entry.customerName || 'client'));
     renderUnderwriting();
 }
 
@@ -2892,7 +2920,7 @@ function uwSatisfyAll(entryId) {
     });
     rec.clearedBy = currentUser || '';
     rec.clearedAt = Date.now();
-    uwSaveStore(store);
+    uwSaveStore(store, 'Mark All Satisfied for ' + (entry.customerName || 'client'));
     _uwJustCleared.add(entryId); // keep it visible with its green border in Open
     renderUnderwriting();
 }
@@ -2903,7 +2931,7 @@ function uwReopen(entryId) {
         store[entryId].items = {};
         delete store[entryId].clearedBy;
         delete store[entryId].clearedAt;
-        uwSaveStore(store);
+        uwSaveStore(store, 'reopen');
     }
     _uwJustCleared.delete(entryId);
     renderUnderwriting();
@@ -2923,7 +2951,7 @@ function uwDeleteContact(entryId, idx) {
     if (idx < 0 || idx >= rec.contacts.length) return;
     if (!confirm('Remove this contact log entry?')) return;
     rec.contacts.splice(idx, 1);
-    uwSaveStore(store);
+    uwSaveStore(store, 'contact log removal');
     renderUnderwriting();
 }
 
@@ -2940,7 +2968,7 @@ function uwLogContact(entryId) {
     const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
     if (!rec.contacts) rec.contacts = [];
     rec.contacts.push({ at: Date.now(), by, type, note });
-    uwSaveStore(store);
+    uwSaveStore(store, 'contact log');
     if (noteEl) noteEl.value = '';
     renderUnderwriting();
 }
@@ -3067,6 +3095,125 @@ function renderProspectsDashboard() {
     if (typeof refreshIcons === 'function') refreshIcons();
 }
 
+// On Daily Sales Entry: if we arrived from a prospect marked Sold, prefill
+// the customer fields and show a banner so the entry validates that sale.
+function salesCheckProspectSale() {
+    let sale = null;
+    try { sale = JSON.parse(sessionStorage.getItem('uibProspectSale') || 'null'); } catch (e) { sale = null; }
+    if (!sale) return;
+    try { sessionStorage.removeItem('uibProspectSale'); } catch (e) {}
+    const set = (id, v) => { const el = document.getElementById(id); if (el && v && !el.value) el.value = v; };
+    set('customerName', sale.name);
+    set('customerPhone', sale.phone);
+    set('customerEmail', sale.email);
+    set('referredBy', sale.referredBy);
+    const src = document.getElementById('source');
+    if (src && sale.source && [...src.options].some(o => o.value === sale.source)) src.value = sale.source;
+    const form = document.getElementById('agentForm');
+    if (form && !document.getElementById('prospectSaleBanner')) {
+        const b = document.createElement('div');
+        b.id = 'prospectSaleBanner';
+        b.style.cssText = 'margin:0 0 16px;padding:12px 16px;border-radius:12px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #6ee7b7;color:#065f46;font-weight:600;font-size:14px;display:flex;align-items:center;gap:10px;';
+        b.innerHTML = `💰 Validating sale for prospect <strong>${(sale.name || '').replace(/</g, '&lt;')}</strong> — complete and save this entry to record the policy.`;
+        form.parentNode.insertBefore(b, form);
+    }
+    const nameEl = document.getElementById('customerName');
+    if (nameEl) nameEl.focus();
+}
+
+// ── Prospect outcomes: Sold / Lost ───────────────────────────────
+function _prospectSave(prospects) {
+    localStorage.setItem('prospectData', JSON.stringify(prospects));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
+}
+function _prospectFullName(p) { return `${p.firstName || ''} ${p.lastName || ''}`.trim(); }
+
+// Sold: the prospect leaves the active list (status Closed) and the agent is
+// taken to Daily Sales Entry, prefilled, to record the policy that validates
+// the sale.
+function prospectMarkSold(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    const name = _prospectFullName(p) || 'this prospect';
+    if (!confirm(`Mark ${name} as SOLD?\n\nThe prospect will be removed from the active list and you will be asked to create the Daily Sales Entry that validates the sale.`)) return;
+    p.status = 'Closed';
+    p.soldAt = new Date().toISOString();
+    p.soldBy = currentUser || '';
+    _prospectSave(prospects);
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+
+    if (confirm(`Create the Daily Sales Entry for ${name} now to validate the sale?`)) {
+        try {
+            sessionStorage.setItem('uibProspectSale', JSON.stringify({
+                prospectId: p.id, name, phone: p.phone || '', email: p.email || '',
+                lob: p.lob || '', source: p.source || '', referredBy: p.referredBy || '', agent: p.agent || ''
+            }));
+        } catch (e) {}
+        sessionStorage.setItem('uibCurrentUser', currentUser || '');
+        window.location.href = './dailysalesentry';
+    }
+}
+
+// Lost: status Lost, and the client's info is archived in the AMS as an
+// "Inactive Prospect" so the history is kept.
+function prospectMarkLost(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    const name = _prospectFullName(p) || 'this prospect';
+    if (!confirm(`Mark ${name} as LOST?\n\nThe prospect will be archived into the AMS as an Inactive Prospect.`)) return;
+    p.status = 'Lost';
+    p.lostAt = new Date().toISOString();
+    p.lostBy = currentUser || '';
+    _prospectSave(prospects);
+    archiveProspectToAMS(p);
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+}
+
+function archiveProspectToAMS(p) {
+    const name = _prospectFullName(p);
+    const key = amsClientKeyFromName(name);
+    if (!key) return;
+    try {
+        const contacts = JSON.parse(localStorage.getItem('amsClientData')) || {};
+        const existing = contacts[key] || {};
+        const now = new Date().toISOString();
+        const when = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const notes = Array.isArray(existing.notes) ? existing.notes.slice() : [];
+        const noteText = `Lost prospect archived ${when} by ${currentUser || 'agent'}` +
+            (p.lob ? ` · Interested in: ${p.lob}` : '') +
+            (p.followUpDate ? ` · Follow-up was: ${p.followUpDate}` : '') +
+            (p.notes ? ` · Notes: ${p.notes}` : '');
+        notes.push({ text: noteText, author: currentUser || '', date: now });
+        contacts[key] = {
+            ...existing,
+            firstName:      existing.firstName     || p.firstName || '',
+            lastName:       existing.lastName      || p.lastName  || '',
+            phone1:         existing.phone1        || p.phone     || '',
+            email:          existing.email         || p.email     || '',
+            assignedAgent:  existing.assignedAgent || p.agent     || '',
+            referral:       existing.referral      || p.referredBy || '',
+            referralSource: existing.referralSource|| p.source    || '',
+            // Only a client with no policies on file becomes an Inactive Prospect.
+            clientStatus:   (existing.clientStatus && /active/i.test(existing.clientStatus) && !/inactive/i.test(existing.clientStatus))
+                                ? existing.clientStatus : 'Inactive Prospect',
+            prospectId:     p.id,
+            prospectLostAt: now,
+            notes,
+            updatedAt: now,
+            createdAt: existing.createdAt || now,
+            createdBy: existing.createdBy || (currentUser || '')
+        };
+        localStorage.setItem('amsClientData', JSON.stringify(contacts));
+        if (typeof driveSet === 'function') driveSet('amsClientData', contacts);
+    } catch (e) {
+        console.warn('Could not archive prospect into AMS', e);
+    }
+}
+
 function renderProspectsTable() {
     const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
     const search    = (document.getElementById('prospectSearch')?.value || '').toLowerCase();
@@ -3081,7 +3228,10 @@ function renderProspectsTable() {
             (p.email || '').toLowerCase().includes(search) ||
             (p.lob || '').toLowerCase().includes(search);
         const matchAgent  = !agentF  || p.agent === agentF;
-        const matchStatus = !statusF || p.status === statusF;
+        const st = p.status || 'Open';
+        const matchStatus = statusF === 'all' ? true
+            : statusF ? st === statusF
+            : (st !== 'Closed' && st !== 'Lost');   // default view: still-active prospects
         return matchSearch && matchAgent && matchStatus;
     });
 
@@ -3118,6 +3268,11 @@ function renderProspectsTable() {
             <td><span style="padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;${sStyle}">${p.status || 'Open'}</span></td>
             <td style="font-size:12px;color:var(--gray-500);">${p.dateAdded || '—'}</td>
             <td style="max-width:200px;font-size:12px;color:var(--gray-600);">${p.notes || '—'}</td>
+            <td style="white-space:nowrap;">
+                ${(p.status === 'Closed' || p.status === 'Lost') ? `<span style="font-size:12px;color:var(--gray-500);">${p.status === 'Closed' ? '✅ Sold' : '📁 Archived'}</span>` : `
+                <button class="btn-success btn-sm" onclick="prospectMarkSold('${p.id}')" title="Mark as sold and create the Daily Sales Entry">💰 Sold</button>
+                <button class="btn-danger btn-sm" onclick="prospectMarkLost('${p.id}')" title="Mark as lost and archive into AMS as an Inactive Prospect">✖ Lost</button>`}
+            </td>
         </tr>`;
     }).join('');
 
@@ -4015,16 +4170,35 @@ function renderNavMonthStats() {
     const monthLabel = `${month} ${year}`;
     const mine = allData.filter(d => d.agent === currentUser && _entryMonth(d) === monthLabel);
     const premium = mine.reduce((sum, d) => sum + (parseFloat(d.totalPremium) || 0), 0);
+    const agencyFees = mine.reduce((sum, d) => sum + (parseFloat(d.agencyFee) || 0), 0);
     const agencyComm = mine.reduce((sum, d) => sum + (parseFloat(d.agencyCommission) || 0), 0);
     const special = _specialCommissionRows(currentUser, monthLabel);
     const agentComm = special ? special.total : mine.reduce((sum, d) => sum + (parseFloat(d.agentCommissionShare) || 0), 0);
+    // New policies still in underwriting (any month): outstanding pending items.
+    let uwPending = 0;
+    try {
+        uwPending = uwBuildList().filter(r => r.entry.agent === currentUser && !r.cleared && /^new/i.test(r.entry.policyType || '')).length;
+    } catch (e) { uwPending = 0; }
+    // Prospects assigned to this agent that are still open (not Closed or Lost).
+    let prospectsPending = 0;
+    try {
+        const me = (currentUser || '').trim().toLowerCase();
+        prospectsPending = (JSON.parse(localStorage.getItem('prospectData')) || []).filter(pr => {
+            const st = pr.status || 'Open';
+            if (st === 'Closed' || st === 'Lost') return false;
+            return String(pr.agent || '').split(',').map(a => a.trim().toLowerCase()).includes(me);
+        }).length;
+    } catch (e) { prospectsPending = 0; }
     const $m = v => '$' + (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     host.innerHTML = `
         <div class="nav-stats-title"><i data-lucide="calendar-days"></i> ${monthLabel}</div>
         <div class="nav-stat-card"><h4>Policies</h4><div class="number">${mine.length}</div></div>
         <div class="nav-stat-card"><h4>Premium Sold</h4><div class="number">${$m(premium)}</div></div>
+        <div class="nav-stat-card"><h4>Agency Fees</h4><div class="number">${$m(agencyFees)}</div></div>
         <div class="nav-stat-card"><h4>Agency Commission</h4><div class="number">${$m(agencyComm)}</div></div>
-        <div class="nav-stat-card"><h4>Agent Commission</h4><div class="number">${$m(agentComm)}</div></div>`;
+        <div class="nav-stat-card"><h4>Agent Commission</h4><div class="number">${$m(agentComm)}</div></div>
+        <div class="nav-stat-card nav-stat-uw" role="button" tabindex="0" title="Open Underwriting" onclick="showUnderwritingSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showUnderwritingSection();}"><h4>UW Pending</h4><div class="number">${uwPending}</div></div>
+        <div class="nav-stat-card nav-stat-prospects" role="button" tabindex="0" title="Open Prospects" onclick="showProspectsSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showProspectsSection();}"><h4>Prospects Pending</h4><div class="number">${prospectsPending}</div></div>`;
     if (window.refreshIcons) refreshIcons();
 }
 

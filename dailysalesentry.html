@@ -1236,7 +1236,7 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js?v=20260916b"></script>
+<script src="app.js?v=20261006g"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="motion.js"></script>
 <script>
@@ -1283,6 +1283,7 @@
         // Personal/Commercial section it detected and prefill it (this may
         // switch the active section to Commercial).
         if (typeof salesCheckPendingPrefill === 'function') salesCheckPendingPrefill();
+        if (typeof salesCheckProspectSale === 'function') salesCheckProspectSale();
 
         // After data loads, re-generate binder number
         syncFromDrive().then(() => {
