@@ -3983,7 +3983,27 @@ function loadAgentData() {
     populateAgentFilterOptions();
     applyAgentFilters();
     renderNavMonthStats();
+    _restoreAgentSubmissionsState();
     apdInit();
+}
+
+// "Your Submissions" starts collapsed; the heading button expands it and the
+// choice is remembered per browser.
+function toggleAgentSubmissions(force) {
+    const body = document.getElementById('agentSubmissionsBody');
+    const btn = document.getElementById('agentSubmissionsToggle');
+    if (!body || !btn) return;
+    const open = typeof force === 'boolean' ? force : body.style.display === 'none';
+    body.style.display = open ? '' : 'none';
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const hint = document.getElementById('agentSubmissionsHint');
+    if (hint) hint.textContent = open ? 'Hide' : 'Show';
+    try { localStorage.setItem('uibSubmissionsOpen', open ? '1' : '0'); } catch (e) {}
+}
+function _restoreAgentSubmissionsState() {
+    let open = false;
+    try { open = localStorage.getItem('uibSubmissionsOpen') === '1'; } catch (e) {}
+    toggleAgentSubmissions(open);
 }
 
 // Current-month cards in the agent nav bar: this agent's own policies, premium,
