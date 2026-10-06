@@ -2452,9 +2452,35 @@ function uwGetStore() {
     try { return JSON.parse(localStorage.getItem(UW_STORE_KEY)) || {}; }
     catch (e) { return {}; }
 }
-function uwSaveStore(store) {
+// Undo history for this page: a snapshot of the store before each change,
+// kept in memory for this visit (up to 25 steps).
+const _uwUndoStack = [];
+function uwSaveStore(store, label) {
+    const before = localStorage.getItem(UW_STORE_KEY) || '{}';
+    _uwUndoStack.push({ label: label || 'last change', before });
+    if (_uwUndoStack.length > 25) _uwUndoStack.shift();
     // The wrapped setItem mirrors this to the cloud (key is in SYNC_KEYS).
     localStorage.setItem(UW_STORE_KEY, JSON.stringify(store));
+    uwUpdateUndoButton();
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
+}
+function uwUpdateUndoButton() {
+    const btn = document.getElementById('uwUndoBtn');
+    if (!btn) return;
+    const last = _uwUndoStack[_uwUndoStack.length - 1];
+    btn.disabled = !last;
+    btn.title = last ? 'Undo: ' + last.label : 'Nothing to undo';
+    const lbl = document.getElementById('uwUndoLabel');
+    if (lbl) lbl.textContent = last ? 'Undo ' + last.label : 'Undo';
+}
+function uwUndo() {
+    const last = _uwUndoStack.pop();
+    if (!last) return;
+    localStorage.setItem(UW_STORE_KEY, last.before);
+    _uwJustCleared.clear();
+    uwUpdateUndoButton();
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
+    renderUnderwriting();
 }
 function uwEsc(s) {
     return (typeof _claudeEsc === 'function') ? _claudeEsc(s) : String(s == null ? '' : s);
@@ -2517,6 +2543,7 @@ function uwClearedAt(r) {
 }
 
 function showUnderwritingSection() {
+    uwUpdateUndoButton();
     showSection('underwritingSection');
     _uwJustCleared.clear();
     const data = JSON.parse(localStorage.getItem('binderData')) || [];
@@ -2876,7 +2903,7 @@ function uwToggleItem(entryId, idx) {
         delete rec.clearedBy; delete rec.clearedAt;
         _uwJustCleared.delete(entryId);
     }
-    uwSaveStore(store);
+    uwSaveStore(store, (rec.items[item] ? 'marking "' : 'reopening "') + item + '" for ' + (entry.customerName || 'client'));
     renderUnderwriting();
 }
 
@@ -2892,7 +2919,7 @@ function uwSatisfyAll(entryId) {
     });
     rec.clearedBy = currentUser || '';
     rec.clearedAt = Date.now();
-    uwSaveStore(store);
+    uwSaveStore(store, 'Mark All Satisfied for ' + (entry.customerName || 'client'));
     _uwJustCleared.add(entryId); // keep it visible with its green border in Open
     renderUnderwriting();
 }
@@ -2903,7 +2930,7 @@ function uwReopen(entryId) {
         store[entryId].items = {};
         delete store[entryId].clearedBy;
         delete store[entryId].clearedAt;
-        uwSaveStore(store);
+        uwSaveStore(store, 'reopen');
     }
     _uwJustCleared.delete(entryId);
     renderUnderwriting();
@@ -2923,7 +2950,7 @@ function uwDeleteContact(entryId, idx) {
     if (idx < 0 || idx >= rec.contacts.length) return;
     if (!confirm('Remove this contact log entry?')) return;
     rec.contacts.splice(idx, 1);
-    uwSaveStore(store);
+    uwSaveStore(store, 'contact log removal');
     renderUnderwriting();
 }
 
@@ -2940,7 +2967,7 @@ function uwLogContact(entryId) {
     const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
     if (!rec.contacts) rec.contacts = [];
     rec.contacts.push({ at: Date.now(), by, type, note });
-    uwSaveStore(store);
+    uwSaveStore(store, 'contact log');
     if (noteEl) noteEl.value = '';
     renderUnderwriting();
 }
@@ -4019,6 +4046,11 @@ function renderNavMonthStats() {
     const agencyComm = mine.reduce((sum, d) => sum + (parseFloat(d.agencyCommission) || 0), 0);
     const special = _specialCommissionRows(currentUser, monthLabel);
     const agentComm = special ? special.total : mine.reduce((sum, d) => sum + (parseFloat(d.agentCommissionShare) || 0), 0);
+    // New policies still in underwriting (any month): outstanding pending items.
+    let uwPending = 0;
+    try {
+        uwPending = uwBuildList().filter(r => r.entry.agent === currentUser && !r.cleared && /^new/i.test(r.entry.policyType || '')).length;
+    } catch (e) { uwPending = 0; }
     const $m = v => '$' + (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     host.innerHTML = `
         <div class="nav-stats-title"><i data-lucide="calendar-days"></i> ${monthLabel}</div>
@@ -4026,7 +4058,8 @@ function renderNavMonthStats() {
         <div class="nav-stat-card"><h4>Premium Sold</h4><div class="number">${$m(premium)}</div></div>
         <div class="nav-stat-card"><h4>Agency Fees</h4><div class="number">${$m(agencyFees)}</div></div>
         <div class="nav-stat-card"><h4>Agency Commission</h4><div class="number">${$m(agencyComm)}</div></div>
-        <div class="nav-stat-card"><h4>Agent Commission</h4><div class="number">${$m(agentComm)}</div></div>`;
+        <div class="nav-stat-card"><h4>Agent Commission</h4><div class="number">${$m(agentComm)}</div></div>
+        <div class="nav-stat-card nav-stat-uw" role="button" tabindex="0" title="Open Underwriting" onclick="showUnderwritingSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showUnderwritingSection();}"><h4>UW Pending</h4><div class="number">${uwPending}</div></div>`;
     if (window.refreshIcons) refreshIcons();
 }
 
