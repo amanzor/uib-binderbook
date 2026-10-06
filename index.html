@@ -312,6 +312,12 @@
         }
         .user-info span { font-weight: 700; color: var(--blue); font-size: .95rem; }
         .user-info-actions { display:flex; gap:8px; flex-wrap:wrap; }
+        .nav-primary { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .nav-logout { margin-left: auto; }
+        .nav-groups { flex-basis: 100%; display: flex; gap: 12px; flex-wrap: wrap; padding-top: 10px; margin-top: 2px; border-top: 1px solid rgba(37,99,235,.14); }
+        .nav-group { flex: 1 1 320px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,.65); border: 1px solid rgba(37,99,235,.14); }
+        .nav-group-label { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1e3a8a !important; display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; }
+        .nav-group-label svg { width: 14px; height: 14px; }
 
         /* ── Forms ───────────────────────────────────────────────── */
         .form-section {
@@ -677,6 +683,11 @@
             .user-info { flex-direction: column; align-items: flex-start; gap: 8px; }
             .user-info-actions { width: 100%; }
             .user-info-actions button { flex: 1; }
+            .nav-primary { width: 100%; flex-direction: column; align-items: stretch; }
+            .nav-primary button { width: 100%; }
+            .nav-logout { margin-left: 0; width: 100%; }
+            .nav-groups { flex-direction: column; }
+            .nav-group { flex-basis: auto; width: 100%; }
 
             /* ── Form actions ── */
             .form-actions { flex-direction: column; align-items: stretch; }
@@ -1394,17 +1405,27 @@
             <div id="agentSection" class="section">
                 <div class="user-info">
                     <span id="userDisplay"></span>
-                    <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
-                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(to right,#047857 0%,#10b981 60%,#34d399 100%);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
-                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
-                    <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
-                    <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(to right,#3b1a8c 0%,#5b21b6 60%,#7c3aed 100%);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
-                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./rater';" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);color:#fff;border:none;"><i data-lucide="calculator"></i> Auto Rater</button>
-                    <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
-                    <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
-                    <button class="btn-sm" onclick="showUnderwritingSection()" style="background:linear-gradient(to right,#c2410c 0%,#f97316 60%,#fb923c 100%);color:#fff;border:none;"><i data-lucide="shield-alert"></i> Underwriting</button>
-                    <button class="btn-danger btn-sm" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
+                    <div class="nav-primary">
+                        <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
+                        <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(to right,#047857 0%,#10b981 60%,#34d399 100%);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
+                        <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
+                    </div>
+                    <button class="btn-danger btn-sm nav-logout" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
+                    <div class="nav-groups">
+                        <div class="nav-group">
+                            <span class="nav-group-label"><i data-lucide="wrench"></i> Tools</span>
+                            <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./rater';" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);color:#fff;border:none;"><i data-lucide="calculator"></i> Auto Rater</button>
+                            <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
+                            <button class="btn-sm" onclick="showUnderwritingSection()" style="background:linear-gradient(to right,#c2410c 0%,#f97316 60%,#fb923c 100%);color:#fff;border:none;"><i data-lucide="shield-alert"></i> Underwriting</button>
+                            <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
+                        </div>
+                        <div class="nav-group">
+                            <span class="nav-group-label"><i data-lucide="bar-chart-3"></i> Reports</span>
+                            <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
+                            <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
+                            <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(to right,#3b1a8c 0%,#5b21b6 60%,#7c3aed 100%);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="success-message" id="successMessage"><i data-lucide="check-circle"></i> Policy entry saved successfully!</div>
