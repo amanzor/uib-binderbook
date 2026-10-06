@@ -325,6 +325,7 @@
         .nav-stat-card::before { content: ''; position: absolute; top: -40%; right: -20%; width: 160%; height: 160%; background: radial-gradient(circle, rgba(255,255,255,.08) 0%, transparent 65%); pointer-events: none; }
         .nav-stat-card h4 { font-size: 10.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; opacity: .75; margin: 0 0 6px; color: #fff; }
         .nav-stat-card .number { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+        .nav-search { flex-basis: 100%; padding-top: 12px; border-top: 1px solid rgba(37,99,235,.14); }
 
         /* ── Forms ───────────────────────────────────────────────── */
         .form-section {
@@ -695,7 +696,7 @@
             .nav-logout { margin-left: 0; width: 100%; }
             .nav-groups { flex-direction: column; }
             .nav-group { flex-basis: auto; width: 100%; }
-            .nav-groups, .nav-stats { flex-basis: auto; width: 100%; }
+            .nav-groups, .nav-stats, .nav-search { flex-basis: auto; width: 100%; }
             .nav-stats { grid-template-columns: repeat(2, 1fr); }
 
             /* ── Form actions ── */
@@ -1436,6 +1437,25 @@
                         </div>
                     </div>
                     <div class="nav-stats" id="navMonthStats"></div>
+                    <!-- ── Universal Search ── -->
+                    <div class="nav-search">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                            <i data-lucide="search" style="width:18px;height:18px;color:#0369a1;flex-shrink:0;"></i>
+                            <span style="font-size:14px;font-weight:700;color:#0369a1;">Search All Entries</span>
+                            <span style="font-size:12px;color:#64748b;font-style:italic;">— any agent, any location</span>
+                        </div>
+                        <div style="position:relative;">
+                            <input type="text" id="agentGlobalSearch"
+                                placeholder="Search by customer, carrier, policy #, binder #, LOB, agent, location…"
+                                oninput="agentGlobalSearchRun(this.value)"
+                                autocomplete="off"
+                                style="width:100%;padding:11px 40px 11px 14px;border:1.5px solid #7dd3fc;border-radius:10px;font-size:14px;background:#fff;outline:none;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.07);">
+                            <button type="button" onclick="agentGlobalSearchClear()" id="agentGlobalSearchClearBtn"
+                                style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;color:#94a3b8;cursor:pointer;padding:4px;">✕</button>
+                        </div>
+                        <!-- Results -->
+                        <div id="agentGlobalSearchResults" style="margin-top:10px;"></div>
+                    </div>
                 </div>
 
                 <div class="success-message" id="successMessage"><i data-lucide="check-circle"></i> Policy entry saved successfully!</div>
@@ -1918,26 +1938,6 @@
                         </div>
                     </div>
                 </div><!-- end binderFileModal -->
-
-                <!-- ── Universal Search ── -->
-                <div style="margin:24px 0 0 0;background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border:1.5px solid #bae6fd;border-radius:14px;padding:18px 20px;">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                        <i data-lucide="search" style="width:18px;height:18px;color:#0369a1;flex-shrink:0;"></i>
-                        <span style="font-size:14px;font-weight:700;color:#0369a1;">Search All Entries</span>
-                        <span style="font-size:12px;color:#64748b;font-style:italic;">— any agent, any location</span>
-                    </div>
-                    <div style="position:relative;">
-                        <input type="text" id="agentGlobalSearch"
-                            placeholder="Search by customer, carrier, policy #, binder #, LOB, agent, location…"
-                            oninput="agentGlobalSearchRun(this.value)"
-                            autocomplete="off"
-                            style="width:100%;padding:11px 40px 11px 14px;border:1.5px solid #7dd3fc;border-radius:10px;font-size:14px;background:#fff;outline:none;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.07);">
-                        <button type="button" onclick="agentGlobalSearchClear()" id="agentGlobalSearchClearBtn"
-                            style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;color:#94a3b8;cursor:pointer;padding:4px;">✕</button>
-                    </div>
-                    <!-- Results -->
-                    <div id="agentGlobalSearchResults" style="margin-top:10px;"></div>
-                </div>
 
                 <!-- ── Claude AI Assistant (inline section) ── -->
                 <div id="claudeInlineSection" style="margin:18px 0 0 0;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;transition:border-color .15s,background .15s;">
