@@ -488,11 +488,26 @@
         const mv = path.match(/^vehicles\.(\d+)\.(year|make|model)$/);
         if (mv) { const i = +mv[1]; const h = document.querySelector('#vehicle_' + i + ' > h4 .note'); if (h) h.textContent = vehicleName(quote.vehicles[i]); }
         if (path === 'client.firstName' || path === 'client.lastName') updateMeta();
+        if (path === 'client.firstName' || path === 'client.middleName' || path === 'client.lastName') syncClientToDriver1();
         if (path === 'client.address') { quote.client.addressVerified = false; parseAddress(val); setAddrStatus(); copyGarageFromClient(); }
         if (path === 'client.timeAtResidenceYears') applyShowIf();
         if (path === 'prior.priorInsurance') applyShowIf();
         if (/^client\.phones\./.test(path)) derivePhones();
         scheduleDraft();
+    }
+
+    // Driver #1 is the client: their first name, middle initial and last name
+    // always mirror the Client Contact Information section.
+    function syncClientToDriver1() {
+        if (!quote || !quote.drivers || !quote.drivers[0]) return;
+        const d = quote.drivers[0]; const c = quote.client;
+        d.firstName = c.firstName || ''; d.middleName = c.middleName || ''; d.lastName = c.lastName || '';
+        ['firstName', 'middleName', 'lastName'].forEach((k) => {
+            const el = document.querySelector('[data-path="drivers.0.' + k + '"]');
+            if (el && el.value !== d[k]) { el.value = d[k]; if (el.dataset.req != null) el.classList.toggle('need', d[k] === ''); }
+        });
+        document.querySelectorAll('#driver_0 > h4 .note').forEach((h) => { h.textContent = driverName(d); });
+        refreshOperatorSelects();
     }
 
     function refreshOperatorSelects() {
@@ -1641,6 +1656,7 @@
             if (clean(c.firstName)) { quote.client.firstName = clean(c.firstName); filled.push('Client first name: ' + quote.client.firstName); }
             if (clean(c.middleName)) quote.client.middleName = clean(c.middleName).slice(0, 2).toUpperCase();
             if (clean(c.lastName)) { quote.client.lastName = clean(c.lastName); filled.push('Client last name: ' + quote.client.lastName); }
+            syncClientToDriver1();
             if (clean(c.address)) { quote.client.address = clean(c.address); quote.client.addressVerified = false; parseAddress(quote.client.address); filled.push('Client address: ' + quote.client.address + ' (press Verify)'); }
             if (clean(c.email)) { quote.client.email = clean(c.email); filled.push('Email: ' + quote.client.email); }
             if (clean(c.phone)) { const num = formatPhone(c.phone); if (!quote.client.phones[0].number) quote.client.phones[0].number = num; else quote.client.phones.push({ type: 'Mobile', number: num }); derivePhones(); filled.push('Phone: ' + num); }
