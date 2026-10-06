@@ -3095,6 +3095,125 @@ function renderProspectsDashboard() {
     if (typeof refreshIcons === 'function') refreshIcons();
 }
 
+// On Daily Sales Entry: if we arrived from a prospect marked Sold, prefill
+// the customer fields and show a banner so the entry validates that sale.
+function salesCheckProspectSale() {
+    let sale = null;
+    try { sale = JSON.parse(sessionStorage.getItem('uibProspectSale') || 'null'); } catch (e) { sale = null; }
+    if (!sale) return;
+    try { sessionStorage.removeItem('uibProspectSale'); } catch (e) {}
+    const set = (id, v) => { const el = document.getElementById(id); if (el && v && !el.value) el.value = v; };
+    set('customerName', sale.name);
+    set('customerPhone', sale.phone);
+    set('customerEmail', sale.email);
+    set('referredBy', sale.referredBy);
+    const src = document.getElementById('source');
+    if (src && sale.source && [...src.options].some(o => o.value === sale.source)) src.value = sale.source;
+    const form = document.getElementById('agentForm');
+    if (form && !document.getElementById('prospectSaleBanner')) {
+        const b = document.createElement('div');
+        b.id = 'prospectSaleBanner';
+        b.style.cssText = 'margin:0 0 16px;padding:12px 16px;border-radius:12px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #6ee7b7;color:#065f46;font-weight:600;font-size:14px;display:flex;align-items:center;gap:10px;';
+        b.innerHTML = `💰 Validating sale for prospect <strong>${(sale.name || '').replace(/</g, '&lt;')}</strong> — complete and save this entry to record the policy.`;
+        form.parentNode.insertBefore(b, form);
+    }
+    const nameEl = document.getElementById('customerName');
+    if (nameEl) nameEl.focus();
+}
+
+// ── Prospect outcomes: Sold / Lost ───────────────────────────────
+function _prospectSave(prospects) {
+    localStorage.setItem('prospectData', JSON.stringify(prospects));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
+}
+function _prospectFullName(p) { return `${p.firstName || ''} ${p.lastName || ''}`.trim(); }
+
+// Sold: the prospect leaves the active list (status Closed) and the agent is
+// taken to Daily Sales Entry, prefilled, to record the policy that validates
+// the sale.
+function prospectMarkSold(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    const name = _prospectFullName(p) || 'this prospect';
+    if (!confirm(`Mark ${name} as SOLD?\n\nThe prospect will be removed from the active list and you will be asked to create the Daily Sales Entry that validates the sale.`)) return;
+    p.status = 'Closed';
+    p.soldAt = new Date().toISOString();
+    p.soldBy = currentUser || '';
+    _prospectSave(prospects);
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+
+    if (confirm(`Create the Daily Sales Entry for ${name} now to validate the sale?`)) {
+        try {
+            sessionStorage.setItem('uibProspectSale', JSON.stringify({
+                prospectId: p.id, name, phone: p.phone || '', email: p.email || '',
+                lob: p.lob || '', source: p.source || '', referredBy: p.referredBy || '', agent: p.agent || ''
+            }));
+        } catch (e) {}
+        sessionStorage.setItem('uibCurrentUser', currentUser || '');
+        window.location.href = './dailysalesentry';
+    }
+}
+
+// Lost: status Lost, and the client's info is archived in the AMS as an
+// "Inactive Prospect" so the history is kept.
+function prospectMarkLost(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    const name = _prospectFullName(p) || 'this prospect';
+    if (!confirm(`Mark ${name} as LOST?\n\nThe prospect will be archived into the AMS as an Inactive Prospect.`)) return;
+    p.status = 'Lost';
+    p.lostAt = new Date().toISOString();
+    p.lostBy = currentUser || '';
+    _prospectSave(prospects);
+    archiveProspectToAMS(p);
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+}
+
+function archiveProspectToAMS(p) {
+    const name = _prospectFullName(p);
+    const key = amsClientKeyFromName(name);
+    if (!key) return;
+    try {
+        const contacts = JSON.parse(localStorage.getItem('amsClientData')) || {};
+        const existing = contacts[key] || {};
+        const now = new Date().toISOString();
+        const when = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const notes = Array.isArray(existing.notes) ? existing.notes.slice() : [];
+        const noteText = `Lost prospect archived ${when} by ${currentUser || 'agent'}` +
+            (p.lob ? ` · Interested in: ${p.lob}` : '') +
+            (p.followUpDate ? ` · Follow-up was: ${p.followUpDate}` : '') +
+            (p.notes ? ` · Notes: ${p.notes}` : '');
+        notes.push({ text: noteText, author: currentUser || '', date: now });
+        contacts[key] = {
+            ...existing,
+            firstName:      existing.firstName     || p.firstName || '',
+            lastName:       existing.lastName      || p.lastName  || '',
+            phone1:         existing.phone1        || p.phone     || '',
+            email:          existing.email         || p.email     || '',
+            assignedAgent:  existing.assignedAgent || p.agent     || '',
+            referral:       existing.referral      || p.referredBy || '',
+            referralSource: existing.referralSource|| p.source    || '',
+            // Only a client with no policies on file becomes an Inactive Prospect.
+            clientStatus:   (existing.clientStatus && /active/i.test(existing.clientStatus) && !/inactive/i.test(existing.clientStatus))
+                                ? existing.clientStatus : 'Inactive Prospect',
+            prospectId:     p.id,
+            prospectLostAt: now,
+            notes,
+            updatedAt: now,
+            createdAt: existing.createdAt || now,
+            createdBy: existing.createdBy || (currentUser || '')
+        };
+        localStorage.setItem('amsClientData', JSON.stringify(contacts));
+        if (typeof driveSet === 'function') driveSet('amsClientData', contacts);
+    } catch (e) {
+        console.warn('Could not archive prospect into AMS', e);
+    }
+}
+
 function renderProspectsTable() {
     const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
     const search    = (document.getElementById('prospectSearch')?.value || '').toLowerCase();
@@ -3109,7 +3228,10 @@ function renderProspectsTable() {
             (p.email || '').toLowerCase().includes(search) ||
             (p.lob || '').toLowerCase().includes(search);
         const matchAgent  = !agentF  || p.agent === agentF;
-        const matchStatus = !statusF || p.status === statusF;
+        const st = p.status || 'Open';
+        const matchStatus = statusF === 'all' ? true
+            : statusF ? st === statusF
+            : (st !== 'Closed' && st !== 'Lost');   // default view: still-active prospects
         return matchSearch && matchAgent && matchStatus;
     });
 
@@ -3146,6 +3268,11 @@ function renderProspectsTable() {
             <td><span style="padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;${sStyle}">${p.status || 'Open'}</span></td>
             <td style="font-size:12px;color:var(--gray-500);">${p.dateAdded || '—'}</td>
             <td style="max-width:200px;font-size:12px;color:var(--gray-600);">${p.notes || '—'}</td>
+            <td style="white-space:nowrap;">
+                ${(p.status === 'Closed' || p.status === 'Lost') ? `<span style="font-size:12px;color:var(--gray-500);">${p.status === 'Closed' ? '✅ Sold' : '📁 Archived'}</span>` : `
+                <button class="btn-success btn-sm" onclick="prospectMarkSold('${p.id}')" title="Mark as sold and create the Daily Sales Entry">💰 Sold</button>
+                <button class="btn-danger btn-sm" onclick="prospectMarkLost('${p.id}')" title="Mark as lost and archive into AMS as an Inactive Prospect">✖ Lost</button>`}
+            </td>
         </tr>`;
     }).join('');
 

@@ -815,8 +815,8 @@ function amsRenderClientList(relatedCount = 0) {
         const contact = c.contact || {};
         const numPolicies = c.policies.length;
         const clientStatus = contact.clientStatus || 'Active';
-        const statusClass  = /prospect/i.test(clientStatus) ? 'status-prospect'
-                           : /inactive/i.test(clientStatus) ? 'status-inactive'
+        const statusClass  = /inactive/i.test(clientStatus) ? 'status-inactive'
+                           : /prospect/i.test(clientStatus) ? 'status-prospect'
                            : 'status-active';
         const lastAgent   = c.policies[0]?.agent || contact.assignedAgent || '';
         const phone       = contact.phone1 || '';
@@ -1097,8 +1097,8 @@ function amsLoadClientDetail(key) {
     if (contact.city)   metaItems.push(`<span><i data-lucide="map-pin" style="width:12px;height:12px;"></i> ${amsEscHtml(contact.city)}</span>`);
     metaItems.push(`<span class="tag tag-blue">${numPol} Polic${numPol !== 1 ? 'ies' : 'y'}</span>`);
     const _detailStatus = contact.clientStatus || 'Active';
-    const _statusTag = /prospect/i.test(_detailStatus) ? 'tag-orange'
-                     : /inactive/i.test(_detailStatus) ? 'tag-gray'
+    const _statusTag = /inactive/i.test(_detailStatus) ? 'tag-gray'
+                     : /prospect/i.test(_detailStatus) ? 'tag-orange'
                      : 'tag-green';
     metaItems.push(`<span class="tag ${_statusTag}">${amsEscHtml(_detailStatus)}</span>`);
     document.getElementById('detailMeta').innerHTML = metaItems.join('');
