@@ -318,7 +318,7 @@
         .nav-group { flex: 1 1 320px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,.65); border: 1px solid rgba(37,99,235,.14); }
         .nav-group-label { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1e3a8a !important; display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; }
         .nav-group-label svg { width: 14px; height: 14px; }
-        .nav-stats { flex-basis: 100%; display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding-top: 10px; border-top: 1px solid rgba(37,99,235,.14); }
+        .nav-stats { flex-basis: 100%; display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; padding-top: 10px; border-top: 1px solid rgba(37,99,235,.14); }
         .nav-stats-title { grid-column: 1 / -1; font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1e3a8a !important; display: inline-flex; align-items: center; gap: 5px; }
         .nav-stats-title svg { width: 14px; height: 14px; }
         .nav-stat-card { background: linear-gradient(135deg, var(--navy) 0%, var(--blue-mid) 100%); color: #fff; padding: 14px 12px; border-radius: 12px; box-shadow: 0 6px 18px rgba(29,78,216,.22); text-align: center; position: relative; overflow: hidden; }
@@ -327,6 +327,8 @@
         .nav-stat-card .number { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
         .nav-stat-uw { background: linear-gradient(135deg, #c2410c 0%, #f97316 60%, #fb923c 100%); box-shadow: 0 6px 18px rgba(249,115,22,.3); cursor: pointer; }
         .nav-stat-uw:focus-visible { outline: 3px solid rgba(249,115,22,.45); outline-offset: 2px; }
+        .nav-stat-prospects { background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 60%, #a78bfa 100%); box-shadow: 0 6px 18px rgba(124,58,237,.3); cursor: pointer; }
+        .nav-stat-prospects:focus-visible { outline: 3px solid rgba(124,58,237,.45); outline-offset: 2px; }
         .nav-search { flex-basis: 100%; padding-top: 12px; border-top: 1px solid rgba(37,99,235,.14); }
         .collapse-toggle { width: 100%; display: flex; align-items: center; gap: 10px; margin: 30px 0 0; padding: 14px 18px; background: linear-gradient(180deg, #fff, #f3f6ff); border: 1px solid rgba(37,99,235,.18); border-radius: 12px; color: #1e3a8a; font-size: 1.15em; font-weight: 800; text-align: left; cursor: pointer; font-family: inherit; }
         .collapse-toggle .collapse-hint { margin-left: auto; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #2563eb; }
@@ -1431,6 +1433,7 @@
                         <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
                         <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(to right,#047857 0%,#10b981 60%,#34d399 100%);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
                         <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
+                        <button class="btn-sm" onclick="openNewProspectModal()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="user-plus"></i> New Prospect</button>
                     </div>
                     <button class="btn-danger btn-sm nav-logout" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
                     <div class="nav-groups">
@@ -3876,7 +3879,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261006e"></script>
+    <script src="app.js?v=20261006f"></script>
     <script src="supabase.js?v=20260916a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 </body>

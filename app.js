@@ -2410,6 +2410,7 @@ function saveProspect(e) {
     const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
     prospects.push(prospect);
     localStorage.setItem('prospectData', JSON.stringify(prospects));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
 
     document.getElementById('prospectForm').reset();
     document.getElementById('prospectDateAdded').value = getEasternDateTimeDisplay();
@@ -4051,6 +4052,16 @@ function renderNavMonthStats() {
     try {
         uwPending = uwBuildList().filter(r => r.entry.agent === currentUser && !r.cleared && /^new/i.test(r.entry.policyType || '')).length;
     } catch (e) { uwPending = 0; }
+    // Prospects assigned to this agent that are still open (not Closed or Lost).
+    let prospectsPending = 0;
+    try {
+        const me = (currentUser || '').trim().toLowerCase();
+        prospectsPending = (JSON.parse(localStorage.getItem('prospectData')) || []).filter(pr => {
+            const st = pr.status || 'Open';
+            if (st === 'Closed' || st === 'Lost') return false;
+            return String(pr.agent || '').split(',').map(a => a.trim().toLowerCase()).includes(me);
+        }).length;
+    } catch (e) { prospectsPending = 0; }
     const $m = v => '$' + (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     host.innerHTML = `
         <div class="nav-stats-title"><i data-lucide="calendar-days"></i> ${monthLabel}</div>
@@ -4059,7 +4070,8 @@ function renderNavMonthStats() {
         <div class="nav-stat-card"><h4>Agency Fees</h4><div class="number">${$m(agencyFees)}</div></div>
         <div class="nav-stat-card"><h4>Agency Commission</h4><div class="number">${$m(agencyComm)}</div></div>
         <div class="nav-stat-card"><h4>Agent Commission</h4><div class="number">${$m(agentComm)}</div></div>
-        <div class="nav-stat-card nav-stat-uw" role="button" tabindex="0" title="Open Underwriting" onclick="showUnderwritingSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showUnderwritingSection();}"><h4>UW Pending</h4><div class="number">${uwPending}</div></div>`;
+        <div class="nav-stat-card nav-stat-uw" role="button" tabindex="0" title="Open Underwriting" onclick="showUnderwritingSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showUnderwritingSection();}"><h4>UW Pending</h4><div class="number">${uwPending}</div></div>
+        <div class="nav-stat-card nav-stat-prospects" role="button" tabindex="0" title="Open Prospects" onclick="showProspectsSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showProspectsSection();}"><h4>Prospects Pending</h4><div class="number">${prospectsPending}</div></div>`;
     if (window.refreshIcons) refreshIcons();
 }
 
