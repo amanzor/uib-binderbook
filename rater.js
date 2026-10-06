@@ -762,6 +762,7 @@
                 '<div class="row"><span class="pill ' + method + '">' + (method === 'api' ? 'API' : method === 'portal' ? 'Portal' : 'Manual') + '</span>' +
                 '<span class="pill ' + (c.enabled ? 'on' : 'off') + '">' + (c.enabled ? 'Enabled' : 'Disabled') + '</span>' +
                 (method === 'api' && c.secretPrefix ? '<span class="pill">RATER_' + esc(c.secretPrefix) + '_*</span>' : '') + '</div>' +
+                (c.producerCode || c.username ? '<div class="meta">' + (c.producerCode ? 'Code <b>' + esc(c.producerCode) + '</b>' + (c.subCode ? ' / ' + esc(c.subCode) : '') : '') + (c.username ? (c.producerCode ? ' · ' : '') + 'User <b>' + esc(c.username) + '</b>' : '') + (c.password ? ' · Password ••••' : ' · <span style="color:#b45309;">No password yet</span>') + '</div>' : '<div class="meta" style="color:#b45309;">No carrier account on file — press Edit to add code, username and password</div>') +
                 (method === 'api' && c.endpoint ? '<div class="meta">' + esc(c.endpoint) + '</div>' : '') +
                 (method === 'portal' && c.portalUrl ? '<div class="meta">' + esc(c.portalUrl) + '</div>' : '') +
                 (c.notes ? '<div class="note">' + esc(c.notes) + '</div>' : '') +
@@ -785,6 +786,45 @@
         showSuccess('Starter carriers added as manual entry. Edit each one to switch it to API or Portal rating.');
     }
 
+    function togglePassword() {
+        const el = $('c_password'); if (!el) return;
+        el.type = el.type === 'password' ? 'text' : 'password';
+    }
+
+    // The carriers active in the agency's TurboRater Company Setup (Personal
+    // Auto, Florida). Added as Portal carriers so agents can quote today; the
+    // producer code, username and password are typed on each card by the
+    // agency (they are never stored in this file).
+    const TURBORATER_CARRIERS = [
+        { name: 'Amwins Choice',               code: 'AMWC', portalUrl: 'https://www.amwins.com/',          color: '#0891b2' },
+        { name: 'Bristol West',                code: 'BRIS', portalUrl: 'https://www.bristolwest.com/',     color: '#15803d' },
+        { name: 'Embark General Incline',      code: 'EMBK', portalUrl: 'https://www.embarkgeneral.com/',  color: '#4338ca' },
+        { name: 'GAINSCO',                     code: 'GAIN', portalUrl: 'https://www.gainsco.com/',        color: '#b45309' },
+        { name: 'GEICO',                       code: 'GEIC', portalUrl: 'https://www.geico.com/',          color: '#059669' },
+        { name: 'Kemper Auto | BVP',           code: 'KBVP', portalUrl: 'https://www.kemper.com/',         color: '#7c3aed' },
+        { name: 'Kemper Auto | Infinity',      code: 'KINF', portalUrl: 'https://www.infinityauto.com/',   color: '#6d28d9' },
+        { name: 'National General Value',      code: 'NATG', portalUrl: 'https://www.nationalgeneral.com/', color: '#dc2626' },
+        { name: 'Pearl Holding Group',         code: 'PRLH', portalUrl: 'https://www.pearlholding.com/',   color: '#be123c' },
+        { name: 'Pearl Holding Group Premier', code: 'PRLP', portalUrl: 'https://www.pearlholding.com/',   color: '#9f1239' },
+        { name: 'Progressive',                 code: 'PROG', portalUrl: 'https://www.foragentsonly.com/',  color: '#1d4ed8' },
+        { name: 'United Auto',                 code: 'UAIC', portalUrl: 'https://www.uaig.net/',           color: '#d97706' },
+        { name: 'United Auto Premier',         code: 'UAIP', portalUrl: 'https://www.uaig.net/',           color: '#c2410c' }
+    ];
+    function addTurboRaterCarriers() {
+        let added = 0;
+        TURBORATER_CARRIERS.forEach((t) => {
+            if (carriers.some((c) => c.name.toLowerCase() === t.name.toLowerCase() || c.code === t.code)) return;
+            carriers.push({ id: uid(), name: t.name, code: t.code, method: 'portal', enabled: true, color: t.color, order: (carriers.length + 1) * 10,
+                producerCode: '', subCode: '', username: '', password: '', portalUrl: t.portalUrl,
+                endpoint: '', httpMethod: 'POST', contentType: 'json', authType: 'none', apiKeyHeader: '', secretPrefix: t.code, requestTemplate: '',
+                responseMap: { premium: '', downPayment: '', monthly: '', term: '', quoteId: '', link: '', error: '' },
+                notes: 'From TurboRater Company Setup. Add the producer code, username and password, confirm the agent portal URL, and switch to API once the carrier approves a connection.' });
+            added++;
+        });
+        saveCarriers();
+        showSuccess(added ? added + ' TurboRater carrier' + (added === 1 ? '' : 's') + ' added as Portal carriers. Press Edit on each card to add its producer code, username and password.' : 'All TurboRater carriers are already in the list.');
+    }
+
     function editCarrier(id) {
         const c = id ? carriers.find((x) => x.id === id) : null;
         $('carrierModalTitle').innerHTML = '<i data-lucide="building-2"></i> ' + (c ? 'Edit Carrier' : 'Add Carrier');
@@ -795,6 +835,11 @@
         $('c_enabled').value = c ? (c.enabled ? '1' : '0') : '1';
         $('c_color').value = c && c.color ? c.color : '#1d4ed8';
         $('c_order').value = c && c.order != null ? c.order : (carriers.length + 1) * 10;
+        $('c_producerCode').value = c ? (c.producerCode || '') : '';
+        $('c_subCode').value = c ? (c.subCode || '') : '';
+        $('c_username').value = c ? (c.username || '') : '';
+        $('c_password').value = c ? (c.password || '') : '';
+        $('c_password').type = 'password';
         $('c_portalUrl').value = c ? (c.portalUrl || '') : '';
         $('c_endpoint').value = c ? (c.endpoint || '') : '';
         $('c_httpMethod').value = c ? (c.httpMethod || 'POST') : 'POST';
@@ -830,6 +875,10 @@
             enabled: $('c_enabled').value === '1',
             color: $('c_color').value,
             order: +$('c_order').value || 0,
+            producerCode: $('c_producerCode').value.trim(),
+            subCode: $('c_subCode').value.trim(),
+            username: $('c_username').value.trim(),
+            password: $('c_password').value,
             portalUrl: $('c_portalUrl').value.trim(),
             endpoint: $('c_endpoint').value.trim(),
             httpMethod: $('c_httpMethod').value,
@@ -894,7 +943,7 @@
         showSuccess('<span class="spinner dark"></span> Testing ' + esc(c.name) + '…');
         try {
             const r = await callRateFn(c, quote || blankQuote(), { test: true });
-            if (r.ok) showSuccess('✅ ' + esc(c.name) + ': the rating function is reachable and the secrets ' + (r.secretsFound ? 'were found (' + esc(r.secretsFound.join(', ')) + ').' : 'check passed.'));
+            if (r.ok) showSuccess('✅ ' + esc(c.name) + ': the rating function is reachable. ' + (r.secretsFound && r.secretsFound.length ? 'Supabase secrets found: ' + esc(r.secretsFound.join(', ')) + '.' : (r.cardFound && r.cardFound.length ? 'Using the account on the carrier card (' + esc(r.cardFound.join(', ')) + ').' : 'No credentials found yet — add them on the carrier card.')));
             else showError('❌ ' + esc(c.name) + ': ' + esc(r.error || 'Unknown error'));
         } catch (e) { showError('❌ ' + esc(c.name) + ': ' + esc(e.message)); }
     }
@@ -1639,7 +1688,7 @@
 
     window.Rater = {
         showTab, newQuote, fillSample, saveQuote: () => saveQuote(false), rate, decodeVin, addDriver, removeDriver, addVehicle, removeVehicle,
-        editCarrier, closeCarrier, saveCarrier, deleteCarrier, toggleCarrier, carrierMethodChanged, exportCarriers, importCarriers, testCarrier, addStarterCarriers, setDemo,
+        editCarrier, closeCarrier, saveCarrier, deleteCarrier, toggleCarrier, carrierMethodChanged, exportCarriers, importCarriers, testCarrier, addStarterCarriers, addTurboRaterCarriers, togglePassword, setDemo,
         setManual, select, openPortal, copySummary, renderSaved, openSaved, duplicateSaved, deleteSaved, exportSaved, showKeys,
         login, install, dismissInstall, toggleDensity, verifyAddress, addPhone, removePhone, max: Max,
         get quote() { return quote; }, get results() { return results; }, get carriers() { return carriers; }
