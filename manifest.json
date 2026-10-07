@@ -18,7 +18,7 @@
     { "src": "icons/uib-144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
     { "src": "icons/uib-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/uib-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/uib-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icons/uib-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
     { "name": "Binder Book", "url": "/", "icons": [{ "src": "icons/uib-192.png", "sizes": "192x192" }] },
