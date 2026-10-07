@@ -1335,7 +1335,7 @@
     function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
     function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream; }
     function setupInstall() {
-        if ('serviceWorker' in navigator) { navigator.serviceWorker.register('rater-sw.js').catch(() => {}); }
+        if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/rater-sw.js', { scope: '/rater' }).catch(() => {}); }
         window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; if (!isStandalone() && localStorage.getItem('raterInstallDismissed') !== '1') { $('installBanner').style.display = 'flex'; $('installBtn').style.display = ''; } });
         window.addEventListener('appinstalled', () => { deferredInstall = null; $('installBanner').style.display = 'none'; $('installBtn').style.display = 'none'; showSuccess('Auto Rater installed. Open it from your home screen.'); });
         if (isIOS() && !isStandalone() && localStorage.getItem('raterInstallDismissed') !== '1') { $('installBanner').style.display = 'flex'; $('installBtn').style.display = ''; }

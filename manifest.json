@@ -1,0 +1,28 @@
+{
+  "name": "UIB Binder Book - Universal Insurance Brokers",
+  "short_name": "UIB Binder Book",
+  "description": "Insurance binder management and auto rating platform by Universal Insurance Brokers",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1f3c",
+  "theme_color": "#0d1f3c",
+  "lang": "en-US",
+  "categories": ["business", "finance", "productivity", "utilities"],
+  "icons": [
+    { "src": "icons/uib-48.png",  "sizes": "48x48",   "type": "image/png", "purpose": "any" },
+    { "src": "icons/uib-72.png",  "sizes": "72x72",   "type": "image/png", "purpose": "any" },
+    { "src": "icons/uib-96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "any" },
+    { "src": "icons/uib-144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "icons/uib-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/uib-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/uib-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Binder Book", "url": "/", "icons": [{ "src": "icons/uib-192.png", "sizes": "192x192" }] },
+    { "name": "Auto Rater",  "url": "/rater", "icons": [{ "src": "icons/rater-192.png", "sizes": "192x192" }] },
+    { "name": "AMS",         "url": "/ams",   "icons": [{ "src": "icons/uib-192.png", "sizes": "192x192" }] }
+  ]
+}
