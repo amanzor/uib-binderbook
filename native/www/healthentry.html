@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="lz-string.min.js"></script>
+    <script src="storage-codec.js?v=20260914a"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Health Entry - UIB Binder Book</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy:       #0d1f3c;
+            --blue:       #1d4ed8;
+            --blue-mid:   #2563eb;
+            --blue-light: #3b82f6;
+            --blue-pale:  #eff6ff;
+            --green:      #059669;
+            --green-pale: #ecfdf5;
+            --red:        #dc2626;
+            --red-pale:   #fef2f2;
+            --purple:     #7c3aed;
+            --gray-50:    #f8fafc;
+            --gray-100:   #f1f5f9;
+            --gray-200:   #e2e8f0;
+            --gray-300:   #cbd5e1;
+            --gray-400:   #94a3b8;
+            --gray-500:   #64748b;
+            --gray-700:   #334155;
+            --gray-900:   #0f172a;
+            --white:      #ffffff;
+            --radius-sm:  6px;
+            --radius-md:  10px;
+            --radius-lg:  16px;
+            --radius-xl:  22px;
+            --shadow-sm:  0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
+            --shadow-md:  0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.05);
+            --shadow-lg:  0 12px 32px rgba(0,0,0,.1),0 4px 8px rgba(0,0,0,.06);
+            --shadow-xl:  0 30px 60px rgba(0,0,0,.18);
+        }
+
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: var(--white);
+            min-height: 100%;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Header */
+        .app-header {
+            background: linear-gradient(135deg, #0d1f3c 0%, #163057 55%, #1d4ed8 100%);
+            color: white;
+            padding: 16px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            box-shadow: 0 2px 12px rgba(0,0,0,.2);
+        }
+        .app-header .title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .app-header h1 {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: -0.3px;
+            color: #fff;
+        }
+        .app-header .header-icon { height: 28px; width: auto; }
+
+        /* Buttons */
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: .2px;
+            transition: all .18s ease;
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-primary {
+            background: linear-gradient(to right, #0f2a78 0%, #1d4ed8 60%, #2563eb 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(29,78,216,.35), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-primary:hover { background:linear-gradient(to right,#0c2268 0%,#1539a8 60%,#1d4ed8 100%); transform:translateY(-1px); }
+        .btn-secondary {
+            background: linear-gradient(to right, #c8d5e3 0%, #dde6f0 55%, #f1f5f9 100%);
+            color: var(--gray-700);
+            border: 1px solid var(--gray-200);
+        }
+        .btn-secondary:hover { background:linear-gradient(to right,#b0c2d4 0%,#c8d5e3 55%,#dde6f0 100%); transform:translateY(-1px); }
+        .btn-success {
+            background: linear-gradient(to right, #024b36 0%, #059669 60%, #10b981 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(5,150,105,.35), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-success:hover { background:linear-gradient(to right,#013d2c 0%,#047857 60%,#059669 100%); transform:translateY(-1px); }
+        .btn-danger {
+            background: linear-gradient(to right, #7f1010 0%, #dc2626 60%, #ef4444 100%);
+            color: white;
+            box-shadow: 0 1px 3px rgba(220,38,38,.35), inset 0 1px 0 rgba(255,255,255,.12);
+        }
+        .btn-danger:hover { background:linear-gradient(to right,#6b0d0d 0%,#b91c1c 60%,#dc2626 100%); transform:translateY(-1px); }
+        .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
+        .btn-purple {
+            background: linear-gradient(to right, #3b1a8c 0%, #7c3aed 60%, #8b5cf6 100%);
+            color: white;
+        }
+
+        /* Form styles */
+        .form-group { display:flex; flex-direction:column; }
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--gray-700);
+            font-size: 13px;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 10px 12px;
+            border: 1.5px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--gray-900);
+            background: var(--white);
+            transition: border-color .15s, box-shadow .15s;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--blue-light);
+            box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+        }
+        .form-group select { appearance: auto; }
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        /* Main content area */
+        .page-body {
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 28px 24px 60px;
+        }
+
+        /* Success banner */
+        .success-message {
+            background: var(--green-pale);
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+            padding: 13px 16px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 18px;
+            font-weight: 600;
+            font-size: .9rem;
+            display: none;
+        }
+        .success-message.show { display:block; }
+
+        /* Modal (for Add Carrier, Add Source, etc.) */
+        .modal {
+            display: none;
+            position: fixed; inset: 0;
+            z-index: 9999;
+            background: rgba(15,23,42,.55);
+            backdrop-filter: blur(4px);
+            align-items: flex-start;
+            justify-content: center;
+            padding: 24px 16px;
+            overflow-y: auto;
+        }
+        .modal.active { display:flex; }
+        .modal-content {
+            background: white;
+            padding: 28px;
+            border-radius: var(--radius-lg);
+            max-width: 500px;
+            width: 100%;
+            box-shadow: var(--shadow-xl);
+            border: 1px solid var(--gray-200);
+            margin: auto;
+        }
+        .modal-content h3 { color:var(--navy); margin-bottom:18px; font-size:1.1rem; font-weight:700; }
+        .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; flex-wrap:wrap; }
+
+        /* Sync banner */
+        #syncBanner {
+            display:none;
+            position:fixed; bottom:20px; right:20px;
+            background:#003399; color:white;
+            padding:10px 18px; border-radius:8px;
+            font-size:13px; font-weight:bold;
+            z-index:9999; align-items:center; gap:8px;
+            box-shadow:0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        /* Lucide icons */
+        svg.lucide {
+            display: inline-block;
+            width: 15px; height: 15px;
+            stroke-width: 2;
+            vertical-align: -0.14em;
+            pointer-events: none;
+            flex-shrink: 0;
+        }
+        h3 svg.lucide { width:18px; height:18px; }
+
+        /* Ripple */
+        .m-ripple {
+            position: absolute; border-radius: 50%; pointer-events: none;
+            background: rgba(255,255,255,.22); transform: scale(0);
+        }
+
+        /* LOB multi-select */
+        .lob-multiselect { position:relative; width:100%; display:block; }
+        .lob-multiselect-btn {
+            display:block; width:100%; padding:5px 8px; text-align:left;
+            background:white; border:1px solid var(--gray-200);
+            border-radius:var(--radius-sm); cursor:pointer;
+            font-size:13px; font-family:inherit; font-weight:400;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+            color:var(--gray-700); transition:border-color .15s;
+        }
+        .lob-dropdown {
+            display:none; position:fixed; z-index:99999;
+            background:white; border:1px solid var(--gray-200);
+            border-radius:var(--radius-md); max-height:240px;
+            overflow-y:auto; min-width:220px; width:260px;
+            box-shadow:var(--shadow-lg);
+        }
+        .lob-dropdown.open { display:block; }
+        .lob-dropdown label {
+            display:flex; align-items:center; gap:8px;
+            padding:6px 12px; cursor:pointer; font-size:13px;
+            font-family:inherit; font-weight:400;
+            white-space:nowrap; margin:0; color:var(--gray-700);
+        }
+        .lob-dropdown label:hover { background:var(--blue-pale); }
+        .lob-dropdown label input[type=checkbox] { margin:0; cursor:pointer; accent-color:var(--blue); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .page-body { padding: 16px 12px 40px; }
+            .app-header { padding: 12px 16px; }
+            .app-header h1 { font-size: 16px; }
+        }
+    </style>
+    <link rel="stylesheet" href="uib-theme.css?v=20261003a">
+</head>
+
+<body>
+
+<div class="app-header">
+    <div class="title-group">
+        <img src="icon.png" alt="UIB" class="header-icon">
+        <h1><i data-lucide="heart-pulse" style="width:20px;height:20px;margin-right:6px;vertical-align:-3px;"></i>Health Entry</h1>
+    </div>
+    <button type="button" class="btn-danger btn-sm" onclick="window.location.href='./'">✕ Close</button>
+</div>
+
+<div class="page-body">
+
+    <div class="success-message" id="successMessage"><i data-lucide="check-circle"></i> Health entry saved successfully!</div>
+
+    <form id="healthForm">
+
+        <!-- Client Information -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #bfdbfe;flex-wrap:wrap;">
+                    <span style="font-size:15px;font-weight:700;color:#1e40af;">&#128100; Client Information</span>
+                    <span style="font-size:12px;color:#1d4ed8;font-style:italic;">— Open Enrollment Sheet</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+                    <div class="form-group" style="margin:0;"><label>Agent / Representative</label><input type="text" id="h_agent" readonly style="background:#f1f5f9;font-weight:600;"></div>
+                    <div class="form-group" style="margin:0;"><label>Date *</label><input type="date" id="h_date" required></div>
+                    <div class="form-group" style="margin:0;"><label>Client Name *</label><input type="text" id="h_clientName" required placeholder="Full name"></div>
+                    <div class="form-group" style="margin:0;"><label>Organization / Company Name</label><input type="text" id="h_org" placeholder="If applicable"></div>
+                    <div class="form-group" style="margin:0;"><label>Home Phone</label><input type="tel" id="h_homePhone" placeholder="(305) 555-1234" maxlength="14" oninput="if(window.formatPhoneInput)formatPhoneInput(this)"></div>
+                    <div class="form-group" style="margin:0;"><label>Cell Phone *</label><input type="tel" id="h_cellPhone" required placeholder="(305) 555-5678" maxlength="14" oninput="if(window.formatPhoneInput)formatPhoneInput(this)"></div>
+                    <div class="form-group" style="margin:0;"><label>Email Address *</label><input type="email" id="h_email" required placeholder="name@example.com"></div>
+                    <div class="form-group" style="margin:0;"><label>Address</label><input type="text" id="h_address" placeholder="123 Main St"></div>
+                    <div class="form-group" style="margin:0;"><label>City</label><input type="text" id="h_city" placeholder="Miami"></div>
+                    <div class="form-group" style="margin:0;"><label>State</label><input type="text" id="h_state" placeholder="FL" maxlength="2" style="text-transform:uppercase;"></div>
+                    <div class="form-group" style="margin:0;"><label>ZIP Code</label><input type="text" id="h_zip" placeholder="33101" maxlength="10"></div>
+                    <div class="form-group" style="margin:0;"><label>Occupation / Business Type</label><input type="text" id="h_occupation"></div>
+                    <div class="form-group" style="margin:0;"><label>Date of Birth</label><input type="date" id="h_dob"></div>
+                    <div class="form-group" style="margin:0;"><label>Gender</label><select id="h_gender"><option value="">— Select —</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+                    <div class="form-group" style="margin:0;"><label>Social Security Number</label><input type="text" id="h_ssn" placeholder="XXX-XX-XXXX"></div>
+                    <div class="form-group" style="margin:0;"><label>Number of Members</label><input type="number" id="h_numMembers" min="1" max="20" placeholder="1"></div>
+                    <div class="form-group" style="margin:0;"><label>Income</label><input type="text" id="h_income" placeholder="$ Annual"></div>
+                    <div class="form-group" style="margin:0;"><label>Employer Name / Occupation</label><input type="text" id="h_employer"></div>
+                    <div class="form-group" style="margin:0;"><label>Previous Customer?</label><select id="h_prevCustomer"><option value="">— Select —</option><option>Yes</option><option>No</option></select></div>
+                    <div class="form-group" style="margin:0;"><label>Referred By</label><input type="text" id="h_referredBy"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Carrier -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1.5px solid #a5b4fc;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid #c7d2fe;flex-wrap:wrap;">
+                    <span style="font-size:15px;font-weight:700;color:#3730a3;">&#127970; Carrier</span>
+                    <span style="font-size:12px;color:#4338ca;font-style:italic;">— current carrier &amp; commission rule</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Current Carrier</label>
+                        <div style="display:flex;gap:6px;">
+                            <select id="h_carrier" style="flex:1;" onchange="onHealthCarrierChange()"><option value="">— Select Carrier —</option></select>
+                            <button type="button" onclick="openHealthCarrierModal()" title="Add a new carrier" style="background:linear-gradient(135deg,#4f46e5,#4338ca);color:#fff;border:none;padding:0 12px;border-radius:6px;cursor:pointer;font-size:16px;font-weight:700;line-height:1;">+</button>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Commission Rule</label>
+                        <input type="text" id="h_commissionRule" placeholder="Auto-fills from carrier — editable">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Members -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:1.5px solid #5eead4;border-radius:10px;padding:14px 18px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1.5px solid #99f6e4;gap:10px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-size:15px;font-weight:700;color:#115e59;">&#128101; Members</span>
+                        <span id="memberCountBadge" style="font-size:11px;background:#ccfbf1;color:#134e4a;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;">0 members</span>
+                    </div>
+                    <button type="button" id="addMemberBtn" onclick="addMemberRow()" style="background:linear-gradient(135deg,#0d9488,#0f766e);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">+ Add Member</button>
+                </div>
+                <div id="membersContainer"></div>
+            </div>
+        </div>
+
+        <!-- Acknowledgement -->
+        <div style="margin:0 0 14px 0;">
+            <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px 18px;">
+                <div style="font-size:14px;font-weight:700;color:#334155;margin-bottom:8px;">&#128221; Acknowledgement Form</div>
+                <p style="font-size:13px;color:#475569;line-height:1.55;margin:0 0 10px;">Please be advised that we wish Universal Insurance Brokers, and any of its agents, to be our exclusive representative for our health insurance plan. In addition, we also authorize Universal Insurance Brokers to access and renew or choose a better or the same plan with healthcare.gov. This authorization replaces any other authorization that may have been previously completed for any other insurance representative.</p>
+                <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;">
+                    <input type="checkbox" id="h_ack" style="width:16px;height:16px;margin-top:2px;accent-color:#1d4ed8;"> The client acknowledges and authorizes the above.
+                </label>
+            </div>
+        </div>
+
+        <div class="form-actions" style="justify-content:center;">
+            <button type="submit" class="btn-success" style="padding:12px 40px;font-size:15px;">&#128190; Save Health Entry</button>
+        </div>
+    </form>
+</div>
+
+<!-- Add Carrier modal -->
+<div id="healthCarrierModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:#fff;border-radius:14px;max-width:460px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#4f46e5,#4338ca);color:#fff;padding:14px 18px;font-size:15px;font-weight:700;">&#127970; Add Carrier</div>
+        <div style="padding:18px;">
+            <div class="form-group" style="margin:0 0 12px;">
+                <label>Carrier Name *</label>
+                <input type="text" id="hc_name" placeholder="e.g. Florida Blue">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div class="form-group" style="margin:0;">
+                    <label>New Business Rate (%)</label>
+                    <input type="number" id="hc_newRate" step="0.1" min="0" value="10">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label>Renewal Rate (%)</label>
+                    <input type="number" id="hc_renewRate" step="0.1" min="0" value="10">
+                </div>
+            </div>
+            <div style="font-size:11px;color:#64748b;margin-bottom:14px;">Commission rule applies to all lines of business for this carrier. You can fine-tune per-line rates later in Carrier Management.</div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;">
+                <button type="button" class="btn-secondary btn-sm" onclick="closeHealthCarrierModal()">Cancel</button>
+                <button type="button" class="btn-success btn-sm" onclick="saveHealthCarrier()">Save Carrier</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<span id="userDisplay" style="display:none;"></span>
+
+<script src="app.js?v=20260916b"></script>
+<script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
+<script src="motion.js"></script>
+<script>
+    let _healthMemberCount = 0;
+    function updateAddMemberBtn() {
+        const n = document.querySelectorAll('.health-member').length;
+        const badge = document.getElementById('memberCountBadge');
+        if (badge) badge.textContent = n + (n === 1 ? ' member' : ' members');
+    }
+    function renumberMembers() {
+        document.querySelectorAll('.health-member .hm-num').forEach((el, i) => el.textContent = (i + 1));
+        updateAddMemberBtn();
+    }
+    function addMemberRow() {
+        const wrap = document.createElement('div');
+        wrap.className = 'health-member';
+        wrap.style.cssText = 'border:1px solid #99f6e4;border-radius:8px;padding:12px;margin-bottom:10px;background:#fff;';
+        wrap.innerHTML =
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+                '<strong style="font-size:13px;color:#115e59;">Member <span class="hm-num"></span></strong>' +
+                '<button type="button" onclick="this.closest(&apos;.health-member&apos;).remove();renumberMembers();updateAddMemberBtn();" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;font-weight:700;">&#10005; Remove</button>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">' +
+                '<div class="form-group" style="margin:0;"><label>Full Name</label><input type="text" class="hm-name"></div>' +
+                '<div class="form-group" style="margin:0;"><label>Date of Birth</label><input type="date" class="hm-dob"></div>' +
+                '<div class="form-group" style="margin:0;"><label>Social Security</label><input type="text" class="hm-ssn" placeholder="XXX-XX-XXXX"></div>' +
+                '<div class="form-group" style="margin:0;"><label>Income</label><input type="text" class="hm-income" placeholder="$"></div>' +
+            '</div>';
+        document.getElementById('membersContainer').appendChild(wrap);
+        renumberMembers(); updateAddMemberBtn();
+        if (window.refreshIcons) refreshIcons();
+    }
+    function _collectHealthMembers() {
+        return [...document.querySelectorAll('.health-member')].map(m => ({
+            fullName: (m.querySelector('.hm-name').value || '').trim(),
+            dob:      m.querySelector('.hm-dob').value || '',
+            ssn:      (m.querySelector('.hm-ssn').value || '').trim(),
+            income:   (m.querySelector('.hm-income').value || '').trim()
+        })).filter(x => x.fullName || x.dob || x.ssn || x.income);
+    }
+    function _healthToday() {
+        try { if (typeof getEasternDateString === 'function') return getEasternDateString(); } catch (e) {}
+        return new Date().toISOString().slice(0, 10);
+    }
+
+    // ── Carrier section ──────────────────────────────────────────────
+    // Health insurance carriers are kept SEPARATE from the general P&C
+    // carrier list (carrierMasterData); they live in their own store.
+    const HEALTH_CARRIER_KEY = 'healthCarrierData';
+    function _healthCarriers() {
+        try { return JSON.parse(localStorage.getItem(HEALTH_CARRIER_KEY)) || {}; } catch (e) { return {}; }
+    }
+    function _summarizeCommissionRule(carrier) {
+        if (!carrier || !Array.isArray(carrier.commissionRules) || !carrier.commissionRules.length) return '';
+        const r = carrier.commissionRules[0];
+        const nw = (r.newRate != null && r.newRate !== '') ? r.newRate : '—';
+        const rn = (r.renewRate != null && r.renewRate !== '') ? r.renewRate : '—';
+        return 'New ' + nw + '% / Renewal ' + rn + '%';
+    }
+    function refreshHealthCarrierDropdown(selectName) {
+        const sel = document.getElementById('h_carrier');
+        if (!sel) return;
+        const carriers = _healthCarriers();
+        const names = Object.keys(carriers).sort((a, b) => a.localeCompare(b));
+        const prev = selectName || sel.value;
+        sel.innerHTML = '<option value="">— Select Carrier —</option>' +
+            names.map(n => '<option value="' + n.replace(/"/g, '&quot;') + '"' + (n === prev ? ' selected' : '') + '>' + n + '</option>').join('');
+    }
+    function onHealthCarrierChange() {
+        const sel = document.getElementById('h_carrier');
+        const fld = document.getElementById('h_commissionRule');
+        if (!sel || !fld) return;
+        const carriers = _healthCarriers();
+        const carrier = carriers[sel.value];
+        fld.value = _summarizeCommissionRule(carrier);
+    }
+    function openHealthCarrierModal() {
+        const m = document.getElementById('healthCarrierModal');
+        if (!m) return;
+        document.getElementById('hc_name').value = '';
+        document.getElementById('hc_newRate').value = '10';
+        document.getElementById('hc_renewRate').value = '10';
+        m.style.display = 'flex';
+        setTimeout(() => document.getElementById('hc_name').focus(), 60);
+    }
+    function closeHealthCarrierModal() {
+        const m = document.getElementById('healthCarrierModal');
+        if (m) m.style.display = 'none';
+    }
+    function saveHealthCarrier() {
+        const name = (document.getElementById('hc_name').value || '').trim();
+        if (!name) { alert('Carrier name is required.'); return; }
+        const newRate = parseFloat(document.getElementById('hc_newRate').value);
+        const renewRate = parseFloat(document.getElementById('hc_renewRate').value);
+        const nw = isNaN(newRate) ? 10 : newRate;
+        const rn = isNaN(renewRate) ? 10 : renewRate;
+        const carriers = _healthCarriers();
+        const existing = Object.keys(carriers).find(n => n.toLowerCase() === name.toLowerCase());
+        if (existing) {
+            if (!confirm('"' + existing + '" already exists. Update its commission rule?')) { return; }
+        }
+        const key = existing || name;
+        carriers[key] = {
+            carrierName:  key,
+            commissionRules: [
+                { paymentType: 'Monthly Paid', newRate: nw, renewRate: rn },
+                { paymentType: 'Gross Paid',   newRate: nw, renewRate: rn }
+            ]
+        };
+        try {
+            localStorage.setItem(HEALTH_CARRIER_KEY, JSON.stringify(carriers));
+        } catch (err) { alert('⚠️ Could not save the carrier — storage is full.'); return; }
+        refreshHealthCarrierDropdown(key);
+        onHealthCarrierChange();
+        closeHealthCarrierModal();
+    }
+
+    function saveHealthEntry(e) {
+        e.preventDefault();
+        const g = id => document.getElementById(id);
+        const entry = {
+            id: Date.now(), type: 'health',
+            agent: (typeof currentUser !== 'undefined' && currentUser) || '',
+            date: g('h_date').value,
+            clientName: g('h_clientName').value.trim(),
+            organization: g('h_org').value.trim(),
+            homePhone: g('h_homePhone').value.trim(),
+            cellPhone: g('h_cellPhone').value.trim(),
+            email: g('h_email').value.trim(),
+            address: g('h_address').value.trim(),
+            city: g('h_city').value.trim(),
+            state: g('h_state').value.trim().toUpperCase(),
+            zip: g('h_zip').value.trim(),
+            occupation: g('h_occupation').value.trim(),
+            dob: g('h_dob').value,
+            gender: g('h_gender').value,
+            ssn: g('h_ssn').value.trim(),
+            numMembers: g('h_numMembers').value.trim(),
+            income: g('h_income').value.trim(),
+            employer: g('h_employer').value.trim(),
+            previousCustomer: g('h_prevCustomer').value,
+            referredBy: g('h_referredBy').value.trim(),
+            carrier: g('h_carrier').value,
+            commissionRule: g('h_commissionRule').value.trim(),
+            acknowledged: g('h_ack').checked,
+            members: _collectHealthMembers(),
+            timestamp: (typeof getEasternTimestamp === 'function') ? getEasternTimestamp() : new Date().toISOString()
+        };
+        let data = [];
+        try { data = JSON.parse(localStorage.getItem('healthData')) || []; } catch (err) {}
+        data.push(entry);
+        try { localStorage.setItem('healthData', JSON.stringify(data)); }
+        catch (err) { alert('⚠️ Could not save — storage is full. Free some space and try again.'); return; }
+        const msg = document.getElementById('successMessage');
+        if (msg) { msg.style.display = 'block'; }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(() => { if (msg) msg.style.display = 'none'; }, 3500);
+        document.getElementById('healthForm').reset();
+        document.getElementById('membersContainer').innerHTML = '';
+        addMemberRow();
+        g('h_date').value = _healthToday();
+        g('h_agent').value = (typeof currentUser !== 'undefined' && currentUser) || '';
+        g('h_commissionRule').value = '';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedUser = sessionStorage.getItem('uibCurrentUser');
+        if (!savedUser) { window.location.href = './'; return; }
+        try { currentUser = savedUser; currentRole = savedUser === 'Admin' ? 'admin' : 'agent'; } catch (e) {}
+        const ud = document.getElementById('userDisplay'); if (ud) ud.textContent = '👤 ' + savedUser;
+        document.getElementById('h_agent').value = savedUser;
+        document.getElementById('h_date').value = _healthToday();
+        document.getElementById('healthForm').addEventListener('submit', saveHealthEntry);
+        addMemberRow();
+        refreshHealthCarrierDropdown();
+        if (window.refreshIcons) refreshIcons();
+        if (typeof syncFromDrive === 'function') {
+            try {
+                const r = syncFromDrive();
+                if (r && typeof r.then === 'function') r.then(() => refreshHealthCarrierDropdown()).catch(() => {});
+            } catch (e) {}
+        }
+    });
+</script>
+<script src="uib-motion.js?v=20261002a"></script>
+</body>
+</html>

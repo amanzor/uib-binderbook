@@ -1,0 +1,95 @@
+{
+  "name": "UIB Binder Book - Universal Insurance Brokers",
+  "short_name": "UIB Binder Book",
+  "description": "Insurance binder management and auto rating platform by Universal Insurance Brokers",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1f3c",
+  "theme_color": "#0d1f3c",
+  "lang": "en-US",
+  "categories": [
+    "business",
+    "finance",
+    "productivity",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "../icons/icon-48.webp",
+      "type": "image/png",
+      "sizes": "48x48",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-72.webp",
+      "type": "image/png",
+      "sizes": "72x72",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-96.webp",
+      "type": "image/png",
+      "sizes": "96x96",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-128.webp",
+      "type": "image/png",
+      "sizes": "128x128",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-192.webp",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-256.webp",
+      "type": "image/png",
+      "sizes": "256x256",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-512.webp",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Binder Book",
+      "url": "/",
+      "icons": [
+        {
+          "src": "icons/uib-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Auto Rater",
+      "url": "/rater",
+      "icons": [
+        {
+          "src": "icons/rater-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "AMS",
+      "url": "/ams",
+      "icons": [
+        {
+          "src": "icons/uib-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

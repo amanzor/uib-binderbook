@@ -1,0 +1,23 @@
+{
+  "name": "UIB Auto Rater",
+  "short_name": "UIB Rater",
+  "description": "Multi-carrier auto insurance rater for Universal Insurance Brokers",
+  "id": "/rater",
+  "start_url": "/rater",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1f3c",
+  "theme_color": "#0d1f3c",
+  "lang": "en-US",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    { "src": "icons/rater-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/rater-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/rater-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "New Quote", "url": "/rater", "icons": [{ "src": "icons/rater-192.png", "sizes": "192x192" }] },
+    { "name": "Binder Book", "url": "/", "icons": [{ "src": "icons/rater-192.png", "sizes": "192x192" }] }
+  ]
+}
