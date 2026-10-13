@@ -244,14 +244,6 @@ function amsGetCarriers()    { return JSON.parse(localStorage.getItem('carrierMa
 
 function amsSave(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
-    amsSyncToDrive(key, value);
-}
-
-async function amsSyncToDrive(key, value) {
-    try {
-        const payload = JSON.stringify({ key: key, value: value });
-        await fetch(AMS_DRIVE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, mode: 'no-cors' });
-    } catch (e) { /* Drive unavailable */ }
 }
 
 // The Admin login. Setting, clearing or changing the agent on a record, and
@@ -996,7 +988,8 @@ async function amsPerformMerge(primaryKey, sourceKeys) {
     const target   = contacts[primaryKey] || {};
     const contactFields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
         'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
-        'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
+        'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
+        'privacyNoticeDate','privacyNoticeMethod'];
     sourceKeys.forEach(sk => {
         const src = contacts[sk] || {};
         contactFields.forEach(f => { if (!target[f] && src[f]) target[f] = src[f]; });
@@ -1099,7 +1092,8 @@ function amsLoadClientDetail(key) {
     // Populate contact form fields
     const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
                     'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
-                    'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
+                    'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
+                    'privacyNoticeDate','privacyNoticeMethod'];
     fields.forEach(f => {
         const el = document.getElementById(`ci_${f}`);
         if (!el) return;
@@ -1304,7 +1298,8 @@ function amsSaveContact() {
 
     const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
                     'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
-                    'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
+                    'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
+                    'privacyNoticeDate','privacyNoticeMethod'];
     // Assigned agent is the Admin login's to set — an agent saving the contact
     // tab keeps whatever it was, even if the locked field was tampered with.
     const priorAgents = { assignedAgent: contacts[amsActiveKey].assignedAgent || '',
@@ -1572,7 +1567,6 @@ function amsFlashBanner(msg) {
 }
 
 // ── Init ─────────────────────────────────────────────────────
-const AMS_DRIVE_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
 
 async function amsPullCredentialsFromDrive() { /* logins live in Supabase Auth now */ }
 
@@ -5955,3 +5949,21 @@ function rnwImportAll(setIdx) {
     amsFlashBanner(`Renewal import done ✓ — ${updated} updated, ${added} added, ${created} created`);
     rnwAddMessage('assistant', `✅ Import complete: ${updated} polic${updated !== 1 ? 'ies' : 'y'} updated, ${added} added to existing clients, ${created} new client${created !== 1 ? 's' : ''} created.`);
 }
+
+
+// ── Audit log hooks (GLBA Safeguards: who viewed / changed / exported) ──
+(function () {
+    const L = (a, t, d) => { try { if (window.UIBAudit) UIBAudit.log(a, t, d); } catch (e) {} };
+    const cname = (key) => { const c = (typeof amsClientIndex !== 'undefined' && amsClientIndex[key]) || {}; return (c.name || ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || key); };
+    const wrap = (name, action, targetFn, detailsFn) => {
+        const orig = window[name]; if (typeof orig !== 'function') return;
+        window[name] = function () { const r = orig.apply(this, arguments); try { L(action, targetFn ? targetFn.apply(this, arguments) : null, detailsFn ? detailsFn.apply(this, arguments) : null); } catch (e) {} return r; };
+    };
+    wrap('amsLoadClientDetail', 'view_client', (key) => cname(key), (key) => ({ key }));
+    wrap('amsSaveContact', 'save_contact', () => cname(amsActiveKey), () => { const d = document.getElementById('ci_privacyNoticeDate'); return { key: amsActiveKey, privacyNoticeDate: d ? d.value : undefined }; });
+    wrap('amsDeletePolicy', 'delete_policy', () => cname(amsActiveKey), (id) => ({ policyId: id }));
+    wrap('amsDeleteFileById', 'delete_file', () => cname(amsActiveKey), (id) => ({ fileId: id }));
+    wrap('amsPreviewFile', 'view_file', () => cname(amsActiveKey), (idx) => ({ index: idx }));
+    wrap('amsUploadFiles', 'upload_file', () => cname(amsActiveKey), (list) => ({ count: list && list.length }));
+    wrap('amsLogout', 'sign_out_click', null, null);
+})();

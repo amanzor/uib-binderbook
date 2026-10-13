@@ -3,8 +3,6 @@
 // ============================================================
 const SUPABASE_URL = "https://jgjmobktucyimupelfxd.supabase.co";
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
-// Old Apps Script URL — kept ONLY for email notifications (sendEmail action).
-const DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
 const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'prospectData', 'verificationLogs', 'commissionStatements', 'underwritingData', 'healthData', 'healthCarrierData'];
 
 const _SB_HEADERS = {
@@ -769,8 +767,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdgftX1s0VD0UqEpt0oKASpEeob_B4J6nwkYpVmNPn54kxYT910ly7NI9ab5RRW1o-tQ/exec';
-
 const SHEET_HEADERS = [
     'id','agent','customerName','source','policyType','lineOfBusiness','company','mga',
     'down','agencyFee','basePremium','agencyCommission','agentCommissionShare',
@@ -1061,11 +1057,11 @@ async function renderCredentialListPage() {
     refreshIcons();
 }
 async function credSetName(id, name) { try { await _adminUsers('setName', { id, agent_name: name }); } catch (e) { alert(e.message || e); } }
-async function credSetRole(id, role) { try { await _adminUsers('setRole', { id, role }); } catch (e) { alert(e.message || e); renderCredentialListPage(); } }
+async function credSetRole(id, role) { try { await _adminUsers('setRole', { id, role }); if (window.UIBAudit) UIBAudit.log('cred_set_role', role, { id }); } catch (e) { alert(e.message || e); renderCredentialListPage(); } }
 async function credSetPassword(id, email) {
     const p1 = prompt('New password for ' + email + ' (at least 10 characters):'); if (p1 == null) return;
     if (p1.length < 10) { alert('Use at least 10 characters.'); return; }
-    try { await _adminUsers('setPassword', { id, password: p1 }); alert('Password set. Give it to the agent; they can change it after signing in.'); }
+    try { await _adminUsers('setPassword', { id, password: p1 }); if (window.UIBAudit) UIBAudit.log('cred_reset_password', email); alert('Password set. Give it to the agent; they can change it after signing in.'); }
     catch (e) { alert(e.message || e); }
 }
 async function credClearMfa(id, email) {
@@ -1074,7 +1070,7 @@ async function credClearMfa(id, email) {
 }
 async function credDelete(id, email) {
     if (!confirm('Delete the login for ' + email + '? Their entries stay in the book; only the sign-in is removed.')) return;
-    try { await _adminUsers('delete', { id }); renderCredentialListPage(); } catch (e) { alert(e.message || e); }
+    try { await _adminUsers('delete', { id }); if (window.UIBAudit) UIBAudit.log('cred_delete', email); renderCredentialListPage(); } catch (e) { alert(e.message || e); }
 }
 
 function autoSaveCredential(agent) {
@@ -1125,6 +1121,7 @@ async function submitAddCredential(e) {
     const btn = e.target.querySelector('button[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
     try {
         await _adminUsers('create', { email, password: pass, agent_name: agent, role });
+        if (window.UIBAudit) UIBAudit.log('cred_create', email, { agent, role });
         // Keep the roster's email in step so the match works everywhere.
         try { const master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; if (master[agent] && master[agent].email !== email) { master[agent].email = email; localStorage.setItem('agentMasterData', JSON.stringify(master)); } } catch (err) {}
         closeAddCredentialModal();
@@ -1608,10 +1605,13 @@ function restoreSessionFromStorage() {
 }
 
 // UI Navigation
+let _ackChecked = false;
 function showSection(sectionId) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     const el = document.getElementById(sectionId);
     el.classList.add('active');
+    // Yearly confidentiality & security acknowledgment (GLBA training record).
+    if (sectionId !== 'loginSection' && !_ackChecked && window.UIBAudit && window.UIBAuth && UIBAuth.isSignedIn()) { _ackChecked = true; UIBAudit.requireAck(); }
     if (window.UIBMotion) {
         UIBMotion.animateSection(el);
         UIBMotion.animateUserInfoBar(el);
@@ -10115,41 +10115,10 @@ function claudeFindExistingClient(customerName, policyNumber) {
     ) || null;
 }
 
-// Email admin@universalinsurancebroker.com via the Apps Script proxy.
-// Requires a `sendEmail` action handler in the deployed Google Apps Script.
+// Flag the duplicate for the administrators in the Access Log (no customer
+// data leaves the system; the old unauthenticated email relay is gone).
 async function claudeNotifyAdminExistingClient(existing, reported, reporter) {
-    const subject = `⚠️ Existing client policy re-reported via chat: ${reported.customerName || ''}`;
-    const body = [
-        `An existing client/policy was reported again through the AI Assistant chat.`,
-        ``,
-        `Reported by (agent credited on the new entry): ${reporter}`,
-        ``,
-        `--- Reported policy ---`,
-        `Customer: ${reported.customerName || '-'}`,
-        `Policy #: ${reported.policyNumber || '-'}`,
-        `Carrier:  ${reported.company || '-'}`,
-        `LOB:      ${reported.lineOfBusiness || '-'}`,
-        `Premium:  $${reported.totalPremium || '-'}`,
-        ``,
-        `--- Existing record already on file ---`,
-        `Original agent (shown in app): ${existing.agent || '-'}`,
-        `Original entry date:           ${existing.entryDate || '-'}`,
-        `Existing carrier:              ${existing.company || '-'}`,
-        `Existing total premium:        $${existing.totalPremium || '-'}`,
-    ].join('\n');
-    try {
-        await fetch(DRIVE_API_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-                action: 'sendEmail',
-                to: 'admin@universalinsurancebroker.com',
-                subject,
-                body
-            })
-        });
-    } catch (e) {
-        console.warn('Admin existing-client email failed:', e);
-    }
+    try { if (window.UIBAudit) UIBAudit.log('duplicate_flagged', reported.customerName || '', { reporter, policyNumber: reported.policyNumber || '', originalAgent: existing.agent || '', originalEntryDate: existing.entryDate || '' }); } catch (e) {}
 }
 
 // Returns warning HTML (empty string if not an existing client).
@@ -12239,34 +12208,15 @@ const BACKUP_SLOTS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => 'backu
 
 // Plain write — deliberately NOT driveSet: snapshots are point-in-time
 // copies that must never be merged with the cloud or flagged dirty.
-// Snapshots are written to BOTH backends. Supabase is the primary store, but
-// when it went down for a full day the backups went down with it — a backup
-// that shares a failure domain with the thing it protects is not a backup. The
-// Apps Script store stayed reachable throughout, so it gets a copy too. A
-// failure on either side never blocks the other.
+// Snapshots go to Supabase only (the unauthenticated Apps Script mirror was
+// retired); enable daily backups in the Supabase dashboard for the off-site copy.
 async function _backupPost(key, value) {
-    const results = await Promise.allSettled([
-        (async () => {
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
-                method: 'POST',
-                headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
-                body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
-            });
-            if (!res.ok) throw new Error('Supabase HTTP ' + res.status);
-        })(),
-        (async () => {
-            // Apps Script mirror — no-cors, so success is best-effort by design.
-            await fetch(DRIVE_API_URL, {
-                method: 'POST', mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key, value })
-            });
-        })()
-    ]);
-    // Only fail if BOTH backends rejected — one surviving copy is enough.
-    if (results.every(r => r.status === 'rejected')) {
-        throw new Error('both backup backends failed: ' + results.map(r => r.reason).join(' | '));
-    }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+        method: 'POST',
+        headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+        body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
+    });
+    if (!res.ok) throw new Error('Supabase HTTP ' + res.status);
 }
 
 // Freshness probe: fetch ONLY the snapshot's date field, not the multi-MB
@@ -13354,4 +13304,125 @@ function showDataSafety() {
         '</div>';
     document.body.appendChild(m);
     m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  COMPLIANCE: audit hooks, Access Log, Retention Review (admin)
+// ═══════════════════════════════════════════════════════════════
+(function () {
+    const L = (a, t, d) => { try { if (window.UIBAudit) UIBAudit.log(a, t, d); } catch (e) {} };
+    const wrap = (name, action, targetFn, detailsFn) => {
+        const orig = window[name]; if (typeof orig !== 'function') return;
+        window[name] = function () { const r = orig.apply(this, arguments); try { L(action, targetFn ? targetFn.apply(this, arguments) : null, detailsFn ? detailsFn.apply(this, arguments) : null); } catch (e) {} return r; };
+    };
+    wrap('exportToCSV', 'export', (entries, filename) => filename, (entries) => ({ rows: entries ? entries.length : 0, format: 'csv' }));
+    wrap('exportToExcel', 'export', () => 'all_sales.xlsx', () => ({ rows: (allData || []).length, format: 'xlsx' }));
+    wrap('exportAgentCommissions', 'export', () => 'agent_commissions.csv', () => ({ format: 'csv' }));
+    wrap('exportAgentCommissionsPDF', 'export', () => 'agent_commissions.pdf', () => ({ format: 'pdf' }));
+    wrap('exportCSAgentReportCSV', 'export', () => 'commission_statement_agent.csv', () => ({ format: 'csv' }));
+    wrap('exportCSAdjustmentsCSV', 'export', () => 'commission_adjustments.csv', () => ({ format: 'csv' }));
+    wrap('deleteEntry', 'delete_entry', (id) => { const e = (allData || []).find(x => x.id === id); return e ? e.customerName : String(id); }, (id) => ({ id }));
+    wrap('saveEntry', 'save_entry', () => { const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : ''; const el = document.getElementById('customerName' + sfx); return el ? el.value : ''; }, () => { const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : ''; const el = document.getElementById('policyNumber' + sfx); return { policyNumber: el ? el.value : '' }; });
+    wrap('enterAdmin', 'admin_console', null, null);
+})();
+
+const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed' };
+
+function showAccessLog() {
+    if (!isAgentAdmin()) { alert('Only administrators can view the access log.'); return; }
+    showSection('accessLogSection');
+    refreshIcons();
+    renderAccessLog();
+}
+async function renderAccessLog() {
+    const box = document.getElementById('accessLogTable'); if (!box) return;
+    box.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading…</div>';
+    const action = document.getElementById('alFilterAction')?.value || '';
+    const email = (document.getElementById('alFilterUser')?.value || '').trim().toLowerCase();
+    const days = parseInt(document.getElementById('alFilterDays')?.value || '30', 10);
+    let rows = [];
+    try { rows = await UIBAudit.list({ limit: 1000, action: action || undefined, email: email || undefined, since: days ? new Date(Date.now() - days * 864e5).toISOString() : undefined }); }
+    catch (e) { box.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 18px;color:#991b1b;font-size:14px;">${_esc(e.message || e)}</div>`; return; }
+    const fmt = (iso) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: '2-digit', hour: 'numeric', minute: '2-digit' });
+    const det = (d) => d && typeof d === 'object' ? Object.keys(d).filter(k => d[k] !== undefined && d[k] !== null && d[k] !== '').map(k => `${k}: ${d[k]}`).join(' · ') : '';
+    box.innerHTML = `<div class="table-container"><table style="width:100%;"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Record</th><th>Details</th><th>Page</th></tr></thead><tbody>` +
+        (rows.map(r => `<tr><td style="white-space:nowrap;font-size:12px;">${fmt(r.at)}</td><td>${_esc(r.user_name || r.user_email)}<div style="font-size:11px;color:var(--gray-500);">${_esc(r.user_email)}</div></td><td>${_esc(ACTION_LABELS[r.action] || r.action)}</td><td>${_esc(r.target || '')}</td><td style="font-size:12px;color:var(--gray-500);">${_esc(det(r.details))}</td><td style="font-size:12px;">${_esc(r.page || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="no-data">No activity in this period.</td></tr>') +
+        `</tbody></table></div><p style="font-size:12px;color:var(--gray-500);margin-top:10px;">${rows.length} event${rows.length === 1 ? '' : 's'} · the log is append-only and kept 5 years.</p>`;
+    renderAckStatus();
+}
+async function renderAckStatus() {
+    const box = document.getElementById('accessLogAcks'); if (!box) return;
+    let acks = {}; try { acks = (await UIBAudit.getAcks()) || {}; } catch (e) {}
+    const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
+    const rows = getAllAgents().map(n => { const em = ((master[n] && master[n].email) || '').toLowerCase(); const a = em && acks[em]; const ok = a && a.version === UIBAudit.ACK_VERSION; return `<tr><td>${_esc(n)}</td><td style="font-size:12px;">${_esc(em || '—')}</td><td>${ok ? '<span style="color:#166534;font-weight:700;">✓ ' + new Date(a.date).toLocaleDateString() + '</span>' : '<span style="color:#b45309;font-weight:700;">Not yet for ' + UIBAudit.ACK_VERSION + '</span>'}</td></tr>`; }).join('');
+    box.innerHTML = `<h3 style="margin:22px 0 8px;font-size:15px;">Confidentiality &amp; security acknowledgment (${UIBAudit.ACK_VERSION})</h3><div class="table-container"><table style="width:100%;"><thead><tr><th>Agent</th><th>Email</th><th>Accepted</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function exportAccessLogCSV() {
+    const rows = Array.from(document.querySelectorAll('#accessLogTable tbody tr')).map(tr => Array.from(tr.children).map(td => '"' + td.textContent.replace(/"/g, '""').trim() + '"').join(','));
+    if (!rows.length) return;
+    const blob = new Blob(['When,Who,Action,Record,Details,Page\n' + rows.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'access_log.csv'; a.click();
+    if (window.UIBAudit) UIBAudit.log('export', 'access_log.csv', { rows: rows.length, format: 'csv' });
+}
+
+// ── Retention Review ───────────────────────────────────────────
+async function _complianceSettings() {
+    try {
+        const r = await driveGetResult('complianceSettings');
+        const v = (r && r.ok && r.value && typeof r.value === 'object') ? r.value : {};
+        return Object.assign({ retentionYears: 7, legalHold: {} }, v);
+    } catch (e) { return { retentionYears: 7, legalHold: {} }; }
+}
+async function _saveComplianceSettings(v) {
+    await fetch(`${SUPABASE_URL}/rest/v1/app_store`, { method: 'POST', headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }), body: JSON.stringify([{ key: 'complianceSettings', value: v, updated_at: new Date().toISOString() }]) });
+}
+function showRetentionReview() {
+    if (!isAgentAdmin()) { alert('Only administrators can run the retention review.'); return; }
+    showSection('retentionSection');
+    refreshIcons();
+    renderRetentionReview();
+}
+async function renderRetentionReview() {
+    const box = document.getElementById('retentionTable'); if (!box) return;
+    box.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading…</div>';
+    const cfg = await _complianceSettings();
+    const yearsEl = document.getElementById('retentionYears'); if (yearsEl && !yearsEl.dataset.touched) yearsEl.value = cfg.retentionYears;
+    const years = parseInt((yearsEl && yearsEl.value) || cfg.retentionYears, 10) || 7;
+    const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - years);
+    const dateOf = (e) => new Date(e.expDate || e.expirationDate || e.entryDate || e.timestamp || 0);
+    const old = (allData || []).filter(e => { const d = dateOf(e); return d.getTime() > 0 && d < cutoff; }).sort((a, b) => dateOf(a) - dateOf(b));
+    const held = cfg.legalHold || {};
+    box.innerHTML = `<p style="font-size:13px;color:var(--gray-500);margin:0 0 12px;">${old.length} entr${old.length === 1 ? 'y is' : 'ies are'} older than ${years} years (before ${cutoff.toLocaleDateString()}). Florida requires at least 5 years after a policy ends. Records on <b>legal hold</b> are never deleted here.</p>` +
+        `<div class="table-container"><table style="width:100%;"><thead><tr><th><input type="checkbox" onchange="document.querySelectorAll('.retPick').forEach(c=>{ if(!c.disabled) c.checked=this.checked; })"></th><th>Entry date</th><th>Customer</th><th>Agent</th><th>Policy #</th><th>Legal hold</th></tr></thead><tbody>` +
+        (old.map(e => `<tr><td><input type="checkbox" class="retPick" value="${_esc(e.id)}" ${held[e.id] ? 'disabled' : ''}></td><td style="white-space:nowrap;">${_esc((e.entryDate || '').slice(0, 10))}</td><td>${_esc(e.customerName || '')}</td><td>${_esc(e.agent || '')}</td><td>${_esc(e.policyNumber || '')}</td><td><button class="btn-sm ${held[e.id] ? 'btn-danger' : 'btn-secondary'}" onclick="toggleLegalHold('${_esc(e.id)}')">${held[e.id] ? '⚖ On hold — release' : 'Put on hold'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="no-data">Nothing is past the retention period.</td></tr>') +
+        `</tbody></table></div>`;
+}
+async function saveRetentionYears() {
+    const years = parseInt(document.getElementById('retentionYears').value, 10);
+    if (!years || years < 5) { alert('Keep at least 5 years (Florida Statute 626.748).'); return; }
+    const cfg = await _complianceSettings(); cfg.retentionYears = years; await _saveComplianceSettings(cfg);
+    document.getElementById('retentionYears').dataset.touched = '';
+    renderRetentionReview();
+}
+async function toggleLegalHold(id) {
+    const cfg = await _complianceSettings(); cfg.legalHold = cfg.legalHold || {};
+    const e = (allData || []).find(x => x.id === id) || {};
+    if (cfg.legalHold[id]) { if (!confirm('Release the legal hold on this record?')) return; delete cfg.legalHold[id]; }
+    else cfg.legalHold[id] = { by: currentUser, at: new Date().toISOString() };
+    await _saveComplianceSettings(cfg);
+    if (window.UIBAudit) UIBAudit.log('legal_hold', e.customerName || id, { id, on: !!cfg.legalHold[id] });
+    renderRetentionReview();
+}
+async function deleteRetentionSelected() {
+    const ids = Array.from(document.querySelectorAll('.retPick:checked')).map(c => c.value);
+    if (!ids.length) { alert('Select the entries to delete first.'); return; }
+    const cfg = await _complianceSettings(); const held = cfg.legalHold || {};
+    const safe = ids.filter(id => !held[id]);
+    if (!confirm(`Permanently delete ${safe.length} entr${safe.length === 1 ? 'y' : 'ies'} that passed the retention period? This cannot be undone.`)) return;
+    binderMarkDeleted(safe);
+    allData = allData.filter(d => !safe.includes(d.id));
+    localStorage.setItem('binderData', JSON.stringify(allData));
+    if (window.UIBAudit) UIBAudit.log('retention_delete', `${safe.length} entries`, { ids: safe });
+    renderRetentionReview();
 }

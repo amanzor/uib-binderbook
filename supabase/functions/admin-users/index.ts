@@ -21,7 +21,7 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const ADMIN_EMAILS = ["admin@universalinsurancebroker.com", "amanzor89@gmail.com"];
+const ADMIN_EMAILS = ["admin@universalinsurancebroker.com", "amanzor89@gmail.com", "randy@universalinsurancebroker.com", "amanda@universalinsurancebroker.com"];
 
 type Dict = Record<string, unknown>;
 function json(obj: unknown, status = 200) {

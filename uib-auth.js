@@ -29,11 +29,12 @@
     // 2-step verification. false = optional: accounts that have set up an
     // authenticator (Logout ▸ 2-step) are asked for the code; others sign in
     // with email + password. Set true to force every account to enroll.
-    const MFA_REQUIRED = false;
-    // Accounts that are always administrators, even before the admin flag is
-    // set on them in Supabase (Authentication ▸ Users ▸ App Metadata
-    // {"role":"admin"}). Keeps the agency from locking itself out.
-    const ADMIN_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com'];
+    const MFA_REQUIRED = true;
+    // The only accounts allowed into the admin console: Alberto, Randy and
+    // Amanda. An account can also be made admin from Manage Login Credentials
+    // (sets the server-side admin flag); nothing an agent can edit themselves
+    // grants it.
+    const ADMIN_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com', 'randy@universalinsurancebroker.com', 'amanda@universalinsurancebroker.com'];
     const IDLE_MS = 30 * 60 * 1000;
     const REFRESH_AHEAD_S = 120;
 
@@ -71,7 +72,7 @@
         const email = (user && user.email) || '';
         const onAccount = meta.agent_name || meta.full_name || meta.name || '';
         const name = onAccount || nameFromRoster(email) || '';
-        const role = (app.role === 'admin' || meta.role === 'admin' || ADMIN_EMAILS.includes(String(email).toLowerCase())) ? 'admin' : 'agent';
+        const role = (app.role === 'admin' || ADMIN_EMAILS.includes(String(email).toLowerCase())) ? 'admin' : 'agent';
         return { id: user && user.id, email: email, name: name, role: role, onAccount: !!onAccount };
     }
 
@@ -198,13 +199,16 @@
         if (verified) { if (s) { s.pendingMfa = verified.id; writeSession(s); } return Object.assign({}, user, { mfaRequired: true, factorId: verified.id }); }
         if (MFA_REQUIRED) { if (s) { s.pendingMfa = 'enroll'; writeSession(s); } return Object.assign({}, user, { enrollRequired: true }); }
         try { sessionStorage.setItem('uibCurrentUser', (user.role === 'admin' && (!user.name || user.name === 'Admin')) ? 'Admin' : user.name); } catch (e) {}
+        audit('sign_in', user.email, { mfa: false });
         return user;
     }
+    function audit(action, target, details) { try { if (window.UIBAudit) UIBAudit.log(action, target, details); } catch (e) {} }
     // Called by the page once the code (or enrollment) succeeded.
     function completeSignIn() {
         const s = readSession(); if (!s) return null;
         delete s.pendingMfa; writeSession(s);
         try { sessionStorage.setItem('uibCurrentUser', (s.user.role === 'admin' && (!s.user.name || s.user.name === 'Admin')) ? 'Admin' : s.user.name); } catch (e) {}
+        audit('sign_in', s.user.email, { mfa: true });
         return s.user;
     }
 
@@ -230,6 +234,7 @@
 
     function signOut() {
         const s = readSession();
+        if (s && s.user && !s.pendingMfa) audit('sign_out', s.user.email);
         clearSession();
         if (s && s.access_token) {
             try {
