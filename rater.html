@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20260914a"></script>
+    <script src="uib-auth.js?v=20261013a"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -564,10 +565,10 @@
 <div id="loginGate" class="login-wrap" style="display:none;">
     <div class="login-card">
         <h2><i data-lucide="lock"></i> Agent Sign In</h2>
-        <p>Use the same agent name and password as the Binder Book.</p>
+        <p>Use the same email and password as the Binder Book.</p>
         <div class="form-group">
-            <label>Agent</label>
-            <select id="loginAgent"></select>
+            <label>Email</label>
+            <input type="email" id="loginEmail" autocomplete="username">
         </div>
         <div class="form-group">
             <label>Password</label>
@@ -815,8 +816,8 @@
 </div>
 
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<script src="rater.js?v=20261006e"></script>
-<script src="supabase.js?v=20260916a"></script>
+<script src="rater.js?v=20261013a"></script>
+<script src="supabase.js?v=20261013a"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 </body>

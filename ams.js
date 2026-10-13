@@ -215,7 +215,6 @@ function amsNormalizeRestrictedCarrierLOBs(entries) {
     return fixed;
 }
 
-const AMS_ADMIN_PASSWORD = 'admin2024';
 
 // ── State ────────────────────────────────────────────────────
 let amsCurrentUser   = null;
@@ -232,7 +231,15 @@ let _amsSearchTimer  = null;
 // ── Data helpers ─────────────────────────────────────────────
 function amsGetBinderData()  { let d = JSON.parse(localStorage.getItem('binderData'))  || []; if (!Array.isArray(d)) d = d.value || []; return d; }
 function amsGetClientData()  { return JSON.parse(localStorage.getItem('amsClientData')) || {}; }
-function amsGetCredentials() { return JSON.parse(localStorage.getItem('agentCredentials')) || {}; }
+// Agent roster for dropdowns. Logins live in Supabase Auth now, so the
+// names come from the Agent Management list (agentMasterData).
+function amsGetCredentials() {
+    let master = {};
+    try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    const out = {};
+    Object.keys(master).forEach((n) => { out[n] = { email: (master[n] && master[n].email) || '' }; });
+    return out;
+}
 function amsGetCarriers()    { return JSON.parse(localStorage.getItem('carrierMasterData')) || {}; }
 
 function amsSave(key, value) {
@@ -451,46 +458,31 @@ function togglePasswordVisibility(inputId, btn) {
 function amsDoLogin() {
     const email    = (document.getElementById('amsLoginEmail')?.value || '').trim().toLowerCase();
     const password = (document.getElementById('amsLoginPassword')?.value || '');
-    const creds    = amsGetCredentials();
     const errEl    = document.getElementById('amsLoginError');
-
-    let matched = null;
-    Object.entries(creds).forEach(([agent, data]) => {
-        const agentEmail = (typeof data === 'object' ? data.email : '') || '';
-        const agentPass  = (typeof data === 'object' ? data.password : data) || '';
-        if (agentEmail.toLowerCase() === email && agentPass === password) matched = agent;
+    if (!window.UIBAuth) { if (errEl) { errEl.textContent = 'Sign-in is unavailable: uib-auth.js did not load.'; errEl.style.display = 'block'; } return; }
+    UIBAuth.signIn(email, password).then((user) => {
+        const remember = document.getElementById('amsRememberEmail')?.checked;
+        if (remember) localStorage.setItem('amsRememberedEmail', email); else localStorage.removeItem('amsRememberedEmail');
+        const pw = document.getElementById('amsLoginPassword'); if (pw) pw.value = '';
+        amsCurrentUser = user.role === 'admin' ? 'Admin' : user.name;
+        amsCurrentRole = user.role;
+        amsLaunchApp();
+    }).catch((err) => {
+        if (errEl) { errEl.textContent = /invalid|credentials/i.test(String(err.message)) ? 'Invalid email or password.' : (err.message || 'Sign-in failed.'); errEl.style.display = 'block'; }
     });
-
-    if (!matched) {
-        if (errEl) { errEl.textContent = 'Invalid email or password.'; errEl.style.display = 'block'; }
-        return;
-    }
-
-    const remember = document.getElementById('amsRememberEmail')?.checked;
-    if (remember) {
-        localStorage.setItem('amsRememberedEmail', email);
-    } else {
-        localStorage.removeItem('amsRememberedEmail');
-    }
-
-    amsCurrentUser = matched;
-    amsCurrentRole = 'agent';
-    amsLaunchApp();
 }
 
 function amsDoAdminLogin() {
+    const email = (document.getElementById('amsAdminEmail')?.value || '').trim().toLowerCase();
     const pwd   = (document.getElementById('amsAdminPassword')?.value || '');
     const errEl = document.getElementById('amsAdminLoginError');
-    const creds = amsGetCredentials();
-    const adminPwd = (typeof creds['Admin'] === 'object' ? creds['Admin'].password : creds['Admin']) || AMS_ADMIN_PASSWORD;
-
-    if (pwd !== adminPwd && pwd !== AMS_ADMIN_PASSWORD) {
-        if (errEl) { errEl.style.display = 'block'; }
-        return;
-    }
-    amsCurrentUser = 'Admin';
-    amsCurrentRole = 'admin';
-    amsLaunchApp();
+    if (!window.UIBAuth) return;
+    UIBAuth.signIn(email, pwd).then((user) => {
+        if (user.role !== 'admin') { UIBAuth.signOut(); if (errEl) { errEl.textContent = 'This account is not an administrator.'; errEl.style.display = 'block'; } return; }
+        amsCurrentUser = 'Admin';
+        amsCurrentRole = 'admin';
+        amsLaunchApp();
+    }).catch(() => { if (errEl) { errEl.textContent = 'Incorrect email or password.'; errEl.style.display = 'block'; } });
 }
 
 function amsShowAdminLogin() {
@@ -504,6 +496,7 @@ function amsShowAgentLogin() {
 }
 
 function amsLogout() {
+    if (window.UIBAuth) UIBAuth.signOut();
     amsCurrentUser = null;
     amsCurrentRole = null;
     amsActiveKey   = null;
@@ -1581,25 +1574,18 @@ function amsFlashBanner(msg) {
 // ── Init ─────────────────────────────────────────────────────
 const AMS_DRIVE_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
 
-async function amsPullCredentialsFromDrive() {
-    try {
-        const res  = await fetch(`${AMS_SB_URL}/rest/v1/app_store?select=value&key=eq.agentCredentials`, { headers: AMS_SB_HEADERS });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const rows = await res.json();
-        const data = rows[0] && rows[0].value;
-        if (data && typeof data === 'object' && Object.keys(data).length) {
-            _amsRawSet('agentCredentials', JSON.stringify(data));
-        }
-    } catch (e) {
-        // Cloud unavailable — use whatever is in localStorage already
-    }
-}
+async function amsPullCredentialsFromDrive() { /* logins live in Supabase Auth now */ }
 
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
 
-    // Pull latest credentials from Drive so login works on any device
-    amsPullCredentialsFromDrive();
+    // Already signed in (opened from the Binder Book, or same tab)? Go straight in.
+    const authUser = (window.UIBAuth && UIBAuth.user()) || null;
+    if (authUser) {
+        amsCurrentUser = authUser.role === 'admin' ? 'Admin' : authUser.name;
+        amsCurrentRole = authUser.role;
+        amsLaunchApp();
+    }
 
     // Pre-fill remembered email
     const remembered = localStorage.getItem('amsRememberedEmail');

@@ -26,9 +26,32 @@ function json(obj: unknown, status = 200) {
   });
 }
 
+
+// ── Caller must be a signed-in Supabase user ───────────────────
+// The browser sends the user's access token (uib-auth.js rewrites the
+// Authorization header). The public anon key alone is refused, so only
+// agents who signed in can reach this function.
+async function requireUser(req: Request): Promise<{ id: string; email: string; role: string } | Response> {
+  const auth = req.headers.get("authorization") || "";
+  const token = auth.replace(/^Bearer\s+/i, "").trim();
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  if (!token || !url) return json({ error: "Sign in to use this feature." }, 401);
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    if (payload.role !== "authenticated") return json({ error: "Sign in to use this feature." }, 401);
+  } catch { return json({ error: "Sign in to use this feature." }, 401); }
+  const res = await fetch(`${url}/auth/v1/user`, { headers: { apikey: anon, Authorization: `Bearer ${token}` } });
+  if (!res.ok) return json({ error: "Your session expired. Sign in again." }, 401);
+  const u = await res.json();
+  return { id: String(u.id ?? ""), email: String(u.email ?? ""), role: String(u.app_metadata?.role ?? "agent") };
+}
+
 Deno.serve(async (req) => {
   // CORS preflight
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  const who = await requireUser(req);
+  if (who instanceof Response) return who;
 
   try {
     const key = Deno.env.get("ANTHROPIC_API_KEY");
@@ -47,6 +70,8 @@ Deno.serve(async (req) => {
     // Binder Book app) keep the original buffered-JSON behavior unchanged.
     const wantStream = p.stream === true;
 
+    // Server-side ceiling on spend per call, whatever the browser asks for.
+    if (typeof p.max_tokens === "number" && p.max_tokens > 16000) p.max_tokens = 16000;
     const payload: Record<string, unknown> = {
       model: p.model || "claude-sonnet-4-6",
       max_tokens: p.max_tokens || 4096,
