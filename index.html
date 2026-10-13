@@ -2197,7 +2197,7 @@
                     <button class="btn-success btn-sm" onclick="openAddCredentialModal()"><i data-lucide="user-plus"></i> Add Agent Credential</button>
                 </div>
                 <div style="max-width:680px; margin:24px auto 0;">
-                    <p style="font-size:13px; color:var(--gray-500); margin-bottom:20px;">Set the email address and password each agent uses to log in via the Agent Login button.</p>
+                    <p style="font-size:13px; color:var(--gray-500); margin-bottom:20px;">Each agent signs in with the email and password set here. Accounts are created in Supabase Auth; the app never stores passwords.</p>
                     <div id="credentialListPage"></div>
                 </div>
             </div>
@@ -2211,9 +2211,8 @@
                     </div>
                     <form onsubmit="submitAddCredential(event)">
                         <div class="form-group" style="margin-bottom:14px;">
-                            <label>Agent Name</label>
-                            <input type="text" id="newCredAgent" placeholder="Full name" required
-                                style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
+                            <label>Agent</label>
+                            <select id="newCredAgent" required style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"></select>
                         </div>
                         <div class="form-group" style="margin-bottom:14px;">
                             <label>Email Address</label>
@@ -2221,9 +2220,13 @@
                                 style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
                         </div>
                         <div class="form-group" style="margin-bottom:20px;">
-                            <label>Password</label>
-                            <input type="text" id="newCredPassword" placeholder="Enter password" required
+                            <label>Temporary password (10+ characters)</label>
+                            <input type="text" id="newCredPassword" placeholder="Enter password" required minlength="10" autocomplete="off"
                                 style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:20px;">
+                            <label>Role</label>
+                            <select id="newCredRole" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"><option value="agent">Agent</option><option value="admin">Admin</option></select>
                         </div>
                         <div style="display:flex;gap:10px;">
                             <button type="submit" class="btn-success" style="flex:1;padding:11px;"><i data-lucide="save"></i> Save</button>
@@ -3905,7 +3908,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261013g"></script>
+    <script src="app.js?v=20261013h"></script>
     <script src="supabase.js?v=20261013a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>

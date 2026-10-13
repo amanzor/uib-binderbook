@@ -26,9 +26,10 @@
     // here and enable Turnstile with the SECRET key in Supabase ▸ Authentication
     // ▸ Attack Protection ▸ Captcha. Leave empty to run without it.
     const TURNSTILE_SITE_KEY = '';
-    // 2-step verification: every account must enroll an authenticator app
-    // and enter its 6-digit code at each sign-in.
-    const MFA_REQUIRED = true;
+    // 2-step verification. false = optional: accounts that have set up an
+    // authenticator (Logout ▸ 2-step) are asked for the code; others sign in
+    // with email + password. Set true to force every account to enroll.
+    const MFA_REQUIRED = false;
     // Accounts that are always administrators, even before the admin flag is
     // set on them in Supabase (Authentication ▸ Users ▸ App Metadata
     // {"role":"admin"}). Keeps the agency from locking itself out.
