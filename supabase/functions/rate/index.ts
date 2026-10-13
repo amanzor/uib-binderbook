@@ -90,9 +90,32 @@ function toNumber(v: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
+
+// ── Caller must be a signed-in Supabase user ───────────────────
+// The browser sends the user's access token (uib-auth.js rewrites the
+// Authorization header). The public anon key alone is refused, so only
+// agents who signed in can reach this function.
+async function requireUser(req: Request): Promise<{ id: string; email: string; role: string } | Response> {
+  const auth = req.headers.get("authorization") || "";
+  const token = auth.replace(/^Bearer\s+/i, "").trim();
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  if (!token || !url) return json({ ok: false, error: "Sign in to use this feature." }, 401);
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    if (payload.role !== "authenticated") return json({ ok: false, error: "Sign in to use this feature." }, 401);
+  } catch { return json({ ok: false, error: "Sign in to use this feature." }, 401); }
+  const res = await fetch(`${url}/auth/v1/user`, { headers: { apikey: anon, Authorization: `Bearer ${token}` } });
+  if (!res.ok) return json({ ok: false, error: "Your session expired. Sign in again." }, 401);
+  const u = await res.json();
+  return { id: String(u.id ?? ""), email: String(u.email ?? ""), role: String(u.app_metadata?.role ?? "agent") };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "POST only" }, 405);
+  const who = await requireUser(req);
+  if (who instanceof Response) return who;
 
   let body: Dict;
   try { body = await req.json(); } catch { return json({ ok: false, error: "Body must be JSON" }, 400); }
@@ -126,8 +149,12 @@ Deno.serve(async (req) => {
   if (url.protocol !== "https:") return json({ ok: false, error: `${name}: endpoint must use https.` }, 400);
 
   // Optional allow-list so this function can only ever call carriers you approved.
+  // Required: the function will only ever call carrier hosts you approved.
+  // Without this list a caller could point the function at their own server
+  // and receive the stored carrier credentials.
   const allowed = (Deno.env.get("RATER_ALLOWED_HOSTS") ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  if (allowed.length && !allowed.includes(url.hostname.toLowerCase())) {
+  if (!allowed.length) return json({ ok: false, error: "RATER_ALLOWED_HOSTS is not set. Add the carrier API hostnames under Edge Functions ▸ Manage secrets." }, 503);
+  if (!allowed.includes(url.hostname.toLowerCase())) {
     return json({ ok: false, error: `${name}: host ${url.hostname} is not in RATER_ALLOWED_HOSTS.` }, 403);
   }
 

@@ -5,7 +5,7 @@ const SUPABASE_URL = "https://jgjmobktucyimupelfxd.supabase.co";
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
 // Old Apps Script URL — kept ONLY for email notifications (sendEmail action).
 const DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
-const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'agentCredentials', 'prospectData', 'verificationLogs', 'commissionStatements', 'underwritingData', 'healthData', 'healthCarrierData'];
+const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'prospectData', 'verificationLogs', 'commissionStatements', 'underwritingData', 'healthData', 'healthCarrierData'];
 
 const _SB_HEADERS = {
     'apikey': SUPABASE_ANON_KEY,
@@ -868,13 +868,10 @@ function initializeCredentials() {
         }
     });
 
-    // Add a default entry ONLY for agents that have no entry at all yet
-    // — never overwrites an existing entry, so saved emails are never lost
-    AGENTS.forEach(agent => {
-        if (!credentials[agent]) {
-            credentials[agent] = { email: '', password: agent.split(' ')[0].toLowerCase() };
-            changed = true;
-        }
+    // Logins live in Supabase Auth now. Any password still stored here
+    // from the old scheme is wiped so it cannot be read on this device.
+    Object.keys(credentials).forEach(agent => {
+        if (credentials[agent] && credentials[agent].password) { credentials[agent].password = ''; changed = true; }
     });
 
     // Persist only if something actually changed; use _origSetItem to bypass
@@ -921,42 +918,62 @@ function submitAgentEmailLogin(e) {
     e.preventDefault();
     const email    = document.getElementById('agentLoginEmail').value.trim().toLowerCase();
     const password = document.getElementById('agentLoginPassword').value;
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const errEl = document.getElementById('agentLoginError');
-
-    // Match by email + password only — same logic as AMS login
-    let matched = null;
-    Object.entries(credentials).forEach(([name, data]) => {
-        const storedEmail = (typeof data === 'object' ? data.email : '') || '';
-        const storedPass  = (typeof data === 'object' ? data.password : data) || '';
-        if (storedEmail.toLowerCase() === email && storedPass === password) matched = name;
-    });
-
-    const match = matched ? [matched, credentials[matched]] : null;
-
-    if (!match) {
-        errEl.textContent = 'Incorrect email or password. Please try again.';
-        errEl.style.display = 'block';
-        return;
-    }
-
-    const agentName = match[0];
+    const errEl    = document.getElementById('agentLoginError');
+    const btn      = document.getElementById('loginSignInBtn');
+    const showErr  = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+    if (!window.UIBAuth) { showErr('Sign-in is unavailable: uib-auth.js did not load.'); return; }
     errEl.style.display = 'none';
+    if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.textContent = 'Signing in…'; }
 
-    const remember = document.getElementById('rememberAgentEmail')?.checked;
-    if (remember) {
-        localStorage.setItem('rememberedAgentEmail', email);
-    } else {
-        localStorage.removeItem('rememberedAgentEmail');
-    }
-
-    closeAgentEmailLogin();
-    showAgentSection(agentName);
-    loadFromSheet().then(() => {
-        loadAgentData();
-        populateAgentFilter();
-        generateBinderNumber();
+    UIBAuth.signIn(email, password).then((user) => {
+        const remember = document.getElementById('rememberAgentEmail')?.checked;
+        if (remember) localStorage.setItem('rememberedAgentEmail', email); else localStorage.removeItem('rememberedAgentEmail');
+        document.getElementById('agentLoginPassword').value = '';
+        if (user.role === 'admin') { enterAdmin(); return; }
+        showAgentSection(user.name);
+        loadFromSheet().then(() => {
+            loadAgentData();
+            populateAgentFilter();
+            generateBinderNumber();
+        });
+    }).catch((err) => {
+        const m = String(err && err.message || '');
+        showErr(/invalid|credentials/i.test(m) ? 'Incorrect email or password. Please try again.' : m || 'Sign-in failed. Please try again.');
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.orig || 'Sign In'; refreshIcons(); }
     });
+}
+
+// Forgot password: Supabase emails a reset link to the address on the account.
+function sendPasswordReset() {
+    const email = (document.getElementById('agentLoginEmail')?.value || '').trim().toLowerCase();
+    const errEl = document.getElementById('agentLoginError');
+    if (!email) { errEl.textContent = 'Type your email address first, then press Forgot password.'; errEl.style.display = 'block'; return; }
+    UIBAuth.resetPasswordEmail(email).then(() => {
+        errEl.style.background = '#ecfdf5'; errEl.style.color = '#065f46'; errEl.style.borderColor = '#6ee7b7';
+        errEl.textContent = 'If that address has an account, a reset link is on its way.'; errEl.style.display = 'block';
+    }).catch((err) => { errEl.textContent = err.message || 'Could not send the reset email.'; errEl.style.display = 'block'; });
+}
+
+// Signed-in user changes their own password (user menu).
+async function changeMyPassword() {
+    if (!window.UIBAuth || !UIBAuth.isSignedIn()) { alert('Sign in first.'); return; }
+    const p1 = prompt('New password (at least 10 characters):');
+    if (p1 == null) return;
+    if (p1.length < 10) { alert('Use at least 10 characters.'); return; }
+    const p2 = prompt('Type the new password again:');
+    if (p1 !== p2) { alert('The passwords do not match.'); return; }
+    try { await UIBAuth.changePassword(p1); alert('Password changed.'); }
+    catch (e) { alert('Could not change password: ' + (e.message || e)); }
+}
+
+function enterAdmin() {
+    currentUser = 'Admin';
+    currentRole = 'admin';
+    try { sessionStorage.setItem('uibCurrentUser', 'Admin'); } catch (e) {}
+    closeAdminLoginModal();
+    showSection('adminSection');
+    loadFromSheet().then(() => loadAdminDashboard());
 }
 
 // ── Credential Manager (Admin) ─────────────────────────────────
@@ -978,76 +995,21 @@ function closeCredentialManager() {
 }
 
 function renderCredentialList() {
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const container   = document.getElementById('credentialList');
-
-    container.innerHTML = AGENTS.map(agent => {
-        const cred = credentials[agent] || { email: '', password: '' };
-        return `
-        <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:12px;">
-            <div style="font-weight:700;color:var(--navy);margin-bottom:10px;font-size:14px;"><i data-lucide="user"></i> ${agent}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Email (username)</label>
-                    <input type="email" id="cred_email_${agent.replace(/\s+/g,'_')}"
-                        value="${cred.email || ''}" placeholder="agent@email.com"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Password</label>
-                    <input type="text" id="cred_pass_${agent.replace(/\s+/g,'_')}"
-                        value="${cred.password || ''}" placeholder="Enter password"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-            </div>
-            <button class="btn-primary btn-sm" onclick="saveAgentCredential('${agent}')"><i data-lucide="save"></i> Save</button>
-        </div>`;
-    }).join('');
-    refreshIcons();
+    const container = document.getElementById('credentialList');
+    if (!container) return;
+    container.innerHTML = `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px 18px;color:#3730a3;font-size:14px;line-height:1.5;">
+        <b>Logins are managed in Supabase Auth.</b> Agent accounts, passwords and admin rights are created and reset in the
+        Supabase dashboard (Authentication ▸ Users) or with <code>scripts/create_auth_users.mjs</code>. Passwords are never stored in the app.
+        Each agent can change their own password from the user menu.</div>`;
 }
 
 function renderCredentialListPage() {
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const container   = document.getElementById('credentialListPage');
+    const container = document.getElementById('credentialListPage');
     if (!container) return;
-
-    // Get all agents — include extras added via "Add Agent Credential"
-    const allAgents = Array.from(new Set([...AGENTS, ...Object.keys(credentials)]));
-
-    container.innerHTML = allAgents.map(agent => {
-        const cred = credentials[agent] || { email: '', password: '' };
-        const key  = agent.replace(/\s+/g, '_');
-        return `
-        <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <span style="font-weight:700;color:var(--navy);font-size:14px;"><i data-lucide="user"></i> ${agent}</span>
-                <span id="cred_status_${key}" style="font-size:12px;color:var(--success);font-weight:600;opacity:0;transition:opacity .3s;">✓ Saved</span>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Email (username)</label>
-                    <input type="email" id="page_cred_email_${key}"
-                        value="${cred.email || ''}" placeholder="agent@email.com"
-                        oninput="autoSaveCredential('${agent}')"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Password</label>
-                    <input type="text" id="page_cred_pass_${key}"
-                        value="${cred.password || ''}" placeholder="Enter password"
-                        oninput="autoSaveCredential('${agent}')"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-    refreshIcons();
-
-    // Always push current credentials to Drive when the page opens —
-    // ensures Drive stays in sync even if no field is changed.
-    if (Object.keys(credentials).length > 0) {
-        driveSet('agentCredentials', credentials);
-    }
+    container.innerHTML = `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px 18px;color:#3730a3;font-size:14px;line-height:1.5;">
+        <b>Logins are managed in Supabase Auth.</b> Agent accounts, passwords and admin rights are created and reset in the
+        Supabase dashboard (Authentication ▸ Users) or with <code>scripts/create_auth_users.mjs</code>. Passwords are never stored in the app.
+        Each agent can change their own password from the user menu.</div>`;
 }
 
 function autoSaveCredential(agent) {
@@ -1195,15 +1157,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btnOrigHTML = loginBtn ? loginBtn.innerHTML : '';
         if (loginBtn) { loginBtn.disabled = true; loginBtn.innerHTML = 'Loading…'; }
 
-        try {
-            const timeout  = new Promise(res => setTimeout(() => res(null), 4000));
-            const driveData = await Promise.race([driveGet('agentCredentials'), timeout]);
-            if (driveData && typeof driveData === 'object' && Object.keys(driveData).length > 0) {
-                _origSetItem('agentCredentials', JSON.stringify(driveData));
-                initializeCredentials(); // re-run so any new agents are added
-                initializeAgentButtons();
-            }
-        } catch(e) { /* Drive unavailable — use whatever is already local */ }
+        // Logins are checked by Supabase Auth; nothing to download first.
 
         if (loginBtn) { loginBtn.disabled = false; loginBtn.innerHTML = btnOrigHTML; refreshIcons(); }
 
@@ -1340,33 +1294,20 @@ function closeAgentLoginModal() {
 }
 
 document.getElementById('agentLoginForm')?.addEventListener('submit', (e) => {
+    // Legacy modal: logins now go through the email form on the login screen.
     e.preventDefault();
-    const agent = document.getElementById('selectedAgent').value;
-    const password = document.getElementById('agentPassword').value;
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials'));
-
-    const storedPass = typeof credentials[agent] === 'object' ? credentials[agent]?.password : credentials[agent];
-    if (storedPass === password) {
-        closeAgentLoginModal();
-        showAgentSection(agent);
-        loadFromSheet().then(() => {
-            loadAgentData();
-            populateAgentFilter();
-            generateBinderNumber();
-        });
-    } else {
-        alert('Incorrect password');
-        document.getElementById('agentPassword').value = '';
-        document.getElementById('agentPassword').focus();
-    }
+    closeAgentLoginModal();
+    showSection('loginSection');
+    document.getElementById('agentLoginEmail')?.focus();
 });
 
 function showAgentSection(agent) {
     currentUser = agent;
     currentRole = 'agent';
-    // Persist across browser sessions so the agent stays signed in on this
-    // device until they hit Logout (not just for the current tab/session).
-    try { localStorage.setItem('uibCurrentUser', agent); } catch (e) {}
+    // Per-tab marker only; the real session is the Supabase Auth token in
+    // sessionStorage (see uib-auth.js). Nothing about the login persists on
+    // the device after the tab closes or 30 idle minutes pass.
+    try { sessionStorage.setItem('uibCurrentUser', agent); localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('agentSection');
     document.getElementById('userDisplay').textContent = `👤 Agent: ${agent}`;
     document.getElementById('agentForm').reset();
@@ -1506,24 +1447,28 @@ function closeAdminLoginModal() {
 
 document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
+    const email    = (document.getElementById('adminEmail')?.value || '').trim().toLowerCase();
     const password = document.getElementById('adminPassword').value;
-    if (password === 'admin123') {
-        currentUser = 'Admin';
-        currentRole = 'admin';
-        try { localStorage.setItem('uibCurrentUser', 'Admin'); } catch (e) {}
-        closeAdminLoginModal();
-        showSection('adminSection');
-        loadFromSheet().then(() => loadAdminDashboard());
-    } else {
-        alert('Incorrect password');
+    if (!window.UIBAuth) { alert('Sign-in is unavailable: uib-auth.js did not load.'); return; }
+    UIBAuth.signIn(email, password).then((user) => {
+        document.getElementById('adminPassword').value = '';
+        if (user.role !== 'admin') {
+            UIBAuth.signOut();
+            alert('This account is not an administrator.');
+            return;
+        }
+        enterAdmin();
+    }).catch((err) => {
+        alert(/invalid|credentials/i.test(String(err.message)) ? 'Incorrect email or password' : (err.message || 'Sign-in failed'));
         document.getElementById('adminPassword').value = '';
         document.getElementById('adminPassword').focus();
-    }
+    });
 });
 
 function logout() {
     currentUser = null;
     currentRole = null;
+    if (window.UIBAuth) UIBAuth.signOut();
     // Clear the session markers so we don't auto-restore straight back in.
     try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {}
     try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
@@ -1552,11 +1497,13 @@ function restoreSessionFromStorage() {
     // real dashboard element (#agentTable) that only exists on index.html.
     if (!document.getElementById('loginSection') || !document.getElementById('agentTable')) return false;
 
-    // Prefer the persistent copy (localStorage) so the agent stays signed in
-    // across browser restarts; fall back to the per-tab sessionStorage copy.
-    let savedUser = null;
-    try { savedUser = localStorage.getItem('uibCurrentUser') || sessionStorage.getItem('uibCurrentUser'); } catch (e) { return false; }
-    if (!savedUser) return false;
+    // Only a live Supabase Auth session counts. The old localStorage marker
+    // is ignored (and cleared) so a shared device never opens signed in.
+    try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
+    const authUser = (window.UIBAuth && UIBAuth.user()) || null;
+    if (!authUser) { try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {} return false; }
+    const savedUser = authUser.role === 'admin' ? 'Admin' : authUser.name;
+    try { sessionStorage.setItem('uibCurrentUser', savedUser); } catch (e) {}
 
     if (savedUser === 'Admin') {
         currentUser = 'Admin';
@@ -4977,24 +4924,12 @@ function closePasswordManagementModal() {
 }
 
 function loadPasswordManagementTable() {
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const tbody = document.getElementById('passwordTable');
-
-    tbody.innerHTML = getAllAgents().map(agent => {
-        // Support both old flat-string format and new {email, password} format
-        const cred = credentials[agent];
-        const pw   = typeof cred === 'object' ? (cred?.password || '') : (cred || '');
-        return `
-        <tr>
-            <td>${agent}</td>
-            <td>
-                <input type="password" value="${pw}" id="pwd_${agent}" class="password-input">
-            </td>
-            <td>
-                <button class="btn-success btn-sm" onclick="updateAgentPassword('${agent}')">Update</button>
-            </td>
-        </tr>`;
-    }).join('');
+    const container = document.getElementById('passwordTable');
+    if (!container) return;
+    container.innerHTML = `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px 18px;color:#3730a3;font-size:14px;line-height:1.5;">
+        <b>Logins are managed in Supabase Auth.</b> Agent accounts, passwords and admin rights are created and reset in the
+        Supabase dashboard (Authentication ▸ Users) or with <code>scripts/create_auth_users.mjs</code>. Passwords are never stored in the app.
+        Each agent can change their own password from the user menu.</div>`;
 }
 
 function updateAgentPassword(agent) {
@@ -13238,7 +13173,7 @@ function claudeRenewalImportAll(setIdx) {
 // delete a policy that is already there.
 // ============================================================
 const SAFETY_KEYS = ['binderData', 'binderDeletedIds', 'commissionData', 'carrierMasterData',
-                     'prospectData', 'agentMasterData', 'agentCredentials', 'amsClientData',
+                     'prospectData', 'agentMasterData', 'amsClientData',
                      'commissionStatements', 'verificationLogs'];
 
 function _safetyLocal(key) {

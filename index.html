@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20260914a"></script>
+    <script src="uib-auth.js?v=20261013d"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -821,6 +822,7 @@
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;">
                                 <input type="checkbox" id="rememberAgentEmail" style="width:16px;height:16px;accent-color:#1d4ed8;cursor:pointer;">
                                 <label for="rememberAgentEmail" style="font-size:13px;color:#6b7280;cursor:pointer;margin:0;user-select:none;">Remember my email</label>
+                                <a href="#" onclick="sendPasswordReset();return false;" style="margin-left:auto;font-size:13px;color:#1d4ed8;font-weight:600;text-decoration:none;">Forgot password?</a>
                             </div>
                             <button id="loginSignInBtn" type="submit" style="width:100%;padding:14px;font-size:15px;font-weight:700;background:linear-gradient(135deg,#1d4ed8,#1e40af);color:#fff;border:none;border-radius:12px;cursor:pointer;transition:all .2s;box-shadow:0 4px 14px rgba(29,78,216,.4);"
                                 onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(29,78,216,.5)'"
@@ -1449,7 +1451,8 @@
                         <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
                         <button class="btn-sm" onclick="openNewProspectModal()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="user-plus"></i> New Prospect</button>
                     </div>
-                    <button class="btn-danger btn-sm nav-logout" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
+                    <button class="btn-secondary btn-sm" onclick="changeMyPassword()" title="Change my password" style="margin-left:auto;"><i data-lucide="key-round"></i> Password</button>
+                    <button class="btn-danger btn-sm nav-logout" onclick="logout()" style="margin-left:0;"><i data-lucide="log-out"></i> Logout</button>
                     <div class="nav-groups">
                         <div class="nav-group">
                             <span class="nav-group-label"><i data-lucide="wrench"></i> Tools</span>
@@ -3125,8 +3128,12 @@
             <h3><i data-lucide="shield"></i> Admin Login</h3>
             <form id="adminLoginForm">
                 <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Admin Email</label>
+                    <input type="email" id="adminEmail" placeholder="admin@email.com" autocomplete="username" autofocus>
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
                     <label>Password</label>
-                    <input type="password" id="adminPassword" placeholder="Enter admin password" autofocus>
+                    <input type="password" id="adminPassword" placeholder="Enter admin password" autocomplete="current-password">
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeAdminLoginModal()">Cancel</button>
@@ -3896,8 +3903,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261006g"></script>
-    <script src="supabase.js?v=20260916a"></script>
+    <script src="app.js?v=20261013a"></script>
+    <script src="supabase.js?v=20261013a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>

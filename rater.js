@@ -1303,30 +1303,27 @@
     // ────────────────────────────────────────────────────────────
     //  Sign-in (same credentials as the Binder Book)
     // ────────────────────────────────────────────────────────────
-    function credentials() { return load('agentCredentials', null); }
-    function agentNames() { const c = credentials(); return c && typeof c === 'object' ? Object.keys(c).sort() : []; }
     function showLogin() {
         $('loginGate').style.display = ''; $('app').style.display = 'none';
-        const names = agentNames();
-        const sel = $('loginAgent');
-        sel.innerHTML = names.length ? names.map((n) => '<option>' + esc(n) + '</option>').join('') : '<option value="">(loading agents…)</option>';
-        try { const r = localStorage.getItem('rememberedAgentEmail'); if (r && names.includes(r)) sel.value = r; } catch (e) {}
-        $('loginMsg').innerHTML = names.length ? '' : 'Agent list not on this device yet. It downloads automatically from the cloud the first time — if this stays empty, sign in on the Binder Book once, then come back.';
-        if (!names.length) { let tries = 0; const t = setInterval(() => { tries++; const n = agentNames(); if (n.length) { clearInterval(t); showLogin(); } else if (tries > 20) clearInterval(t); }, 1500); }
+        try { const r = localStorage.getItem('rememberedAgentEmail'); if (r) $('loginEmail').value = r; } catch (e) {}
+        $('loginMsg').innerHTML = '';
         refreshIcons();
     }
     function login() {
-        const agent = $('loginAgent').value; const pass = $('loginPassword').value;
-        const creds = credentials();
-        if (!agent || !creds) { $('loginMsg').innerHTML = '<span style="color:var(--red)">Agent list not loaded yet.</span>'; return; }
-        const stored = typeof creds[agent] === 'object' ? (creds[agent] && creds[agent].password) : creds[agent];
-        if (stored !== pass) { $('loginMsg').innerHTML = '<span style="color:var(--red)">Incorrect password.</span>'; $('loginPassword').value = ''; return; }
-        try { localStorage.setItem('uibCurrentUser', agent); sessionStorage.setItem('uibCurrentUser', agent); } catch (e) {}
-        currentUser = agent;
-        boot();
+        const email = ($('loginEmail').value || '').trim().toLowerCase(); const pass = $('loginPassword').value;
+        if (!window.UIBAuth) { $('loginMsg').innerHTML = '<span style="color:var(--red)">Sign-in is unavailable.</span>'; return; }
+        UIBAuth.signIn(email, pass).then((user) => {
+            $('loginPassword').value = '';
+            currentUser = user.role === 'admin' ? 'Admin' : user.name;
+            boot();
+        }).catch((err) => {
+            $('loginMsg').innerHTML = '<span style="color:var(--red)">' + esc(/invalid|credentials/i.test(String(err.message)) ? 'Incorrect email or password.' : (err.message || 'Sign-in failed.')) + '</span>';
+            $('loginPassword').value = '';
+        });
     }
     function signedInUser() {
-        try { return localStorage.getItem('uibCurrentUser') || sessionStorage.getItem('uibCurrentUser') || ''; } catch (e) { return ''; }
+        const u = (window.UIBAuth && UIBAuth.user()) || null;
+        return u ? (u.role === 'admin' ? 'Admin' : u.name) : '';
     }
 
     // ────────────────────────────────────────────────────────────
