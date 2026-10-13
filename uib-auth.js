@@ -57,9 +57,10 @@
         const meta = (user && user.user_metadata) || {};
         const app = (user && user.app_metadata) || {};
         const email = (user && user.email) || '';
-        const name = meta.agent_name || meta.full_name || meta.name || nameFromRoster(email) || '';
+        const onAccount = meta.agent_name || meta.full_name || meta.name || '';
+        const name = onAccount || nameFromRoster(email) || '';
         const role = app.role === 'admin' || meta.role === 'admin' ? 'admin' : 'agent';
-        return { id: user && user.id, email: email, name: name, role: role };
+        return { id: user && user.id, email: email, name: name, role: role, onAccount: !!onAccount };
     }
 
     function storeTokens(tok) {
@@ -121,10 +122,10 @@
     async function signIn(email, password) {
         const tok = await authPost('token?grant_type=password', { email: String(email || '').trim().toLowerCase(), password: password });
         const user = storeTokens(tok);
-        if (!user.name) {
-            // Not on the account yet: match the email against Agent Management,
-            // first on this device, then in the cloud, and remember it.
-            const name = matchEmail(await rosterFromCloud(tok.access_token), user.email);
+        if (!user.onAccount) {
+            // Not on the account yet: match the email against Agent Management
+            // (this device first, then the cloud) and remember it on the account.
+            const name = user.name || matchEmail(await rosterFromCloud(tok.access_token), user.email);
             if (name) {
                 user.name = name;
                 const s = readSession(); if (s) { s.user = user; writeSession(s); }
