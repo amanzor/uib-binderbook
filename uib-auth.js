@@ -91,10 +91,47 @@
     }
 
     // ── Public API ─────────────────────────────────────────────
+    // Agent Management roster from the cloud (needs the signed-in token), for
+    // a device that has not synced yet.
+    async function rosterFromCloud(accessToken) {
+        try {
+            const res = await _fetch(SUPABASE_URL + '/rest/v1/app_store?select=value&key=eq.agentMasterData', { headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + accessToken } });
+            if (!res.ok) return {};
+            const rows = await res.json();
+            const v = rows[0] && rows[0].value;
+            return (v && typeof v === 'object') ? (Array.isArray(v) ? {} : v) : {};
+        } catch (e) { return {}; }
+    }
+    function matchEmail(master, email) {
+        const e = String(email || '').trim().toLowerCase();
+        for (const name of Object.keys(master || {})) {
+            const rec = master[name] || {};
+            if (String(rec.email || '').trim().toLowerCase() === e) return name;
+        }
+        return '';
+    }
+    // Write the matched name onto the account so every later sign-in, on any
+    // device, already knows who this is.
+    async function saveAgentName(accessToken, name) {
+        try {
+            await _fetch(SUPABASE_URL + '/auth/v1/user', { method: 'PUT', headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ data: { agent_name: name } }) });
+        } catch (e) {}
+    }
+
     async function signIn(email, password) {
         const tok = await authPost('token?grant_type=password', { email: String(email || '').trim().toLowerCase(), password: password });
         const user = storeTokens(tok);
-        if (!user.name && user.role !== 'admin') { clearSession(); throw new Error('This account is not linked to an agent. An admin must set agent_name on it in Supabase (Authentication ▸ Users ▸ User Metadata) or add this email to the agent in Agent Management.'); }
+        if (!user.name) {
+            // Not on the account yet: match the email against Agent Management,
+            // first on this device, then in the cloud, and remember it.
+            const name = matchEmail(await rosterFromCloud(tok.access_token), user.email);
+            if (name) {
+                user.name = name;
+                const s = readSession(); if (s) { s.user = user; writeSession(s); }
+                saveAgentName(tok.access_token, name);
+            }
+        }
+        if (!user.name && user.role !== 'admin') { clearSession(); throw new Error('This email is not linked to an agent yet. Add it to that agent in Agent Management (admin), then sign in again.'); }
         if (!user.name) user.name = 'Admin';
         try { sessionStorage.setItem('uibCurrentUser', user.role === 'admin' ? 'Admin' : user.name); } catch (e) {}
         return user;
