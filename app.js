@@ -921,15 +921,18 @@ function submitAgentEmailLogin(e) {
     const errEl    = document.getElementById('agentLoginError');
     const btn      = document.getElementById('loginSignInBtn');
     const showErr  = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
-    if (!window.UIBAuth) { showErr('Sign-in is unavailable: uib-auth.js did not load.'); return; }
+    if (!window.UIBAuth || !window.UIBMfa) { showErr('Sign-in is unavailable: the sign-in scripts did not load.'); return; }
     errEl.style.display = 'none';
     if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.textContent = 'Signing in…'; }
 
-    UIBAuth.signIn(email, password).then((user) => {
+    UIBMfa.signIn(email, password, document.getElementById('agentEmailLoginForm')).then((user) => {
         const remember = document.getElementById('rememberAgentEmail')?.checked;
         if (remember) localStorage.setItem('rememberedAgentEmail', email); else localStorage.removeItem('rememberedAgentEmail');
         document.getElementById('agentLoginPassword').value = '';
-        if (user.role === 'admin') { enterAdmin(); return; }
+        // An administrator whose email is on an agent record lands on their own
+        // agent dashboard (with admin visibility); the Admin Access button is
+        // the way into the admin console.
+        if (user.role === 'admin' && (!user.name || user.name === 'Admin')) { enterAdmin(); return; }
         showAgentSection(user.name);
         loadFromSheet().then(() => {
             loadAgentData();
@@ -1003,13 +1006,75 @@ function renderCredentialList() {
         Each agent can change their own password from the user menu.</div>`;
 }
 
-function renderCredentialListPage() {
+// ── Login accounts (Supabase Auth), managed through the admin-users function ──
+const ADMIN_USERS_FN = SUPABASE_URL + '/functions/v1/admin-users';
+async function _adminUsers(action, extra) {
+    const res = await fetch(ADMIN_USERS_FN, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ action }, extra || {}))
+    });
+    let data = null; try { data = await res.json(); } catch (e) {}
+    if (res.status === 404) throw new Error('The admin-users function is not deployed yet. In Supabase ▸ Edge Functions, deploy supabase/functions/admin-users/index.ts as "admin-users".');
+    if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || ('HTTP ' + res.status));
+    return data;
+}
+const _esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function renderCredentialListPage() {
     const container = document.getElementById('credentialListPage');
     if (!container) return;
-    container.innerHTML = `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px 18px;color:#3730a3;font-size:14px;line-height:1.5;">
-        <b>Logins are managed in Supabase Auth.</b> Agent accounts, passwords and admin rights are created and reset in the
-        Supabase dashboard (Authentication ▸ Users) or with <code>scripts/create_auth_users.mjs</code>. Passwords are never stored in the app.
-        Each agent can change their own password from the user menu.</div>`;
+    container.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading accounts…</div>';
+    let users = [];
+    try { users = (await _adminUsers('list')).users || []; }
+    catch (e) {
+        container.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 18px;color:#991b1b;font-size:14px;line-height:1.5;"><b>Could not load accounts.</b> ${_esc(e.message || e)}</div>`;
+        return;
+    }
+    const agents = getAllAgents();
+    const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
+    const byEmail = {}; Object.keys(master).forEach((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); if (em) byEmail[em] = n; });
+    const missing = agents.filter((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); return !users.some((u) => String(u.email).toLowerCase() === em || u.agent_name === n); });
+    const fmt = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
+    const rows = users.map((u) => {
+        const linked = u.agent_name || byEmail[String(u.email).toLowerCase()] || '';
+        const opts = ['<option value="">— not linked —</option>'].concat(agents.map((n) => `<option value="${_esc(n)}"${n === linked ? ' selected' : ''}>${_esc(n)}</option>`)).join('');
+        return `<tr>
+            <td style="font-weight:600;">${_esc(u.email)}${u.confirmed ? '' : ' <span style="font-size:11px;color:#b45309;font-weight:700;">(unconfirmed)</span>'}</td>
+            <td><select onchange="credSetName('${_esc(u.id)}', this.value)" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;">${opts}</select></td>
+            <td><select onchange="credSetRole('${_esc(u.id)}', this.value)" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;"><option value="agent"${u.role === 'agent' ? ' selected' : ''}>Agent</option><option value="admin"${u.role === 'admin' ? ' selected' : ''}>Admin</option></select></td>
+            <td style="font-size:12px;color:var(--gray-500);">${fmt(u.last_sign_in_at)}</td>
+            <td style="font-size:12px;">${u.mfa ? '<span style="color:#166534;font-weight:700;">✓ on</span>' : '<span style="color:#b45309;">not set up</span>'}</td>
+            <td style="white-space:nowrap;">
+                <button class="btn-primary btn-xs btn-sm" onclick="credSetPassword('${_esc(u.id)}','${_esc(u.email)}')">Reset password</button>
+                ${u.mfa ? `<button class="btn-secondary btn-sm" onclick="credClearMfa('${_esc(u.id)}','${_esc(u.email)}')">Clear 2-step</button>` : ''}
+                <button class="btn-danger btn-sm" onclick="credDelete('${_esc(u.id)}','${_esc(u.email)}')">Delete</button>
+            </td></tr>`;
+    }).join('');
+    container.innerHTML = `
+        ${missing.length ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;color:#92400e;font-size:13px;margin-bottom:14px;"><b>No login yet:</b> ${missing.map(_esc).join(', ')}. Press <b>Add Agent Credential</b> to create one.</div>` : ''}
+        <div class="table-container"><table style="width:100%;">
+            <thead><tr><th>Email (login)</th><th>Agent</th><th>Role</th><th>Last sign-in</th><th>2-step</th><th>Actions</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6" class="no-data">No accounts yet. Press Add Agent Credential.</td></tr>'}</tbody>
+        </table></div>
+        <p style="font-size:12px;color:var(--gray-500);margin-top:12px;">Passwords are never shown or stored in the app. Give the agent the password you set, and ask them to change it with the Password button once they are in.</p>`;
+    refreshIcons();
+}
+async function credSetName(id, name) { try { await _adminUsers('setName', { id, agent_name: name }); } catch (e) { alert(e.message || e); } }
+async function credSetRole(id, role) { try { await _adminUsers('setRole', { id, role }); } catch (e) { alert(e.message || e); renderCredentialListPage(); } }
+async function credSetPassword(id, email) {
+    const p1 = prompt('New password for ' + email + ' (at least 10 characters):'); if (p1 == null) return;
+    if (p1.length < 10) { alert('Use at least 10 characters.'); return; }
+    try { await _adminUsers('setPassword', { id, password: p1 }); alert('Password set. Give it to the agent; they can change it after signing in.'); }
+    catch (e) { alert(e.message || e); }
+}
+async function credClearMfa(id, email) {
+    if (!confirm('Clear 2-step verification for ' + email + '? They will set up a new authenticator on their next sign-in.')) return;
+    try { await _adminUsers('clearMfa', { id }); renderCredentialListPage(); } catch (e) { alert(e.message || e); }
+}
+async function credDelete(id, email) {
+    if (!confirm('Delete the login for ' + email + '? Their entries stay in the book; only the sign-in is removed.')) return;
+    try { await _adminUsers('delete', { id }); renderCredentialListPage(); } catch (e) { alert(e.message || e); }
 }
 
 function autoSaveCredential(agent) {
@@ -1034,7 +1099,11 @@ function autoSaveCredential(agent) {
 function openAddCredentialModal() {
     const m = document.getElementById('addCredentialModal');
     m.classList.add('active');
-    document.getElementById('newCredAgent').value = '';
+    // Agent picker from the roster; email prefills from the agent's record.
+    const sel = document.getElementById('newCredAgent');
+    const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
+    sel.innerHTML = '<option value="">— Select agent —</option>' + getAllAgents().map((n) => `<option value="${_esc(n)}" data-email="${_esc((master[n] && master[n].email) || '')}">${_esc(n)}</option>`).join('');
+    sel.onchange = () => { const o = sel.options[sel.selectedIndex]; const em = o && o.dataset.email; if (em) document.getElementById('newCredEmail').value = em; };
     document.getElementById('newCredEmail').value = '';
     document.getElementById('newCredPassword').value = '';
     if (window.UIBMotion) UIBMotion.animateModalOpen(m);
@@ -1045,25 +1114,24 @@ function closeAddCredentialModal() {
     document.getElementById('addCredentialModal').classList.remove('active');
 }
 
-function submitAddCredential(e) {
+async function submitAddCredential(e) {
     e.preventDefault();
     const agent = document.getElementById('newCredAgent').value.trim();
-    const email = document.getElementById('newCredEmail').value.trim();
-    const pass  = document.getElementById('newCredPassword').value.trim();
-
-    if (!agent || !email || !pass) {
-        alert('Please fill in all fields.');
-        return;
-    }
-
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    credentials[agent] = { email, password: pass };
-    localStorage.setItem('agentCredentials', JSON.stringify(credentials));
-    driveSet('agentCredentials', credentials);
-
-    closeAddCredentialModal();
-    renderCredentialListPage();
-    refreshIcons();
+    const email = document.getElementById('newCredEmail').value.trim().toLowerCase();
+    const pass  = document.getElementById('newCredPassword').value;
+    const role  = document.getElementById('newCredRole') ? document.getElementById('newCredRole').value : 'agent';
+    if (!agent || !email || !pass) { alert('Pick the agent and fill in the email and password.'); return; }
+    if (pass.length < 10) { alert('Use a password of at least 10 characters.'); return; }
+    const btn = e.target.querySelector('button[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+    try {
+        await _adminUsers('create', { email, password: pass, agent_name: agent, role });
+        // Keep the roster's email in step so the match works everywhere.
+        try { const master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; if (master[agent] && master[agent].email !== email) { master[agent].email = email; localStorage.setItem('agentMasterData', JSON.stringify(master)); } } catch (err) {}
+        closeAddCredentialModal();
+        renderCredentialListPage();
+        alert('Login created for ' + agent + '. Give them the email and password; they can change the password after signing in.');
+    } catch (err) { alert(err.message || err); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="save"></i> Save'; refreshIcons(); } }
 }
 
 function saveAgentCredential(agent) {
@@ -1450,7 +1518,7 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
     const email    = (document.getElementById('adminEmail')?.value || '').trim().toLowerCase();
     const password = document.getElementById('adminPassword').value;
     if (!window.UIBAuth) { alert('Sign-in is unavailable: uib-auth.js did not load.'); return; }
-    UIBAuth.signIn(email, password).then((user) => {
+    UIBMfa.signIn(email, password, document.getElementById('adminLoginForm')).then((user) => {
         document.getElementById('adminPassword').value = '';
         if (user.role !== 'admin') {
             UIBAuth.signOut();
@@ -1502,7 +1570,9 @@ function restoreSessionFromStorage() {
     try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     const authUser = (window.UIBAuth && UIBAuth.user()) || null;
     if (!authUser) { try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {} return false; }
-    const savedUser = authUser.role === 'admin' ? 'Admin' : authUser.name;
+    // Keep whichever view this tab was in (agent dashboard or admin console).
+    let savedUser = null; try { savedUser = sessionStorage.getItem('uibCurrentUser'); } catch (e) {}
+    if (!savedUser) savedUser = (authUser.role === 'admin' && (!authUser.name || authUser.name === 'Admin')) ? 'Admin' : authUser.name;
     try { sessionStorage.setItem('uibCurrentUser', savedUser); } catch (e) {}
 
     if (savedUser === 'Admin') {
@@ -4055,7 +4125,9 @@ function _agentDefaultMonth() {
 // submissions (extra Agent filter + Agent column). Editing and deleting
 // still applies only to their own entries.
 const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano'];
-function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser); }
+// Agent-admins see every agent's entries: the named list, plus any account
+// Supabase marks as an administrator.
+function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser) || !!(window.UIBAuth && UIBAuth.isAdmin()); }
 
 // The entries the current user is allowed to SEE (before UI filters).
 function _agentVisibleEntries() {

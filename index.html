@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20260914a"></script>
-    <script src="uib-auth.js?v=20261013d"></script>
+    <script src="uib-auth.js?v=20261013g"></script>
+    <script src="uib-mfa.js?v=20261013e"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -800,7 +801,7 @@
                         <div id="agentLoginError" style="display:none;background:#fef2f2;color:#991b1b;padding:10px 14px;border-radius:10px;margin-bottom:16px;font-size:14px;font-weight:600;border:1px solid #fca5a5;"></div>
 
                         <!-- Login Form -->
-                        <form onsubmit="submitAgentEmailLogin(event)">
+                        <form onsubmit="submitAgentEmailLogin(event)" data-uib-login id="agentEmailLoginForm">
                             <div style="margin-bottom:16px;">
                                 <label style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:6px;">Email Address</label>
                                 <input type="email" id="agentLoginEmail" placeholder="Enter your email" required
@@ -1451,7 +1452,8 @@
                         <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
                         <button class="btn-sm" onclick="openNewProspectModal()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="user-plus"></i> New Prospect</button>
                     </div>
-                    <button class="btn-secondary btn-sm" onclick="changeMyPassword()" title="Change my password" style="margin-left:auto;"><i data-lucide="key-round"></i> Password</button>
+                    <button class="btn-secondary btn-sm" onclick="UIBMfa.manage()" title="Set up or replace your authenticator app" style="margin-left:auto;"><i data-lucide="shield-check"></i> 2-Step</button>
+                    <button class="btn-secondary btn-sm" onclick="changeMyPassword()" title="Change my password"><i data-lucide="key-round"></i> Password</button>
                     <button class="btn-danger btn-sm nav-logout" onclick="logout()" style="margin-left:0;"><i data-lucide="log-out"></i> Logout</button>
                     <div class="nav-groups">
                         <div class="nav-group">
@@ -2195,7 +2197,7 @@
                     <button class="btn-success btn-sm" onclick="openAddCredentialModal()"><i data-lucide="user-plus"></i> Add Agent Credential</button>
                 </div>
                 <div style="max-width:680px; margin:24px auto 0;">
-                    <p style="font-size:13px; color:var(--gray-500); margin-bottom:20px;">Set the email address and password each agent uses to log in via the Agent Login button.</p>
+                    <p style="font-size:13px; color:var(--gray-500); margin-bottom:20px;">Each agent signs in with the email and password set here. Accounts are created in Supabase Auth; the app never stores passwords.</p>
                     <div id="credentialListPage"></div>
                 </div>
             </div>
@@ -2209,9 +2211,8 @@
                     </div>
                     <form onsubmit="submitAddCredential(event)">
                         <div class="form-group" style="margin-bottom:14px;">
-                            <label>Agent Name</label>
-                            <input type="text" id="newCredAgent" placeholder="Full name" required
-                                style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
+                            <label>Agent</label>
+                            <select id="newCredAgent" required style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"></select>
                         </div>
                         <div class="form-group" style="margin-bottom:14px;">
                             <label>Email Address</label>
@@ -2219,9 +2220,13 @@
                                 style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
                         </div>
                         <div class="form-group" style="margin-bottom:20px;">
-                            <label>Password</label>
-                            <input type="text" id="newCredPassword" placeholder="Enter password" required
+                            <label>Temporary password (10+ characters)</label>
+                            <input type="text" id="newCredPassword" placeholder="Enter password" required minlength="10" autocomplete="off"
                                 style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:20px;">
+                            <label>Role</label>
+                            <select id="newCredRole" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"><option value="agent">Agent</option><option value="admin">Admin</option></select>
                         </div>
                         <div style="display:flex;gap:10px;">
                             <button type="submit" class="btn-success" style="flex:1;padding:11px;"><i data-lucide="save"></i> Save</button>
@@ -3126,7 +3131,7 @@
     <div id="adminLoginModal" class="modal">
         <div class="modal-content">
             <h3><i data-lucide="shield"></i> Admin Login</h3>
-            <form id="adminLoginForm">
+            <form id="adminLoginForm" data-uib-login>
                 <div class="form-group" style="margin-bottom: 15px;">
                     <label>Admin Email</label>
                     <input type="email" id="adminEmail" placeholder="admin@email.com" autocomplete="username" autofocus>
@@ -3903,7 +3908,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261013a"></script>
+    <script src="app.js?v=20261013h"></script>
     <script src="supabase.js?v=20261013a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>

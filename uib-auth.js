@@ -22,6 +22,18 @@
     const SUPABASE_URL = 'https://jgjmobktucyimupelfxd.supabase.co';
     const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
     const SESSION_KEY = 'uibAuthSession';
+    // Human verification (Cloudflare Turnstile). Paste the widget's SITE key
+    // here and enable Turnstile with the SECRET key in Supabase ▸ Authentication
+    // ▸ Attack Protection ▸ Captcha. Leave empty to run without it.
+    const TURNSTILE_SITE_KEY = '';
+    // 2-step verification. false = optional: accounts that have set up an
+    // authenticator (Logout ▸ 2-step) are asked for the code; others sign in
+    // with email + password. Set true to force every account to enroll.
+    const MFA_REQUIRED = false;
+    // Accounts that are always administrators, even before the admin flag is
+    // set on them in Supabase (Authentication ▸ Users ▸ App Metadata
+    // {"role":"admin"}). Keeps the agency from locking itself out.
+    const ADMIN_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com'];
     const IDLE_MS = 30 * 60 * 1000;
     const REFRESH_AHEAD_S = 120;
 
@@ -59,7 +71,7 @@
         const email = (user && user.email) || '';
         const onAccount = meta.agent_name || meta.full_name || meta.name || '';
         const name = onAccount || nameFromRoster(email) || '';
-        const role = app.role === 'admin' || meta.role === 'admin' ? 'admin' : 'agent';
+        const role = (app.role === 'admin' || meta.role === 'admin' || ADMIN_EMAILS.includes(String(email).toLowerCase())) ? 'admin' : 'agent';
         return { id: user && user.id, email: email, name: name, role: role, onAccount: !!onAccount };
     }
 
@@ -72,6 +84,10 @@
             user: profileFrom(tok.user),
             lastActive: Date.now()
         };
+        const prev = readSession();
+        if (prev && prev.pendingMfa) s.pendingMfa = prev.pendingMfa;
+        if (prev && prev.rawUser && !tok.user) s.rawUser = prev.rawUser;
+        if (tok.user) s.rawUser = tok.user;
         writeSession(s);
         return s.user;
     }
@@ -119,9 +135,48 @@
         } catch (e) {}
     }
 
-    async function signIn(email, password) {
-        const tok = await authPost('token?grant_type=password', { email: String(email || '').trim().toLowerCase(), password: password });
+    async function authCall(method, path, body, accessToken) {
+        const res = await _fetch(SUPABASE_URL + '/auth/v1/' + path, {
+            method, headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + (accessToken || token() || SUPABASE_ANON), 'Content-Type': 'application/json' },
+            body: body == null ? undefined : JSON.stringify(body)
+        });
+        let data = null; try { data = await res.json(); } catch (e) {}
+        if (!res.ok) { const err = new Error((data && (data.error_description || data.msg || data.message || data.error)) || ('HTTP ' + res.status)); err.status = res.status; throw err; }
+        return data;
+    }
+
+    // ── 2-step verification (TOTP through Supabase Auth MFA) ───
+    async function mfaFactors(accessToken) {
+        const u = await authCall('GET', 'user', null, accessToken);
+        const all = (u && u.factors) || [];
+        return all.filter((f) => f.factor_type === 'totp');
+    }
+    async function mfaEnroll(accessToken) {
+        // Returns { id, totp: { qr_code (SVG data URL), secret, uri } }
+        return authCall('POST', 'factors', { factor_type: 'totp', friendly_name: 'UIB Binder Book ' + new Date().toISOString().slice(0, 10) }, accessToken);
+    }
+    async function mfaVerify(factorId, code, accessToken) {
+        const ch = await authCall('POST', 'factors/' + factorId + '/challenge', {}, accessToken);
+        const tok = await authCall('POST', 'factors/' + factorId + '/verify', { challenge_id: ch.id, code: String(code || '').replace(/\D/g, '') }, accessToken);
+        // A successful verify returns a new session at assurance level 2.
+        if (tok && tok.access_token) return storeTokens(Object.assign({}, tok, { user: tok.user || (readSession() || {}).rawUser }));
+        return user();
+    }
+    async function mfaUnenroll(factorId) {
+        return authCall('DELETE', 'factors/' + factorId, null);
+    }
+    function assuranceLevel() {
+        const t = token(); if (!t) return '';
+        try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).aal || 'aal1'; } catch (e) { return ''; }
+    }
+
+    async function signIn(email, password, opts) {
+        opts = opts || {};
+        const body = { email: String(email || '').trim().toLowerCase(), password: password };
+        if (opts.captchaToken) body.gotrue_meta_security = { captcha_token: opts.captchaToken };
+        const tok = await authPost('token?grant_type=password', body);
         const user = storeTokens(tok);
+        try { const s0 = readSession(); if (s0) { s0.rawUser = tok.user; writeSession(s0); } } catch (e) {}
         if (!user.onAccount) {
             // Not on the account yet: match the email against Agent Management
             // (this device first, then the cloud) and remember it on the account.
@@ -134,8 +189,23 @@
         }
         if (!user.name && user.role !== 'admin') { clearSession(); throw new Error('This email is not linked to an agent yet. Add it to that agent in Agent Management (admin), then sign in again.'); }
         if (!user.name) user.name = 'Admin';
-        try { sessionStorage.setItem('uibCurrentUser', user.role === 'admin' ? 'Admin' : user.name); } catch (e) {}
+
+        // 2-step verification: a verified authenticator means a code is needed
+        // before this session counts; no authenticator means enroll first.
+        const factors = await mfaFactors(tok.access_token).catch(() => []);
+        const verified = factors.find((f) => f.status === 'verified');
+        const s = readSession();
+        if (verified) { if (s) { s.pendingMfa = verified.id; writeSession(s); } return Object.assign({}, user, { mfaRequired: true, factorId: verified.id }); }
+        if (MFA_REQUIRED) { if (s) { s.pendingMfa = 'enroll'; writeSession(s); } return Object.assign({}, user, { enrollRequired: true }); }
+        try { sessionStorage.setItem('uibCurrentUser', (user.role === 'admin' && (!user.name || user.name === 'Admin')) ? 'Admin' : user.name); } catch (e) {}
         return user;
+    }
+    // Called by the page once the code (or enrollment) succeeded.
+    function completeSignIn() {
+        const s = readSession(); if (!s) return null;
+        delete s.pendingMfa; writeSession(s);
+        try { sessionStorage.setItem('uibCurrentUser', (s.user.role === 'admin' && (!s.user.name || s.user.name === 'Admin')) ? 'Admin' : s.user.name); } catch (e) {}
+        return s.user;
     }
 
     async function refresh() {
@@ -186,8 +256,9 @@
     }
 
     function token() { const s = readSession(); return s ? s.access_token : null; }
-    function user() { const s = readSession(); return s ? s.user : null; }
-    function isSignedIn() { return !!token(); }
+    function user() { const s = readSession(); return (s && !s.pendingMfa) ? s.user : null; }
+    function pendingMfa() { const s = readSession(); return s ? (s.pendingMfa || null) : null; }
+    function isSignedIn() { return !!token() && !pendingMfa(); }
     function isAdmin() { const u = user(); return !!(u && u.role === 'admin'); }
 
     // ── Every call to the project carries the user's token ─────
@@ -236,5 +307,5 @@
         }
     });
 
-    window.UIBAuth = { signIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, isSignedIn, isAdmin, SUPABASE_URL, SUPABASE_ANON };
+    window.UIBAuth = { signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
 })();

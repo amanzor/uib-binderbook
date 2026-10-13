@@ -4,7 +4,20 @@ This release moves logins to Supabase Auth and closes the cloud store to
 anyone who is not signed in. Follow the steps **in this order**; doing the
 SQL step before the accounts exist locks everyone out.
 
-## 1. Create the accounts (10 minutes)
+## 1. Create the accounts
+
+### Easiest: from the app
+
+Deploy the login-management function once: Dashboard ▸ Edge Functions ▸
+Deploy a new function ▸ name it exactly `admin-users` ▸ paste
+`supabase/functions/admin-users/index.ts` ▸ Deploy. No secrets to add.
+
+Then sign in as an administrator, open **Manage Login Credentials** and use
+**Add Login** for each agent: pick the agent, type their email and a
+temporary password (10+ characters). The page also shows who has signed in,
+resets passwords, links an account to an agent, clears 2-step and deletes.
+
+### Alternative: script
 
 On your own computer, with Node 18 or newer:
 
