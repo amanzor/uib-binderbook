@@ -30,10 +30,11 @@
     // authenticator (Logout ▸ 2-step) are asked for the code; others sign in
     // with email + password. Set true to force every account to enroll.
     const MFA_REQUIRED = false;
-    // Accounts that are always administrators, even before the admin flag is
-    // set on them in Supabase (Authentication ▸ Users ▸ App Metadata
-    // {"role":"admin"}). Keeps the agency from locking itself out.
-    const ADMIN_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com'];
+    // The only accounts allowed into the admin console: Alberto, Randy and
+    // Amanda. An account can also be made admin from Manage Login Credentials
+    // (sets the server-side admin flag); nothing an agent can edit themselves
+    // grants it.
+    const ADMIN_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com', 'randy@universalinsurancebroker.com', 'amanda@universalinsurancebroker.com'];
     const IDLE_MS = 30 * 60 * 1000;
     const REFRESH_AHEAD_S = 120;
 
@@ -71,7 +72,7 @@
         const email = (user && user.email) || '';
         const onAccount = meta.agent_name || meta.full_name || meta.name || '';
         const name = onAccount || nameFromRoster(email) || '';
-        const role = (app.role === 'admin' || meta.role === 'admin' || ADMIN_EMAILS.includes(String(email).toLowerCase())) ? 'admin' : 'agent';
+        const role = (app.role === 'admin' || ADMIN_EMAILS.includes(String(email).toLowerCase())) ? 'admin' : 'agent';
         return { id: user && user.id, email: email, name: name, role: role, onAccount: !!onAccount };
     }
 
