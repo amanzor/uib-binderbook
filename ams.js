@@ -464,7 +464,7 @@ function amsDoLogin() {
         const remember = document.getElementById('amsRememberEmail')?.checked;
         if (remember) localStorage.setItem('amsRememberedEmail', email); else localStorage.removeItem('amsRememberedEmail');
         const pw = document.getElementById('amsLoginPassword'); if (pw) pw.value = '';
-        amsCurrentUser = user.role === 'admin' ? 'Admin' : user.name;
+        amsCurrentUser = (user.name && user.name !== 'Admin') ? user.name : 'Admin';
         amsCurrentRole = user.role;
         amsLaunchApp();
     }).catch((err) => {
@@ -1582,7 +1582,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Already signed in (opened from the Binder Book, or same tab)? Go straight in.
     const authUser = (window.UIBAuth && UIBAuth.user()) || null;
     if (authUser) {
-        amsCurrentUser = authUser.role === 'admin' ? 'Admin' : authUser.name;
+        amsCurrentUser = (authUser.name && authUser.name !== 'Admin') ? authUser.name : 'Admin';
         amsCurrentRole = authUser.role;
         amsLaunchApp();
     }

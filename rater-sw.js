@@ -13,12 +13,12 @@
 //  Bump CACHE whenever the shell files change in a way that
 //  must invalidate old copies.
 // ============================================================
-const CACHE = 'uib-rater-v33';
+const CACHE = 'uib-rater-v34';
 const SHELL = [
   '/rater',
   '/rater.html',
-  '/rater.js?v=20261013a',
-  '/uib-auth.js?v=20261013f',
+  '/rater.js?v=20261013g',
+  '/uib-auth.js?v=20261013g',
   '/uib-mfa.js?v=20261013e',
   '/rater.webmanifest',
   '/uib-theme.css?v=20261003a',

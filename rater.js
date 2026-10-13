@@ -1314,7 +1314,7 @@
         if (!window.UIBAuth) { $('loginMsg').innerHTML = '<span style="color:var(--red)">Sign-in is unavailable.</span>'; return; }
         UIBMfa.signIn(email, pass, document.querySelector('#loginGate .login-card')).then((user) => {
             $('loginPassword').value = '';
-            currentUser = user.role === 'admin' ? 'Admin' : user.name;
+            currentUser = (user.name && user.name !== 'Admin') ? user.name : 'Admin';
             boot();
         }).catch((err) => {
             $('loginMsg').innerHTML = '<span style="color:var(--red)">' + esc(/invalid|credentials/i.test(String(err.message)) ? 'Incorrect email or password.' : (err.message || 'Sign-in failed.')) + '</span>';
@@ -1323,7 +1323,7 @@
     }
     function signedInUser() {
         const u = (window.UIBAuth && UIBAuth.user()) || null;
-        return u ? (u.role === 'admin' ? 'Admin' : u.name) : '';
+        return u ? ((u.name && u.name !== 'Admin') ? u.name : 'Admin') : '';
     }
 
     // ────────────────────────────────────────────────────────────

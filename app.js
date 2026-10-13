@@ -929,7 +929,10 @@ function submitAgentEmailLogin(e) {
         const remember = document.getElementById('rememberAgentEmail')?.checked;
         if (remember) localStorage.setItem('rememberedAgentEmail', email); else localStorage.removeItem('rememberedAgentEmail');
         document.getElementById('agentLoginPassword').value = '';
-        if (user.role === 'admin') { enterAdmin(); return; }
+        // An administrator whose email is on an agent record lands on their own
+        // agent dashboard (with admin visibility); the Admin Access button is
+        // the way into the admin console.
+        if (user.role === 'admin' && (!user.name || user.name === 'Admin')) { enterAdmin(); return; }
         showAgentSection(user.name);
         loadFromSheet().then(() => {
             loadAgentData();
@@ -1502,7 +1505,9 @@ function restoreSessionFromStorage() {
     try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     const authUser = (window.UIBAuth && UIBAuth.user()) || null;
     if (!authUser) { try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {} return false; }
-    const savedUser = authUser.role === 'admin' ? 'Admin' : authUser.name;
+    // Keep whichever view this tab was in (agent dashboard or admin console).
+    let savedUser = null; try { savedUser = sessionStorage.getItem('uibCurrentUser'); } catch (e) {}
+    if (!savedUser) savedUser = (authUser.role === 'admin' && (!authUser.name || authUser.name === 'Admin')) ? 'Admin' : authUser.name;
     try { sessionStorage.setItem('uibCurrentUser', savedUser); } catch (e) {}
 
     if (savedUser === 'Admin') {
@@ -4055,7 +4060,9 @@ function _agentDefaultMonth() {
 // submissions (extra Agent filter + Agent column). Editing and deleting
 // still applies only to their own entries.
 const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano'];
-function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser); }
+// Agent-admins see every agent's entries: the named list, plus any account
+// Supabase marks as an administrator.
+function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser) || !!(window.UIBAuth && UIBAuth.isAdmin()); }
 
 // The entries the current user is allowed to SEE (before UI filters).
 function _agentVisibleEntries() {

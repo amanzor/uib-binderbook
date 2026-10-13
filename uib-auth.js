@@ -196,14 +196,14 @@
         const s = readSession();
         if (verified) { if (s) { s.pendingMfa = verified.id; writeSession(s); } return Object.assign({}, user, { mfaRequired: true, factorId: verified.id }); }
         if (MFA_REQUIRED) { if (s) { s.pendingMfa = 'enroll'; writeSession(s); } return Object.assign({}, user, { enrollRequired: true }); }
-        try { sessionStorage.setItem('uibCurrentUser', user.role === 'admin' ? 'Admin' : user.name); } catch (e) {}
+        try { sessionStorage.setItem('uibCurrentUser', (user.role === 'admin' && (!user.name || user.name === 'Admin')) ? 'Admin' : user.name); } catch (e) {}
         return user;
     }
     // Called by the page once the code (or enrollment) succeeded.
     function completeSignIn() {
         const s = readSession(); if (!s) return null;
         delete s.pendingMfa; writeSession(s);
-        try { sessionStorage.setItem('uibCurrentUser', s.user.role === 'admin' ? 'Admin' : s.user.name); } catch (e) {}
+        try { sessionStorage.setItem('uibCurrentUser', (s.user.role === 'admin' && (!s.user.name || s.user.name === 'Admin')) ? 'Admin' : s.user.name); } catch (e) {}
         return s.user;
     }
 
