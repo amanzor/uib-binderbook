@@ -37,12 +37,29 @@
         try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     }
 
+    // The Binder Book agent name comes from the account's agent_name metadata.
+    // If that was not set when the account was created, fall back to the Agent
+    // Management roster on this device, matched by email, so the agent still
+    // lands on their own dashboard and their entries are found.
+    function nameFromRoster(email) {
+        try {
+            const master = JSON.parse(localStorage.getItem('agentMasterData') || '{}');
+            const e = String(email || '').trim().toLowerCase();
+            if (!e) return '';
+            for (const name of Object.keys(master)) {
+                const rec = master[name] || {};
+                if (String(rec.email || '').trim().toLowerCase() === e) return name;
+            }
+        } catch (err) {}
+        return '';
+    }
     function profileFrom(user) {
         const meta = (user && user.user_metadata) || {};
         const app = (user && user.app_metadata) || {};
-        const name = meta.agent_name || meta.full_name || meta.name || (user && user.email) || '';
+        const email = (user && user.email) || '';
+        const name = meta.agent_name || meta.full_name || meta.name || nameFromRoster(email) || '';
         const role = app.role === 'admin' || meta.role === 'admin' ? 'admin' : 'agent';
-        return { id: user && user.id, email: (user && user.email) || '', name: name, role: role };
+        return { id: user && user.id, email: email, name: name, role: role };
     }
 
     function storeTokens(tok) {
@@ -77,7 +94,8 @@
     async function signIn(email, password) {
         const tok = await authPost('token?grant_type=password', { email: String(email || '').trim().toLowerCase(), password: password });
         const user = storeTokens(tok);
-        if (!user.name) { clearSession(); throw new Error('This account has no agent name assigned. Ask an admin to set it in Supabase.'); }
+        if (!user.name && user.role !== 'admin') { clearSession(); throw new Error('This account is not linked to an agent. An admin must set agent_name on it in Supabase (Authentication ▸ Users ▸ User Metadata) or add this email to the agent in Agent Management.'); }
+        if (!user.name) user.name = 'Admin';
         try { sessionStorage.setItem('uibCurrentUser', user.role === 'admin' ? 'Admin' : user.name); } catch (e) {}
         return user;
     }
