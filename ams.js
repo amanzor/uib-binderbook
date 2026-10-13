@@ -460,7 +460,7 @@ function amsDoLogin() {
     const password = (document.getElementById('amsLoginPassword')?.value || '');
     const errEl    = document.getElementById('amsLoginError');
     if (!window.UIBAuth) { if (errEl) { errEl.textContent = 'Sign-in is unavailable: uib-auth.js did not load.'; errEl.style.display = 'block'; } return; }
-    UIBAuth.signIn(email, password).then((user) => {
+    UIBMfa.signIn(email, password, document.getElementById('amsAgentLoginForm')).then((user) => {
         const remember = document.getElementById('amsRememberEmail')?.checked;
         if (remember) localStorage.setItem('amsRememberedEmail', email); else localStorage.removeItem('amsRememberedEmail');
         const pw = document.getElementById('amsLoginPassword'); if (pw) pw.value = '';
@@ -477,7 +477,7 @@ function amsDoAdminLogin() {
     const pwd   = (document.getElementById('amsAdminPassword')?.value || '');
     const errEl = document.getElementById('amsAdminLoginError');
     if (!window.UIBAuth) return;
-    UIBAuth.signIn(email, pwd).then((user) => {
+    UIBMfa.signIn(email, pwd, document.getElementById('amsAdminLoginForm')).then((user) => {
         if (user.role !== 'admin') { UIBAuth.signOut(); if (errEl) { errEl.textContent = 'This account is not an administrator.'; errEl.style.display = 'block'; } return; }
         amsCurrentUser = 'Admin';
         amsCurrentRole = 'admin';

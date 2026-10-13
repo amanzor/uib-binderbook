@@ -1312,7 +1312,7 @@
     function login() {
         const email = ($('loginEmail').value || '').trim().toLowerCase(); const pass = $('loginPassword').value;
         if (!window.UIBAuth) { $('loginMsg').innerHTML = '<span style="color:var(--red)">Sign-in is unavailable.</span>'; return; }
-        UIBAuth.signIn(email, pass).then((user) => {
+        UIBMfa.signIn(email, pass, document.querySelector('#loginGate .login-card')).then((user) => {
             $('loginPassword').value = '';
             currentUser = user.role === 'admin' ? 'Admin' : user.name;
             boot();

@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20260914a"></script>
-    <script src="uib-auth.js?v=20261013d"></script>
+    <script src="uib-auth.js?v=20261013e"></script>
+    <script src="uib-mfa.js?v=20261013e"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -563,7 +564,7 @@
 
 <!-- Sign-in gate (shown only when no agent is signed in on this device) -->
 <div id="loginGate" class="login-wrap" style="display:none;">
-    <div class="login-card">
+    <div class="login-card" data-uib-login>
         <h2><i data-lucide="lock"></i> Agent Sign In</h2>
         <p>Use the same email and password as the Binder Book.</p>
         <div class="form-group">

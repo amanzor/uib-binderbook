@@ -921,11 +921,11 @@ function submitAgentEmailLogin(e) {
     const errEl    = document.getElementById('agentLoginError');
     const btn      = document.getElementById('loginSignInBtn');
     const showErr  = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
-    if (!window.UIBAuth) { showErr('Sign-in is unavailable: uib-auth.js did not load.'); return; }
+    if (!window.UIBAuth || !window.UIBMfa) { showErr('Sign-in is unavailable: the sign-in scripts did not load.'); return; }
     errEl.style.display = 'none';
     if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.textContent = 'Signing in…'; }
 
-    UIBAuth.signIn(email, password).then((user) => {
+    UIBMfa.signIn(email, password, document.getElementById('agentEmailLoginForm')).then((user) => {
         const remember = document.getElementById('rememberAgentEmail')?.checked;
         if (remember) localStorage.setItem('rememberedAgentEmail', email); else localStorage.removeItem('rememberedAgentEmail');
         document.getElementById('agentLoginPassword').value = '';
@@ -1450,7 +1450,7 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
     const email    = (document.getElementById('adminEmail')?.value || '').trim().toLowerCase();
     const password = document.getElementById('adminPassword').value;
     if (!window.UIBAuth) { alert('Sign-in is unavailable: uib-auth.js did not load.'); return; }
-    UIBAuth.signIn(email, password).then((user) => {
+    UIBMfa.signIn(email, password, document.getElementById('adminLoginForm')).then((user) => {
         document.getElementById('adminPassword').value = '';
         if (user.role !== 'admin') {
             UIBAuth.signOut();
