@@ -1317,7 +1317,7 @@
             currentUser = (user.name && user.name !== 'Admin') ? user.name : 'Admin';
             boot();
         }).catch((err) => {
-            $('loginMsg').innerHTML = '<span style="color:var(--red)">' + esc(/invalid|credentials/i.test(String(err.message)) ? 'Incorrect email or password.' : (err.message || 'Sign-in failed.')) + '</span>';
+            $('loginMsg').innerHTML = '<span style="color:var(--red)">' + esc(/invalid login credentials/i.test(String(err.message)) ? 'Incorrect email or password.' : (err.message || 'Sign-in failed.')) + '</span>';
             $('loginPassword').value = '';
         });
     }
