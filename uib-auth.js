@@ -29,6 +29,10 @@
     // 2-step verification: every account must enroll an authenticator app
     // and enter its 6-digit code at each sign-in.
     const MFA_REQUIRED = true;
+    // Accounts that are always administrators, even before the admin flag is
+    // set on them in Supabase (Authentication ▸ Users ▸ App Metadata
+    // {"role":"admin"}). Keeps the agency from locking itself out.
+    const ADMIN_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com'];
     const IDLE_MS = 30 * 60 * 1000;
     const REFRESH_AHEAD_S = 120;
 
@@ -66,7 +70,7 @@
         const email = (user && user.email) || '';
         const onAccount = meta.agent_name || meta.full_name || meta.name || '';
         const name = onAccount || nameFromRoster(email) || '';
-        const role = app.role === 'admin' || meta.role === 'admin' ? 'admin' : 'agent';
+        const role = (app.role === 'admin' || meta.role === 'admin' || ADMIN_EMAILS.includes(String(email).toLowerCase())) ? 'admin' : 'agent';
         return { id: user && user.id, email: email, name: name, role: role, onAccount: !!onAccount };
     }
 
