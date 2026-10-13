@@ -73,6 +73,13 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST \
   -H "apikey: <anon key>" -H "Authorization: Bearer <anon key>" -d '{}'
 ```
 
+## 4b. Run the compliance SQL
+
+Dashboard ▸ SQL Editor ▸ paste `supabase-compliance.sql` ▸ Run. Creates the
+append-only `audit_log` table behind the admin **Access Log** page. Until it
+runs, the Access Log page shows "table does not exist" and activity is not
+recorded (the app keeps working).
+
 ## 5. Rotate the anon key
 
 The current anon key has been in public page source since the project
@@ -87,10 +94,16 @@ Recovery on Pro). The in-app rolling snapshots are retired.
 
 ## 7. Retire the Google Apps Script mirror
 
-The old Apps Script URL in `app.js` and `ams.js` still receives copies of
-data with no authentication. Either delete the deployment in Google Apps
-Script (Deploy ▸ Manage deployments ▸ Archive) and clear its Sheet, or ask
-for the follow-up change that removes those calls from the app.
+The app no longer calls the old Apps Script URL. Delete the deployment in
+Google Apps Script (Deploy ▸ Manage deployments ▸ Archive) and clear its
+Sheet so the unauthenticated copy of the data is gone.
+
+## 8. Keep the written program current
+
+`SECURITY-PROGRAM.md` is the agency's written information security and
+privacy program (Safeguards Rule). Review it yearly, fill in the agency
+address and phone in `privacy-notice.html`, and keep training attendance
+with it.
 
 ## What changed in the app
 
@@ -108,3 +121,13 @@ for the follow-up change that removes those calls from the app.
   inquiry function is rate-limited and size-capped.
 - Security headers (Content-Security-Policy, frame denial, nosniff,
   referrer policy) are set in `vercel.json`.
+- 2-step verification (authenticator app) is required for every account.
+- Every user accepts a yearly confidentiality & security acknowledgment
+  before working; administrators see who has in the Access Log page.
+- Access Log: sign-ins, client views, saves, deletes, exports, file views
+  and uploads, credential changes and retention deletions are recorded in
+  the append-only `audit_log` table.
+- Retention Review: entries past the retention period (default 7 years,
+  minimum 5) can be deleted; records on legal hold are protected.
+- AMS Contact tab records when and how the privacy notice was delivered;
+  `privacy-notice.html` is the printable GLBA / Florida notice.

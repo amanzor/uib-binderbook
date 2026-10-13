@@ -29,7 +29,7 @@
     // 2-step verification. false = optional: accounts that have set up an
     // authenticator (Logout ▸ 2-step) are asked for the code; others sign in
     // with email + password. Set true to force every account to enroll.
-    const MFA_REQUIRED = false;
+    const MFA_REQUIRED = true;
     // The only accounts allowed into the admin console: Alberto, Randy and
     // Amanda. An account can also be made admin from Manage Login Credentials
     // (sets the server-side admin flag); nothing an agent can edit themselves
@@ -199,13 +199,16 @@
         if (verified) { if (s) { s.pendingMfa = verified.id; writeSession(s); } return Object.assign({}, user, { mfaRequired: true, factorId: verified.id }); }
         if (MFA_REQUIRED) { if (s) { s.pendingMfa = 'enroll'; writeSession(s); } return Object.assign({}, user, { enrollRequired: true }); }
         try { sessionStorage.setItem('uibCurrentUser', (user.role === 'admin' && (!user.name || user.name === 'Admin')) ? 'Admin' : user.name); } catch (e) {}
+        audit('sign_in', user.email, { mfa: false });
         return user;
     }
+    function audit(action, target, details) { try { if (window.UIBAudit) UIBAudit.log(action, target, details); } catch (e) {} }
     // Called by the page once the code (or enrollment) succeeded.
     function completeSignIn() {
         const s = readSession(); if (!s) return null;
         delete s.pendingMfa; writeSession(s);
         try { sessionStorage.setItem('uibCurrentUser', (s.user.role === 'admin' && (!s.user.name || s.user.name === 'Admin')) ? 'Admin' : s.user.name); } catch (e) {}
+        audit('sign_in', s.user.email, { mfa: true });
         return s.user;
     }
 
@@ -231,6 +234,7 @@
 
     function signOut() {
         const s = readSession();
+        if (s && s.user && !s.pendingMfa) audit('sign_out', s.user.email);
         clearSession();
         if (s && s.access_token) {
             try {
