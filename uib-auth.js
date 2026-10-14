@@ -219,9 +219,16 @@
             const tok = await authPost('token?grant_type=refresh_token', { refresh_token: s.refresh_token });
             return storeTokens(tok);
         } catch (e) {
-            if (e.status === 400 || e.status === 401) { signOut(); }
+            if (e.status === 400 || e.status === 401) { forcedSignOut('Your session ended. Please sign in again; anything you were typing has been kept and will be offered back.'); }
             return null;
         }
+    }
+    // Pages listen for this to stash an unsaved form before the reload.
+    function forcedSignOut(message) {
+        try { document.dispatchEvent(new CustomEvent('uib:forced-signout')); } catch (e) {}
+        signOut();
+        try { alert(message); } catch (e) {}
+        window.location.reload();
     }
 
     async function ensureFresh() {
@@ -295,9 +302,7 @@
     setInterval(() => {
         const s = readSession(); if (!s) return;
         if (Date.now() - (s.lastActive || 0) > IDLE_MS) {
-            signOut();
-            try { alert('You were signed out after 30 minutes of inactivity.'); } catch (e) {}
-            window.location.reload();
+            forcedSignOut('You were signed out after 30 minutes of inactivity. Anything you were typing has been kept and will be offered back after you sign in.');
             return;
         }
         ensureFresh();
