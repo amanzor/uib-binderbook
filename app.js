@@ -164,8 +164,18 @@ async function driveGetResult(key) {
         return { ok: true, value: rows.length && rows[0].value !== null ? rows[0].value : null };
     } catch (e) {
         console.warn(`Cloud read failed for ${key}:`, e);
+        _noteCloudAuthFailure(e);
         return { ok: false, value: null };
     }
+}
+// After the database lockdown a request without a valid sign-in is refused
+// (401/403). Say so once, so an agent knows the entry is waiting on this
+// device rather than assuming it reached the book.
+let _cloudAuthWarned = false;
+function _noteCloudAuthFailure(e) {
+    if (_cloudAuthWarned || !/HTTP 40[13]/.test(String(e && e.message))) return;
+    _cloudAuthWarned = true;
+    try { alert('Your sign-in has ended, so this device cannot reach the cloud book right now.\n\nYour work is kept on this device and uploads automatically the next time you sign in here.'); } catch (err) {}
 }
 
 async function driveGet(key) {
@@ -422,6 +432,7 @@ async function driveSet(key, value) {
         return true;
     } catch (e) {
         console.warn(`Cloud write failed for ${key}:`, e);
+        _noteCloudAuthFailure(e);
         return false;
     }
 }
@@ -1590,9 +1601,10 @@ function restoreSessionFromStorage() {
         return true;
     }
 
-    // Only restore a recognized agent.
+    // Only restore a recognized agent; a login linked to an unknown name is
+    // ended so it cannot reach the entry pages either.
     const agents = (typeof getAllAgents === 'function') ? getAllAgents() : (typeof AGENTS !== 'undefined' ? AGENTS : []);
-    if (!agents.includes(savedUser)) return false;
+    if (!agents.includes(savedUser)) { try { UIBAuth.signOut(); sessionStorage.removeItem('uibCurrentUser'); } catch (e) {} return false; }
 
     showAgentSection(savedUser);
     if (typeof loadFromSheet === 'function') {
@@ -13333,7 +13345,7 @@ function showDataSafety() {
     wrap('enterAdmin', 'admin_console', null, null);
 })();
 
-const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed' };
+const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored' };
 
 function showAccessLog() {
     if (!isAgentAdmin()) { alert('Only administrators can view the access log.'); return; }
@@ -13432,3 +13444,48 @@ async function deleteRetentionSelected() {
     if (window.UIBAudit) UIBAudit.log('retention_delete', `${safe.length} entries`, { ids: safe });
     renderRetentionReview();
 }
+
+
+// ═══════════════════════════════════════════════════════════════
+//  UNSAVED-FORM PROTECTION on the entry pages
+//  A forced sign-out (30 idle minutes, expired session) reloads the page.
+//  Stash whatever is in the entry form first and offer it back after the
+//  next sign-in on this device.
+// ═══════════════════════════════════════════════════════════════
+const _DRAFT_KEY = 'uibFormDraft';
+function _entryForm() { return document.getElementById('agentForm') || document.getElementById('healthForm'); }
+function uibStashFormDraft() {
+    const form = _entryForm(); if (!form) return false;
+    const fields = {}; let any = false;
+    form.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
+        if (el.type === 'file' || el.type === 'button' || el.type === 'submit' || el.type === 'hidden') return;
+        const v = (el.type === 'checkbox' || el.type === 'radio') ? !!el.checked : el.value;
+        fields[el.id] = v;
+        if (v !== '' && v !== false && v !== el.defaultValue) any = true;
+    });
+    if (!any) return false;
+    try { _origSetItem(_DRAFT_KEY, JSON.stringify({ page: location.pathname, at: Date.now(), user: currentUser || '', fields })); } catch (e) { return false; }
+    return true;
+}
+function uibRestoreFormDraft() {
+    const form = _entryForm(); if (!form) return;
+    let d = null; try { d = JSON.parse(localStorage.getItem(_DRAFT_KEY)); } catch (e) {}
+    if (!d || !d.fields) return;
+    if (d.page !== location.pathname || Date.now() - (d.at || 0) > 24 * 3600 * 1000) { localStorage.removeItem(_DRAFT_KEY); return; }
+    if (!confirm('You were signed out before saving an entry on this page. Restore what you had typed?')) { localStorage.removeItem(_DRAFT_KEY); return; }
+    Object.keys(d.fields).forEach(id => {
+        const el = document.getElementById(id); if (!el) return;
+        if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!d.fields[id]; else el.value = d.fields[id];
+    });
+    localStorage.removeItem(_DRAFT_KEY);
+    if (window.UIBAudit) UIBAudit.log('draft_restored', d.user || '', { page: d.page });
+}
+document.addEventListener('uib:forced-signout', () => { uibStashFormDraft(); });
+document.addEventListener('DOMContentLoaded', () => {
+    if (!_entryForm() || document.getElementById('agentTable')) return;   // entry pages only
+    // A login linked to a name that is not a registered agent must not reach
+    // the entry pages through a restored session either.
+    const u = (window.UIBAuth && UIBAuth.user()) || null;
+    if (u && u.role !== 'admin' && !getAllAgents().includes(u.name)) { UIBAuth.signOut(); window.location.replace('./'); return; }
+    setTimeout(uibRestoreFormDraft, 400);
+});
