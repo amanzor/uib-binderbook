@@ -929,6 +929,12 @@ function submitAgentEmailLogin(e) {
         // agent dashboard (with admin visibility); the Admin Access button is
         // the way into the admin console.
         if (user.role === 'admin' && (!user.name || user.name === 'Admin')) { enterAdmin(); return; }
+        // The name on the account must be a real agent in Agent Management;
+        // otherwise entries would be filed under a name nobody can see.
+        if (!getAllAgents().includes(user.name)) {
+            UIBAuth.signOut();
+            throw new Error('This login is linked to "' + user.name + '", which is not an agent in Agent Management. Ask an administrator to pick the right agent for this login in Manage Login Credentials.');
+        }
         showAgentSection(user.name);
         loadFromSheet().then(() => {
             loadAgentData();
@@ -937,7 +943,7 @@ function submitAgentEmailLogin(e) {
         });
     }).catch((err) => {
         const m = String(err && err.message || '');
-        showErr(/invalid|credentials/i.test(m) ? 'Incorrect email or password. Please try again.' : m || 'Sign-in failed. Please try again.');
+        showErr(/invalid login credentials/i.test(m) ? 'Incorrect email or password. Please try again.' : m || 'Sign-in failed. Please try again.');
     }).finally(() => {
         if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.orig || 'Sign In'; refreshIcons(); }
     });
@@ -1524,7 +1530,7 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
         }
         enterAdmin();
     }).catch((err) => {
-        alert(/invalid|credentials/i.test(String(err.message)) ? 'Incorrect email or password' : (err.message || 'Sign-in failed'));
+        alert(/invalid login credentials/i.test(String(err.message)) ? 'Incorrect email or password' : (err.message || 'Sign-in failed'));
         document.getElementById('adminPassword').value = '';
         document.getElementById('adminPassword').focus();
     });

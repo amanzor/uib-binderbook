@@ -458,9 +458,14 @@ function amsDoLogin() {
         const pw = document.getElementById('amsLoginPassword'); if (pw) pw.value = '';
         amsCurrentUser = (user.name && user.name !== 'Admin') ? user.name : 'Admin';
         amsCurrentRole = user.role;
+        const knownAgents = Object.keys(amsGetCredentials()); if (!knownAgents.length) knownAgents.push('Alberto Manzor', 'Randy Diaz', 'Amanda Montano', 'Uriel Rendon', 'Jorge Castro', 'Lazaro Reigoza');
+        if (amsCurrentUser !== 'Admin' && user.role !== 'admin' && !knownAgents.includes(amsCurrentUser)) {
+            UIBAuth.signOut();
+            throw new Error('This login is linked to "' + amsCurrentUser + '", which is not an agent in Agent Management. Ask an administrator to pick the right agent for this login in Manage Login Credentials.');
+        }
         amsLaunchApp();
     }).catch((err) => {
-        if (errEl) { errEl.textContent = /invalid|credentials/i.test(String(err.message)) ? 'Invalid email or password.' : (err.message || 'Sign-in failed.'); errEl.style.display = 'block'; }
+        if (errEl) { errEl.textContent = /invalid login credentials/i.test(String(err.message)) ? 'Invalid email or password.' : (err.message || 'Sign-in failed.'); errEl.style.display = 'block'; }
     });
 }
 
