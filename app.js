@@ -1064,7 +1064,12 @@ async function renderCredentialListPage() {
                 <button class="btn-danger btn-sm" onclick="credDelete('${_esc(u.id)}','${_esc(u.email)}')">Delete</button>
             </td></tr>`;
     }).join('');
+    let mfaOn = false; try { mfaOn = await UIBAuth.getMfaRequired(); } catch (e) {}
     container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:${mfaOn ? '#ecfdf5' : '#f3f4f6'};border:1px solid ${mfaOn ? '#6ee7b7' : '#d1d5db'};border-radius:12px;padding:12px 16px;margin-bottom:14px;">
+            <div style="font-size:13px;"><b>2-step verification: ${mfaOn ? 'ON' : 'OFF'}</b><div style="color:var(--gray-500);margin-top:2px;">${mfaOn ? 'Every sign-in needs a 6-digit code from an authenticator app. Accounts without one set it up at their next sign-in.' : 'Sign-in is email + password only. Turn on when everyone is ready; agents set up an authenticator app at their next sign-in.'}</div></div>
+            <button class="${mfaOn ? 'btn-danger' : 'btn-success'} btn-sm" onclick="credToggleMfa(${mfaOn ? 'false' : 'true'})">${mfaOn ? 'Turn off' : 'Turn on'}</button>
+        </div>
         ${missing.length ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;color:#92400e;font-size:13px;margin-bottom:14px;"><b>No login yet:</b> ${missing.map(_esc).join(', ')}. Press <b>Add Agent Credential</b> to create one.</div>` : ''}
         <div class="table-container"><table style="width:100%;">
             <thead><tr><th>Email (login)</th><th>Agent</th><th>Role</th><th>Last sign-in</th><th>2-step</th><th>Actions</th></tr></thead>
@@ -1074,6 +1079,11 @@ async function renderCredentialListPage() {
     refreshIcons();
 }
 async function credSetName(id, name) { try { await _adminUsers('setName', { id, agent_name: name }); } catch (e) { alert(e.message || e); } }
+async function credToggleMfa(on) {
+    if (!confirm(on ? 'Turn ON 2-step verification for every account? From the next sign-in, each person scans a QR code with an authenticator app and enters a 6-digit code.' : 'Turn OFF 2-step verification? Sign-in goes back to email + password only.')) return;
+    try { await UIBAuth.setMfaRequired(on); if (window.UIBAudit) UIBAudit.log('mfa_setting', on ? 'on' : 'off'); renderCredentialListPage(); }
+    catch (e) { alert(e.message || e); }
+}
 async function credSetRole(id, role) { try { await _adminUsers('setRole', { id, role }); if (window.UIBAudit) UIBAudit.log('cred_set_role', role, { id }); } catch (e) { alert(e.message || e); renderCredentialListPage(); } }
 async function credSetPassword(id, email) {
     const p1 = prompt('New password for ' + email + ' (at least 10 characters):'); if (p1 == null) return;
@@ -13345,7 +13355,7 @@ function showDataSafety() {
     wrap('enterAdmin', 'admin_console', null, null);
 })();
 
-const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored' };
+const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored', mfa_setting: '2-step setting changed' };
 
 function showAccessLog() {
     if (!isAgentAdmin()) { alert('Only administrators can view the access log.'); return; }

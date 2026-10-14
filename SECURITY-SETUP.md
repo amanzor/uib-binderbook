@@ -121,7 +121,8 @@ with it.
   inquiry function is rate-limited and size-capped.
 - Security headers (Content-Security-Policy, frame denial, nosniff,
   referrer policy) are set in `vercel.json`.
-- 2-step verification (authenticator app) is required for every account.
+- 2-step verification (authenticator app) is an agency-wide switch on Manage
+  Login Credentials (off until an administrator turns it on).
 - Every user accepts a yearly confidentiality & security acknowledgment
   before working; administrators see who has in the Access Log page.
 - Access Log: sign-ins, client views, saves, deletes, exports, file views
