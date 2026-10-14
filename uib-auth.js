@@ -26,10 +26,11 @@
     // here and enable Turnstile with the SECRET key in Supabase ▸ Authentication
     // ▸ Attack Protection ▸ Captcha. Leave empty to run without it.
     const TURNSTILE_SITE_KEY = '';
-    // 2-step verification. false = optional: accounts that have set up an
-    // authenticator (Logout ▸ 2-step) are asked for the code; others sign in
-    // with email + password. Set true to force every account to enroll.
-    const MFA_REQUIRED = true;
+    // 2-step verification is an agency-wide switch administrators flip on the
+    // Manage Login Credentials page (stored in app_store under
+    // "securitySettings"). This constant is only the default used when the
+    // setting has never been saved or cannot be read.
+    const MFA_REQUIRED = false;
     // The only accounts allowed into the admin console: Alberto, Randy and
     // Amanda. An account can also be made admin from Manage Login Credentials
     // (sets the server-side admin flag); nothing an agent can edit themselves
@@ -191,16 +192,33 @@
         if (!user.name && user.role !== 'admin') { clearSession(); throw new Error('This email is not linked to an agent yet. Add it to that agent in Agent Management (admin), then sign in again.'); }
         if (!user.name) user.name = 'Admin';
 
-        // 2-step verification: a verified authenticator means a code is needed
-        // before this session counts; no authenticator means enroll first.
-        const factors = await mfaFactors(tok.access_token).catch(() => []);
-        const verified = factors.find((f) => f.status === 'verified');
+        // 2-step verification, when the agency switch is on: a verified
+        // authenticator means a code is needed before this session counts; no
+        // authenticator means enroll first. Switch off: email + password only.
         const s = readSession();
-        if (verified) { if (s) { s.pendingMfa = verified.id; writeSession(s); } return Object.assign({}, user, { mfaRequired: true, factorId: verified.id }); }
-        if (MFA_REQUIRED) { if (s) { s.pendingMfa = 'enroll'; writeSession(s); } return Object.assign({}, user, { enrollRequired: true }); }
+        if (await getMfaRequired(tok.access_token)) {
+            const factors = await mfaFactors(tok.access_token).catch(() => []);
+            const verified = factors.find((f) => f.status === 'verified');
+            if (verified) { if (s) { s.pendingMfa = verified.id; writeSession(s); } return Object.assign({}, user, { mfaRequired: true, factorId: verified.id }); }
+            if (s) { s.pendingMfa = 'enroll'; writeSession(s); } return Object.assign({}, user, { enrollRequired: true });
+        }
         try { sessionStorage.setItem('uibCurrentUser', (user.role === 'admin' && (!user.name || user.name === 'Admin')) ? 'Admin' : user.name); } catch (e) {}
         audit('sign_in', user.email, { mfa: false });
         return user;
+    }
+    // Agency-wide 2-step switch (app_store key "securitySettings").
+    async function getMfaRequired(accessToken) {
+        try {
+            const res = await _fetch(SUPABASE_URL + '/rest/v1/app_store?select=value&key=eq.securitySettings', { headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + (accessToken || token() || SUPABASE_ANON) } });
+            if (!res.ok) return MFA_REQUIRED;
+            const rows = await res.json(); const v = rows[0] && rows[0].value;
+            return (v && typeof v.mfaRequired === 'boolean') ? v.mfaRequired : MFA_REQUIRED;
+        } catch (e) { return MFA_REQUIRED; }
+    }
+    async function setMfaRequired(on) {
+        const res = await _fetch(SUPABASE_URL + '/rest/v1/app_store', { method: 'POST', headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + (token() || SUPABASE_ANON), 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify([{ key: 'securitySettings', value: { mfaRequired: !!on, changedBy: (user() || {}).email || '', changedAt: new Date().toISOString() }, updated_at: new Date().toISOString() }]) });
+        if (!res.ok) throw new Error('Could not save the setting (HTTP ' + res.status + ').');
+        return !!on;
     }
     function audit(action, target, details) { try { if (window.UIBAudit) UIBAudit.log(action, target, details); } catch (e) {} }
     // Called by the page once the code (or enrollment) succeeded.
@@ -317,5 +335,5 @@
         }
     });
 
-    window.UIBAuth = { signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
+    window.UIBAuth = { signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
 })();

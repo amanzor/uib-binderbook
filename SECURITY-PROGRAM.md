@@ -34,7 +34,7 @@ Where it lives: Supabase project `jgjmobktucyimupelfxd` (Postgres `app_store` an
 ## 4. Authentication
 
 - Supabase Auth email + password, minimum 10 characters, temporary passwords changed at first sign-in.
-- **2-step verification is required** for every account (authenticator app). Administrators can clear a lost authenticator from Manage Login Credentials.
+- **2-step verification** (authenticator app) is switched on for the whole agency from Manage Login Credentials; the Safeguards Rule expects it on, so keep it off only while accounts are being set up. Administrators can clear a lost authenticator there.
 - Sessions end when the tab closes or after 30 idle minutes.
 - Optional human verification (Cloudflare Turnstile) can be switched on with a site key.
 
