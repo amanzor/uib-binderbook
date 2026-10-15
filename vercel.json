@@ -15,12 +15,12 @@
     },
     {
       "source": "/rater",
-      "destination": "https://uibautorater.vercel.app/rater",
+      "destination": "https://uibautorater.vercel.app",
       "permanent": false
     },
     {
       "source": "/rater.html",
-      "destination": "https://uibautorater.vercel.app/rater",
+      "destination": "https://uibautorater.vercel.app",
       "permanent": false
     },
     {
