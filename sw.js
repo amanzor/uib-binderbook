@@ -1,13 +1,13 @@
-const CACHE = 'uib-app-v2';
+const CACHE = 'uib-app-v3';
 const SHELL = [
   '/',
   '/index.html',
   '/ams',
   '/ams.html',
   '/manifest.json',
-  '/icon.png',
-  '/icons/uib-192.png',
-  '/icons/uib-512.png',
+  '/icon.png?v=20261015w',
+  '/icons/uib-w-192.png',
+  '/icons/uib-w-512.png',
   '/uib-theme.css?v=20261003a',
   '/uib-motion.js?v=20261002a',
   '/lz-string.min.js',
