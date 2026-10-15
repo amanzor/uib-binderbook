@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20260914a"></script>
-    <script src="uib-auth.js?v=20261014b"></script>
+    <script src="uib-auth.js?v=20261015a"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3866,6 +3866,19 @@
                     <input type="tel" id="agentPhone" placeholder="(555) 123-4567" required>
                 </div>
 
+                <div id="agentLoginBlock" style="border:1.5px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+                    <h4 style="margin:0 0 4px;">🔑 Sign-in for this agent</h4>
+                    <p style="margin:0 0 12px;font-size:12.5px;color:#4b5563;">The login is created with the email above and linked to this agent's name. Leave the password empty to add the agent without a login for now.</p>
+                    <div class="form-group" style="margin-bottom:10px;">
+                        <label>Temporary password (10+ characters)</label>
+                        <input type="text" id="agentNewLoginPassword" placeholder="Give this to the agent; they change it after signing in" minlength="10" autocomplete="off">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Role</label>
+                        <select id="agentNewLoginRole" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"><option value="agent">Agent</option><option value="admin">Admin</option></select>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label>Insurance License Type(s) *</label>
                     <div style="border: 1px solid #ddd; padding: 10px; border-radius: 4px; background-color: #f9f9f9;">
@@ -3960,7 +3973,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261014b"></script>
+    <script src="app.js?v=20261015a"></script>
     <script src="supabase.js?v=20261013a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 </body>

@@ -179,14 +179,17 @@
         const tok = await authPost('token?grant_type=password', body);
         const user = storeTokens(tok);
         try { const s0 = readSession(); if (s0) { s0.rawUser = tok.user; writeSession(s0); } } catch (e) {}
-        if (!user.onAccount) {
-            // Not on the account yet: match the email against Agent Management
-            // (this device first, then the cloud) and remember it on the account.
-            const name = user.name || matchEmail(await rosterFromCloud(tok.access_token), user.email);
-            if (name) {
-                user.name = name;
+        // Agent Management is the source of truth for who this email is. Match
+        // the email against the roster (this device first, then the cloud); if
+        // the roster says something different from the name on the account,
+        // the roster wins and the account is corrected.
+        {
+            const rosterName = nameFromRoster(user.email) || matchEmail(await rosterFromCloud(tok.access_token), user.email);
+            const nameOnAccount = user.onAccount ? user.name : '';
+            if (rosterName && rosterName !== nameOnAccount) {
+                user.name = rosterName; user.onAccount = true;
                 const s = readSession(); if (s) { s.user = user; writeSession(s); }
-                saveAgentName(tok.access_token, name);
+                saveAgentName(tok.access_token, rosterName);
             }
         }
         if (!user.name && user.role !== 'admin') { clearSession(); throw new Error('This email is not linked to an agent yet. Add it to that agent in Agent Management (admin), then sign in again.'); }
@@ -240,6 +243,13 @@
             if (e.status === 400 || e.status === 401) { forcedSignOut('Your session ended. Please sign in again; anything you were typing has been kept and will be offered back.'); }
             return null;
         }
+    }
+    // A page that matched the email to an agent itself: fix the session and the account.
+    function adoptName(name) {
+        const s = readSession(); if (!s || !name) return;
+        s.user.name = name; s.user.onAccount = true; writeSession(s);
+        try { sessionStorage.setItem('uibCurrentUser', name); } catch (e) {}
+        saveAgentName(s.access_token, name);
     }
     // Pages listen for this to stash an unsaved form before the reload.
     function forcedSignOut(message) {
@@ -335,5 +345,5 @@
         }
     });
 
-    window.UIBAuth = { signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
+    window.UIBAuth = { signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
 })();

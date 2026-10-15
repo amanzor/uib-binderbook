@@ -510,6 +510,13 @@ async function syncFromDrive() {
 
         const data = await driveGet(key);
         if (data !== null) {
+            // The agent roster must never be erased by an empty cloud copy: a
+            // device that knows the agents publishes them instead. (An empty
+            // cloud roster is how sign-in matching broke for every other device.)
+            if (key === 'agentMasterData' && data && typeof data === 'object' && !Object.keys(data).length) {
+                let local = {}; try { local = JSON.parse(localStorage.getItem(key)) || {}; } catch (e) {}
+                if (Object.keys(local).length) { await driveSet(key, local); continue; }
+            }
             // bypass override to avoid write-back loop; a full device must not
             // abort the rest of the sync
             _lsMirror(key, JSON.stringify(data));
@@ -943,8 +950,12 @@ function submitAgentEmailLogin(e) {
         // The name on the account must be a real agent in Agent Management;
         // otherwise entries would be filed under a name nobody can see.
         if (!getAllAgents().includes(user.name)) {
-            UIBAuth.signOut();
-            throw new Error('This login is linked to "' + user.name + '", which is not an agent in Agent Management. Ask an administrator to pick the right agent for this login in Manage Login Credentials.');
+            const byEmail = _agentNameForEmail(user.email);
+            if (byEmail) { user.name = byEmail; UIBAuth.adoptName(byEmail); }
+            else {
+                UIBAuth.signOut();
+                throw new Error('This login is linked to "' + user.name + '", which is not an agent in Agent Management. Ask an administrator to open Agent Management and add this email to the right agent.');
+            }
         }
         showAgentSection(user.name);
         loadFromSheet().then(() => {
@@ -4419,6 +4430,7 @@ function searchAgentSubmissions() {
 
 // Admin Dashboard
 function loadAdminDashboard() {
+    _ensureRosterPublished();
     populateAgentFilter();
     _adminDefaultMonth();
     renderAdminStats();
@@ -5392,6 +5404,33 @@ function initializeAgentData() {
     }
 }
 
+// The roster must live in the cloud for sign-in matching and for every other
+// device. If this device knows agents the cloud copy does not, publish the
+// union (this device's records win). Safe to call on every admin load.
+let _rosterPublishing = false;
+async function _ensureRosterPublished() {
+    if (_rosterPublishing) return; _rosterPublishing = true;
+    try {
+        let local = {}; try { local = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+        const names = Object.keys(local).filter(n => local[n] && typeof local[n] === 'object');
+        if (!names.length) return;
+        const r = await driveGetResult('agentMasterData'); if (!r.ok) return;
+        const cloud = (r.value && typeof r.value === 'object' && !Array.isArray(r.value)) ? r.value : {};
+        const behind = names.some(n => !cloud[n] || (local[n].email && cloud[n].email !== local[n].email));
+        if (!behind) return;
+        const merged = Object.assign({}, cloud, local);
+        await driveSet('agentMasterData', merged);
+        console.log('Agent roster published to the cloud (' + Object.keys(merged).length + ' agents).');
+    } catch (e) { console.warn('Roster publish skipped:', e); }
+    finally { _rosterPublishing = false; }
+}
+
+function _agentNameForEmail(email) {
+    const e = String(email || '').trim().toLowerCase(); if (!e) return '';
+    let master = {}; try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (err) {}
+    return Object.keys(master).find(n => String((master[n] || {}).email || '').trim().toLowerCase() === e) || '';
+}
+
 // Show Agent Management Modal
 function showAgentManagement() {
     const m = document.getElementById('agentManagementModal');
@@ -5446,6 +5485,7 @@ function openAddAgentModal() {
     document.getElementById('agentFormTitle').textContent = 'Add New Agent';
     document.getElementById('manageAgentForm').reset();
     document.getElementById('manageAgentForm').dataset.editingAgent = '';
+    const lb = document.getElementById('agentLoginBlock'); if (lb) lb.style.display = '';
     document.querySelectorAll('.licenseCheckbox').forEach(cb => cb.checked = false);
     document.getElementById('docStatusMessage').innerHTML = '';
     document.getElementById('addEditAgentModal').classList.add('active');
@@ -5467,6 +5507,7 @@ function editAgent(agentName) {
     }
 
     document.getElementById('agentFormTitle').textContent = `Edit Agent: ${agent.name}`;
+    const lb = document.getElementById('agentLoginBlock'); if (lb) lb.style.display = 'none';
     document.getElementById('agentName').value = agent.name || '';
     document.getElementById('agentAddress').value = agent.address || '';
     document.getElementById('agentDOB').value = agent.dob || '';
@@ -5569,9 +5610,24 @@ document.getElementById('manageAgentForm')?.addEventListener('submit', (e) => {
         delete agents[isEditing];
     }
 
+    const loginPassword = isEditing ? '' : (document.getElementById('agentNewLoginPassword')?.value || '');
+    const loginRole = document.getElementById('agentNewLoginRole')?.value === 'admin' ? 'admin' : 'agent';
+    if (!isEditing && loginPassword && loginPassword.length < 10) { alert('The temporary login password needs at least 10 characters.'); return; }
+
     // Save agent
     agents[agentName] = agentData;
     localStorage.setItem('agentMasterData', JSON.stringify(agents));
+
+    // New agent: create the sign-in at the same time, linked to this exact
+    // name, so the roster and the login can never disagree.
+    if (!isEditing && loginPassword) {
+        const btn = e.target.querySelector('button[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Creating login…'; }
+        _adminUsers('create', { email: email.toLowerCase(), password: loginPassword, agent_name: agentName, role: loginRole })
+            .then(() => { if (window.UIBAudit) UIBAudit.log('cred_create', email.toLowerCase(), { agent: agentName, role: loginRole }); alert(`Agent "${agentName}" saved and their login created.\n\nEmail: ${email}\nTemporary password: the one you typed. They can change it with the Password button after signing in.`); })
+            .catch(err => alert(`Agent "${agentName}" was saved, but the login could not be created: ${err.message || err}\n\nYou can create it later from Manage Login Credentials.`))
+            .finally(() => { if (btn) { btn.disabled = false; btn.textContent = '💾 Save Agent'; } closeAddEditAgentModal(); loadAgentList(); });
+        return;
+    }
 
     alert(`Agent "${agentName}" saved successfully!`);
     closeAddEditAgentModal();
