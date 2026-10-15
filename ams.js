@@ -460,6 +460,8 @@ function amsDoLogin() {
         amsCurrentRole = user.role;
         const knownAgents = Object.keys(amsGetCredentials()); if (!knownAgents.length) knownAgents.push('Alberto Manzor', 'Randy Diaz', 'Amanda Montano', 'Uriel Rendon', 'Jorge Castro', 'Lazaro Reigoza');
         if (amsCurrentUser !== 'Admin' && user.role !== 'admin' && !knownAgents.includes(amsCurrentUser)) {
+            const creds = amsGetCredentials(); const byEmail = Object.keys(creds).find(n => String(creds[n].email || '').toLowerCase() === String(user.email || '').toLowerCase());
+            if (byEmail) { amsCurrentUser = byEmail; UIBAuth.adoptName(byEmail); amsLaunchApp(); return; }
             UIBAuth.signOut();
             throw new Error('This login is linked to "' + amsCurrentUser + '", which is not an agent in Agent Management. Ask an administrator to pick the right agent for this login in Manage Login Credentials.');
         }
