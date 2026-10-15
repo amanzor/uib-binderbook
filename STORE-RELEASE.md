@@ -1,7 +1,8 @@
 # UIB Binder Book — publishing to the App Store and Google Play
 
-The Binder Book is the agency's internal tool (binders, AMS, commissions,
-Auto Rater). The website at https://uib-binderbook.vercel.app is the
+The Binder Book is the agency's internal tool (binders, AMS, commissions).
+The Auto Rater and MAX are separate apps with their own code; the Binder
+Book only links to them. The website at https://uib-binderbook.vercel.app is the
 product; `native/` holds the Capacitor apps that ship the **same web app
 bundled inside** an iOS and an Android shell, with a native splash screen,
 status bar, offline start and the device camera/photo pickers for document

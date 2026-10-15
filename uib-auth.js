@@ -1,7 +1,7 @@
 // ============================================================
 //  UIB AUTH  —  Supabase Auth sessions for every page
 //  ------------------------------------------------------------
-//  Load this BEFORE app.js / ams.js / rater.js / supabase.js.
+//  Load this BEFORE app.js / ams.js / supabase.js.
 //
 //  • Agents sign in with the email + password of their Supabase Auth
 //    account. Passwords are hashed by Supabase and never stored here.

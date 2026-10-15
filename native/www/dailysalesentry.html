@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20260914a"></script>
+    <script src="uib-auth.js?v=20261014b"></script>
+    <script src="uib-audit.js?v=20261013j"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -1236,13 +1238,14 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js?v=20261006g"></script>
+<script src="app.js?v=20261014b"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="motion.js"></script>
 <script>
     // Auth check — redirect to main app if not logged in
     document.addEventListener('DOMContentLoaded', () => {
-        const savedUser = sessionStorage.getItem('uibCurrentUser');
+        const authUser = (window.UIBAuth && UIBAuth.user()) || null;
+        const savedUser = authUser ? (authUser.role === 'admin' ? 'Admin' : authUser.name) : null;
         if (!savedUser) {
             window.location.href = './';
             return;

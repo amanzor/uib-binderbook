@@ -1,9 +1,7 @@
-const CACHE = 'uib-app-v1';
+const CACHE = 'uib-app-v2';
 const SHELL = [
   '/',
   '/index.html',
-  '/rater',
-  '/rater.html',
   '/ams',
   '/ams.html',
   '/manifest.json',
