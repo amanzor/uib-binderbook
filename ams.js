@@ -462,8 +462,7 @@ function amsDoLogin() {
         if (amsCurrentUser !== 'Admin' && user.role !== 'admin' && !knownAgents.includes(amsCurrentUser)) {
             const creds = amsGetCredentials(); const byEmail = Object.keys(creds).find(n => String(creds[n].email || '').toLowerCase() === String(user.email || '').toLowerCase()) || (UIBAuth.KNOWN_AGENTS || {})[String(user.email || '').toLowerCase()];
             if (byEmail) { amsCurrentUser = byEmail; UIBAuth.adoptName(byEmail); amsLaunchApp(); return; }
-            UIBAuth.signOut();
-            throw new Error('This login is linked to "' + amsCurrentUser + '", which is not an agent in Agent Management. Ask an administrator to pick the right agent for this login in Manage Login Credentials.');
+            // Never lock an agent out over the name; continue as they are.
         }
         amsLaunchApp();
     }).catch((err) => {
