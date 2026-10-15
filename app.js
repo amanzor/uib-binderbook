@@ -27,9 +27,12 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202609162;
+const APP_BUILD = 202610151;
 
-let _appOutdated = false;          // true once we KNOW the cloud has a newer build
+let _appOutdated = false;
+// Check for a newer published build as soon as any page opens, so a phone
+// holding an old copy updates itself even before anyone signs in.
+setTimeout(() => { try { enforceAppVersion(); } catch (e) {} }, 1500);          // true once we KNOW the cloud has a newer build
 let _versionEnforcing = false;     // guards against overlapping checks
 
 // Read the latest build the fleet has advertised.
@@ -949,13 +952,11 @@ function submitAgentEmailLogin(e) {
         if (user.role === 'admin' && (!user.name || user.name === 'Admin')) { enterAdmin(); return; }
         // The name on the account must be a real agent in Agent Management;
         // otherwise entries would be filed under a name nobody can see.
+        // Never lock an agent out over the name: use the roster / built-in
+        // email match when there is one, otherwise continue as they are.
         if (!getAllAgents().includes(user.name)) {
             const byEmail = _agentNameForEmail(user.email);
             if (byEmail) { user.name = byEmail; UIBAuth.adoptName(byEmail); }
-            else {
-                UIBAuth.signOut();
-                throw new Error('This login is linked to "' + user.name + '", which is not an agent in Agent Management. Ask an administrator to open Agent Management and add this email to the right agent.');
-            }
         }
         showAgentSection(user.name);
         loadFromSheet().then(() => {
@@ -1625,7 +1626,10 @@ function restoreSessionFromStorage() {
     // Only restore a recognized agent; a login linked to an unknown name is
     // ended so it cannot reach the entry pages either.
     const agents = (typeof getAllAgents === 'function') ? getAllAgents() : (typeof AGENTS !== 'undefined' ? AGENTS : []);
-    if (!agents.includes(savedUser)) { try { UIBAuth.signOut(); sessionStorage.removeItem('uibCurrentUser'); } catch (e) {} return false; }
+    if (!agents.includes(savedUser)) {
+        const byEmail = _agentNameForEmail(authUser.email);
+        if (byEmail) { savedUser = byEmail; UIBAuth.adoptName(byEmail); } else if (!savedUser) return false;
+    }
 
     showAgentSection(savedUser);
     if (typeof loadFromSheet === 'function') {
@@ -13575,7 +13579,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const u = (window.UIBAuth && UIBAuth.user()) || null;
     if (u && u.role !== 'admin' && !getAllAgents().includes(u.name)) {
         const fix = _agentNameForEmail(u.email);
-        if (fix) UIBAuth.adoptName(fix); else { UIBAuth.signOut(); window.location.replace('./'); return; }
+        if (fix) { UIBAuth.adoptName(fix); try { currentUser = fix; } catch (e) {} }
     }
     setTimeout(uibRestoreFormDraft, 400);
 });
