@@ -5428,7 +5428,7 @@ async function _ensureRosterPublished() {
 function _agentNameForEmail(email) {
     const e = String(email || '').trim().toLowerCase(); if (!e) return '';
     let master = {}; try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (err) {}
-    return Object.keys(master).find(n => String((master[n] || {}).email || '').trim().toLowerCase() === e) || '';
+    return Object.keys(master).find(n => String((master[n] || {}).email || '').trim().toLowerCase() === e) || ((window.UIBAuth && UIBAuth.KNOWN_AGENTS) || {})[e] || '';
 }
 
 // Show Agent Management Modal
@@ -5470,8 +5470,8 @@ function loadAgentList() {
             <td>${agentData.phone || '-'}</td>
             <td>${licenses}</td>
             <td>
-                <button class="btn-primary btn-sm" onclick="editAgent('${agentName}')"><i data-lucide="pencil"></i> Edit</button>
-                <button class="btn-danger btn-sm" onclick="deleteAgent('${agentName}')"><i data-lucide="trash-2"></i> Delete</button>
+                <button class="btn-primary btn-sm" data-agent="${escHtml(agentName)}" data-email="${escHtml(email === '-' ? '' : email)}" onclick="editAgent(this.dataset.agent, this.dataset.email)"><i data-lucide="pencil"></i> Edit</button>
+                <button class="btn-danger btn-sm" data-agent="${escHtml(agentName)}" data-email="${escHtml(email === '-' ? '' : email)}" onclick="deleteAgent(this.dataset.agent, this.dataset.email)"><i data-lucide="trash-2"></i> Delete</button>
             </td>
         </tr>`;
     });
@@ -5496,15 +5496,34 @@ function closeAddEditAgentModal() {
     document.getElementById('addEditAgentModal').classList.remove('active');
 }
 
-// Edit Agent - Load existing data into form
-function editAgent(agentName) {
-    const agents = JSON.parse(localStorage.getItem('agentMasterData')) || {};
-    const agent = agents[agentName];
+// Find an agent by email first (names drift between the roster, the
+// sign-in records and Supabase), then by name. An agent that exists only as
+// a sign-in record gets a starter profile built from its name and email.
+// Returns { key, agent, inMaster } or null.
+function _findAgentForEdit(agentName, email) {
+    let agents = {}, creds = {};
+    try { agents = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    try { creds = JSON.parse(localStorage.getItem('agentCredentials')) || {}; } catch (e) {}
+    const em = String(email || (creds[agentName] && creds[agentName].email) || '').trim().toLowerCase();
+    const byEmail = em && Object.keys(agents).find(n => String((agents[n] || {}).email || '').trim().toLowerCase() === em);
+    const key = byEmail || (agents[agentName] ? agentName : '');
+    if (key) return { key, agent: agents[key], inMaster: true };
+    if (agentName && (creds[agentName] || em)) {
+        return { key: agentName, agent: { name: agentName, email: em || '' }, inMaster: false };
+    }
+    return null;
+}
 
-    if (!agent) {
+// Edit Agent - Load existing data into form
+function editAgent(agentName, email) {
+    const found = _findAgentForEdit(agentName, email);
+
+    if (!found) {
         alert('Agent not found');
         return;
     }
+    const agent = found.agent;
+    agentName = found.key;
 
     document.getElementById('agentFormTitle').textContent = `Edit Agent: ${agent.name}`;
     const lb = document.getElementById('agentLoginBlock'); if (lb) lb.style.display = 'none';
@@ -5532,12 +5551,14 @@ function editAgent(agentName) {
 }
 
 // Delete Agent
-function deleteAgent(agentName) {
+function deleteAgent(agentName, email) {
     if (!confirm(`Are you sure you want to delete agent "${agentName}"?`)) {
         return;
     }
 
     const agents = JSON.parse(localStorage.getItem('agentMasterData')) || {};
+    const found = _findAgentForEdit(agentName, email);
+    if (found && found.inMaster) delete agents[found.key];
     delete agents[agentName];
     localStorage.setItem('agentMasterData', JSON.stringify(agents));
     // Also remove their login credentials, otherwise the agent keeps showing
@@ -13552,6 +13573,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // A login linked to a name that is not a registered agent must not reach
     // the entry pages through a restored session either.
     const u = (window.UIBAuth && UIBAuth.user()) || null;
-    if (u && u.role !== 'admin' && !getAllAgents().includes(u.name)) { UIBAuth.signOut(); window.location.replace('./'); return; }
+    if (u && u.role !== 'admin' && !getAllAgents().includes(u.name)) {
+        const fix = _agentNameForEmail(u.email);
+        if (fix) UIBAuth.adoptName(fix); else { UIBAuth.signOut(); window.location.replace('./'); return; }
+    }
     setTimeout(uibRestoreFormDraft, 400);
 });

@@ -35,6 +35,17 @@
     // Amanda. An account can also be made admin from Manage Login Credentials
     // (sets the server-side admin flag); nothing an agent can edit themselves
     // grants it.
+    // Built-in email -> agent name, so sign-in works on any device even when
+    // the Agent Management list has not reached the cloud yet.
+    const KNOWN_AGENTS = {
+        'admin@universalinsurancebroker.com': 'Alberto Manzor',
+        'amanzor89@gmail.com': 'Alberto Manzor',
+        'amanda@universalinsurancebroker.com': 'Amanda Montano',
+        'doral@universalinsurancebroker.com': 'Jorge Castro',
+        'lazaro@universalinsurancebroker.com': 'Lazaro Reigoza',
+        'randy@universalinsurancebroker.com': 'Randy Diaz',
+        'uri@universalinsurancebroker.com': 'Uriel Rendon'
+    };
     const ADMIN_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com', 'randy@universalinsurancebroker.com', 'amanda@universalinsurancebroker.com'];
     const IDLE_MS = 30 * 60 * 1000;
     const REFRESH_AHEAD_S = 120;
@@ -184,7 +195,7 @@
         // the roster says something different from the name on the account,
         // the roster wins and the account is corrected.
         {
-            const rosterName = nameFromRoster(user.email) || matchEmail(await rosterFromCloud(tok.access_token), user.email);
+            const rosterName = nameFromRoster(user.email) || matchEmail(await rosterFromCloud(tok.access_token), user.email) || KNOWN_AGENTS[String(user.email || '').trim().toLowerCase()] || '';
             const nameOnAccount = user.onAccount ? user.name : '';
             if (rosterName && rosterName !== nameOnAccount) {
                 user.name = rosterName; user.onAccount = true;
@@ -345,5 +356,5 @@
         }
     });
 
-    window.UIBAuth = { signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
+    window.UIBAuth = { signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, KNOWN_AGENTS, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
 })();
