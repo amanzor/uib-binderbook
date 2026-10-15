@@ -5428,7 +5428,7 @@ async function _ensureRosterPublished() {
 function _agentNameForEmail(email) {
     const e = String(email || '').trim().toLowerCase(); if (!e) return '';
     let master = {}; try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (err) {}
-    return Object.keys(master).find(n => String((master[n] || {}).email || '').trim().toLowerCase() === e) || '';
+    return Object.keys(master).find(n => String((master[n] || {}).email || '').trim().toLowerCase() === e) || ((window.UIBAuth && UIBAuth.KNOWN_AGENTS) || {})[e] || '';
 }
 
 // Show Agent Management Modal
@@ -13552,6 +13552,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // A login linked to a name that is not a registered agent must not reach
     // the entry pages through a restored session either.
     const u = (window.UIBAuth && UIBAuth.user()) || null;
-    if (u && u.role !== 'admin' && !getAllAgents().includes(u.name)) { UIBAuth.signOut(); window.location.replace('./'); return; }
+    if (u && u.role !== 'admin' && !getAllAgents().includes(u.name)) {
+        const fix = _agentNameForEmail(u.email);
+        if (fix) UIBAuth.adoptName(fix); else { UIBAuth.signOut(); window.location.replace('./'); return; }
+    }
     setTimeout(uibRestoreFormDraft, 400);
 });
