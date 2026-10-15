@@ -3,9 +3,7 @@
 // ============================================================
 const SUPABASE_URL = "https://jgjmobktucyimupelfxd.supabase.co";
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
-// Old Apps Script URL — kept ONLY for email notifications (sendEmail action).
-const DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
-const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'agentCredentials', 'prospectData', 'verificationLogs', 'commissionStatements', 'underwritingData', 'healthData', 'healthCarrierData'];
+const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'prospectData', 'verificationLogs', 'commissionStatements', 'underwritingData', 'healthData', 'healthCarrierData'];
 
 const _SB_HEADERS = {
     'apikey': SUPABASE_ANON_KEY,
@@ -166,8 +164,18 @@ async function driveGetResult(key) {
         return { ok: true, value: rows.length && rows[0].value !== null ? rows[0].value : null };
     } catch (e) {
         console.warn(`Cloud read failed for ${key}:`, e);
+        _noteCloudAuthFailure(e);
         return { ok: false, value: null };
     }
+}
+// After the database lockdown a request without a valid sign-in is refused
+// (401/403). Say so once, so an agent knows the entry is waiting on this
+// device rather than assuming it reached the book.
+let _cloudAuthWarned = false;
+function _noteCloudAuthFailure(e) {
+    if (_cloudAuthWarned || !/HTTP 40[13]/.test(String(e && e.message))) return;
+    _cloudAuthWarned = true;
+    try { alert('Your sign-in has ended, so this device cannot reach the cloud book right now.\n\nYour work is kept on this device and uploads automatically the next time you sign in here.'); } catch (err) {}
 }
 
 async function driveGet(key) {
@@ -424,6 +432,7 @@ async function driveSet(key, value) {
         return true;
     } catch (e) {
         console.warn(`Cloud write failed for ${key}:`, e);
+        _noteCloudAuthFailure(e);
         return false;
     }
 }
@@ -769,8 +778,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdgftX1s0VD0UqEpt0oKASpEeob_B4J6nwkYpVmNPn54kxYT910ly7NI9ab5RRW1o-tQ/exec';
-
 const SHEET_HEADERS = [
     'id','agent','customerName','source','policyType','lineOfBusiness','company','mga',
     'down','agencyFee','basePremium','agencyCommission','agentCommissionShare',
@@ -868,13 +875,10 @@ function initializeCredentials() {
         }
     });
 
-    // Add a default entry ONLY for agents that have no entry at all yet
-    // — never overwrites an existing entry, so saved emails are never lost
-    AGENTS.forEach(agent => {
-        if (!credentials[agent]) {
-            credentials[agent] = { email: '', password: agent.split(' ')[0].toLowerCase() };
-            changed = true;
-        }
+    // Logins live in Supabase Auth now. Any password still stored here
+    // from the old scheme is wiped so it cannot be read on this device.
+    Object.keys(credentials).forEach(agent => {
+        if (credentials[agent] && credentials[agent].password) { credentials[agent].password = ''; changed = true; }
     });
 
     // Persist only if something actually changed; use _origSetItem to bypass
@@ -921,42 +925,71 @@ function submitAgentEmailLogin(e) {
     e.preventDefault();
     const email    = document.getElementById('agentLoginEmail').value.trim().toLowerCase();
     const password = document.getElementById('agentLoginPassword').value;
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const errEl = document.getElementById('agentLoginError');
-
-    // Match by email + password only — same logic as AMS login
-    let matched = null;
-    Object.entries(credentials).forEach(([name, data]) => {
-        const storedEmail = (typeof data === 'object' ? data.email : '') || '';
-        const storedPass  = (typeof data === 'object' ? data.password : data) || '';
-        if (storedEmail.toLowerCase() === email && storedPass === password) matched = name;
-    });
-
-    const match = matched ? [matched, credentials[matched]] : null;
-
-    if (!match) {
-        errEl.textContent = 'Incorrect email or password. Please try again.';
-        errEl.style.display = 'block';
-        return;
-    }
-
-    const agentName = match[0];
+    const errEl    = document.getElementById('agentLoginError');
+    const btn      = document.getElementById('loginSignInBtn');
+    const showErr  = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+    if (!window.UIBAuth || !window.UIBMfa) { showErr('Sign-in is unavailable: the sign-in scripts did not load.'); return; }
     errEl.style.display = 'none';
+    if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.textContent = 'Signing in…'; }
 
-    const remember = document.getElementById('rememberAgentEmail')?.checked;
-    if (remember) {
-        localStorage.setItem('rememberedAgentEmail', email);
-    } else {
-        localStorage.removeItem('rememberedAgentEmail');
-    }
-
-    closeAgentEmailLogin();
-    showAgentSection(agentName);
-    loadFromSheet().then(() => {
-        loadAgentData();
-        populateAgentFilter();
-        generateBinderNumber();
+    UIBMfa.signIn(email, password, document.getElementById('agentEmailLoginForm')).then((user) => {
+        const remember = document.getElementById('rememberAgentEmail')?.checked;
+        if (remember) localStorage.setItem('rememberedAgentEmail', email); else localStorage.removeItem('rememberedAgentEmail');
+        document.getElementById('agentLoginPassword').value = '';
+        // An administrator whose email is on an agent record lands on their own
+        // agent dashboard (with admin visibility); the Admin Access button is
+        // the way into the admin console.
+        if (user.role === 'admin' && (!user.name || user.name === 'Admin')) { enterAdmin(); return; }
+        // The name on the account must be a real agent in Agent Management;
+        // otherwise entries would be filed under a name nobody can see.
+        if (!getAllAgents().includes(user.name)) {
+            UIBAuth.signOut();
+            throw new Error('This login is linked to "' + user.name + '", which is not an agent in Agent Management. Ask an administrator to pick the right agent for this login in Manage Login Credentials.');
+        }
+        showAgentSection(user.name);
+        loadFromSheet().then(() => {
+            loadAgentData();
+            populateAgentFilter();
+            generateBinderNumber();
+        });
+    }).catch((err) => {
+        const m = String(err && err.message || '');
+        showErr(/invalid login credentials/i.test(m) ? 'Incorrect email or password. Please try again.' : m || 'Sign-in failed. Please try again.');
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.orig || 'Sign In'; refreshIcons(); }
     });
+}
+
+// Forgot password: Supabase emails a reset link to the address on the account.
+function sendPasswordReset() {
+    const email = (document.getElementById('agentLoginEmail')?.value || '').trim().toLowerCase();
+    const errEl = document.getElementById('agentLoginError');
+    if (!email) { errEl.textContent = 'Type your email address first, then press Forgot password.'; errEl.style.display = 'block'; return; }
+    UIBAuth.resetPasswordEmail(email).then(() => {
+        errEl.style.background = '#ecfdf5'; errEl.style.color = '#065f46'; errEl.style.borderColor = '#6ee7b7';
+        errEl.textContent = 'If that address has an account, a reset link is on its way.'; errEl.style.display = 'block';
+    }).catch((err) => { errEl.textContent = err.message || 'Could not send the reset email.'; errEl.style.display = 'block'; });
+}
+
+// Signed-in user changes their own password (user menu).
+async function changeMyPassword() {
+    if (!window.UIBAuth || !UIBAuth.isSignedIn()) { alert('Sign in first.'); return; }
+    const p1 = prompt('New password (at least 10 characters):');
+    if (p1 == null) return;
+    if (p1.length < 10) { alert('Use at least 10 characters.'); return; }
+    const p2 = prompt('Type the new password again:');
+    if (p1 !== p2) { alert('The passwords do not match.'); return; }
+    try { await UIBAuth.changePassword(p1); alert('Password changed.'); }
+    catch (e) { alert('Could not change password: ' + (e.message || e)); }
+}
+
+function enterAdmin() {
+    currentUser = 'Admin';
+    currentRole = 'admin';
+    try { sessionStorage.setItem('uibCurrentUser', 'Admin'); } catch (e) {}
+    closeAdminLoginModal();
+    showSection('adminSection');
+    loadFromSheet().then(() => loadAdminDashboard());
 }
 
 // ── Credential Manager (Admin) ─────────────────────────────────
@@ -978,76 +1011,93 @@ function closeCredentialManager() {
 }
 
 function renderCredentialList() {
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const container   = document.getElementById('credentialList');
-
-    container.innerHTML = AGENTS.map(agent => {
-        const cred = credentials[agent] || { email: '', password: '' };
-        return `
-        <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:12px;">
-            <div style="font-weight:700;color:var(--navy);margin-bottom:10px;font-size:14px;"><i data-lucide="user"></i> ${agent}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Email (username)</label>
-                    <input type="email" id="cred_email_${agent.replace(/\s+/g,'_')}"
-                        value="${cred.email || ''}" placeholder="agent@email.com"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Password</label>
-                    <input type="text" id="cred_pass_${agent.replace(/\s+/g,'_')}"
-                        value="${cred.password || ''}" placeholder="Enter password"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-            </div>
-            <button class="btn-primary btn-sm" onclick="saveAgentCredential('${agent}')"><i data-lucide="save"></i> Save</button>
-        </div>`;
-    }).join('');
-    refreshIcons();
+    const container = document.getElementById('credentialList');
+    if (!container) return;
+    container.innerHTML = `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px 18px;color:#3730a3;font-size:14px;line-height:1.5;">
+        <b>Logins are managed in Supabase Auth.</b> Agent accounts, passwords and admin rights are created and reset in the
+        Supabase dashboard (Authentication ▸ Users) or with <code>scripts/create_auth_users.mjs</code>. Passwords are never stored in the app.
+        Each agent can change their own password from the user menu.</div>`;
 }
 
-function renderCredentialListPage() {
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const container   = document.getElementById('credentialListPage');
+// ── Login accounts (Supabase Auth), managed through the admin-users function ──
+const ADMIN_USERS_FN = SUPABASE_URL + '/functions/v1/admin-users';
+async function _adminUsers(action, extra) {
+    const res = await fetch(ADMIN_USERS_FN, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ action }, extra || {}))
+    });
+    let data = null; try { data = await res.json(); } catch (e) {}
+    if (res.status === 404) throw new Error('The admin-users function is not deployed yet. In Supabase ▸ Edge Functions, deploy supabase/functions/admin-users/index.ts as "admin-users".');
+    if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || ('HTTP ' + res.status));
+    return data;
+}
+const _esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function renderCredentialListPage() {
+    const container = document.getElementById('credentialListPage');
     if (!container) return;
-
-    // Get all agents — include extras added via "Add Agent Credential"
-    const allAgents = Array.from(new Set([...AGENTS, ...Object.keys(credentials)]));
-
-    container.innerHTML = allAgents.map(agent => {
-        const cred = credentials[agent] || { email: '', password: '' };
-        const key  = agent.replace(/\s+/g, '_');
-        return `
-        <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <span style="font-weight:700;color:var(--navy);font-size:14px;"><i data-lucide="user"></i> ${agent}</span>
-                <span id="cred_status_${key}" style="font-size:12px;color:var(--success);font-weight:600;opacity:0;transition:opacity .3s;">✓ Saved</span>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Email (username)</label>
-                    <input type="email" id="page_cred_email_${key}"
-                        value="${cred.email || ''}" placeholder="agent@email.com"
-                        oninput="autoSaveCredential('${agent}')"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Password</label>
-                    <input type="text" id="page_cred_pass_${key}"
-                        value="${cred.password || ''}" placeholder="Enter password"
-                        oninput="autoSaveCredential('${agent}')"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-    refreshIcons();
-
-    // Always push current credentials to Drive when the page opens —
-    // ensures Drive stays in sync even if no field is changed.
-    if (Object.keys(credentials).length > 0) {
-        driveSet('agentCredentials', credentials);
+    container.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading accounts…</div>';
+    let users = [];
+    try { users = (await _adminUsers('list')).users || []; }
+    catch (e) {
+        container.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 18px;color:#991b1b;font-size:14px;line-height:1.5;"><b>Could not load accounts.</b> ${_esc(e.message || e)}</div>`;
+        return;
     }
+    const agents = getAllAgents();
+    const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
+    const byEmail = {}; Object.keys(master).forEach((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); if (em) byEmail[em] = n; });
+    const missing = agents.filter((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); return !users.some((u) => String(u.email).toLowerCase() === em || u.agent_name === n); });
+    const fmt = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
+    const rows = users.map((u) => {
+        const linked = u.agent_name || byEmail[String(u.email).toLowerCase()] || '';
+        const opts = ['<option value="">— not linked —</option>'].concat(agents.map((n) => `<option value="${_esc(n)}"${n === linked ? ' selected' : ''}>${_esc(n)}</option>`)).join('');
+        return `<tr>
+            <td style="font-weight:600;">${_esc(u.email)}${u.confirmed ? '' : ' <span style="font-size:11px;color:#b45309;font-weight:700;">(unconfirmed)</span>'}</td>
+            <td><select onchange="credSetName('${_esc(u.id)}', this.value)" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;">${opts}</select></td>
+            <td><select onchange="credSetRole('${_esc(u.id)}', this.value)" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;"><option value="agent"${u.role === 'agent' ? ' selected' : ''}>Agent</option><option value="admin"${u.role === 'admin' ? ' selected' : ''}>Admin</option></select></td>
+            <td style="font-size:12px;color:var(--gray-500);">${fmt(u.last_sign_in_at)}</td>
+            <td style="font-size:12px;">${u.mfa ? '<span style="color:#166534;font-weight:700;">✓ on</span>' : '<span style="color:#b45309;">not set up</span>'}</td>
+            <td style="white-space:nowrap;">
+                <button class="btn-primary btn-xs btn-sm" onclick="credSetPassword('${_esc(u.id)}','${_esc(u.email)}')">Reset password</button>
+                ${u.mfa ? `<button class="btn-secondary btn-sm" onclick="credClearMfa('${_esc(u.id)}','${_esc(u.email)}')">Clear 2-step</button>` : ''}
+                <button class="btn-danger btn-sm" onclick="credDelete('${_esc(u.id)}','${_esc(u.email)}')">Delete</button>
+            </td></tr>`;
+    }).join('');
+    let mfaOn = false; try { mfaOn = await UIBAuth.getMfaRequired(); } catch (e) {}
+    container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:${mfaOn ? '#ecfdf5' : '#f3f4f6'};border:1px solid ${mfaOn ? '#6ee7b7' : '#d1d5db'};border-radius:12px;padding:12px 16px;margin-bottom:14px;">
+            <div style="font-size:13px;"><b>2-step verification: ${mfaOn ? 'ON' : 'OFF'}</b><div style="color:var(--gray-500);margin-top:2px;">${mfaOn ? 'Every sign-in needs a 6-digit code from an authenticator app. Accounts without one set it up at their next sign-in.' : 'Sign-in is email + password only. Turn on when everyone is ready; agents set up an authenticator app at their next sign-in.'}</div></div>
+            <button class="${mfaOn ? 'btn-danger' : 'btn-success'} btn-sm" onclick="credToggleMfa(${mfaOn ? 'false' : 'true'})">${mfaOn ? 'Turn off' : 'Turn on'}</button>
+        </div>
+        ${missing.length ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;color:#92400e;font-size:13px;margin-bottom:14px;"><b>No login yet:</b> ${missing.map(_esc).join(', ')}. Press <b>Add Agent Credential</b> to create one.</div>` : ''}
+        <div class="table-container"><table style="width:100%;">
+            <thead><tr><th>Email (login)</th><th>Agent</th><th>Role</th><th>Last sign-in</th><th>2-step</th><th>Actions</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6" class="no-data">No accounts yet. Press Add Agent Credential.</td></tr>'}</tbody>
+        </table></div>
+        <p style="font-size:12px;color:var(--gray-500);margin-top:12px;">Passwords are never shown or stored in the app. Give the agent the password you set, and ask them to change it with the Password button once they are in.</p>`;
+    refreshIcons();
+}
+async function credSetName(id, name) { try { await _adminUsers('setName', { id, agent_name: name }); } catch (e) { alert(e.message || e); } }
+async function credToggleMfa(on) {
+    if (!confirm(on ? 'Turn ON 2-step verification for every account? From the next sign-in, each person scans a QR code with an authenticator app and enters a 6-digit code.' : 'Turn OFF 2-step verification? Sign-in goes back to email + password only.')) return;
+    try { await UIBAuth.setMfaRequired(on); if (window.UIBAudit) UIBAudit.log('mfa_setting', on ? 'on' : 'off'); renderCredentialListPage(); }
+    catch (e) { alert(e.message || e); }
+}
+async function credSetRole(id, role) { try { await _adminUsers('setRole', { id, role }); if (window.UIBAudit) UIBAudit.log('cred_set_role', role, { id }); } catch (e) { alert(e.message || e); renderCredentialListPage(); } }
+async function credSetPassword(id, email) {
+    const p1 = prompt('New password for ' + email + ' (at least 10 characters):'); if (p1 == null) return;
+    if (p1.length < 10) { alert('Use at least 10 characters.'); return; }
+    try { await _adminUsers('setPassword', { id, password: p1 }); if (window.UIBAudit) UIBAudit.log('cred_reset_password', email); alert('Password set. Give it to the agent; they can change it after signing in.'); }
+    catch (e) { alert(e.message || e); }
+}
+async function credClearMfa(id, email) {
+    if (!confirm('Clear 2-step verification for ' + email + '? They will set up a new authenticator on their next sign-in.')) return;
+    try { await _adminUsers('clearMfa', { id }); renderCredentialListPage(); } catch (e) { alert(e.message || e); }
+}
+async function credDelete(id, email) {
+    if (!confirm('Delete the login for ' + email + '? Their entries stay in the book; only the sign-in is removed.')) return;
+    try { await _adminUsers('delete', { id }); if (window.UIBAudit) UIBAudit.log('cred_delete', email); renderCredentialListPage(); } catch (e) { alert(e.message || e); }
 }
 
 function autoSaveCredential(agent) {
@@ -1072,7 +1122,11 @@ function autoSaveCredential(agent) {
 function openAddCredentialModal() {
     const m = document.getElementById('addCredentialModal');
     m.classList.add('active');
-    document.getElementById('newCredAgent').value = '';
+    // Agent picker from the roster; email prefills from the agent's record.
+    const sel = document.getElementById('newCredAgent');
+    const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
+    sel.innerHTML = '<option value="">— Select agent —</option>' + getAllAgents().map((n) => `<option value="${_esc(n)}" data-email="${_esc((master[n] && master[n].email) || '')}">${_esc(n)}</option>`).join('');
+    sel.onchange = () => { const o = sel.options[sel.selectedIndex]; const em = o && o.dataset.email; if (em) document.getElementById('newCredEmail').value = em; };
     document.getElementById('newCredEmail').value = '';
     document.getElementById('newCredPassword').value = '';
     if (window.UIBMotion) UIBMotion.animateModalOpen(m);
@@ -1083,25 +1137,25 @@ function closeAddCredentialModal() {
     document.getElementById('addCredentialModal').classList.remove('active');
 }
 
-function submitAddCredential(e) {
+async function submitAddCredential(e) {
     e.preventDefault();
     const agent = document.getElementById('newCredAgent').value.trim();
-    const email = document.getElementById('newCredEmail').value.trim();
-    const pass  = document.getElementById('newCredPassword').value.trim();
-
-    if (!agent || !email || !pass) {
-        alert('Please fill in all fields.');
-        return;
-    }
-
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    credentials[agent] = { email, password: pass };
-    localStorage.setItem('agentCredentials', JSON.stringify(credentials));
-    driveSet('agentCredentials', credentials);
-
-    closeAddCredentialModal();
-    renderCredentialListPage();
-    refreshIcons();
+    const email = document.getElementById('newCredEmail').value.trim().toLowerCase();
+    const pass  = document.getElementById('newCredPassword').value;
+    const role  = document.getElementById('newCredRole') ? document.getElementById('newCredRole').value : 'agent';
+    if (!agent || !email || !pass) { alert('Pick the agent and fill in the email and password.'); return; }
+    if (pass.length < 10) { alert('Use a password of at least 10 characters.'); return; }
+    const btn = e.target.querySelector('button[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+    try {
+        await _adminUsers('create', { email, password: pass, agent_name: agent, role });
+        if (window.UIBAudit) UIBAudit.log('cred_create', email, { agent, role });
+        // Keep the roster's email in step so the match works everywhere.
+        try { const master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; if (master[agent] && master[agent].email !== email) { master[agent].email = email; localStorage.setItem('agentMasterData', JSON.stringify(master)); } } catch (err) {}
+        closeAddCredentialModal();
+        renderCredentialListPage();
+        alert('Login created for ' + agent + '. Give them the email and password; they can change the password after signing in.');
+    } catch (err) { alert(err.message || err); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="save"></i> Save'; refreshIcons(); } }
 }
 
 function saveAgentCredential(agent) {
@@ -1195,15 +1249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btnOrigHTML = loginBtn ? loginBtn.innerHTML : '';
         if (loginBtn) { loginBtn.disabled = true; loginBtn.innerHTML = 'Loading…'; }
 
-        try {
-            const timeout  = new Promise(res => setTimeout(() => res(null), 4000));
-            const driveData = await Promise.race([driveGet('agentCredentials'), timeout]);
-            if (driveData && typeof driveData === 'object' && Object.keys(driveData).length > 0) {
-                _origSetItem('agentCredentials', JSON.stringify(driveData));
-                initializeCredentials(); // re-run so any new agents are added
-                initializeAgentButtons();
-            }
-        } catch(e) { /* Drive unavailable — use whatever is already local */ }
+        // Logins are checked by Supabase Auth; nothing to download first.
 
         if (loginBtn) { loginBtn.disabled = false; loginBtn.innerHTML = btnOrigHTML; refreshIcons(); }
 
@@ -1340,33 +1386,20 @@ function closeAgentLoginModal() {
 }
 
 document.getElementById('agentLoginForm')?.addEventListener('submit', (e) => {
+    // Legacy modal: logins now go through the email form on the login screen.
     e.preventDefault();
-    const agent = document.getElementById('selectedAgent').value;
-    const password = document.getElementById('agentPassword').value;
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials'));
-
-    const storedPass = typeof credentials[agent] === 'object' ? credentials[agent]?.password : credentials[agent];
-    if (storedPass === password) {
-        closeAgentLoginModal();
-        showAgentSection(agent);
-        loadFromSheet().then(() => {
-            loadAgentData();
-            populateAgentFilter();
-            generateBinderNumber();
-        });
-    } else {
-        alert('Incorrect password');
-        document.getElementById('agentPassword').value = '';
-        document.getElementById('agentPassword').focus();
-    }
+    closeAgentLoginModal();
+    showSection('loginSection');
+    document.getElementById('agentLoginEmail')?.focus();
 });
 
 function showAgentSection(agent) {
     currentUser = agent;
     currentRole = 'agent';
-    // Persist across browser sessions so the agent stays signed in on this
-    // device until they hit Logout (not just for the current tab/session).
-    try { localStorage.setItem('uibCurrentUser', agent); } catch (e) {}
+    // Per-tab marker only; the real session is the Supabase Auth token in
+    // sessionStorage (see uib-auth.js). Nothing about the login persists on
+    // the device after the tab closes or 30 idle minutes pass.
+    try { sessionStorage.setItem('uibCurrentUser', agent); localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('agentSection');
     document.getElementById('userDisplay').textContent = `👤 Agent: ${agent}`;
     document.getElementById('agentForm').reset();
@@ -1506,24 +1539,28 @@ function closeAdminLoginModal() {
 
 document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
+    const email    = (document.getElementById('adminEmail')?.value || '').trim().toLowerCase();
     const password = document.getElementById('adminPassword').value;
-    if (password === 'admin123') {
-        currentUser = 'Admin';
-        currentRole = 'admin';
-        try { localStorage.setItem('uibCurrentUser', 'Admin'); } catch (e) {}
-        closeAdminLoginModal();
-        showSection('adminSection');
-        loadFromSheet().then(() => loadAdminDashboard());
-    } else {
-        alert('Incorrect password');
+    if (!window.UIBAuth) { alert('Sign-in is unavailable: uib-auth.js did not load.'); return; }
+    UIBMfa.signIn(email, password, document.getElementById('adminLoginForm')).then((user) => {
+        document.getElementById('adminPassword').value = '';
+        if (user.role !== 'admin') {
+            UIBAuth.signOut();
+            alert('This account is not an administrator.');
+            return;
+        }
+        enterAdmin();
+    }).catch((err) => {
+        alert(/invalid login credentials/i.test(String(err.message)) ? 'Incorrect email or password' : (err.message || 'Sign-in failed'));
         document.getElementById('adminPassword').value = '';
         document.getElementById('adminPassword').focus();
-    }
+    });
 });
 
 function logout() {
     currentUser = null;
     currentRole = null;
+    if (window.UIBAuth) UIBAuth.signOut();
     // Clear the session markers so we don't auto-restore straight back in.
     try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {}
     try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
@@ -1552,11 +1589,15 @@ function restoreSessionFromStorage() {
     // real dashboard element (#agentTable) that only exists on index.html.
     if (!document.getElementById('loginSection') || !document.getElementById('agentTable')) return false;
 
-    // Prefer the persistent copy (localStorage) so the agent stays signed in
-    // across browser restarts; fall back to the per-tab sessionStorage copy.
-    let savedUser = null;
-    try { savedUser = localStorage.getItem('uibCurrentUser') || sessionStorage.getItem('uibCurrentUser'); } catch (e) { return false; }
-    if (!savedUser) return false;
+    // Only a live Supabase Auth session counts. The old localStorage marker
+    // is ignored (and cleared) so a shared device never opens signed in.
+    try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
+    const authUser = (window.UIBAuth && UIBAuth.user()) || null;
+    if (!authUser) { try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {} return false; }
+    // Keep whichever view this tab was in (agent dashboard or admin console).
+    let savedUser = null; try { savedUser = sessionStorage.getItem('uibCurrentUser'); } catch (e) {}
+    if (!savedUser) savedUser = (authUser.role === 'admin' && (!authUser.name || authUser.name === 'Admin')) ? 'Admin' : authUser.name;
+    try { sessionStorage.setItem('uibCurrentUser', savedUser); } catch (e) {}
 
     if (savedUser === 'Admin') {
         currentUser = 'Admin';
@@ -1570,9 +1611,10 @@ function restoreSessionFromStorage() {
         return true;
     }
 
-    // Only restore a recognized agent.
+    // Only restore a recognized agent; a login linked to an unknown name is
+    // ended so it cannot reach the entry pages either.
     const agents = (typeof getAllAgents === 'function') ? getAllAgents() : (typeof AGENTS !== 'undefined' ? AGENTS : []);
-    if (!agents.includes(savedUser)) return false;
+    if (!agents.includes(savedUser)) { try { UIBAuth.signOut(); sessionStorage.removeItem('uibCurrentUser'); } catch (e) {} return false; }
 
     showAgentSection(savedUser);
     if (typeof loadFromSheet === 'function') {
@@ -1591,10 +1633,13 @@ function restoreSessionFromStorage() {
 }
 
 // UI Navigation
+let _ackChecked = false;
 function showSection(sectionId) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     const el = document.getElementById(sectionId);
     el.classList.add('active');
+    // Yearly confidentiality & security acknowledgment (GLBA training record).
+    if (sectionId !== 'loginSection' && !_ackChecked && window.UIBAudit && window.UIBAuth && UIBAuth.isSignedIn()) { _ackChecked = true; UIBAudit.requireAck(); }
     if (window.UIBMotion) {
         UIBMotion.animateSection(el);
         UIBMotion.animateUserInfoBar(el);
@@ -4108,7 +4153,9 @@ function _agentDefaultMonth() {
 // submissions (extra Agent filter + Agent column). Editing and deleting
 // still applies only to their own entries.
 const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano'];
-function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser); }
+// Agent-admins see every agent's entries: the named list, plus any account
+// Supabase marks as an administrator.
+function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser) || !!(window.UIBAuth && UIBAuth.isAdmin()); }
 
 // The entries the current user is allowed to SEE (before UI filters).
 function _agentVisibleEntries() {
@@ -4977,24 +5024,12 @@ function closePasswordManagementModal() {
 }
 
 function loadPasswordManagementTable() {
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const tbody = document.getElementById('passwordTable');
-
-    tbody.innerHTML = getAllAgents().map(agent => {
-        // Support both old flat-string format and new {email, password} format
-        const cred = credentials[agent];
-        const pw   = typeof cred === 'object' ? (cred?.password || '') : (cred || '');
-        return `
-        <tr>
-            <td>${agent}</td>
-            <td>
-                <input type="password" value="${pw}" id="pwd_${agent}" class="password-input">
-            </td>
-            <td>
-                <button class="btn-success btn-sm" onclick="updateAgentPassword('${agent}')">Update</button>
-            </td>
-        </tr>`;
-    }).join('');
+    const container = document.getElementById('passwordTable');
+    if (!container) return;
+    container.innerHTML = `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px 18px;color:#3730a3;font-size:14px;line-height:1.5;">
+        <b>Logins are managed in Supabase Auth.</b> Agent accounts, passwords and admin rights are created and reset in the
+        Supabase dashboard (Authentication ▸ Users) or with <code>scripts/create_auth_users.mjs</code>. Passwords are never stored in the app.
+        Each agent can change their own password from the user menu.</div>`;
 }
 
 function updateAgentPassword(agent) {
@@ -10108,41 +10143,10 @@ function claudeFindExistingClient(customerName, policyNumber) {
     ) || null;
 }
 
-// Email admin@universalinsurancebroker.com via the Apps Script proxy.
-// Requires a `sendEmail` action handler in the deployed Google Apps Script.
+// Flag the duplicate for the administrators in the Access Log (no customer
+// data leaves the system; the old unauthenticated email relay is gone).
 async function claudeNotifyAdminExistingClient(existing, reported, reporter) {
-    const subject = `⚠️ Existing client policy re-reported via chat: ${reported.customerName || ''}`;
-    const body = [
-        `An existing client/policy was reported again through the AI Assistant chat.`,
-        ``,
-        `Reported by (agent credited on the new entry): ${reporter}`,
-        ``,
-        `--- Reported policy ---`,
-        `Customer: ${reported.customerName || '-'}`,
-        `Policy #: ${reported.policyNumber || '-'}`,
-        `Carrier:  ${reported.company || '-'}`,
-        `LOB:      ${reported.lineOfBusiness || '-'}`,
-        `Premium:  $${reported.totalPremium || '-'}`,
-        ``,
-        `--- Existing record already on file ---`,
-        `Original agent (shown in app): ${existing.agent || '-'}`,
-        `Original entry date:           ${existing.entryDate || '-'}`,
-        `Existing carrier:              ${existing.company || '-'}`,
-        `Existing total premium:        $${existing.totalPremium || '-'}`,
-    ].join('\n');
-    try {
-        await fetch(DRIVE_API_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-                action: 'sendEmail',
-                to: 'admin@universalinsurancebroker.com',
-                subject,
-                body
-            })
-        });
-    } catch (e) {
-        console.warn('Admin existing-client email failed:', e);
-    }
+    try { if (window.UIBAudit) UIBAudit.log('duplicate_flagged', reported.customerName || '', { reporter, policyNumber: reported.policyNumber || '', originalAgent: existing.agent || '', originalEntryDate: existing.entryDate || '' }); } catch (e) {}
 }
 
 // Returns warning HTML (empty string if not an existing client).
@@ -12232,34 +12236,15 @@ const BACKUP_SLOTS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => 'backu
 
 // Plain write — deliberately NOT driveSet: snapshots are point-in-time
 // copies that must never be merged with the cloud or flagged dirty.
-// Snapshots are written to BOTH backends. Supabase is the primary store, but
-// when it went down for a full day the backups went down with it — a backup
-// that shares a failure domain with the thing it protects is not a backup. The
-// Apps Script store stayed reachable throughout, so it gets a copy too. A
-// failure on either side never blocks the other.
+// Snapshots go to Supabase only (the unauthenticated Apps Script mirror was
+// retired); enable daily backups in the Supabase dashboard for the off-site copy.
 async function _backupPost(key, value) {
-    const results = await Promise.allSettled([
-        (async () => {
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
-                method: 'POST',
-                headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
-                body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
-            });
-            if (!res.ok) throw new Error('Supabase HTTP ' + res.status);
-        })(),
-        (async () => {
-            // Apps Script mirror — no-cors, so success is best-effort by design.
-            await fetch(DRIVE_API_URL, {
-                method: 'POST', mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key, value })
-            });
-        })()
-    ]);
-    // Only fail if BOTH backends rejected — one surviving copy is enough.
-    if (results.every(r => r.status === 'rejected')) {
-        throw new Error('both backup backends failed: ' + results.map(r => r.reason).join(' | '));
-    }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+        method: 'POST',
+        headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+        body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
+    });
+    if (!res.ok) throw new Error('Supabase HTTP ' + res.status);
 }
 
 // Freshness probe: fetch ONLY the snapshot's date field, not the multi-MB
@@ -13238,7 +13223,7 @@ function claudeRenewalImportAll(setIdx) {
 // delete a policy that is already there.
 // ============================================================
 const SAFETY_KEYS = ['binderData', 'binderDeletedIds', 'commissionData', 'carrierMasterData',
-                     'prospectData', 'agentMasterData', 'agentCredentials', 'amsClientData',
+                     'prospectData', 'agentMasterData', 'amsClientData',
                      'commissionStatements', 'verificationLogs'];
 
 function _safetyLocal(key) {
@@ -13348,3 +13333,169 @@ function showDataSafety() {
     document.body.appendChild(m);
     m.addEventListener('click', e => { if (e.target === m) m.remove(); });
 }
+
+
+// ═══════════════════════════════════════════════════════════════
+//  COMPLIANCE: audit hooks, Access Log, Retention Review (admin)
+// ═══════════════════════════════════════════════════════════════
+(function () {
+    const L = (a, t, d) => { try { if (window.UIBAudit) UIBAudit.log(a, t, d); } catch (e) {} };
+    const wrap = (name, action, targetFn, detailsFn) => {
+        const orig = window[name]; if (typeof orig !== 'function') return;
+        window[name] = function () { const r = orig.apply(this, arguments); try { L(action, targetFn ? targetFn.apply(this, arguments) : null, detailsFn ? detailsFn.apply(this, arguments) : null); } catch (e) {} return r; };
+    };
+    wrap('exportToCSV', 'export', (entries, filename) => filename, (entries) => ({ rows: entries ? entries.length : 0, format: 'csv' }));
+    wrap('exportToExcel', 'export', () => 'all_sales.xlsx', () => ({ rows: (allData || []).length, format: 'xlsx' }));
+    wrap('exportAgentCommissions', 'export', () => 'agent_commissions.csv', () => ({ format: 'csv' }));
+    wrap('exportAgentCommissionsPDF', 'export', () => 'agent_commissions.pdf', () => ({ format: 'pdf' }));
+    wrap('exportCSAgentReportCSV', 'export', () => 'commission_statement_agent.csv', () => ({ format: 'csv' }));
+    wrap('exportCSAdjustmentsCSV', 'export', () => 'commission_adjustments.csv', () => ({ format: 'csv' }));
+    wrap('deleteEntry', 'delete_entry', (id) => { const e = (allData || []).find(x => x.id === id); return e ? e.customerName : String(id); }, (id) => ({ id }));
+    wrap('saveEntry', 'save_entry', () => { const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : ''; const el = document.getElementById('customerName' + sfx); return el ? el.value : ''; }, () => { const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : ''; const el = document.getElementById('policyNumber' + sfx); return { policyNumber: el ? el.value : '' }; });
+    wrap('enterAdmin', 'admin_console', null, null);
+})();
+
+const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored', mfa_setting: '2-step setting changed' };
+
+function showAccessLog() {
+    if (!isAgentAdmin()) { alert('Only administrators can view the access log.'); return; }
+    showSection('accessLogSection');
+    refreshIcons();
+    renderAccessLog();
+}
+async function renderAccessLog() {
+    const box = document.getElementById('accessLogTable'); if (!box) return;
+    box.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading…</div>';
+    const action = document.getElementById('alFilterAction')?.value || '';
+    const email = (document.getElementById('alFilterUser')?.value || '').trim().toLowerCase();
+    const days = parseInt(document.getElementById('alFilterDays')?.value || '30', 10);
+    let rows = [];
+    try { rows = await UIBAudit.list({ limit: 1000, action: action || undefined, email: email || undefined, since: days ? new Date(Date.now() - days * 864e5).toISOString() : undefined }); }
+    catch (e) { box.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 18px;color:#991b1b;font-size:14px;">${_esc(e.message || e)}</div>`; return; }
+    const fmt = (iso) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: '2-digit', hour: 'numeric', minute: '2-digit' });
+    const det = (d) => d && typeof d === 'object' ? Object.keys(d).filter(k => d[k] !== undefined && d[k] !== null && d[k] !== '').map(k => `${k}: ${d[k]}`).join(' · ') : '';
+    box.innerHTML = `<div class="table-container"><table style="width:100%;"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Record</th><th>Details</th><th>Page</th></tr></thead><tbody>` +
+        (rows.map(r => `<tr><td style="white-space:nowrap;font-size:12px;">${fmt(r.at)}</td><td>${_esc(r.user_name || r.user_email)}<div style="font-size:11px;color:var(--gray-500);">${_esc(r.user_email)}</div></td><td>${_esc(ACTION_LABELS[r.action] || r.action)}</td><td>${_esc(r.target || '')}</td><td style="font-size:12px;color:var(--gray-500);">${_esc(det(r.details))}</td><td style="font-size:12px;">${_esc(r.page || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="no-data">No activity in this period.</td></tr>') +
+        `</tbody></table></div><p style="font-size:12px;color:var(--gray-500);margin-top:10px;">${rows.length} event${rows.length === 1 ? '' : 's'} · the log is append-only and kept 5 years.</p>`;
+    renderAckStatus();
+}
+async function renderAckStatus() {
+    const box = document.getElementById('accessLogAcks'); if (!box) return;
+    let acks = {}; try { acks = (await UIBAudit.getAcks()) || {}; } catch (e) {}
+    const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
+    const rows = getAllAgents().map(n => { const em = ((master[n] && master[n].email) || '').toLowerCase(); const a = em && acks[em]; const ok = a && a.version === UIBAudit.ACK_VERSION; return `<tr><td>${_esc(n)}</td><td style="font-size:12px;">${_esc(em || '—')}</td><td>${ok ? '<span style="color:#166534;font-weight:700;">✓ ' + new Date(a.date).toLocaleDateString() + '</span>' : '<span style="color:#b45309;font-weight:700;">Not yet for ' + UIBAudit.ACK_VERSION + '</span>'}</td></tr>`; }).join('');
+    box.innerHTML = `<h3 style="margin:22px 0 8px;font-size:15px;">Confidentiality &amp; security acknowledgment (${UIBAudit.ACK_VERSION})</h3><div class="table-container"><table style="width:100%;"><thead><tr><th>Agent</th><th>Email</th><th>Accepted</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function exportAccessLogCSV() {
+    const rows = Array.from(document.querySelectorAll('#accessLogTable tbody tr')).map(tr => Array.from(tr.children).map(td => '"' + td.textContent.replace(/"/g, '""').trim() + '"').join(','));
+    if (!rows.length) return;
+    const blob = new Blob(['When,Who,Action,Record,Details,Page\n' + rows.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'access_log.csv'; a.click();
+    if (window.UIBAudit) UIBAudit.log('export', 'access_log.csv', { rows: rows.length, format: 'csv' });
+}
+
+// ── Retention Review ───────────────────────────────────────────
+async function _complianceSettings() {
+    try {
+        const r = await driveGetResult('complianceSettings');
+        const v = (r && r.ok && r.value && typeof r.value === 'object') ? r.value : {};
+        return Object.assign({ retentionYears: 7, legalHold: {} }, v);
+    } catch (e) { return { retentionYears: 7, legalHold: {} }; }
+}
+async function _saveComplianceSettings(v) {
+    await fetch(`${SUPABASE_URL}/rest/v1/app_store`, { method: 'POST', headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }), body: JSON.stringify([{ key: 'complianceSettings', value: v, updated_at: new Date().toISOString() }]) });
+}
+function showRetentionReview() {
+    if (!isAgentAdmin()) { alert('Only administrators can run the retention review.'); return; }
+    showSection('retentionSection');
+    refreshIcons();
+    renderRetentionReview();
+}
+async function renderRetentionReview() {
+    const box = document.getElementById('retentionTable'); if (!box) return;
+    box.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading…</div>';
+    const cfg = await _complianceSettings();
+    const yearsEl = document.getElementById('retentionYears'); if (yearsEl && !yearsEl.dataset.touched) yearsEl.value = cfg.retentionYears;
+    const years = parseInt((yearsEl && yearsEl.value) || cfg.retentionYears, 10) || 7;
+    const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - years);
+    const dateOf = (e) => new Date(e.expDate || e.expirationDate || e.entryDate || e.timestamp || 0);
+    const old = (allData || []).filter(e => { const d = dateOf(e); return d.getTime() > 0 && d < cutoff; }).sort((a, b) => dateOf(a) - dateOf(b));
+    const held = cfg.legalHold || {};
+    box.innerHTML = `<p style="font-size:13px;color:var(--gray-500);margin:0 0 12px;">${old.length} entr${old.length === 1 ? 'y is' : 'ies are'} older than ${years} years (before ${cutoff.toLocaleDateString()}). Florida requires at least 5 years after a policy ends. Records on <b>legal hold</b> are never deleted here.</p>` +
+        `<div class="table-container"><table style="width:100%;"><thead><tr><th><input type="checkbox" onchange="document.querySelectorAll('.retPick').forEach(c=>{ if(!c.disabled) c.checked=this.checked; })"></th><th>Entry date</th><th>Customer</th><th>Agent</th><th>Policy #</th><th>Legal hold</th></tr></thead><tbody>` +
+        (old.map(e => `<tr><td><input type="checkbox" class="retPick" value="${_esc(e.id)}" ${held[e.id] ? 'disabled' : ''}></td><td style="white-space:nowrap;">${_esc((e.entryDate || '').slice(0, 10))}</td><td>${_esc(e.customerName || '')}</td><td>${_esc(e.agent || '')}</td><td>${_esc(e.policyNumber || '')}</td><td><button class="btn-sm ${held[e.id] ? 'btn-danger' : 'btn-secondary'}" onclick="toggleLegalHold('${_esc(e.id)}')">${held[e.id] ? '⚖ On hold — release' : 'Put on hold'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="no-data">Nothing is past the retention period.</td></tr>') +
+        `</tbody></table></div>`;
+}
+async function saveRetentionYears() {
+    const years = parseInt(document.getElementById('retentionYears').value, 10);
+    if (!years || years < 5) { alert('Keep at least 5 years (Florida Statute 626.748).'); return; }
+    const cfg = await _complianceSettings(); cfg.retentionYears = years; await _saveComplianceSettings(cfg);
+    document.getElementById('retentionYears').dataset.touched = '';
+    renderRetentionReview();
+}
+async function toggleLegalHold(id) {
+    const cfg = await _complianceSettings(); cfg.legalHold = cfg.legalHold || {};
+    const e = (allData || []).find(x => x.id === id) || {};
+    if (cfg.legalHold[id]) { if (!confirm('Release the legal hold on this record?')) return; delete cfg.legalHold[id]; }
+    else cfg.legalHold[id] = { by: currentUser, at: new Date().toISOString() };
+    await _saveComplianceSettings(cfg);
+    if (window.UIBAudit) UIBAudit.log('legal_hold', e.customerName || id, { id, on: !!cfg.legalHold[id] });
+    renderRetentionReview();
+}
+async function deleteRetentionSelected() {
+    const ids = Array.from(document.querySelectorAll('.retPick:checked')).map(c => c.value);
+    if (!ids.length) { alert('Select the entries to delete first.'); return; }
+    const cfg = await _complianceSettings(); const held = cfg.legalHold || {};
+    const safe = ids.filter(id => !held[id]);
+    if (!confirm(`Permanently delete ${safe.length} entr${safe.length === 1 ? 'y' : 'ies'} that passed the retention period? This cannot be undone.`)) return;
+    binderMarkDeleted(safe);
+    allData = allData.filter(d => !safe.includes(d.id));
+    localStorage.setItem('binderData', JSON.stringify(allData));
+    if (window.UIBAudit) UIBAudit.log('retention_delete', `${safe.length} entries`, { ids: safe });
+    renderRetentionReview();
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  UNSAVED-FORM PROTECTION on the entry pages
+//  A forced sign-out (30 idle minutes, expired session) reloads the page.
+//  Stash whatever is in the entry form first and offer it back after the
+//  next sign-in on this device.
+// ═══════════════════════════════════════════════════════════════
+const _DRAFT_KEY = 'uibFormDraft';
+function _entryForm() { return document.getElementById('agentForm') || document.getElementById('healthForm'); }
+function uibStashFormDraft() {
+    const form = _entryForm(); if (!form) return false;
+    const fields = {}; let any = false;
+    form.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
+        if (el.type === 'file' || el.type === 'button' || el.type === 'submit' || el.type === 'hidden') return;
+        const v = (el.type === 'checkbox' || el.type === 'radio') ? !!el.checked : el.value;
+        fields[el.id] = v;
+        if (v !== '' && v !== false && v !== el.defaultValue) any = true;
+    });
+    if (!any) return false;
+    try { _origSetItem(_DRAFT_KEY, JSON.stringify({ page: location.pathname, at: Date.now(), user: currentUser || '', fields })); } catch (e) { return false; }
+    return true;
+}
+function uibRestoreFormDraft() {
+    const form = _entryForm(); if (!form) return;
+    let d = null; try { d = JSON.parse(localStorage.getItem(_DRAFT_KEY)); } catch (e) {}
+    if (!d || !d.fields) return;
+    if (d.page !== location.pathname || Date.now() - (d.at || 0) > 24 * 3600 * 1000) { localStorage.removeItem(_DRAFT_KEY); return; }
+    if (!confirm('You were signed out before saving an entry on this page. Restore what you had typed?')) { localStorage.removeItem(_DRAFT_KEY); return; }
+    Object.keys(d.fields).forEach(id => {
+        const el = document.getElementById(id); if (!el) return;
+        if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!d.fields[id]; else el.value = d.fields[id];
+    });
+    localStorage.removeItem(_DRAFT_KEY);
+    if (window.UIBAudit) UIBAudit.log('draft_restored', d.user || '', { page: d.page });
+}
+document.addEventListener('uib:forced-signout', () => { uibStashFormDraft(); });
+document.addEventListener('DOMContentLoaded', () => {
+    if (!_entryForm() || document.getElementById('agentTable')) return;   // entry pages only
+    // A login linked to a name that is not a registered agent must not reach
+    // the entry pages through a restored session either.
+    const u = (window.UIBAuth && UIBAuth.user()) || null;
+    if (u && u.role !== 'admin' && !getAllAgents().includes(u.name)) { UIBAuth.signOut(); window.location.replace('./'); return; }
+    setTimeout(uibRestoreFormDraft, 400);
+});

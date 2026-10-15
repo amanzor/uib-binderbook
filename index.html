@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20260914a"></script>
+    <script src="uib-auth.js?v=20261014b"></script>
+    <script src="uib-mfa.js?v=20261013e"></script>
+    <script src="uib-audit.js?v=20261013j"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -340,7 +343,9 @@
         .collapse-toggle .collapse-hint { margin-left: auto; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #2563eb; }
         .collapse-toggle .collapse-chev { width: 20px; height: 20px; color: #2563eb; transition: transform .25s ease; }
         .collapse-toggle[aria-expanded="true"] .collapse-chev { transform: rotate(180deg); }
-        .collapse-toggle[aria-expanded="true"] { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+        .collapse-toggle[aria-expanded="true"] { background: linear-gradient(180deg, #f3f6ff, #e8efff); border-color: rgba(37,99,235,.3); }
+        .collapse-toggle:hover { border-color: rgba(37,99,235,.35); }
+        .collapse-toggle:focus-visible { outline: 3px solid rgba(37,99,235,.3); outline-offset: 2px; }
         .collapse-body { padding-top: 20px; }
 
         /* ── Forms ───────────────────────────────────────────────── */
@@ -684,7 +689,11 @@
             table td { padding: 9px 10px; }
 
             /* ── Filter bar ── */
-            .filter-section { flex-direction: column; gap: 10px; padding: 12px 14px; }
+            .filter-section { flex-direction: column; align-items: stretch !important; gap: 10px; padding: 12px 14px; }
+            .filter-section .filter-group { width: 100%; }
+            #agentPremiumMin, #agentPremiumMax { min-width: 0 !important; width: auto !important; flex: 1 1 0; }
+            #agentSubmissionSearch { width: 100% !important; min-width: 0; flex: 1 1 100%; }
+            .filter-section > div:has(> #agentSubmissionSearch) { margin-left: 0 !important; width: 100%; flex-wrap: wrap; }
             .filter-group input,
             .filter-group select { min-width: 100%; }
 
@@ -793,7 +802,7 @@
                         <div id="agentLoginError" style="display:none;background:#fef2f2;color:#991b1b;padding:10px 14px;border-radius:10px;margin-bottom:16px;font-size:14px;font-weight:600;border:1px solid #fca5a5;"></div>
 
                         <!-- Login Form -->
-                        <form onsubmit="submitAgentEmailLogin(event)">
+                        <form onsubmit="submitAgentEmailLogin(event)" data-uib-login id="agentEmailLoginForm">
                             <div style="margin-bottom:16px;">
                                 <label style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:6px;">Email Address</label>
                                 <input type="email" id="agentLoginEmail" placeholder="Enter your email" required
@@ -815,6 +824,7 @@
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;">
                                 <input type="checkbox" id="rememberAgentEmail" style="width:16px;height:16px;accent-color:#1d4ed8;cursor:pointer;">
                                 <label for="rememberAgentEmail" style="font-size:13px;color:#6b7280;cursor:pointer;margin:0;user-select:none;">Remember my email</label>
+                                <a href="#" onclick="sendPasswordReset();return false;" style="margin-left:auto;font-size:13px;color:#1d4ed8;font-weight:600;text-decoration:none;">Forgot password?</a>
                             </div>
                             <button id="loginSignInBtn" type="submit" style="width:100%;padding:14px;font-size:15px;font-weight:700;background:linear-gradient(135deg,#1d4ed8,#1e40af);color:#fff;border:none;border-radius:12px;cursor:pointer;transition:all .2s;box-shadow:0 4px 14px rgba(29,78,216,.4);"
                                 onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(29,78,216,.5)'"
@@ -1443,7 +1453,9 @@
                         <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
                         <button class="btn-sm" onclick="openNewProspectModal()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="user-plus"></i> New Prospect</button>
                     </div>
-                    <button class="btn-danger btn-sm nav-logout" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
+                    <button class="btn-secondary btn-sm" onclick="UIBMfa.manage()" title="Set up or replace your authenticator app" style="margin-left:auto;"><i data-lucide="shield-check"></i> 2-Step</button>
+                    <button class="btn-secondary btn-sm" onclick="changeMyPassword()" title="Change my password"><i data-lucide="key-round"></i> Password</button>
+                    <button class="btn-danger btn-sm nav-logout" onclick="logout()" style="margin-left:0;"><i data-lucide="log-out"></i> Logout</button>
                     <div class="nav-groups">
                         <div class="nav-group">
                             <span class="nav-group-label"><i data-lucide="wrench"></i> Tools</span>
@@ -2186,7 +2198,7 @@
                     <button class="btn-success btn-sm" onclick="openAddCredentialModal()"><i data-lucide="user-plus"></i> Add Agent Credential</button>
                 </div>
                 <div style="max-width:680px; margin:24px auto 0;">
-                    <p style="font-size:13px; color:var(--gray-500); margin-bottom:20px;">Set the email address and password each agent uses to log in via the Agent Login button.</p>
+                    <p style="font-size:13px; color:var(--gray-500); margin-bottom:20px;">Each agent signs in with the email and password set here. Accounts are created in Supabase Auth; the app never stores passwords.</p>
                     <div id="credentialListPage"></div>
                 </div>
             </div>
@@ -2200,9 +2212,8 @@
                     </div>
                     <form onsubmit="submitAddCredential(event)">
                         <div class="form-group" style="margin-bottom:14px;">
-                            <label>Agent Name</label>
-                            <input type="text" id="newCredAgent" placeholder="Full name" required
-                                style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
+                            <label>Agent</label>
+                            <select id="newCredAgent" required style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"></select>
                         </div>
                         <div class="form-group" style="margin-bottom:14px;">
                             <label>Email Address</label>
@@ -2210,15 +2221,68 @@
                                 style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
                         </div>
                         <div class="form-group" style="margin-bottom:20px;">
-                            <label>Password</label>
-                            <input type="text" id="newCredPassword" placeholder="Enter password" required
+                            <label>Temporary password (10+ characters)</label>
+                            <input type="text" id="newCredPassword" placeholder="Enter password" required minlength="10" autocomplete="off"
                                 style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:20px;">
+                            <label>Role</label>
+                            <select id="newCredRole" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"><option value="agent">Agent</option><option value="admin">Admin</option></select>
                         </div>
                         <div style="display:flex;gap:10px;">
                             <button type="submit" class="btn-success" style="flex:1;padding:11px;"><i data-lucide="save"></i> Save</button>
                             <button type="button" class="btn-secondary" style="flex:1;padding:11px;" onclick="closeAddCredentialModal()">Cancel</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- Access Log (admin) -->
+            <div id="accessLogSection" class="section">
+                <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button class="btn-secondary btn-sm" onclick="showSection('adminSection'); refreshIcons();"><i data-lucide="arrow-left"></i> Back to Admin</button>
+                        <strong><i data-lucide="shield-check"></i> Access Log</strong>
+                    </div>
+                    <button class="btn-primary btn-sm" onclick="exportAccessLogCSV()"><i data-lucide="download"></i> Export CSV</button>
+                </div>
+                <div style="max-width:1100px; margin:20px auto 0;">
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;">
+                        <select id="alFilterAction" onchange="renderAccessLog()" style="padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;">
+                            <option value="">All actions</option>
+                            <option value="sign_in">Sign-ins</option><option value="sign_out">Sign-outs</option><option value="admin_console">Admin console</option>
+                            <option value="view_client">Client views</option><option value="save_entry">Entries saved</option><option value="save_contact">Contacts saved</option>
+                            <option value="delete_entry">Entries deleted</option><option value="delete_policy">Policies deleted</option><option value="export">Exports</option>
+                            <option value="view_file">Files viewed</option><option value="upload_file">Files uploaded</option><option value="delete_file">Files deleted</option>
+                            <option value="retention_delete">Retention deletions</option><option value="legal_hold">Legal holds</option><option value="training_ack">Acknowledgments</option><option value="mfa_setting">2-step setting</option>
+                            <option value="cred_create">Logins created</option><option value="cred_reset_password">Password resets</option><option value="cred_delete">Logins deleted</option><option value="duplicate_flagged">Duplicates flagged</option>
+                        </select>
+                        <input id="alFilterUser" type="text" placeholder="Filter by email" onchange="renderAccessLog()" style="padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;min-width:200px;">
+                        <select id="alFilterDays" onchange="renderAccessLog()" style="padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;">
+                            <option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option><option value="0">All</option>
+                        </select>
+                        <button class="btn-secondary btn-sm" onclick="renderAccessLog()"><i data-lucide="refresh-cw"></i> Refresh</button>
+                    </div>
+                    <div id="accessLogTable"></div>
+                    <div id="accessLogAcks"></div>
+                </div>
+            </div>
+
+            <!-- Retention Review (admin) -->
+            <div id="retentionSection" class="section">
+                <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button class="btn-secondary btn-sm" onclick="showSection('adminSection'); refreshIcons();"><i data-lucide="arrow-left"></i> Back to Admin</button>
+                        <strong><i data-lucide="archive-restore"></i> Retention Review</strong>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; font-size:13px;">
+                        Keep records for <input id="retentionYears" type="number" min="5" max="25" oninput="this.dataset.touched='1'" style="width:60px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:8px;"> years
+                        <button class="btn-secondary btn-sm" onclick="saveRetentionYears()">Save</button>
+                        <button class="btn-danger btn-sm" onclick="deleteRetentionSelected()"><i data-lucide="trash-2"></i> Delete selected</button>
+                    </div>
+                </div>
+                <div style="max-width:1100px; margin:20px auto 0;">
+                    <div id="retentionTable"></div>
                 </div>
             </div>
 
@@ -2933,6 +2997,8 @@
                     <button class="btn-primary" onclick="showCarrierManagement()"><i data-lucide="building-2"></i> Carriers</button>
                     <button class="btn-primary" onclick="showAgentManagement()"><i data-lucide="users"></i> Agents</button>
                     <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#4c1d95 0%,#6d28d9 60%,#a78bfa 100%);" onclick="showAccessLog()" title="Who signed in and who viewed, changed, exported or deleted records"><i data-lucide="shield-check"></i> Access Log</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#7c2d12 0%,#c2410c 60%,#fb923c 100%);" onclick="showRetentionReview()" title="Records past the retention period, legal holds"><i data-lucide="archive-restore"></i> Retention Review</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#14b8a6 60%,#5eead4 100%);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#2dd4bf 60%,#5eead4 100%);" onclick="showDataSafety()" title="Download an off-cloud snapshot of the whole book, or merge one back in"><i data-lucide="life-buoy"></i> Data Safety</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./rater';"><i data-lucide="calculator"></i> Auto Rater</button>
@@ -3117,10 +3183,14 @@
     <div id="adminLoginModal" class="modal">
         <div class="modal-content">
             <h3><i data-lucide="shield"></i> Admin Login</h3>
-            <form id="adminLoginForm">
+            <form id="adminLoginForm" data-uib-login>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Admin Email</label>
+                    <input type="email" id="adminEmail" placeholder="admin@email.com" autocomplete="username" autofocus>
+                </div>
                 <div class="form-group" style="margin-bottom: 15px;">
                     <label>Password</label>
-                    <input type="password" id="adminPassword" placeholder="Enter admin password" autofocus>
+                    <input type="password" id="adminPassword" placeholder="Enter admin password" autocomplete="current-password">
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeAdminLoginModal()">Cancel</button>
@@ -3890,8 +3960,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261006g"></script>
-    <script src="supabase.js?v=20260916a"></script>
+    <script src="app.js?v=20261014b"></script>
+    <script src="supabase.js?v=20261013a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>

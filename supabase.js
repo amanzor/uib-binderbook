@@ -20,7 +20,8 @@
     const SKIP = new Set([
         'uibCloudLastBackup', 'uibCloudAuto', 'uibPendingTransaction',
         'uibPendingSalesEntry', 'uibCurrentUser', 'uibCloudRestoredThisSession',
-        'rememberedAgentEmail', 'amsRememberedEmail', 'apdState'
+        'rememberedAgentEmail', 'amsRememberedEmail', 'apdState',
+        'agentCredentials', 'uibAuthSession', 'raterDraft'
     ]);
 
     // The keys that actually hold your business data (auto-load checks these).
@@ -43,9 +44,27 @@
     const _setItem = localStorage.setItem.bind(localStorage);
 
     // ── Push one key/value up (upsert on primary key) ──────────
+    // Carrier portal passwords never leave the device: the rater's carrier
+    // list syncs without them, and a restore keeps the local ones.
+    function stripCarrierSecrets(key, parsed) {
+        if (key !== 'raterCarriers' || !Array.isArray(parsed)) return parsed;
+        return parsed.map((c) => { const o = Object.assign({}, c); delete o.password; return o; });
+    }
+    function mergeCarrierSecrets(key, val) {
+        if (key !== 'raterCarriers') return val;
+        try {
+            const incoming = JSON.parse(val); const local = JSON.parse(localStorage.getItem('raterCarriers') || '[]');
+            if (!Array.isArray(incoming) || !Array.isArray(local)) return val;
+            const pw = {}; local.forEach((c) => { if (c && c.id && c.password) pw[c.id] = c.password; });
+            return JSON.stringify(incoming.map((c) => (c && pw[c.id] && !c.password) ? Object.assign({}, c, { password: pw[c.id] }) : c));
+        } catch (e) { return val; }
+    }
+
     async function cloudSet(key, rawValue) {
+        if (!(window.UIBAuth && UIBAuth.isSignedIn())) throw new Error('Not signed in — "' + key + '" stays on this device until you sign in.');
         let parsed;
         try { parsed = JSON.parse(rawValue); } catch { parsed = rawValue; }
+        parsed = stripCarrierSecrets(key, parsed);
         const body = [{ key: key, value: parsed, updated_at: new Date().toISOString() }];
         const res = await fetch(REST, {
             method: 'POST',
@@ -106,7 +125,8 @@
                 // them into localStorage would blow the browser quota.
                 if (row.key && row.key.indexOf('backupSnapshot_') === 0) { done++; continue; }
                 if (SKIP.has(row.key)) { done++; continue; }
-                const val = (typeof row.value === 'string') ? row.value : JSON.stringify(row.value);
+                let val = (typeof row.value === 'string') ? row.value : JSON.stringify(row.value);
+                val = mergeCarrierSecrets(row.key, val);
                 rawSet(row.key, val);
                 if (typeof _rememberStamp === 'function' && row.updated_at) _rememberStamp(row.key, row.updated_at);
                 done++;

@@ -35,9 +35,23 @@ function json(obj: unknown, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "content-type": "application/json" } });
 }
 
+// The public MAX lead form calls this without a login, so abuse is limited
+// by a per-address rate limit (per function instance) and size caps.
+const RATE_WINDOW_MS = 60 * 60 * 1000;
+const RATE_MAX = 5;
+const hits = new Map<string, number[]>();
+function rateLimited(ip: string): boolean {
+  const now = Date.now();
+  const arr = (hits.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (arr.length >= RATE_MAX) { hits.set(ip, arr); return true; }
+  arr.push(now); hits.set(ip, arr); return false;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "POST only" }, 405);
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "unknown";
+  if (rateLimited(ip)) return json({ ok: false, error: "Too many requests. Please try again later." }, 429);
 
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return json({ ok: false, error: "RESEND_API_KEY secret is not set in Supabase (Edge Functions ▸ Manage secrets)." }, 500);
@@ -46,8 +60,8 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ ok: false, error: "Body must be JSON" }, 400); }
 
   const subject = String(body.subject ?? "New Inquiry").slice(0, 200);
-  const text = String(body.text ?? "");
-  const html = body.html ? String(body.html) : undefined;
+  const text = String(body.text ?? "").slice(0, 20000);
+  const html = body.html ? String(body.html).slice(0, 60000) : undefined;
   if (!text && !html) return json({ ok: false, error: "Nothing to send" }, 400);
 
   const attachments = (Array.isArray(body.attachments) ? body.attachments : [])
