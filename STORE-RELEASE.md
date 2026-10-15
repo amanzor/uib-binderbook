@@ -7,8 +7,9 @@ product; `native/` holds the Capacitor apps that ship the **same web app
 bundled inside** an iOS and an Android shell, with a native splash screen,
 status bar, offline start and the device camera/photo pickers for document
 uploads. The separate consumer lead app, **MAX**, has its own app and store
-listing in the `uibautorater` repository; the Binder Book links to it from
-the dashboards.
+listing in the `MAXAi` repository (https://maxai-sable.vercel.app); the
+Binder Book links to it from the dashboards. The Auto Rater lives in the
+`uibautorater` repository (https://uibautorater.vercel.app).
 
 ## 0. Before anything else
 
@@ -21,7 +22,7 @@ the dashboards.
    Information ▸ Sign-in required) and in Play Console (App content ▸ App
    access ▸ "All or some functionality is restricted").
 3. Privacy policy URL for both stores: publish one for the Binder Book, or
-   reuse the MAX policy at `https://uibautorater.vercel.app/privacy` only if
+   reuse the MAX policy at `https://maxai-sable.vercel.app/privacy` only if
    its wording is adjusted to cover agency staff use.
 
 ## 1. One-time accounts
