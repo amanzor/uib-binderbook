@@ -12,3 +12,6 @@ backups/
 *.pdf
 binder_may26_import.json
 jorge_import.json
+
+# Native App Store / Play Store shells (built locally, not part of the website)
+native/

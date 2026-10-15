@@ -1,0 +1,8 @@
+node_modules/
+android/build/
+android/app/build/
+android/.gradle/
+ios/App/Pods/
+ios/App/App.xcworkspace/xcuserdata/
+*.keystore
+*.jks

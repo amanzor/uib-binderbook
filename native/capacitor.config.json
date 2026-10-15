@@ -1,0 +1,27 @@
+{
+  "appId": "com.universalinsurancebrokers.binderbook",
+  "appName": "UIB Binder Book",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#0d1f3c"
+  },
+  "android": {
+    "backgroundColor": "#0d1f3c",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 1200,
+      "backgroundColor": "#0d1f3c",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP"
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0d1f3c",
+      "overlaysWebView": false
+    }
+  }
+}
