@@ -191,6 +191,19 @@ async function driveGet(key) {
 // and syncFromDrive() PUSHES the local copy instead of pulling the stale
 // cloud copy over it — which used to delete just-saved entries.
 let _driveSeq = 0;
+// When a device has no room to store the whole book (iPhone Safari allows
+// each site far less than the book needs), the current book is kept here
+// and handed to every reader of localStorage 'binderData' instead of the
+// stale or empty copy on the device.
+let _binderMemStr = null;
+{
+    const _origGetItem = localStorage.getItem.bind(localStorage);
+    localStorage.getItem = function (key) {
+        if (key === 'binderData' && _binderMemStr !== null) return _binderMemStr;
+        return _origGetItem(key);
+    };
+}
+let _binderLocalOk = true;   // false when this device had no room to store the book
 function _dirtyKey(key) { return 'uibDirty_' + key; }
 
 // ── Merge-based sync for binder entries ──────────────────────────────
@@ -236,8 +249,15 @@ function binderMarkDeleted(ids) {
 // Best-effort local write for cloud-merged keys: a full device must not
 // stop the cloud write, so quota errors are swallowed here (and only here).
 function _lsMirror(key, str) {
-    try { _origSetItem(key, str); return true; }
-    catch (e) { if (typeof _isQuotaError === 'function' && _isQuotaError(e)) { console.warn(`localStorage full — ${key} kept in cloud only`); return false; } throw e; }
+    try { _origSetItem(key, str); if (key === 'binderData') _binderMemStr = null; return true; }
+    catch (e) {
+        if (typeof _isQuotaError === 'function' && _isQuotaError(e)) {
+            console.warn(`localStorage full — ${key} kept in cloud only`);
+            if (key === 'binderData') _binderMemStr = str;   // every reader still sees the current book
+            return false;
+        }
+        throw e;
+    }
 }
 
 // ── Verification-log merge + tombstones (same idea as binder entries) ──
@@ -488,7 +508,8 @@ async function syncFromDrive() {
             let local = [];
             try { local = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
             const merged = mergeBinderData(local, cloud, tombs);
-            _origSetItem('binderData', JSON.stringify(merged));
+            _binderLocalOk = _lsMirror('binderData', JSON.stringify(merged));
+            if (typeof allData !== 'undefined') allData = merged;
             const cloudStr = JSON.stringify(Array.isArray(cloud) ? cloud : []);
             if (localStorage.getItem(_dirtyKey('binderData')) !== null || cloudStr !== JSON.stringify(merged)) {
                 await driveSet('binderData', merged);
@@ -535,6 +556,12 @@ async function syncToDrive(key, value) {
 // Wrap localStorage.setItem to auto-sync to Drive
 const _origSetItem = localStorage.setItem.bind(localStorage);
 localStorage.setItem = function(key, value) {
+    if (key === 'binderData') {
+        try { _origSetItem(key, value); _binderMemStr = null; }
+        catch (e) { if (typeof _isQuotaError === 'function' && _isQuotaError(e)) { _binderMemStr = value; try { driveSet(key, JSON.parse(value)); } catch (err) {} } throw e; }
+        try { driveSet(key, JSON.parse(value)); } catch (e) {}
+        return;
+    }
     _origSetItem(key, value);
     if (SYNC_KEYS.includes(key)) {
         try { driveSet(key, JSON.parse(value)); } catch(e) {}
@@ -565,7 +592,9 @@ function startAutoSync() {
             _lastSyncAt = Date.now();
 
             // Reload allData and carrierMasterData from localStorage after sync
-            const freshData = JSON.parse(localStorage.getItem('binderData'));
+            // Only take the book from device storage when it fits there; on a
+            // full device the in-memory copy from the sync is the current one.
+            const freshData = _binderLocalOk ? JSON.parse(localStorage.getItem('binderData')) : null;
             const freshCarriers = JSON.parse(localStorage.getItem('carrierMasterData'));
             if (freshData) allData = freshData;
             if (freshCarriers) { carrierMasterData = freshCarriers; refreshAllCarrierDropdowns(); }
@@ -808,7 +837,9 @@ async function loadFromSheet() {
         try { local = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
         const merged = mergeBinderData(local, cloud, tombs);
         allData = merged;
-        _origSetItem('binderData', JSON.stringify(merged));
+        // A phone without room for the whole book (iPhone Safari's storage is
+        // small) must still show it: keep the merged copy in memory either way.
+        _binderLocalOk = _lsMirror('binderData', JSON.stringify(merged));
         const cloudStr = JSON.stringify(Array.isArray(cloud) ? cloud : []);
         if (localStorage.getItem(_dirtyKey('binderData')) !== null || cloudStr !== JSON.stringify(merged)) {
             await driveSet('binderData', merged);
