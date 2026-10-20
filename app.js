@@ -1444,7 +1444,7 @@ function showAgentSection(agent) {
     // the device after the tab closes or 30 idle minutes pass.
     try { sessionStorage.setItem('uibCurrentUser', agent); localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('agentSection');
-    document.getElementById('userDisplay').textContent = `👤 Agent: ${agent}`;
+    document.getElementById('userDisplay').innerHTML = `👤 Agent: <span style="text-decoration:underline;text-underline-offset:3px;">${String(agent).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</span> <span style="font-size:.8em;opacity:.7;">›</span>`;
     document.getElementById('agentForm').reset();
     populate2ndAgentDropdown('secondAgent', '');
     setTodayDate();
@@ -13641,3 +13641,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     setTimeout(uibRestoreFormDraft, 400);
 });
+
+
+// ── Agent profile (click the agent name) ──────────────────────
+function openAgentProfile() {
+    const name = currentUser || '';
+    if (!name) return;
+    let master = {}; try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    const rec = master[name] || {};
+    const auth = (window.UIBAuth && UIBAuth.user()) || {};
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const fmtDate = (d) => { if (!d) return ''; const t = new Date(d + 'T00:00:00'); return isNaN(t) ? d : t.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); };
+    const ym = new Date().toISOString().slice(0, 7);
+    const mine = (allData || []).filter(e => e.agent === name && String(e.entryDate || '').startsWith(ym));
+    const premium = mine.reduce((t, e) => t + (parseFloat(e.totalPremium) || 0), 0);
+    const share = mine.reduce((t, e) => t + (parseFloat(e.agentCommissionShare) || 0), 0);
+    const money = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const initials = name.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+    const row = (label, val) => val ? `<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--gray-200);font-size:14px;"><span style="color:var(--gray-500);">${label}</span><span style="font-weight:600;text-align:right;word-break:break-word;">${val}</span></div>` : '';
+    const role = (auth.role === 'admin') ? 'Administrator' : 'Agent';
+    document.getElementById('agentProfileBody').innerHTML = `
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+            <div style="width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex-shrink:0;">${esc(initials)}</div>
+            <div><div style="font-size:19px;font-weight:800;color:var(--navy);">${esc(name)}</div><div style="font-size:13px;color:var(--gray-500);">${role} · Universal Insurance Brokers</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
+            <div style="background:#eff6ff;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#1e40af;font-weight:700;">THIS MONTH</div><div style="font-size:18px;font-weight:800;color:#1e3a8a;">${mine.length}</div><div style="font-size:11px;color:#1e40af;">policies</div></div>
+            <div style="background:#ecfdf5;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#047857;font-weight:700;">PREMIUM</div><div style="font-size:15px;font-weight:800;color:#065f46;">${money(premium)}</div></div>
+            <div style="background:#f5f3ff;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#6d28d9;font-weight:700;">MY COMMISSION</div><div style="font-size:15px;font-weight:800;color:#5b21b6;">${money(share)}</div></div>
+        </div>
+        ${row('Sign-in email', esc(auth.email || rec.email || ''))}
+        ${row('Phone', esc(rec.phone || ''))}
+        ${row('Office', esc(typeof getAgentDefaultLocation === 'function' ? getAgentDefaultLocation(name) : ''))}
+        ${row('Licenses', esc((rec.licenses || []).join(', ')))}
+        ${row('Address', esc(rec.address || ''))}
+        ${row('Date of birth', esc(fmtDate(rec.dob)))}
+        ${row('Agent since', esc(rec.createdAt ? String(rec.createdAt).split(',')[0] : ''))}
+        ${(!rec.phone && !rec.address && !(rec.licenses || []).length) ? '<p style="font-size:12px;color:var(--gray-500);margin:10px 0 0;">More details appear here once an administrator fills them in under Agent Management.</p>' : ''}`;
+    const m = document.getElementById('agentProfileModal');
+    m.classList.add('active');
+    if (window.UIBMotion && UIBMotion.animateModalOpen) UIBMotion.animateModalOpen(m);
+    refreshIcons();
+}
+function closeAgentProfile() { document.getElementById('agentProfileModal')?.classList.remove('active'); }

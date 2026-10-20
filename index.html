@@ -1448,15 +1448,13 @@
             <!-- Agent Dashboard -->
             <div id="agentSection" class="section">
                 <div class="user-info">
-                    <span id="userDisplay"></span>
+                    <span id="userDisplay" role="button" tabindex="0" onclick="openAgentProfile()" onkeydown="if(event.key==='Enter')openAgentProfile()" title="Open my profile" style="cursor:pointer;"></span>
                     <div class="nav-primary">
                         <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
                         <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(to right,#047857 0%,#10b981 60%,#34d399 100%);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
                         <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
                         <button class="btn-sm" onclick="openNewProspectModal()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="user-plus"></i> New Prospect</button>
                     </div>
-                    <button class="btn-secondary btn-sm" onclick="UIBMfa.manage()" title="Set up or replace your authenticator app" style="margin-left:auto;"><i data-lucide="shield-check"></i> 2-Step</button>
-                    <button class="btn-secondary btn-sm" onclick="changeMyPassword()" title="Change my password"><i data-lucide="key-round"></i> Password</button>
                     <button class="btn-danger btn-sm nav-logout" onclick="logout()" style="margin-left:0;"><i data-lucide="log-out"></i> Logout</button>
                     <div class="nav-groups">
                         <div class="nav-group">
@@ -3222,6 +3220,21 @@
     </div>
 
     <!-- Edit Modal -->
+
+    <!-- Agent profile -->
+    <div id="agentProfileModal" class="modal">
+        <div class="modal-content" style="max-width:460px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <h3 style="margin:0;"><i data-lucide="user-round"></i> My Profile</h3>
+                <button class="btn-secondary btn-sm" onclick="closeAgentProfile()">✕ Close</button>
+            </div>
+            <div id="agentProfileBody"></div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
+                <button class="btn-primary btn-sm" style="flex:1;min-width:150px;" onclick="changeMyPassword()"><i data-lucide="key-round"></i> Change Password</button>
+                <button class="btn-secondary btn-sm" style="flex:1;min-width:150px;" onclick="UIBMfa.manage()"><i data-lucide="shield-check"></i> 2-Step Verification</button>
+            </div>
+        </div>
+    </div>
     <div id="editModal" class="modal">
         <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
             <h3><i data-lucide="pencil"></i> Edit Policy Entry</h3>
@@ -3980,7 +3993,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261020a"></script>
+    <script src="app.js?v=20261020c"></script>
     <script src="supabase.js?v=20261013a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){var s=(r.active||r.waiting||r.installing||{}).scriptURL||'';if(/rater-sw\.js/.test(s)||/\/rater\/?$/.test(r.scope))r.unregister();});}).catch(function(){});navigator.serviceWorker.register('/sw.js');}</script>
