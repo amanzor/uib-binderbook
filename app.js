@@ -932,10 +932,40 @@ function initializeCredentials() {
 }
 
 // ── Agent Email Login ──────────────────────────────────────────
+// Remembered sign-in email. Saved in a cookie as well as localStorage:
+// on an iPhone whose site storage is full (the book is large) the
+// localStorage write fails, and Safari also clears localStorage for sites
+// not visited in 7 days. A failed save must never stop the sign-in.
+function _rememberEmail(key, email) {
+    try { if (email) localStorage.setItem(key, email); else localStorage.removeItem(key); } catch (e) {}
+    try {
+        document.cookie = email
+            ? key + '=' + encodeURIComponent(email) + '; max-age=' + (400 * 24 * 3600) + '; path=/; SameSite=Lax; Secure'
+            : key + '=; max-age=0; path=/; SameSite=Lax; Secure';
+    } catch (e) {}
+}
+function _recalledEmail(key) {
+    let v = '';
+    try { v = localStorage.getItem(key) || ''; } catch (e) {}
+    if (!v) { const m = document.cookie.match(new RegExp('(?:^|; )' + key + '=([^;]*)')); if (m) { try { v = decodeURIComponent(m[1]); } catch (e) {} } }
+    return v;
+}
+// Put the remembered email back in the sign-in box (page load and logout).
+function prefillRememberedEmail() {
+    const saved = _recalledEmail('rememberedAgentEmail');
+    const emailField = document.getElementById('agentLoginEmail');
+    const rememberBox = document.getElementById('rememberAgentEmail');
+    if (!emailField) return;
+    if (saved && !emailField.value) emailField.value = saved;
+    if (rememberBox) rememberBox.checked = !!saved;
+}
+document.addEventListener('DOMContentLoaded', () => setTimeout(prefillRememberedEmail, 0));
+window.addEventListener('pageshow', () => setTimeout(prefillRememberedEmail, 0));
+
 function openAgentEmailLogin() {
     // Login form is now inline on loginSection — just ensure it's visible and focused
     showSection('loginSection');
-    const saved = localStorage.getItem('rememberedAgentEmail') || '';
+    const saved = _recalledEmail('rememberedAgentEmail');
     const emailField = document.getElementById('agentLoginEmail');
     const passField  = document.getElementById('agentLoginPassword');
     const errEl      = document.getElementById('agentLoginError');
@@ -975,7 +1005,7 @@ function submitAgentEmailLogin(e) {
 
     UIBMfa.signIn(email, password, document.getElementById('agentEmailLoginForm')).then((user) => {
         const remember = document.getElementById('rememberAgentEmail')?.checked;
-        if (remember) localStorage.setItem('rememberedAgentEmail', email); else localStorage.removeItem('rememberedAgentEmail');
+        _rememberEmail('rememberedAgentEmail', remember ? email : '');
         document.getElementById('agentLoginPassword').value = '';
         // An administrator whose email is on an agent record lands on their own
         // agent dashboard (with admin visibility); the Admin Access button is
@@ -1609,6 +1639,7 @@ function logout() {
     try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('loginSection');
     initializeAgentButtons();
+    prefillRememberedEmail();
 }
 
 // When the agent returns to the main app after saving on the standalone entry

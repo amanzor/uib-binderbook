@@ -454,7 +454,8 @@ function amsDoLogin() {
     if (!window.UIBAuth) { if (errEl) { errEl.textContent = 'Sign-in is unavailable: uib-auth.js did not load.'; errEl.style.display = 'block'; } return; }
     UIBMfa.signIn(email, password, document.getElementById('amsAgentLoginForm')).then((user) => {
         const remember = document.getElementById('amsRememberEmail')?.checked;
-        if (remember) localStorage.setItem('amsRememberedEmail', email); else localStorage.removeItem('amsRememberedEmail');
+        try { if (remember) localStorage.setItem('amsRememberedEmail', email); else localStorage.removeItem('amsRememberedEmail'); } catch (e) {}
+        try { document.cookie = remember ? 'amsRememberedEmail=' + encodeURIComponent(email) + '; max-age=' + (400 * 24 * 3600) + '; path=/; SameSite=Lax; Secure' : 'amsRememberedEmail=; max-age=0; path=/; SameSite=Lax; Secure'; } catch (e) {}
         const pw = document.getElementById('amsLoginPassword'); if (pw) pw.value = '';
         amsCurrentUser = (user.name && user.name !== 'Admin') ? user.name : 'Admin';
         amsCurrentRole = user.role;
@@ -503,8 +504,12 @@ function amsLogout() {
     document.getElementById('aiChatPanel')?.classList.remove('open');
     document.getElementById('amsApp').classList.remove('visible');
     document.getElementById('amsLoginScreen').style.display = 'flex';
-    document.getElementById('amsLoginEmail').value    = '';
+    // Keep the remembered email in the box after signing out.
+    let remembered = ''; try { remembered = localStorage.getItem('amsRememberedEmail') || ''; } catch (e) {}
+    if (!remembered) { const m = document.cookie.match(/(?:^|; )amsRememberedEmail=([^;]*)/); if (m) { try { remembered = decodeURIComponent(m[1]); } catch (e) {} } }
+    document.getElementById('amsLoginEmail').value    = remembered;
     document.getElementById('amsLoginPassword').value = '';
+    const rb = document.getElementById('amsRememberEmail'); if (rb) rb.checked = !!remembered;
 }
 
 // ── Cloud → localStorage sync ────────────────────────────────
@@ -1588,7 +1593,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Pre-fill remembered email
-    const remembered = localStorage.getItem('amsRememberedEmail');
+    let remembered = null; try { remembered = localStorage.getItem('amsRememberedEmail'); } catch (e) {}
+    if (!remembered) { const m = document.cookie.match(/(?:^|; )amsRememberedEmail=([^;]*)/); if (m) { try { remembered = decodeURIComponent(m[1]); } catch (e) {} } }
     if (remembered) {
         const emailEl = document.getElementById('amsLoginEmail');
         const checkEl = document.getElementById('amsRememberEmail');
