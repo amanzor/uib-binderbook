@@ -43,7 +43,7 @@
         },
         {
           "key": "X-Frame-Options",
-          "value": "DENY"
+          "value": "SAMEORIGIN"
         },
         {
           "key": "Referrer-Policy",
@@ -55,7 +55,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://challenges.cloudflare.com https://jgjmobktucyimupelfxd.supabase.co https://api.zippopotam.us https://vpic.nhtsa.dot.gov https://nominatim.openstreetmap.org https://cdn.jsdelivr.net https://unpkg.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://challenges.cloudflare.com https://jgjmobktucyimupelfxd.supabase.co https://api.zippopotam.us https://vpic.nhtsa.dot.gov https://nominatim.openstreetmap.org https://cdn.jsdelivr.net https://unpkg.com; frame-src 'self' blob: data: https://challenges.cloudflare.com https://jgjmobktucyimupelfxd.supabase.co; object-src 'self' blob: data:; media-src 'self' blob: data: https://jgjmobktucyimupelfxd.supabase.co; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
         }
       ]
     }
