@@ -5973,3 +5973,32 @@ function rnwImportAll(setIdx) {
     wrap('amsUploadFiles', 'upload_file', () => cname(amsActiveKey), (list) => ({ count: list && list.length }));
     wrap('amsLogout', 'sign_out_click', null, null);
 })();
+
+
+// ── Phone layout: client list first, then the client full screen ──
+function amsIsPhone() { return window.matchMedia('(max-width: 768px)').matches; }
+function amsMobileBack(fromPopstate) {
+    if (!fromPopstate && history.state && history.state.amsDetail) { history.back(); return; }   // popstate finishes the job
+    document.body.classList.remove('ams-m-detail');
+    try { window.scrollTo(0, 0); } catch (e) {}
+}
+document.addEventListener('DOMContentLoaded', () => {
+    // Hooked after every script has loaded, so later definitions can't replace the hooks.
+    // Only a tap on a client opens the full-screen client view (background
+    // refreshes also call amsLoadClientDetail and must not move the screen).
+    document.addEventListener('click', (e) => {
+        if (!amsIsPhone() || !e.target.closest || !e.target.closest('.client-card')) return;
+        setTimeout(() => {
+            if (document.body.classList.contains('ams-m-detail')) return;
+            document.body.classList.add('ams-m-detail');
+            try { history.pushState({ amsDetail: 1 }, ''); } catch (err) {}
+            try { window.scrollTo(0, 0); } catch (err) {}
+        }, 0);
+    });
+    const nav = window.amsSidebarNav;
+    if (typeof nav === 'function') {
+        window.amsSidebarNav = function () { document.body.classList.remove('ams-m-detail'); return nav.apply(this, arguments); };
+    }
+    // Android Back gesture / button returns to the list instead of leaving the AMS.
+    window.addEventListener('popstate', () => { if (document.body.classList.contains('ams-m-detail')) amsMobileBack(true); });
+});
