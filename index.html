@@ -2256,7 +2256,7 @@
                             <option value="view_client">Client views</option><option value="save_entry">Entries saved</option><option value="save_contact">Contacts saved</option>
                             <option value="delete_entry">Entries deleted</option><option value="delete_policy">Policies deleted</option><option value="export">Exports</option>
                             <option value="view_file">Files viewed</option><option value="upload_file">Files uploaded</option><option value="delete_file">Files deleted</option>
-                            <option value="retention_delete">Retention deletions</option><option value="legal_hold">Legal holds</option><option value="training_ack">Acknowledgments</option><option value="mfa_setting">2-step setting</option>
+                            <option value="retention_delete">Retention deletions</option><option value="legal_hold">Legal holds</option><option value="training_ack">Acknowledgments</option><option value="mfa_setting">2-step setting</option><option value="reassign_entry">Reassignments</option>
                             <option value="cred_create">Logins created</option><option value="cred_reset_password">Password resets</option><option value="cred_delete">Logins deleted</option><option value="duplicate_flagged">Duplicates flagged</option>
                         </select>
                         <input id="alFilterUser" type="text" placeholder="Filter by email" onchange="renderAccessLog()" style="padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;min-width:200px;">
@@ -3227,6 +3227,11 @@
             <h3><i data-lucide="pencil"></i> Edit Policy Entry</h3>
             <form id="editForm">
                 <div class="form-grid">
+                    <div class="form-group" id="editAgentGroup" style="display:none;grid-column:1 / -1;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:10px 12px;">
+                        <label style="color:#92400e;">🔒 Assigned Agent <span style="font-size:11px;font-weight:600;">(Master Admin only)</span></label>
+                        <select id="editAgent" style="font-family:inherit;"></select>
+                        <small style="display:block;margin-top:4px;color:#92400e;font-size:11px;">Moves this submission to another agent. Recorded in the Access Log.</small>
+                    </div>
                     <div class="form-group">
                         <label>Customer Name</label>
                         <input type="text" id="editCustomerName">
@@ -3975,7 +3980,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261016a"></script>
+    <script src="app.js?v=20261020a"></script>
     <script src="supabase.js?v=20261013a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){var s=(r.active||r.waiting||r.installing||{}).scriptURL||'';if(/rater-sw\.js/.test(s)||/\/rater\/?$/.test(r.scope))r.unregister();});}).catch(function(){});navigator.serviceWorker.register('/sw.js');}</script>

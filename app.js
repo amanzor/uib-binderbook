@@ -4733,7 +4733,27 @@ function openEditModal(id) {
     document.getElementById('editPaymentType').value = entry.paymentType || '';
     renderEditDocStatus(entry);
     populate2ndAgentDropdown('editSecondAgent', entry.secondAgent || '');
+    _setupEditAgentReassign(entry);
     document.getElementById('editModal').classList.add('active');
+}
+
+// ── Reassign a submission (master admin only) ─────────────────
+const MASTER_ADMIN_EMAIL = 'admin@universalinsurancebroker.com';
+function _isMasterAdmin() {
+    const u = window.UIBAuth && UIBAuth.user();
+    return !!(u && String(u.email || '').toLowerCase() === MASTER_ADMIN_EMAIL);
+}
+function _setupEditAgentReassign(entry) {
+    const grp = document.getElementById('editAgentGroup');
+    const sel = document.getElementById('editAgent');
+    if (!grp || !sel) return;
+    if (!_isMasterAdmin()) { grp.style.display = 'none'; sel.innerHTML = ''; return; }
+    const agents = getAllAgents().slice();
+    const cur = entry.agent || '';
+    if (cur && !agents.includes(cur)) agents.unshift(cur);
+    const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    sel.innerHTML = agents.map(a => `<option value="${esc(a)}"${a === cur ? ' selected' : ''}>${esc(a)}${a === cur ? ' (current)' : ''}</option>`).join('');
+    grp.style.display = '';
 }
 
 // The Documentation Status items available on a binder entry depend on its
@@ -4822,6 +4842,13 @@ function updateEntry() {
     entry.paymentType = document.getElementById('editPaymentType').value;
     entry.documentationStatus = collectEditDocStatus();
     entry.secondAgent = document.getElementById('editSecondAgent')?.value || '';
+    // Reassignment is accepted only from the master admin account.
+    const _newAgent = document.getElementById('editAgent')?.value || '';
+    if (_isMasterAdmin() && _newAgent && _newAgent !== entry.agent) {
+        const _fromAgent = entry.agent || '';
+        entry.agent = _newAgent;
+        if (window.UIBAudit) UIBAudit.log('reassign_entry', entry.customerName || '', { id: entry.id, policyNumber: entry.policyNumber || '', from: _fromAgent, to: _newAgent });
+    }
     const _hasSecond = !!entry.secondAgent;
     const _commBase  = entry.agencyFee + entry.agencyCommission;
     entry.agentCommissionShare  = parseFloat((_commBase * (_hasSecond ? 0.25 : 0.50)).toFixed(2));
@@ -13467,7 +13494,7 @@ function showDataSafety() {
     wrap('enterAdmin', 'admin_console', null, null);
 })();
 
-const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored', mfa_setting: '2-step setting changed' };
+const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored', mfa_setting: '2-step setting changed', reassign_entry: 'Submission reassigned' };
 
 function showAccessLog() {
     if (!isAgentAdmin()) { alert('Only administrators can view the access log.'); return; }
