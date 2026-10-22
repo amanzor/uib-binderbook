@@ -149,9 +149,20 @@
 
     // ── Settings helpers for the admin screen ──────────────────
     async function testOllama(url) {
-        const r = await _fetch(String(url || DEFAULTS.url).replace(/\/+$/, '') + '/api/tags');
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const d = await r.json(); return (d.models || []).map(m => m.name);
+        const base = String(url || DEFAULTS.url).replace(/\/+$/, '');
+        try {
+            const r = await _fetch(base + '/api/tags');
+            if (!r.ok) throw Object.assign(new Error('HTTP ' + r.status), { reason: 'http' });
+            const d = await r.json(); return (d.models || []).map(m => m.name);
+        } catch (e) {
+            if (e.reason) throw e;
+            // Tell apart "Ollama isn't running" from "Ollama is running but
+            // refuses this site": an opaque request still reaches a running
+            // server even when the site isn't in OLLAMA_ORIGINS.
+            let running = false;
+            try { await _fetch(base + '/api/tags', { mode: 'no-cors' }); running = true; } catch (err) {}
+            throw Object.assign(new Error(running ? 'origin' : 'down'), { reason: running ? 'origin' : 'down' });
+        }
     }
     async function saveAgency(v) {
         const tok = (A.token && A.token()) || ANON;
