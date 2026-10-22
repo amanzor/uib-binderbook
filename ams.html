@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20260914a"></script>
-    <script src="uib-auth.js?v=20261015b"></script>
+    <script src="uib-auth.js?v=20261022c"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
-    <script src="uib-ai.js?v=20261022b"></script>
+    <script src="uib-ai.js?v=20261022c"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
@@ -2208,8 +2209,8 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261020d"></script>
-    <script src="supabase.js?v=20261013a"></script>
+    <script src="ams.js?v=20261022c"></script>
+    <script src="supabase.js?v=20261022c"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
         const _dashCharts = {};
@@ -2687,7 +2688,7 @@
         }
 
         // ── AI Commission Processor (mirrors the Binder Book admin one) ──
-        const _COMM_AI_PROXY = 'https://jgjmobktucyimupelfxd.supabase.co/functions/v1/claude';
+        const _COMM_AI_PROXY = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co') + '/functions/v1/claude';
         let _commAiPdfs = [];     // [{name, base64}]
         let _commAiLastPdfs = []; // last processed batch — uploaded to Storage on save
         let _commAiBusy = false;
@@ -6896,8 +6897,8 @@ IMPORTANT:
                     }]
                 };
 
-                const AI_PROXY = 'https://jgjmobktucyimupelfxd.supabase.co/functions/v1/claude';
-                const AI_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
+                const AI_PROXY = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co') + '/functions/v1/claude';
+                const AI_ANON = (window.UIB_CONFIG || {}).SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
                 const res = await fetch(AI_PROXY, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'apikey': AI_ANON, 'Authorization': 'Bearer ' + AI_ANON },

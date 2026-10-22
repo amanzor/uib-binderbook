@@ -17,7 +17,7 @@
 (function () {
     'use strict';
     const A = window.UIBAuth || {};
-    const SB = A.SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co';
+    const SB = A.SUPABASE_URL || ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co');
     const ANON = A.SUPABASE_ANON || '';
     const DEFAULTS = { engine: 'claude', url: 'http://localhost:11434', model: 'llama3.1:8b', visionModel: 'llama3.2-vision', fallback: true };
     const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
