@@ -7,6 +7,7 @@
     <script src="uib-auth.js?v=20261015b"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
+    <script src="uib-ai.js?v=20261022a"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -2999,6 +3000,7 @@
                     <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#4c1d95 0%,#6d28d9 60%,#a78bfa 100%);" onclick="showAccessLog()" title="Who signed in and who viewed, changed, exported or deleted records"><i data-lucide="shield-check"></i> Access Log</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#7c2d12 0%,#c2410c 60%,#fb923c 100%);" onclick="showRetentionReview()" title="Records past the retention period, legal holds"><i data-lucide="archive-restore"></i> Retention Review</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#111827 0%,#374151 60%,#6b7280 100%);" onclick="openAiEngine()" title="Choose Claude (cloud) or Ollama (local) for the AI features"><i data-lucide="cpu"></i> AI Engine</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#14b8a6 60%,#5eead4 100%);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#2dd4bf 60%,#5eead4 100%);" onclick="showDataSafety()" title="Download an off-cloud snapshot of the whole book, or merge one back in"><i data-lucide="life-buoy"></i> Data Safety</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);" onclick="window.open('https://uibautorater.vercel.app','_blank','noopener')" title="Open the Auto Rater (separate app)"><i data-lucide="calculator"></i> Auto Rater</button>
@@ -3232,6 +3234,34 @@
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
                 <button class="btn-primary btn-sm" style="flex:1;min-width:150px;" onclick="changeMyPassword()"><i data-lucide="key-round"></i> Change Password</button>
                 <button class="btn-secondary btn-sm" style="flex:1;min-width:150px;" onclick="UIBMfa.manage()"><i data-lucide="shield-check"></i> 2-Step Verification</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI engine settings (admin) -->
+    <div id="aiEngineModal" class="modal">
+        <div class="modal-content" style="max-width:520px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;"><i data-lucide="cpu"></i> AI Engine</h3>
+                <button class="btn-secondary btn-sm" onclick="document.getElementById('aiEngineModal').classList.remove('active')">✕ Close</button>
+            </div>
+            <p style="font-size:13px;color:var(--gray-500);margin:0 0 14px;">Choose which AI reads documents and answers in the Binder Book and AMS. Ollama runs on your own computer, so client data never leaves it.</p>
+            <div class="form-group"><label>Engine</label>
+                <select id="aiEngine" onchange="aiEngineToggle()"><option value="claude">Claude (cloud)</option><option value="ollama">Ollama (local)</option></select></div>
+            <div id="aiOllamaFields">
+                <div class="form-group"><label>Ollama address</label><input id="aiUrl" type="text" placeholder="http://localhost:11434"></div>
+                <div class="form-group"><label>Text model</label><input id="aiModel" type="text" list="aiModelList" placeholder="llama3.1:8b"></div>
+                <div class="form-group"><label>Vision model <span style="font-size:11px;color:var(--gray-500);">(photos and scanned PDFs)</span></label><input id="aiVision" type="text" list="aiModelList" placeholder="llama3.2-vision"></div>
+                <datalist id="aiModelList"></datalist>
+                <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:4px 0 12px;"><input type="checkbox" id="aiFallback" checked style="width:16px;height:16px;"> If Ollama can't be reached, use Claude instead</label>
+                <button type="button" class="btn-secondary btn-sm" onclick="aiEngineTest()"><i data-lucide="plug"></i> Test connection</button>
+                <div id="aiTestResult" style="font-size:13px;margin-top:8px;"></div>
+            </div>
+            <div class="form-group" style="margin-top:14px;"><label>Apply to</label>
+                <select id="aiScope"><option value="agency">Whole agency (every device)</option><option value="device">This device only</option></select></div>
+            <div style="display:flex;gap:10px;margin-top:6px;">
+                <button class="btn-success" style="flex:1;" onclick="aiEngineSave()"><i data-lucide="save"></i> Save</button>
+                <button class="btn-secondary" style="flex:1;" onclick="aiEngineClearDevice()" title="Remove this device's own setting and follow the agency setting">Use agency setting here</button>
             </div>
         </div>
     </div>
@@ -3993,7 +4023,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261020d"></script>
+    <script src="app.js?v=20261022a"></script>
     <script src="supabase.js?v=20261013a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){var s=(r.active||r.waiting||r.installing||{}).scriptURL||'';if(/rater-sw\.js/.test(s)||/\/rater\/?$/.test(r.scope))r.unregister();});}).catch(function(){});navigator.serviceWorker.register('/sw.js');}</script>
