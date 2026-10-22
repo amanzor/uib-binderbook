@@ -13525,7 +13525,7 @@ function showDataSafety() {
     wrap('enterAdmin', 'admin_console', null, null);
 })();
 
-const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored', mfa_setting: '2-step setting changed', reassign_entry: 'Submission reassigned' };
+const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored', mfa_setting: '2-step setting changed', reassign_entry: 'Submission reassigned', ai_engine: 'AI engine changed', ai_request: 'AI request' };
 
 function showAccessLog() {
     if (!isAgentAdmin()) { alert('Only administrators can view the access log.'); return; }
@@ -13715,3 +13715,50 @@ function openAgentProfile() {
     refreshIcons();
 }
 function closeAgentProfile() { document.getElementById('agentProfileModal')?.classList.remove('active'); }
+
+
+// ── AI engine settings (admin) ─────────────────────────────────
+async function openAiEngine() {
+    if (!isAgentAdmin()) { alert('Only administrators can change the AI engine.'); return; }
+    if (!window.UIBAI) { alert('The AI engine switch did not load. Reload the page.'); return; }
+    const dev = UIBAI.deviceCfg(); const cfg = Object.assign({}, await UIBAI.agencyCfg(), dev || {});
+    document.getElementById('aiEngine').value = cfg.engine || 'claude';
+    document.getElementById('aiUrl').value = cfg.url || '';
+    document.getElementById('aiModel').value = cfg.model || '';
+    document.getElementById('aiVision').value = cfg.visionModel || '';
+    document.getElementById('aiFallback').checked = cfg.fallback !== false;
+    document.getElementById('aiScope').value = dev ? 'device' : 'agency';
+    document.getElementById('aiTestResult').textContent = dev ? 'This device has its own setting.' : '';
+    aiEngineToggle();
+    document.getElementById('aiEngineModal').classList.add('active');
+    refreshIcons();
+}
+function aiEngineToggle() { document.getElementById('aiOllamaFields').style.display = document.getElementById('aiEngine').value === 'ollama' ? '' : 'none'; }
+function _aiEngineForm() {
+    return { engine: document.getElementById('aiEngine').value, url: document.getElementById('aiUrl').value.trim() || UIBAI.DEFAULTS.url,
+             model: document.getElementById('aiModel').value.trim() || UIBAI.DEFAULTS.model, visionModel: document.getElementById('aiVision').value.trim() || UIBAI.DEFAULTS.visionModel,
+             fallback: document.getElementById('aiFallback').checked };
+}
+async function aiEngineTest() {
+    const out = document.getElementById('aiTestResult'); out.style.color = ''; out.textContent = 'Connecting…';
+    try {
+        const models = await UIBAI.testOllama(document.getElementById('aiUrl').value.trim());
+        document.getElementById('aiModelList').innerHTML = models.map(m => `<option value="${m.replace(/"/g, '&quot;')}">`).join('');
+        out.style.color = '#166534';
+        out.textContent = models.length ? `✓ Connected. Installed models: ${models.join(', ')}` : '✓ Connected, but no models are installed yet. Run: ollama pull llama3.1:8b';
+    } catch (e) {
+        out.style.color = '#991b1b';
+        out.textContent = '✗ Could not reach Ollama. Make sure it is running on this computer and was started with OLLAMA_ORIGINS=' + location.origin + ' (see the setup guide).';
+    }
+}
+async function aiEngineSave() {
+    const v = _aiEngineForm();
+    try {
+        if (document.getElementById('aiScope').value === 'device') UIBAI.saveDevice(v);
+        else { await UIBAI.saveAgency(v); UIBAI.saveDevice(null); }
+        if (window.UIBAudit) UIBAudit.log('ai_engine', v.engine, { scope: document.getElementById('aiScope').value, model: v.model, url: v.engine === 'ollama' ? v.url : '' });
+        document.getElementById('aiEngineModal').classList.remove('active');
+        alert('AI engine saved: ' + (v.engine === 'ollama' ? 'Ollama (' + v.model + ')' : 'Claude') + '.');
+    } catch (e) { alert(e.message || e); }
+}
+function aiEngineClearDevice() { UIBAI.saveDevice(null); openAiEngine(); }
