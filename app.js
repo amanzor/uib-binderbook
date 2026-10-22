@@ -13748,7 +13748,12 @@ async function aiEngineTest() {
         out.textContent = models.length ? `✓ Connected. Installed models: ${models.join(', ')}` : '✓ Connected, but no models are installed yet. Run: ollama pull llama3.1:8b';
     } catch (e) {
         out.style.color = '#991b1b';
-        out.textContent = '✗ Could not reach Ollama. Make sure it is running on this computer and was started with OLLAMA_ORIGINS=' + location.origin + ' (see the setup guide).';
+        const url = document.getElementById('aiUrl').value.trim() || UIBAI.DEFAULTS.url;
+        out.innerHTML = e.reason === 'origin'
+            ? '✗ <b>Ollama is running but is blocking this website.</b><br>1. In PowerShell run: <code>setx OLLAMA_ORIGINS "' + location.origin + '"</code><br>2. Right-click the Ollama icon by the clock and choose <b>Quit Ollama</b>, then start Ollama again from the Start menu.<br>3. If Chrome shows a "local network access" prompt, choose <b>Allow</b>. Then press Test connection again.'
+            : e.reason === 'http'
+            ? '✗ Ollama answered with an error (' + e.message + '). Check the address: it should be ' + UIBAI.DEFAULTS.url + '.'
+            : '✗ <b>Nothing is answering at ' + url + '.</b><br>1. Make sure Ollama is installed (ollama.com) and running: its llama icon should be by the clock.<br>2. Open <a href="' + url + '" target="_blank" rel="noopener">' + url + '</a> in a new tab. It should say "Ollama is running".<br>3. If that page works but this test still fails, click the icon left of the web address, set <b>Local network access</b> to Allow, reload and try again.';
     }
 }
 async function aiEngineSave() {
