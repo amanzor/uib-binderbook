@@ -12437,9 +12437,18 @@ async function _snapshotDate(slot) {
 }
 
 let _backupRanThisLoad = false;
-async function runDailyCloudBackup() {
+// The snapshot is a multi-MB upload, so it waits until the page has settled,
+// and phones leave it to desktops unless no device has backed up in 2 days.
+function runDailyCloudBackup() {
     if (_backupRanThisLoad) return;
     _backupRanThisLoad = true;
+    setTimeout(_runDailyCloudBackup, 20000);
+}
+function _isPhone() {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '') ||
+        (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent || ''));
+}
+async function _runDailyCloudBackup() {
     try {
         const today = getEasternDateString();                       // YYYY-MM-DD (ET)
         const noon  = new Date(today + 'T12:00:00');
@@ -12451,6 +12460,13 @@ async function runDailyCloudBackup() {
         const needDaily   = dailyDate !== today;
         const needMonthly = !monthlyDate || String(monthlyDate).slice(0, 7) !== today.slice(0, 7);
         if (!needDaily && !needMonthly) return;   // both current — two tiny probes, zero blobs
+        if (_isPhone() && !needMonthly) {
+            // Skip if yesterday's snapshot exists: a desktop will take today's.
+            const y = new Date(noon.getTime() - 86400000);
+            const ySlot = 'backupSnapshot_' + y.toLocaleDateString('en-US', { weekday: 'short' });
+            const yIso = y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0');
+            if (await _snapshotDate(ySlot) === yIso) return;
+        }
 
         let entries = [];
         try { entries = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
