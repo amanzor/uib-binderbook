@@ -4292,7 +4292,7 @@ function renderNavMonthStats() {
     if (!host || !currentUser) return;
     const { month, year } = _currentMonthYearET();
     const monthLabel = `${month} ${year}`;
-    const mine = allData.filter(d => d.agent === currentUser && _entryMonth(d) === monthLabel);
+    const mine = allData.filter(d => d.agent === currentUser).filter(d => _entryMonth(d) === monthLabel);
     const premium = mine.reduce((sum, d) => sum + (parseFloat(d.totalPremium) || 0), 0);
     const agencyFees = mine.reduce((sum, d) => sum + (parseFloat(d.agencyFee) || 0), 0);
     const agencyComm = mine.reduce((sum, d) => sum + (parseFloat(d.agencyCommission) || 0), 0);
@@ -7139,9 +7139,15 @@ function _getAgentPolicyEntries(agent) {
     );
 }
 
+const _MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function _entryMonth(e) {
+    // Fast path for YYYY-MM-DD (every entry the app writes): same "October 2026"
+    // text as toLocaleDateString, without its cost on 5,000+ entries per render.
+    const d = e && e.entryDate;
+    const m = typeof d === 'string' && /^(\d{4})-(\d{2})/.exec(d);
+    if (m) { const i = +m[2] - 1; if (i >= 0 && i < 12) return _MONTH_NAMES[i] + ' ' + m[1]; }
     try {
-        return new Date(e.entryDate + 'T12:00:00').toLocaleDateString('en-US', { year:'numeric', month:'long' });
+        return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { year:'numeric', month:'long' });
     } catch(_) { return ''; }
 }
 
