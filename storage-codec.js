@@ -72,6 +72,7 @@
         try {
             worker = new Worker('lz-worker.js');
             worker.onmessage = function (ev) {
+                if (shrinkJobs.has(ev.data.id)) return onShrunk(ev.data.id, ev.data.packed);
                 const key = jobs.get(ev.data.id); jobs.delete(ev.data.id);
                 if (!key || !pending.has(key) || pending.get(key).id !== ev.data.id) return;   // a newer save superseded it
                 const str = pending.get(key).str;
@@ -88,6 +89,25 @@
         return worker;
     }
 
+    // A large value saved plain is replaced by its compressed copy in the
+    // background, so the book doesn't use up the browser's 5M-character cap.
+    // Reads keep working throughout (memo serves the plain value).
+    const BIG = 200000;
+    const shrinkJobs = new Map();         // job id -> { key, str } (plain value already stored)
+    function shrinkLater(key, str) {
+        if (str.length < BIG) return;
+        const w = getWorker();
+        if (!w) return;
+        const id = ++seq; shrinkJobs.set(id, { key: key, str: str });
+        w.postMessage({ id: id, str: str, mark: MARK });
+    }
+    function onShrunk(id, packed) {
+        const job = shrinkJobs.get(id); shrinkJobs.delete(id);
+        if (!job || !packed || pending.has(job.key)) return;
+        if (nativeGet.call(localStorage, job.key) !== job.str) return;   // changed since; that save shrinks itself
+        try { nativeSet.call(localStorage, job.key, packed); memo.set(job.key, { raw: packed, value: job.str }); } catch (e) {}
+    }
+
     localStorage.getItem = function (key) {
         if (KEYS.has(key) && pending.has(key)) return pending.get(key).str;
         const raw = nativeGet.call(this, key);
@@ -101,6 +121,7 @@
             nativeSet.call(this, key, str);
             memo.set(key, { raw: str, value: str });
             pending.delete(key);
+            shrinkLater(key, str);
             return;
         } catch (e) { if (!isQuota(e)) throw e; }
         const w = getWorker();
@@ -113,6 +134,14 @@
         nativeSet.call(this, key, raw);               // QuotaExceededError propagates to the caller
         memo.set(key, { raw: raw, value: str });
     };
+
+    // Books stored plain by the previous version: shrink them once the page settles.
+    setTimeout(function () {
+        KEYS.forEach(function (k) {
+            const raw = nativeGet.call(localStorage, k);
+            if (raw && raw.substring(0, MARK.length) !== MARK) shrinkLater(k, raw);
+        });
+    }, 3000);
 
     window.uibStorageCodec = {
         keys: Array.from(KEYS),
