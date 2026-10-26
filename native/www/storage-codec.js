@@ -58,7 +58,61 @@
         return str;
     }
 
+    // Saving: write the value plain when it fits (instant). Only when the
+    // browser refuses it for lack of room is it compressed, and that runs in
+    // a background worker: compressing the whole book on the main thread
+    // froze phones for 8+ seconds per save. Until the compressed copy is
+    // stored, reads of the key return the new value from memory.
+    const pending = new Map();            // key -> latest value awaiting a compressed write
+    let worker = null, seq = 0;
+    const jobs = new Map();               // job id -> key
+    function isQuota(e) { return e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014 || /quota/i.test(String(e.message))); }
+    function getWorker() {
+        if (worker !== null) return worker;
+        try {
+            worker = new Worker('lz-worker.js');
+            worker.onmessage = function (ev) {
+                try { onMessage(ev); } finally { if (!busy()) settled(); }
+            };
+            function onMessage(ev) {
+                if (shrinkJobs.has(ev.data.id)) return onShrunk(ev.data.id, ev.data.packed);
+                const key = jobs.get(ev.data.id); jobs.delete(ev.data.id);
+                if (!key || !pending.has(key) || pending.get(key).id !== ev.data.id) return;   // a newer save superseded it
+                const str = pending.get(key).str;
+                const raw = ev.data.packed || str;
+                try { nativeSet.call(localStorage, key, raw); memo.set(key, { raw: raw, value: str }); pending.delete(key); }
+                catch (e) {
+                    // Still no room: keep serving the value from memory (the cloud has it).
+                    pending.get(key).id = 0;
+                    console.warn('storage-codec: no room for ' + key + ' even compressed — kept in memory and in the cloud');
+                }
+            }
+            worker.onerror = function () { worker = false; shrinkJobs.clear(); jobs.clear(); pending.forEach(function (p) { p.id = 0; }); settled(); };
+        } catch (e) { worker = false; }
+        return worker;
+    }
+
+    // A large value saved plain is replaced by its compressed copy in the
+    // background, so the book doesn't use up the browser's 5M-character cap.
+    // Reads keep working throughout (memo serves the plain value).
+    const BIG = 200000;
+    const shrinkJobs = new Map();         // job id -> { key, str } (plain value already stored)
+    function shrinkLater(key, str) {
+        if (str.length < BIG) return;
+        const w = getWorker();
+        if (!w) return;
+        const id = ++seq; shrinkJobs.set(id, { key: key, str: str });
+        w.postMessage({ id: id, str: str, mark: MARK });
+    }
+    function onShrunk(id, packed) {
+        const job = shrinkJobs.get(id); shrinkJobs.delete(id);
+        if (!job || !packed || pending.has(job.key)) return;
+        if (nativeGet.call(localStorage, job.key) !== job.str) return;   // changed since; that save shrinks itself
+        try { nativeSet.call(localStorage, job.key, packed); memo.set(job.key, { raw: packed, value: job.str }); } catch (e) {}
+    }
+
     localStorage.getItem = function (key) {
+        if (KEYS.has(key) && pending.has(key)) return pending.get(key).str;
         const raw = nativeGet.call(this, key);
         return KEYS.has(key) ? decode(key, raw) : raw;
     };
@@ -66,20 +120,45 @@
     localStorage.setItem = function (key, value) {
         if (!KEYS.has(key)) return nativeSet.call(this, key, value);
         const str = String(value);
-        const raw = encode(str);
-        nativeSet.call(this, key, raw);   // QuotaExceededError propagates to the caller
+        try {
+            nativeSet.call(this, key, str);
+            memo.set(key, { raw: str, value: str });
+            pending.delete(key);
+            shrinkLater(key, str);
+            return;
+        } catch (e) { if (!isQuota(e)) throw e; }
+        const w = getWorker();
+        if (w) {
+            const id = ++seq; jobs.set(id, key); pending.set(key, { id: id, str: str });
+            w.postMessage({ id: id, str: str, mark: MARK });
+            return;                                   // saved in memory now, on the device shortly
+        }
+        const raw = encode(str);                      // no worker support: old behaviour
+        nativeSet.call(this, key, raw);               // QuotaExceededError propagates to the caller
         memo.set(key, { raw: raw, value: str });
     };
 
-    // Compress anything already stored plain, so the room is freed now.
-    KEYS.forEach(function (key) {
-        const raw = nativeGet.call(localStorage, key);
-        if (raw != null && raw.substring(0, MARK.length) !== MARK) {
-            try { localStorage.setItem(key, raw); } catch (e) { /* no room to rewrite — leave it plain */ }
-        }
-    });
+    // Books stored plain by the previous version: shrink them once the page settles.
+    setTimeout(function () {
+        KEYS.forEach(function (k) {
+            const raw = nativeGet.call(localStorage, k);
+            if (raw && raw.substring(0, MARK.length) !== MARK) shrinkLater(k, raw);
+        });
+    }, 3000);
+
+    // True while a compression is in flight (its result will change how much
+    // room the book takes). A save that found no room even compressed (id 0)
+    // is not in flight. When the last one lands, 'uibstoragesettled' fires so
+    // the storage meter can re-measure.
+    function busy() {
+        if (shrinkJobs.size) return true;
+        for (const p of pending.values()) if (p.id) return true;
+        return false;
+    }
+    function settled() { try { window.dispatchEvent(new Event('uibstoragesettled')); } catch (e) {} }
 
     window.uibStorageCodec = {
+        busy: busy,
         keys: Array.from(KEYS),
         // Actual bytes-on-disk view (what counts against the browser cap).
         rawLength: function (key) { return (nativeGet.call(localStorage, key) || '').length; },

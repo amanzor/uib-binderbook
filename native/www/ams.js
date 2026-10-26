@@ -73,8 +73,8 @@ function amsDBPutFile(record) {
 }
 
 // ── Supabase Storage — cloud files (shared with Binder Book) ──
-const AMS_SB_URL    = 'https://jgjmobktucyimupelfxd.supabase.co';
-const AMS_SB_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
+const AMS_SB_URL    = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co');
+const AMS_SB_KEY    = (window.UIB_CONFIG || {}).SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
 const AMS_SB_BUCKET = 'client-files';
 const AMS_SB_HEADERS = {
     'apikey': AMS_SB_KEY,
@@ -454,7 +454,8 @@ function amsDoLogin() {
     if (!window.UIBAuth) { if (errEl) { errEl.textContent = 'Sign-in is unavailable: uib-auth.js did not load.'; errEl.style.display = 'block'; } return; }
     UIBMfa.signIn(email, password, document.getElementById('amsAgentLoginForm')).then((user) => {
         const remember = document.getElementById('amsRememberEmail')?.checked;
-        if (remember) localStorage.setItem('amsRememberedEmail', email); else localStorage.removeItem('amsRememberedEmail');
+        try { if (remember) localStorage.setItem('amsRememberedEmail', email); else localStorage.removeItem('amsRememberedEmail'); } catch (e) {}
+        try { document.cookie = remember ? 'amsRememberedEmail=' + encodeURIComponent(email) + '; max-age=' + (400 * 24 * 3600) + '; path=/; SameSite=Lax; Secure' : 'amsRememberedEmail=; max-age=0; path=/; SameSite=Lax; Secure'; } catch (e) {}
         const pw = document.getElementById('amsLoginPassword'); if (pw) pw.value = '';
         amsCurrentUser = (user.name && user.name !== 'Admin') ? user.name : 'Admin';
         amsCurrentRole = user.role;
@@ -462,8 +463,7 @@ function amsDoLogin() {
         if (amsCurrentUser !== 'Admin' && user.role !== 'admin' && !knownAgents.includes(amsCurrentUser)) {
             const creds = amsGetCredentials(); const byEmail = Object.keys(creds).find(n => String(creds[n].email || '').toLowerCase() === String(user.email || '').toLowerCase()) || (UIBAuth.KNOWN_AGENTS || {})[String(user.email || '').toLowerCase()];
             if (byEmail) { amsCurrentUser = byEmail; UIBAuth.adoptName(byEmail); amsLaunchApp(); return; }
-            UIBAuth.signOut();
-            throw new Error('This login is linked to "' + amsCurrentUser + '", which is not an agent in Agent Management. Ask an administrator to pick the right agent for this login in Manage Login Credentials.');
+            // Never lock an agent out over the name; continue as they are.
         }
         amsLaunchApp();
     }).catch((err) => {
@@ -504,8 +504,12 @@ function amsLogout() {
     document.getElementById('aiChatPanel')?.classList.remove('open');
     document.getElementById('amsApp').classList.remove('visible');
     document.getElementById('amsLoginScreen').style.display = 'flex';
-    document.getElementById('amsLoginEmail').value    = '';
+    // Keep the remembered email in the box after signing out.
+    let remembered = ''; try { remembered = localStorage.getItem('amsRememberedEmail') || ''; } catch (e) {}
+    if (!remembered) { const m = document.cookie.match(/(?:^|; )amsRememberedEmail=([^;]*)/); if (m) { try { remembered = decodeURIComponent(m[1]); } catch (e) {} } }
+    document.getElementById('amsLoginEmail').value    = remembered;
     document.getElementById('amsLoginPassword').value = '';
+    const rb = document.getElementById('amsRememberEmail'); if (rb) rb.checked = !!remembered;
 }
 
 // ── Cloud → localStorage sync ────────────────────────────────
@@ -1589,7 +1593,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Pre-fill remembered email
-    const remembered = localStorage.getItem('amsRememberedEmail');
+    let remembered = null; try { remembered = localStorage.getItem('amsRememberedEmail'); } catch (e) {}
+    if (!remembered) { const m = document.cookie.match(/(?:^|; )amsRememberedEmail=([^;]*)/); if (m) { try { remembered = decodeURIComponent(m[1]); } catch (e) {} } }
     if (remembered) {
         const emailEl = document.getElementById('amsLoginEmail');
         const checkEl = document.getElementById('amsRememberEmail');
@@ -5974,3 +5979,32 @@ function rnwImportAll(setIdx) {
     wrap('amsUploadFiles', 'upload_file', () => cname(amsActiveKey), (list) => ({ count: list && list.length }));
     wrap('amsLogout', 'sign_out_click', null, null);
 })();
+
+
+// ── Phone layout: client list first, then the client full screen ──
+function amsIsPhone() { return window.matchMedia('(max-width: 768px)').matches; }
+function amsMobileBack(fromPopstate) {
+    if (!fromPopstate && history.state && history.state.amsDetail) { history.back(); return; }   // popstate finishes the job
+    document.body.classList.remove('ams-m-detail');
+    try { window.scrollTo(0, 0); } catch (e) {}
+}
+document.addEventListener('DOMContentLoaded', () => {
+    // Hooked after every script has loaded, so later definitions can't replace the hooks.
+    // Only a tap on a client opens the full-screen client view (background
+    // refreshes also call amsLoadClientDetail and must not move the screen).
+    document.addEventListener('click', (e) => {
+        if (!amsIsPhone() || !e.target.closest || !e.target.closest('.client-card')) return;
+        setTimeout(() => {
+            if (document.body.classList.contains('ams-m-detail')) return;
+            document.body.classList.add('ams-m-detail');
+            try { history.pushState({ amsDetail: 1 }, ''); } catch (err) {}
+            try { window.scrollTo(0, 0); } catch (err) {}
+        }, 0);
+    });
+    const nav = window.amsSidebarNav;
+    if (typeof nav === 'function') {
+        window.amsSidebarNav = function () { document.body.classList.remove('ams-m-detail'); return nav.apply(this, arguments); };
+    }
+    // Android Back gesture / button returns to the list instead of leaving the AMS.
+    window.addEventListener('popstate', () => { if (document.body.classList.contains('ams-m-detail')) amsMobileBack(true); });
+});
