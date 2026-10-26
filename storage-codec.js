@@ -72,6 +72,9 @@
         try {
             worker = new Worker('lz-worker.js');
             worker.onmessage = function (ev) {
+                try { onMessage(ev); } finally { if (!busy()) settled(); }
+            };
+            function onMessage(ev) {
                 if (shrinkJobs.has(ev.data.id)) return onShrunk(ev.data.id, ev.data.packed);
                 const key = jobs.get(ev.data.id); jobs.delete(ev.data.id);
                 if (!key || !pending.has(key) || pending.get(key).id !== ev.data.id) return;   // a newer save superseded it
@@ -83,8 +86,8 @@
                     pending.get(key).id = 0;
                     console.warn('storage-codec: no room for ' + key + ' even compressed — kept in memory and in the cloud');
                 }
-            };
-            worker.onerror = function () { worker = false; };
+            }
+            worker.onerror = function () { worker = false; shrinkJobs.clear(); jobs.clear(); pending.forEach(function (p) { p.id = 0; }); settled(); };
         } catch (e) { worker = false; }
         return worker;
     }
@@ -143,7 +146,19 @@
         });
     }, 3000);
 
+    // True while a compression is in flight (its result will change how much
+    // room the book takes). A save that found no room even compressed (id 0)
+    // is not in flight. When the last one lands, 'uibstoragesettled' fires so
+    // the storage meter can re-measure.
+    function busy() {
+        if (shrinkJobs.size) return true;
+        for (const p of pending.values()) if (p.id) return true;
+        return false;
+    }
+    function settled() { try { window.dispatchEvent(new Event('uibstoragesettled')); } catch (e) {} }
+
     window.uibStorageCodec = {
+        busy: busy,
         keys: Array.from(KEYS),
         // Actual bytes-on-disk view (what counts against the browser cap).
         rawLength: function (key) { return (nativeGet.call(localStorage, key) || '').length; },

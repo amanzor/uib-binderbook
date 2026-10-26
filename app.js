@@ -1263,27 +1263,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeCommissionStatements();
     setTodayDate();
 
-    // Proactively reclaim room when this browser is near Chrome's 5M-char
-    // localStorage cap, so saves don't start failing mid-shift.
-    try {
-        // Measure what is actually on disk: storage-codec.js keeps the big
-        // keys compressed, so getItem() lengths would overstate usage.
-        let chars = 0;
-        if (window.uibStorageCodec) chars = window.uibStorageCodec.usageChars();
-        else for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); chars += k.length + (localStorage.getItem(k) || '').length; }
-        if (chars > 4200000 && typeof compactVerificationLogs === 'function') {
-            compactVerificationLogs().then(did => { if (did) console.info('Compacted verification-log signatures to free browser storage.'); });
-        }
-        // Never let a full browser fail silently again: past 80% of Chrome's
-        // 5M-character cap, say so on screen until an admin acts.
-        if (chars > 4000000 && !document.getElementById('uibStorageWarn')) {
-            const el = document.createElement('div');
-            el.id = 'uibStorageWarn';
-            el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483646;background:#b45309;color:#fff;padding:10px 16px;text-align:center;font:600 13px system-ui,Arial,sans-serif;box-shadow:0 -2px 10px rgba(0,0,0,.3);';
-            el.textContent = `⚠️ This browser's storage for the Binder Book is ${Math.round(chars / 50000)}% full (${(chars / 1e6).toFixed(2)}M of 5M). Saves will start failing at 100% — please tell your admin.`;
-            (document.body || document.documentElement).appendChild(el);
-        }
-    } catch (e) {}
+    // Storage meter. The book is saved plain first and compressed in the
+    // background a few seconds later (storage-codec.js), so a reading taken
+    // at page load can say 100%+ for a browser that is really ~10% full.
+    // Measure once the compression has had time to run, re-measure whenever
+    // it finishes or every minute, and take the warning down when it clears.
+    let _compactedLogs = false;
+    function _updateStorageWarning() {
+        try {
+            // Measure what is actually on disk: storage-codec.js keeps the big
+            // keys compressed, so getItem() lengths would overstate usage.
+            let chars = 0;
+            if (window.uibStorageCodec) chars = window.uibStorageCodec.usageChars();
+            else for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); chars += k.length + (localStorage.getItem(k) || '').length; }
+            if (window.uibStorageCodec && window.uibStorageCodec.busy()) return;   // a compression is still running; it re-checks when done
+            if (chars > 4200000 && !_compactedLogs && typeof compactVerificationLogs === 'function') {
+                _compactedLogs = true;
+                compactVerificationLogs().then(did => { if (did) console.info('Compacted verification-log signatures to free browser storage.'); });
+            }
+            // Never let a full browser fail silently again: past 80% of Chrome's
+            // 5M-character cap, say so on screen until it is back under.
+            let el = document.getElementById('uibStorageWarn');
+            if (chars > 4000000) {
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = 'uibStorageWarn';
+                    el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483646;background:#b45309;color:#fff;padding:10px 16px;text-align:center;font:600 13px system-ui,Arial,sans-serif;box-shadow:0 -2px 10px rgba(0,0,0,.3);';
+                    (document.body || document.documentElement).appendChild(el);
+                }
+                el.textContent = `⚠️ This browser's storage for the Binder Book is ${Math.round(chars / 50000)}% full (${(chars / 1e6).toFixed(2)}M of 5M). Saves will start failing at 100% — please tell your admin.`;
+            } else if (el) {
+                el.remove();
+            }
+        } catch (e) {}
+    }
+    window.addEventListener('uibstoragesettled', _updateStorageWarning);
+    setTimeout(_updateStorageWarning, 8000);
+    setInterval(_updateStorageWarning, 60000);
 
     // Agency Commission = Carrier Rate % × Base Premium (auto, readonly)
     // Agent Commission  = (Agency Fee + Agency Commission) × 50% (auto, readonly)

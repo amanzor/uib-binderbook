@@ -2,21 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
-    <script src="storage-codec.js?v=20260914a"></script>
-    <script src="uib-auth.js?v=20261015b"></script>
+    <script src="storage-codec.js?v=20261026a"></script>
+    <script src="uib-auth.js?v=20261022c"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
+    <script src="uib-ai.js?v=20261022c"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>UIB Binder Book - Universal Insurance Brokers</title>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/manifest.json?v=20261015w">
     <meta name="theme-color" content="#0d1f3c">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="UIB Binder Book">
+    <meta property="og:image" content="https://uib-binderbook.vercel.app/icon.png?v=20261015w">
+    <meta property="og:title" content="UIB Binder Book">
     <link rel="apple-touch-icon" href="/icons/uib-apple-touch.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
@@ -781,7 +785,7 @@
 
     <div class="container">
         <header>
-            <h1><img src="icon.png" alt="" class="header-icon"> UIB Binder Book</h1>
+            <h1><img src="icon.png?v=20261015w" alt="" class="header-icon"> UIB Binder Book</h1>
             <p>Universal Insurance Brokers - Sales & Commission Management</p>
         </header>
 
@@ -793,7 +797,7 @@
 
                         <!-- Logo / Brand -->
                         <div style="text-align:center;margin-bottom:32px;">
-                            <img src="icon.png" alt="UIB Logo" style="width:88px;height:88px;object-fit:contain;margin-bottom:14px;filter:drop-shadow(0 6px 16px rgba(29,78,216,.25));">
+                            <img src="icon.png?v=20261015w" alt="UIB Logo" style="width:88px;height:88px;object-fit:contain;margin-bottom:14px;filter:drop-shadow(0 6px 16px rgba(29,78,216,.25));">
                             <h2 style="margin:0 0 6px;font-size:1.6rem;font-weight:800;color:#0d1f3c;letter-spacing:-0.5px;">UIB Binder Book</h2>
                             <p style="margin:0;font-size:14px;color:#6b7280;">Sign in to your account</p>
                         </div>
@@ -1446,15 +1450,13 @@
             <!-- Agent Dashboard -->
             <div id="agentSection" class="section">
                 <div class="user-info">
-                    <span id="userDisplay"></span>
+                    <span id="userDisplay" role="button" tabindex="0" onclick="openAgentProfile()" onkeydown="if(event.key==='Enter')openAgentProfile()" title="Open my profile" style="cursor:pointer;"></span>
                     <div class="nav-primary">
                         <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry.html';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
                         <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry.html';" style="background:linear-gradient(to right,#047857 0%,#10b981 60%,#34d399 100%);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
                         <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry.html';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
                         <button class="btn-sm" onclick="openNewProspectModal()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="user-plus"></i> New Prospect</button>
                     </div>
-                    <button class="btn-secondary btn-sm" onclick="UIBMfa.manage()" title="Set up or replace your authenticator app" style="margin-left:auto;"><i data-lucide="shield-check"></i> 2-Step</button>
-                    <button class="btn-secondary btn-sm" onclick="changeMyPassword()" title="Change my password"><i data-lucide="key-round"></i> Password</button>
                     <button class="btn-danger btn-sm nav-logout" onclick="logout()" style="margin-left:0;"><i data-lucide="log-out"></i> Logout</button>
                     <div class="nav-groups">
                         <div class="nav-group">
@@ -2254,7 +2256,7 @@
                             <option value="view_client">Client views</option><option value="save_entry">Entries saved</option><option value="save_contact">Contacts saved</option>
                             <option value="delete_entry">Entries deleted</option><option value="delete_policy">Policies deleted</option><option value="export">Exports</option>
                             <option value="view_file">Files viewed</option><option value="upload_file">Files uploaded</option><option value="delete_file">Files deleted</option>
-                            <option value="retention_delete">Retention deletions</option><option value="legal_hold">Legal holds</option><option value="training_ack">Acknowledgments</option><option value="mfa_setting">2-step setting</option>
+                            <option value="retention_delete">Retention deletions</option><option value="legal_hold">Legal holds</option><option value="training_ack">Acknowledgments</option><option value="mfa_setting">2-step setting</option><option value="reassign_entry">Reassignments</option>
                             <option value="cred_create">Logins created</option><option value="cred_reset_password">Password resets</option><option value="cred_delete">Logins deleted</option><option value="duplicate_flagged">Duplicates flagged</option>
                         </select>
                         <input id="alFilterUser" type="text" placeholder="Filter by email" onchange="renderAccessLog()" style="padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;min-width:200px;">
@@ -2999,6 +3001,7 @@
                     <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#4c1d95 0%,#6d28d9 60%,#a78bfa 100%);" onclick="showAccessLog()" title="Who signed in and who viewed, changed, exported or deleted records"><i data-lucide="shield-check"></i> Access Log</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#7c2d12 0%,#c2410c 60%,#fb923c 100%);" onclick="showRetentionReview()" title="Records past the retention period, legal holds"><i data-lucide="archive-restore"></i> Retention Review</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#111827 0%,#374151 60%,#6b7280 100%);" onclick="openAiEngine()" title="Choose Claude (cloud) or Ollama (local) for the AI features"><i data-lucide="cpu"></i> AI Engine</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#14b8a6 60%,#5eead4 100%);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#2dd4bf 60%,#5eead4 100%);" onclick="showDataSafety()" title="Download an off-cloud snapshot of the whole book, or merge one back in"><i data-lucide="life-buoy"></i> Data Safety</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);" onclick="window.open('https://uibautorater.vercel.app','_blank','noopener')" title="Open the Auto Rater (separate app)"><i data-lucide="calculator"></i> Auto Rater</button>
@@ -3220,11 +3223,59 @@
     </div>
 
     <!-- Edit Modal -->
+
+    <!-- Agent profile -->
+    <div id="agentProfileModal" class="modal">
+        <div class="modal-content" style="max-width:460px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <h3 style="margin:0;"><i data-lucide="user-round"></i> My Profile</h3>
+                <button class="btn-secondary btn-sm" onclick="closeAgentProfile()">✕ Close</button>
+            </div>
+            <div id="agentProfileBody"></div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
+                <button class="btn-primary btn-sm" style="flex:1;min-width:150px;" onclick="changeMyPassword()"><i data-lucide="key-round"></i> Change Password</button>
+                <button class="btn-secondary btn-sm" style="flex:1;min-width:150px;" onclick="UIBMfa.manage()"><i data-lucide="shield-check"></i> 2-Step Verification</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI engine settings (admin) -->
+    <div id="aiEngineModal" class="modal">
+        <div class="modal-content" style="max-width:520px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;"><i data-lucide="cpu"></i> AI Engine</h3>
+                <button class="btn-secondary btn-sm" onclick="document.getElementById('aiEngineModal').classList.remove('active')">✕ Close</button>
+            </div>
+            <p style="font-size:13px;color:var(--gray-500);margin:0 0 14px;">Choose which AI reads documents and answers in the Binder Book and AMS. Ollama runs on your own computer, so client data never leaves it.</p>
+            <div class="form-group"><label>Engine</label>
+                <select id="aiEngine" onchange="aiEngineToggle()"><option value="claude">Claude (cloud)</option><option value="ollama">Ollama (local)</option></select></div>
+            <div id="aiOllamaFields">
+                <div class="form-group"><label>Ollama address</label><input id="aiUrl" type="text" placeholder="http://localhost:11434"></div>
+                <div class="form-group"><label>Text model</label><input id="aiModel" type="text" list="aiModelList" placeholder="llama3.1:8b"></div>
+                <div class="form-group"><label>Vision model <span style="font-size:11px;color:var(--gray-500);">(photos and scanned PDFs)</span></label><input id="aiVision" type="text" list="aiModelList" placeholder="llama3.2-vision"></div>
+                <datalist id="aiModelList"></datalist>
+                <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:4px 0 12px;"><input type="checkbox" id="aiFallback" checked style="width:16px;height:16px;"> If Ollama can't be reached, use Claude instead</label>
+                <button type="button" class="btn-secondary btn-sm" onclick="aiEngineTest()"><i data-lucide="plug"></i> Test connection</button>
+                <div id="aiTestResult" style="font-size:13px;margin-top:8px;"></div>
+            </div>
+            <div class="form-group" style="margin-top:14px;"><label>Apply to</label>
+                <select id="aiScope"><option value="agency">Whole agency (every device)</option><option value="device">This device only</option></select></div>
+            <div style="display:flex;gap:10px;margin-top:6px;">
+                <button class="btn-success" style="flex:1;" onclick="aiEngineSave()"><i data-lucide="save"></i> Save</button>
+                <button class="btn-secondary" style="flex:1;" onclick="aiEngineClearDevice()" title="Remove this device's own setting and follow the agency setting">Use agency setting here</button>
+            </div>
+        </div>
+    </div>
     <div id="editModal" class="modal">
         <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
             <h3><i data-lucide="pencil"></i> Edit Policy Entry</h3>
             <form id="editForm">
                 <div class="form-grid">
+                    <div class="form-group" id="editAgentGroup" style="display:none;grid-column:1 / -1;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:10px 12px;">
+                        <label style="color:#92400e;">🔒 Assigned Agent <span style="font-size:11px;font-weight:600;">(Master Admin only)</span></label>
+                        <select id="editAgent" style="font-family:inherit;"></select>
+                        <small style="display:block;margin-top:4px;color:#92400e;font-size:11px;">Moves this submission to another agent. Recorded in the Access Log.</small>
+                    </div>
                     <div class="form-group">
                         <label>Customer Name</label>
                         <input type="text" id="editCustomerName">
@@ -3973,8 +4024,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261015c"></script>
-    <script src="supabase.js?v=20261013a"></script>
+    <script src="app.js?v=20261026a"></script>
+    <script src="supabase.js?v=20261022c"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 </body>
 </html>

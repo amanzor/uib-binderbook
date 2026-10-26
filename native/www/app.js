@@ -1,8 +1,8 @@
 // ============================================================
 // SUPABASE CLOUD SYNC  (primary data store — replaced Google Drive)
 // ============================================================
-const SUPABASE_URL = "https://jgjmobktucyimupelfxd.supabase.co";
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
+const SUPABASE_URL = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co');
+const SUPABASE_ANON_KEY = (window.UIB_CONFIG || {}).SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
 const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'prospectData', 'verificationLogs', 'commissionStatements', 'underwritingData', 'healthData', 'healthCarrierData'];
 
 const _SB_HEADERS = {
@@ -27,9 +27,12 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202609162;
+const APP_BUILD = 202610151;
 
-let _appOutdated = false;          // true once we KNOW the cloud has a newer build
+let _appOutdated = false;
+// Check for a newer published build as soon as any page opens, so a phone
+// holding an old copy updates itself even before anyone signs in.
+setTimeout(() => { try { enforceAppVersion(); } catch (e) {} }, 1500);          // true once we KNOW the cloud has a newer build
 let _versionEnforcing = false;     // guards against overlapping checks
 
 // Read the latest build the fleet has advertised.
@@ -188,6 +191,19 @@ async function driveGet(key) {
 // and syncFromDrive() PUSHES the local copy instead of pulling the stale
 // cloud copy over it — which used to delete just-saved entries.
 let _driveSeq = 0;
+// When a device has no room to store the whole book (iPhone Safari allows
+// each site far less than the book needs), the current book is kept here
+// and handed to every reader of localStorage 'binderData' instead of the
+// stale or empty copy on the device.
+let _binderMemStr = null;
+{
+    const _origGetItem = localStorage.getItem.bind(localStorage);
+    localStorage.getItem = function (key) {
+        if (key === 'binderData' && _binderMemStr !== null) return _binderMemStr;
+        return _origGetItem(key);
+    };
+}
+let _binderLocalOk = true;   // false when this device had no room to store the book
 function _dirtyKey(key) { return 'uibDirty_' + key; }
 
 // ── Merge-based sync for binder entries ──────────────────────────────
@@ -233,8 +249,15 @@ function binderMarkDeleted(ids) {
 // Best-effort local write for cloud-merged keys: a full device must not
 // stop the cloud write, so quota errors are swallowed here (and only here).
 function _lsMirror(key, str) {
-    try { _origSetItem(key, str); return true; }
-    catch (e) { if (typeof _isQuotaError === 'function' && _isQuotaError(e)) { console.warn(`localStorage full — ${key} kept in cloud only`); return false; } throw e; }
+    try { _origSetItem(key, str); if (key === 'binderData') _binderMemStr = null; return true; }
+    catch (e) {
+        if (typeof _isQuotaError === 'function' && _isQuotaError(e)) {
+            console.warn(`localStorage full — ${key} kept in cloud only`);
+            if (key === 'binderData') _binderMemStr = str;   // every reader still sees the current book
+            return false;
+        }
+        throw e;
+    }
 }
 
 // ── Verification-log merge + tombstones (same idea as binder entries) ──
@@ -485,7 +508,8 @@ async function syncFromDrive() {
             let local = [];
             try { local = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
             const merged = mergeBinderData(local, cloud, tombs);
-            _origSetItem('binderData', JSON.stringify(merged));
+            _binderLocalOk = _lsMirror('binderData', JSON.stringify(merged));
+            if (typeof allData !== 'undefined') allData = merged;
             const cloudStr = JSON.stringify(Array.isArray(cloud) ? cloud : []);
             if (localStorage.getItem(_dirtyKey('binderData')) !== null || cloudStr !== JSON.stringify(merged)) {
                 await driveSet('binderData', merged);
@@ -532,6 +556,12 @@ async function syncToDrive(key, value) {
 // Wrap localStorage.setItem to auto-sync to Drive
 const _origSetItem = localStorage.setItem.bind(localStorage);
 localStorage.setItem = function(key, value) {
+    if (key === 'binderData') {
+        try { _origSetItem(key, value); _binderMemStr = null; }
+        catch (e) { if (typeof _isQuotaError === 'function' && _isQuotaError(e)) { _binderMemStr = value; try { driveSet(key, JSON.parse(value)); } catch (err) {} } throw e; }
+        try { driveSet(key, JSON.parse(value)); } catch (e) {}
+        return;
+    }
     _origSetItem(key, value);
     if (SYNC_KEYS.includes(key)) {
         try { driveSet(key, JSON.parse(value)); } catch(e) {}
@@ -562,7 +592,9 @@ function startAutoSync() {
             _lastSyncAt = Date.now();
 
             // Reload allData and carrierMasterData from localStorage after sync
-            const freshData = JSON.parse(localStorage.getItem('binderData'));
+            // Only take the book from device storage when it fits there; on a
+            // full device the in-memory copy from the sync is the current one.
+            const freshData = _binderLocalOk ? JSON.parse(localStorage.getItem('binderData')) : null;
             const freshCarriers = JSON.parse(localStorage.getItem('carrierMasterData'));
             if (freshData) allData = freshData;
             if (freshCarriers) { carrierMasterData = freshCarriers; refreshAllCarrierDropdowns(); }
@@ -805,7 +837,9 @@ async function loadFromSheet() {
         try { local = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
         const merged = mergeBinderData(local, cloud, tombs);
         allData = merged;
-        _origSetItem('binderData', JSON.stringify(merged));
+        // A phone without room for the whole book (iPhone Safari's storage is
+        // small) must still show it: keep the merged copy in memory either way.
+        _binderLocalOk = _lsMirror('binderData', JSON.stringify(merged));
         const cloudStr = JSON.stringify(Array.isArray(cloud) ? cloud : []);
         if (localStorage.getItem(_dirtyKey('binderData')) !== null || cloudStr !== JSON.stringify(merged)) {
             await driveSet('binderData', merged);
@@ -898,10 +932,40 @@ function initializeCredentials() {
 }
 
 // ── Agent Email Login ──────────────────────────────────────────
+// Remembered sign-in email. Saved in a cookie as well as localStorage:
+// on an iPhone whose site storage is full (the book is large) the
+// localStorage write fails, and Safari also clears localStorage for sites
+// not visited in 7 days. A failed save must never stop the sign-in.
+function _rememberEmail(key, email) {
+    try { if (email) localStorage.setItem(key, email); else localStorage.removeItem(key); } catch (e) {}
+    try {
+        document.cookie = email
+            ? key + '=' + encodeURIComponent(email) + '; max-age=' + (400 * 24 * 3600) + '; path=/; SameSite=Lax; Secure'
+            : key + '=; max-age=0; path=/; SameSite=Lax; Secure';
+    } catch (e) {}
+}
+function _recalledEmail(key) {
+    let v = '';
+    try { v = localStorage.getItem(key) || ''; } catch (e) {}
+    if (!v) { const m = document.cookie.match(new RegExp('(?:^|; )' + key + '=([^;]*)')); if (m) { try { v = decodeURIComponent(m[1]); } catch (e) {} } }
+    return v;
+}
+// Put the remembered email back in the sign-in box (page load and logout).
+function prefillRememberedEmail() {
+    const saved = _recalledEmail('rememberedAgentEmail');
+    const emailField = document.getElementById('agentLoginEmail');
+    const rememberBox = document.getElementById('rememberAgentEmail');
+    if (!emailField) return;
+    if (saved && !emailField.value) emailField.value = saved;
+    if (rememberBox) rememberBox.checked = !!saved;
+}
+document.addEventListener('DOMContentLoaded', () => setTimeout(prefillRememberedEmail, 0));
+window.addEventListener('pageshow', () => setTimeout(prefillRememberedEmail, 0));
+
 function openAgentEmailLogin() {
     // Login form is now inline on loginSection — just ensure it's visible and focused
     showSection('loginSection');
-    const saved = localStorage.getItem('rememberedAgentEmail') || '';
+    const saved = _recalledEmail('rememberedAgentEmail');
     const emailField = document.getElementById('agentLoginEmail');
     const passField  = document.getElementById('agentLoginPassword');
     const errEl      = document.getElementById('agentLoginError');
@@ -941,7 +1005,7 @@ function submitAgentEmailLogin(e) {
 
     UIBMfa.signIn(email, password, document.getElementById('agentEmailLoginForm')).then((user) => {
         const remember = document.getElementById('rememberAgentEmail')?.checked;
-        if (remember) localStorage.setItem('rememberedAgentEmail', email); else localStorage.removeItem('rememberedAgentEmail');
+        _rememberEmail('rememberedAgentEmail', remember ? email : '');
         document.getElementById('agentLoginPassword').value = '';
         // An administrator whose email is on an agent record lands on their own
         // agent dashboard (with admin visibility); the Admin Access button is
@@ -949,13 +1013,11 @@ function submitAgentEmailLogin(e) {
         if (user.role === 'admin' && (!user.name || user.name === 'Admin')) { enterAdmin(); return; }
         // The name on the account must be a real agent in Agent Management;
         // otherwise entries would be filed under a name nobody can see.
+        // Never lock an agent out over the name: use the roster / built-in
+        // email match when there is one, otherwise continue as they are.
         if (!getAllAgents().includes(user.name)) {
             const byEmail = _agentNameForEmail(user.email);
             if (byEmail) { user.name = byEmail; UIBAuth.adoptName(byEmail); }
-            else {
-                UIBAuth.signOut();
-                throw new Error('This login is linked to "' + user.name + '", which is not an agent in Agent Management. Ask an administrator to open Agent Management and add this email to the right agent.');
-            }
         }
         showAgentSection(user.name);
         loadFromSheet().then(() => {
@@ -1201,27 +1263,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeCommissionStatements();
     setTodayDate();
 
-    // Proactively reclaim room when this browser is near Chrome's 5M-char
-    // localStorage cap, so saves don't start failing mid-shift.
-    try {
-        // Measure what is actually on disk: storage-codec.js keeps the big
-        // keys compressed, so getItem() lengths would overstate usage.
-        let chars = 0;
-        if (window.uibStorageCodec) chars = window.uibStorageCodec.usageChars();
-        else for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); chars += k.length + (localStorage.getItem(k) || '').length; }
-        if (chars > 4200000 && typeof compactVerificationLogs === 'function') {
-            compactVerificationLogs().then(did => { if (did) console.info('Compacted verification-log signatures to free browser storage.'); });
-        }
-        // Never let a full browser fail silently again: past 80% of Chrome's
-        // 5M-character cap, say so on screen until an admin acts.
-        if (chars > 4000000 && !document.getElementById('uibStorageWarn')) {
-            const el = document.createElement('div');
-            el.id = 'uibStorageWarn';
-            el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483646;background:#b45309;color:#fff;padding:10px 16px;text-align:center;font:600 13px system-ui,Arial,sans-serif;box-shadow:0 -2px 10px rgba(0,0,0,.3);';
-            el.textContent = `⚠️ This browser's storage for the Binder Book is ${Math.round(chars / 50000)}% full (${(chars / 1e6).toFixed(2)}M of 5M). Saves will start failing at 100% — please tell your admin.`;
-            (document.body || document.documentElement).appendChild(el);
-        }
-    } catch (e) {}
+    // Storage meter. The book is saved plain first and compressed in the
+    // background a few seconds later (storage-codec.js), so a reading taken
+    // at page load can say 100%+ for a browser that is really ~10% full.
+    // Measure once the compression has had time to run, re-measure whenever
+    // it finishes or every minute, and take the warning down when it clears.
+    let _compactedLogs = false;
+    function _updateStorageWarning() {
+        try {
+            // Measure what is actually on disk: storage-codec.js keeps the big
+            // keys compressed, so getItem() lengths would overstate usage.
+            let chars = 0;
+            if (window.uibStorageCodec) chars = window.uibStorageCodec.usageChars();
+            else for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); chars += k.length + (localStorage.getItem(k) || '').length; }
+            if (window.uibStorageCodec && window.uibStorageCodec.busy()) return;   // a compression is still running; it re-checks when done
+            if (chars > 4200000 && !_compactedLogs && typeof compactVerificationLogs === 'function') {
+                _compactedLogs = true;
+                compactVerificationLogs().then(did => { if (did) console.info('Compacted verification-log signatures to free browser storage.'); });
+            }
+            // Never let a full browser fail silently again: past 80% of Chrome's
+            // 5M-character cap, say so on screen until it is back under.
+            let el = document.getElementById('uibStorageWarn');
+            if (chars > 4000000) {
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = 'uibStorageWarn';
+                    el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483646;background:#b45309;color:#fff;padding:10px 16px;text-align:center;font:600 13px system-ui,Arial,sans-serif;box-shadow:0 -2px 10px rgba(0,0,0,.3);';
+                    (document.body || document.documentElement).appendChild(el);
+                }
+                el.textContent = `⚠️ This browser's storage for the Binder Book is ${Math.round(chars / 50000)}% full (${(chars / 1e6).toFixed(2)}M of 5M). Saves will start failing at 100% — please tell your admin.`;
+            } else if (el) {
+                el.remove();
+            }
+        } catch (e) {}
+    }
+    window.addEventListener('uibstoragesettled', _updateStorageWarning);
+    setTimeout(_updateStorageWarning, 8000);
+    setInterval(_updateStorageWarning, 60000);
 
     // Agency Commission = Carrier Rate % × Base Premium (auto, readonly)
     // Agent Commission  = (Agency Fee + Agency Commission) × 50% (auto, readonly)
@@ -1412,7 +1490,7 @@ function showAgentSection(agent) {
     // the device after the tab closes or 30 idle minutes pass.
     try { sessionStorage.setItem('uibCurrentUser', agent); localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('agentSection');
-    document.getElementById('userDisplay').textContent = `👤 Agent: ${agent}`;
+    document.getElementById('userDisplay').innerHTML = `👤 Agent: <span style="text-decoration:underline;text-underline-offset:3px;">${String(agent).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</span> <span style="font-size:.8em;opacity:.7;">›</span>`;
     document.getElementById('agentForm').reset();
     populate2ndAgentDropdown('secondAgent', '');
     setTodayDate();
@@ -1577,6 +1655,7 @@ function logout() {
     try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('loginSection');
     initializeAgentButtons();
+    prefillRememberedEmail();
 }
 
 // When the agent returns to the main app after saving on the standalone entry
@@ -1625,7 +1704,10 @@ function restoreSessionFromStorage() {
     // Only restore a recognized agent; a login linked to an unknown name is
     // ended so it cannot reach the entry pages either.
     const agents = (typeof getAllAgents === 'function') ? getAllAgents() : (typeof AGENTS !== 'undefined' ? AGENTS : []);
-    if (!agents.includes(savedUser)) { try { UIBAuth.signOut(); sessionStorage.removeItem('uibCurrentUser'); } catch (e) {} return false; }
+    if (!agents.includes(savedUser)) {
+        const byEmail = _agentNameForEmail(authUser.email);
+        if (byEmail) { savedUser = byEmail; UIBAuth.adoptName(byEmail); } else if (!savedUser) return false;
+    }
 
     showAgentSection(savedUser);
     if (typeof loadFromSheet === 'function') {
@@ -4226,7 +4308,7 @@ function renderNavMonthStats() {
     if (!host || !currentUser) return;
     const { month, year } = _currentMonthYearET();
     const monthLabel = `${month} ${year}`;
-    const mine = allData.filter(d => d.agent === currentUser && _entryMonth(d) === monthLabel);
+    const mine = allData.filter(d => d.agent === currentUser).filter(d => _entryMonth(d) === monthLabel);
     const premium = mine.reduce((sum, d) => sum + (parseFloat(d.totalPremium) || 0), 0);
     const agencyFees = mine.reduce((sum, d) => sum + (parseFloat(d.agencyFee) || 0), 0);
     const agencyComm = mine.reduce((sum, d) => sum + (parseFloat(d.agencyCommission) || 0), 0);
@@ -4698,7 +4780,27 @@ function openEditModal(id) {
     document.getElementById('editPaymentType').value = entry.paymentType || '';
     renderEditDocStatus(entry);
     populate2ndAgentDropdown('editSecondAgent', entry.secondAgent || '');
+    _setupEditAgentReassign(entry);
     document.getElementById('editModal').classList.add('active');
+}
+
+// ── Reassign a submission (master admin only) ─────────────────
+const MASTER_ADMIN_EMAIL = 'admin@universalinsurancebroker.com';
+function _isMasterAdmin() {
+    const u = window.UIBAuth && UIBAuth.user();
+    return !!(u && String(u.email || '').toLowerCase() === MASTER_ADMIN_EMAIL);
+}
+function _setupEditAgentReassign(entry) {
+    const grp = document.getElementById('editAgentGroup');
+    const sel = document.getElementById('editAgent');
+    if (!grp || !sel) return;
+    if (!_isMasterAdmin()) { grp.style.display = 'none'; sel.innerHTML = ''; return; }
+    const agents = getAllAgents().slice();
+    const cur = entry.agent || '';
+    if (cur && !agents.includes(cur)) agents.unshift(cur);
+    const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    sel.innerHTML = agents.map(a => `<option value="${esc(a)}"${a === cur ? ' selected' : ''}>${esc(a)}${a === cur ? ' (current)' : ''}</option>`).join('');
+    grp.style.display = '';
 }
 
 // The Documentation Status items available on a binder entry depend on its
@@ -4787,6 +4889,13 @@ function updateEntry() {
     entry.paymentType = document.getElementById('editPaymentType').value;
     entry.documentationStatus = collectEditDocStatus();
     entry.secondAgent = document.getElementById('editSecondAgent')?.value || '';
+    // Reassignment is accepted only from the master admin account.
+    const _newAgent = document.getElementById('editAgent')?.value || '';
+    if (_isMasterAdmin() && _newAgent && _newAgent !== entry.agent) {
+        const _fromAgent = entry.agent || '';
+        entry.agent = _newAgent;
+        if (window.UIBAudit) UIBAudit.log('reassign_entry', entry.customerName || '', { id: entry.id, policyNumber: entry.policyNumber || '', from: _fromAgent, to: _newAgent });
+    }
     const _hasSecond = !!entry.secondAgent;
     const _commBase  = entry.agencyFee + entry.agencyCommission;
     entry.agentCommissionShare  = parseFloat((_commBase * (_hasSecond ? 0.25 : 0.50)).toFixed(2));
@@ -7046,9 +7155,15 @@ function _getAgentPolicyEntries(agent) {
     );
 }
 
+const _MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function _entryMonth(e) {
+    // Fast path for YYYY-MM-DD (every entry the app writes): same "October 2026"
+    // text as toLocaleDateString, without its cost on 5,000+ entries per render.
+    const d = e && e.entryDate;
+    const m = typeof d === 'string' && /^(\d{4})-(\d{2})/.exec(d);
+    if (m) { const i = +m[2] - 1; if (i >= 0 && i < 12) return _MONTH_NAMES[i] + ' ' + m[1]; }
     try {
-        return new Date(e.entryDate + 'T12:00:00').toLocaleDateString('en-US', { year:'numeric', month:'long' });
+        return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { year:'numeric', month:'long' });
     } catch(_) { return ''; }
 }
 
@@ -12338,9 +12453,18 @@ async function _snapshotDate(slot) {
 }
 
 let _backupRanThisLoad = false;
-async function runDailyCloudBackup() {
+// The snapshot is a multi-MB upload, so it waits until the page has settled,
+// and phones leave it to desktops unless no device has backed up in 2 days.
+function runDailyCloudBackup() {
     if (_backupRanThisLoad) return;
     _backupRanThisLoad = true;
+    setTimeout(_runDailyCloudBackup, 20000);
+}
+function _isPhone() {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '') ||
+        (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent || ''));
+}
+async function _runDailyCloudBackup() {
     try {
         const today = getEasternDateString();                       // YYYY-MM-DD (ET)
         const noon  = new Date(today + 'T12:00:00');
@@ -12352,6 +12476,13 @@ async function runDailyCloudBackup() {
         const needDaily   = dailyDate !== today;
         const needMonthly = !monthlyDate || String(monthlyDate).slice(0, 7) !== today.slice(0, 7);
         if (!needDaily && !needMonthly) return;   // both current — two tiny probes, zero blobs
+        if (_isPhone() && !needMonthly) {
+            // Skip if yesterday's snapshot exists: a desktop will take today's.
+            const y = new Date(noon.getTime() - 86400000);
+            const ySlot = 'backupSnapshot_' + y.toLocaleDateString('en-US', { weekday: 'short' });
+            const yIso = y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0');
+            if (await _snapshotDate(ySlot) === yIso) return;
+        }
 
         let entries = [];
         try { entries = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
@@ -13432,7 +13563,7 @@ function showDataSafety() {
     wrap('enterAdmin', 'admin_console', null, null);
 })();
 
-const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored', mfa_setting: '2-step setting changed' };
+const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored', mfa_setting: '2-step setting changed', reassign_entry: 'Submission reassigned', ai_engine: 'AI engine changed', ai_request: 'AI request' };
 
 function showAccessLog() {
     if (!isAgentAdmin()) { alert('Only administrators can view the access log.'); return; }
@@ -13575,7 +13706,102 @@ document.addEventListener('DOMContentLoaded', () => {
     const u = (window.UIBAuth && UIBAuth.user()) || null;
     if (u && u.role !== 'admin' && !getAllAgents().includes(u.name)) {
         const fix = _agentNameForEmail(u.email);
-        if (fix) UIBAuth.adoptName(fix); else { UIBAuth.signOut(); window.location.replace('./'); return; }
+        if (fix) { UIBAuth.adoptName(fix); try { currentUser = fix; } catch (e) {} }
     }
     setTimeout(uibRestoreFormDraft, 400);
 });
+
+
+// ── Agent profile (click the agent name) ──────────────────────
+function openAgentProfile() {
+    const name = currentUser || '';
+    if (!name) return;
+    let master = {}; try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    const rec = master[name] || {};
+    const auth = (window.UIBAuth && UIBAuth.user()) || {};
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const fmtDate = (d) => { if (!d) return ''; const t = new Date(d + 'T00:00:00'); return isNaN(t) ? d : t.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); };
+    const ym = new Date().toISOString().slice(0, 7);
+    const mine = (allData || []).filter(e => e.agent === name && String(e.entryDate || '').startsWith(ym));
+    const premium = mine.reduce((t, e) => t + (parseFloat(e.totalPremium) || 0), 0);
+    const share = mine.reduce((t, e) => t + (parseFloat(e.agentCommissionShare) || 0), 0);
+    const money = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const initials = name.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+    const row = (label, val) => val ? `<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--gray-200);font-size:14px;"><span style="color:var(--gray-500);">${label}</span><span style="font-weight:600;text-align:right;word-break:break-word;">${val}</span></div>` : '';
+    const role = (auth.role === 'admin') ? 'Administrator' : 'Agent';
+    document.getElementById('agentProfileBody').innerHTML = `
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+            <div style="width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex-shrink:0;">${esc(initials)}</div>
+            <div><div style="font-size:19px;font-weight:800;color:var(--navy);">${esc(name)}</div><div style="font-size:13px;color:var(--gray-500);">${role} · Universal Insurance Brokers</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
+            <div style="background:#eff6ff;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#1e40af;font-weight:700;">THIS MONTH</div><div style="font-size:18px;font-weight:800;color:#1e3a8a;">${mine.length}</div><div style="font-size:11px;color:#1e40af;">policies</div></div>
+            <div style="background:#ecfdf5;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#047857;font-weight:700;">PREMIUM</div><div style="font-size:15px;font-weight:800;color:#065f46;">${money(premium)}</div></div>
+            <div style="background:#f5f3ff;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#6d28d9;font-weight:700;">MY COMMISSION</div><div style="font-size:15px;font-weight:800;color:#5b21b6;">${money(share)}</div></div>
+        </div>
+        ${row('Sign-in email', esc(auth.email || rec.email || ''))}
+        ${row('Phone', esc(rec.phone || ''))}
+        ${row('Office', esc(typeof getAgentDefaultLocation === 'function' ? getAgentDefaultLocation(name) : ''))}
+        ${row('Licenses', esc((rec.licenses || []).join(', ')))}
+        ${row('Address', esc(rec.address || ''))}
+        ${row('Date of birth', esc(fmtDate(rec.dob)))}
+        ${row('Agent since', esc(rec.createdAt ? String(rec.createdAt).split(',')[0] : ''))}
+        ${(!rec.phone && !rec.address && !(rec.licenses || []).length) ? '<p style="font-size:12px;color:var(--gray-500);margin:10px 0 0;">More details appear here once an administrator fills them in under Agent Management.</p>' : ''}`;
+    const m = document.getElementById('agentProfileModal');
+    m.classList.add('active');
+    if (window.UIBMotion && UIBMotion.animateModalOpen) UIBMotion.animateModalOpen(m);
+    refreshIcons();
+}
+function closeAgentProfile() { document.getElementById('agentProfileModal')?.classList.remove('active'); }
+
+
+// ── AI engine settings (admin) ─────────────────────────────────
+async function openAiEngine() {
+    if (!isAgentAdmin()) { alert('Only administrators can change the AI engine.'); return; }
+    if (!window.UIBAI) { alert('The AI engine switch did not load. Reload the page.'); return; }
+    const dev = UIBAI.deviceCfg(); const cfg = Object.assign({}, await UIBAI.agencyCfg(), dev || {});
+    document.getElementById('aiEngine').value = cfg.engine || 'claude';
+    document.getElementById('aiUrl').value = cfg.url || '';
+    document.getElementById('aiModel').value = cfg.model || '';
+    document.getElementById('aiVision').value = cfg.visionModel || '';
+    document.getElementById('aiFallback').checked = cfg.fallback !== false;
+    document.getElementById('aiScope').value = dev ? 'device' : 'agency';
+    document.getElementById('aiTestResult').textContent = dev ? 'This device has its own setting.' : '';
+    aiEngineToggle();
+    document.getElementById('aiEngineModal').classList.add('active');
+    refreshIcons();
+}
+function aiEngineToggle() { document.getElementById('aiOllamaFields').style.display = document.getElementById('aiEngine').value === 'ollama' ? '' : 'none'; }
+function _aiEngineForm() {
+    return { engine: document.getElementById('aiEngine').value, url: document.getElementById('aiUrl').value.trim() || UIBAI.DEFAULTS.url,
+             model: document.getElementById('aiModel').value.trim() || UIBAI.DEFAULTS.model, visionModel: document.getElementById('aiVision').value.trim() || UIBAI.DEFAULTS.visionModel,
+             fallback: document.getElementById('aiFallback').checked };
+}
+async function aiEngineTest() {
+    const out = document.getElementById('aiTestResult'); out.style.color = ''; out.textContent = 'Connecting…';
+    try {
+        const models = await UIBAI.testOllama(document.getElementById('aiUrl').value.trim());
+        document.getElementById('aiModelList').innerHTML = models.map(m => `<option value="${m.replace(/"/g, '&quot;')}">`).join('');
+        out.style.color = '#166534';
+        out.textContent = models.length ? `✓ Connected. Installed models: ${models.join(', ')}` : '✓ Connected, but no models are installed yet. Run: ollama pull llama3.1:8b';
+    } catch (e) {
+        out.style.color = '#991b1b';
+        const url = document.getElementById('aiUrl').value.trim() || UIBAI.DEFAULTS.url;
+        out.innerHTML = e.reason === 'origin'
+            ? '✗ <b>Ollama is running but is blocking this website.</b><br>1. In PowerShell run: <code>setx OLLAMA_ORIGINS "' + location.origin + '"</code><br>2. Right-click the Ollama icon by the clock and choose <b>Quit Ollama</b>, then start Ollama again from the Start menu.<br>3. If Chrome shows a "local network access" prompt, choose <b>Allow</b>. Then press Test connection again.'
+            : e.reason === 'http'
+            ? '✗ Ollama answered with an error (' + e.message + '). Check the address: it should be ' + UIBAI.DEFAULTS.url + '.'
+            : '✗ <b>Nothing is answering at ' + url + '.</b><br>1. Make sure Ollama is installed (ollama.com) and running: its llama icon should be by the clock.<br>2. Open <a href="' + url + '" target="_blank" rel="noopener">' + url + '</a> in a new tab. It should say "Ollama is running".<br>3. If that page works but this test still fails, click the icon left of the web address, set <b>Local network access</b> to Allow, reload and try again.';
+    }
+}
+async function aiEngineSave() {
+    const v = _aiEngineForm();
+    try {
+        if (document.getElementById('aiScope').value === 'device') UIBAI.saveDevice(v);
+        else { await UIBAI.saveAgency(v); UIBAI.saveDevice(null); }
+        if (window.UIBAudit) UIBAudit.log('ai_engine', v.engine, { scope: document.getElementById('aiScope').value, model: v.model, url: v.engine === 'ollama' ? v.url : '' });
+        document.getElementById('aiEngineModal').classList.remove('active');
+        alert('AI engine saved: ' + (v.engine === 'ollama' ? 'Ollama (' + v.model + ')' : 'Claude') + '.');
+    } catch (e) { alert(e.message || e); }
+}
+function aiEngineClearDevice() { UIBAI.saveDevice(null); openAiEngine(); }

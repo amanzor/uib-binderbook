@@ -2,12 +2,16 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
-    <script src="storage-codec.js?v=20260914a"></script>
-    <script src="uib-auth.js?v=20261015b"></script>
+    <script src="storage-codec.js?v=20261026a"></script>
+    <script src="uib-auth.js?v=20261022c"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="uib-ai.js?v=20261022c"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>UIB AMS — Agency Management System</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
@@ -558,6 +562,47 @@
         @media (max-width: 480px) {
             .ams-main { padding: 10px 8px; }
             .info-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ── PHONE (iPhone + Android) ─────────────────────────────── */
+        .ams-m-back { display: none; }
+        @media (max-width: 768px) {
+            html { -webkit-text-size-adjust: 100%; }
+            body { overscroll-behavior-y: contain; }
+            /* 16px stops iPhone Safari zooming into every field it focuses */
+            input, select, textarea { font-size: 16px !important; }
+            button, .btn-sm, .ams-tab, .ams-tab-btn { min-height: 40px; touch-action: manipulation; }
+
+            /* header: notch-safe, compact, every button reachable */
+            .ams-header { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); gap: 8px; }
+            .ams-header .logo .badge, #amsUserLabel { display: none; }
+            .user-chip { gap: 6px; }
+            .user-chip .btn-sm { font-size: 0 !important; padding: 8px 10px; }
+            .user-chip .btn-sm svg { width: 17px; height: 17px; margin: 0; }
+
+            /* top section bar and client tabs scroll sideways instead of clipping */
+            .ams-tabbar, .ams-tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+            .ams-tabbar::-webkit-scrollbar, .ams-tabs::-webkit-scrollbar { display: none; }
+            .ams-tab-btn, .ams-tab { flex: 0 0 auto; white-space: nowrap; }
+            .ams-tabs { margin: 0 -8px 16px; padding: 0 8px; position: sticky; top: 0; background: #fff; z-index: 5; }
+
+            /* list first, then the client full screen with a Back button */
+            .ams-sidebar { max-height: none; }
+            .ams-welcome { display: none !important; }
+            body.ams-m-detail .ams-sidebar { display: none; }
+            body.ams-m-detail .ams-m-back { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--gray-200); background: #fff; color: var(--navy); font-weight: 700; font-size: 14px; }
+            .client-header { align-items: flex-start; }
+
+            /* room for the floating buttons and the iPhone home bar */
+            .ams-main { padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important; }
+            #aiBubbleBtn { width: 48px !important; height: 48px !important; font-size: 20px !important; right: 14px !important; bottom: calc(14px + env(safe-area-inset-bottom)) !important; }
+            body:not(.ams-m-detail) #amsClientDetail { display: none !important; }
+            #uibCloudBtn { width: 44px !important; height: 44px !important; font-size: 19px !important; left: 14px !important; bottom: calc(14px + env(safe-area-inset-bottom)) !important; }
+            #aiChatPanel { inset: 0 !important; width: 100% !important; max-width: 100% !important; height: 100% !important; max-height: 100% !important; border-radius: 0; padding-bottom: env(safe-area-inset-bottom); }
+
+            /* wide tables scroll inside their card instead of stretching the page */
+            .ams-main table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+            .modal-content, .modal-box { width: calc(100vw - 20px) !important; max-width: calc(100vw - 20px) !important; max-height: calc(100vh - 40px); overflow-y: auto; }
         }
 
         svg.lucide { display: inline-block; width: 15px; height: 15px; stroke-width: 2; vertical-align: -0.14em; pointer-events: none; flex-shrink: 0; }
@@ -1320,6 +1365,7 @@
                 <div id="amsClientDetail" style="display:none;">
 
                     <!-- Client header -->
+                    <button type="button" class="ams-m-back" onclick="amsMobileBack()"><i data-lucide="arrow-left"></i> Clients</button>
                     <div class="client-header">
                         <div class="client-avatar" id="detailAvatar">??</div>
                         <div class="client-header-info">
@@ -2163,8 +2209,8 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261015b"></script>
-    <script src="supabase.js?v=20261013a"></script>
+    <script src="ams.js?v=20261022c"></script>
+    <script src="supabase.js?v=20261022c"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
         const _dashCharts = {};
@@ -2642,7 +2688,7 @@
         }
 
         // ── AI Commission Processor (mirrors the Binder Book admin one) ──
-        const _COMM_AI_PROXY = 'https://jgjmobktucyimupelfxd.supabase.co/functions/v1/claude';
+        const _COMM_AI_PROXY = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co') + '/functions/v1/claude';
         let _commAiPdfs = [];     // [{name, base64}]
         let _commAiLastPdfs = []; // last processed batch — uploaded to Storage on save
         let _commAiBusy = false;
@@ -6851,8 +6897,8 @@ IMPORTANT:
                     }]
                 };
 
-                const AI_PROXY = 'https://jgjmobktucyimupelfxd.supabase.co/functions/v1/claude';
-                const AI_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
+                const AI_PROXY = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co') + '/functions/v1/claude';
+                const AI_ANON = (window.UIB_CONFIG || {}).SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
                 const res = await fetch(AI_PROXY, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'apikey': AI_ANON, 'Authorization': 'Bearer ' + AI_ANON },
