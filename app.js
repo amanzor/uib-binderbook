@@ -27,7 +27,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202610272;
+const APP_BUILD = 202610273;
 
 let _appOutdated = false;
 // Check for a newer published build as soon as any page opens, so a phone
