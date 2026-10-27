@@ -993,6 +993,27 @@
                 </div>
             </div>
 
+            <!-- Pending Items Modal — opens after an agent takes a lead -->
+            <div id="prospectPendingModal" class="modal">
+                <div class="modal-content" style="max-width:520px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <h3 style="margin:0;"><i data-lucide="clipboard-list"></i> Pending Items</h3>
+                        <button type="button" class="btn-danger btn-sm" onclick="prospectClosePending()">✕ Close</button>
+                    </div>
+                    <p id="prospectPendingWho" style="color:var(--gray-500); font-size:13px; margin:0 0 16px;"></p>
+                    <p style="color:var(--gray-600); font-size:13px; margin:0 0 12px;">Tick everything still outstanding for this client. Untick an item once you have it.</p>
+                    <div id="prospectPendingList" style="display:flex; flex-direction:column; gap:2px; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; margin-bottom:14px;"></div>
+                    <div class="form-group">
+                        <label>Note (optional)</label>
+                        <textarea id="prospectPendingNote" rows="2" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; font-size:14px; resize:vertical;" placeholder="Anything else you are waiting on…"></textarea>
+                    </div>
+                    <div class="form-actions" style="margin-top:18px;">
+                        <button type="button" class="btn-success" onclick="prospectSavePending()">💾 Save Pending Items</button>
+                        <button type="button" class="btn-secondary" onclick="prospectClosePending()">Skip</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Dealer Selection Modal -->
             <div id="dealerSelectModal" class="modal">
                 <div class="modal-content" style="max-width:480px;">

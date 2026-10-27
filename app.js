@@ -3408,6 +3408,88 @@ function prospectTakeLead(id) {
     _prospectSave(prospects);
     if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
     renderProspectsTable();
+
+    // Straight into the checklist of what is still needed from the client.
+    prospectOpenPending(id);
+}
+
+// ── Pending items on a prospect ──────────────────────────────────
+// What the agent is still waiting on from the client. Opens by itself
+// right after a lead is taken, and from the 📋 button on any row.
+const PROSPECT_PENDING_ITEMS = [
+    '4 Point Inspection',
+    'Wind Mitigation Inspection',
+    "Driver's License (DL)",
+    'VIN Number',
+    'Prior Dec Page',
+    'Other'
+];
+let _prospectPendingId = null;
+
+function _prospectPendingList(p) {
+    return Array.isArray(p && p.pendingItems) ? p.pendingItems : [];
+}
+
+function prospectOpenPending(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    _prospectPendingId = id;
+
+    const chosen = _prospectPendingList(p);
+    document.getElementById('prospectPendingWho').textContent =
+        `${_prospectFullName(p) || 'This prospect'}${p.agent ? ' · ' + p.agent : ''}`;
+
+    document.getElementById('prospectPendingList').innerHTML = PROSPECT_PENDING_ITEMS.map((item, i) => `
+        <label style="display:flex;align-items:center;gap:11px;padding:11px 14px;cursor:pointer;font-size:14px;color:#374151;background:${i % 2 ? '#fafafa' : '#fff'};"
+               onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='${i % 2 ? '#fafafa' : '#fff'}'">
+            <input type="checkbox" class="prospect-pending-cb" value="${_esc(item)}" ${chosen.includes(item) ? 'checked' : ''}
+                   ${item === 'Other' ? 'onchange="prospectPendingOtherToggle()"' : ''}
+                   style="width:16px;height:16px;accent-color:#7c3aed;cursor:pointer;">
+            ${_esc(item)}
+        </label>`).join('') + `
+        <div id="prospectPendingOtherRow" style="display:${chosen.includes('Other') ? 'block' : 'none'};padding:10px 14px;background:#faf5ff;border-top:1px solid #e9d5ff;">
+            <input type="text" id="prospectPendingOther" placeholder="What else is outstanding?" value="${_esc(p.pendingOther || '')}"
+                   style="width:100%;padding:8px 10px;border:1px solid #d8b4fe;border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>`;
+
+    document.getElementById('prospectPendingNote').value = p.pendingNote || '';
+    const m = document.getElementById('prospectPendingModal');
+    m.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    refreshIcons();
+}
+
+function prospectPendingOtherToggle() {
+    const on  = [...document.querySelectorAll('.prospect-pending-cb')].some(cb => cb.value === 'Other' && cb.checked);
+    const row = document.getElementById('prospectPendingOtherRow');
+    if (row) row.style.display = on ? 'block' : 'none';
+    if (on) document.getElementById('prospectPendingOther')?.focus();
+}
+
+function prospectClosePending() {
+    document.getElementById('prospectPendingModal').classList.remove('active');
+    _prospectPendingId = null;
+}
+
+function prospectSavePending() {
+    if (!_prospectPendingId) return prospectClosePending();
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === _prospectPendingId);
+    if (!p) return prospectClosePending();
+
+    const items = [...document.querySelectorAll('.prospect-pending-cb:checked')].map(cb => cb.value);
+    const other = (document.getElementById('prospectPendingOther')?.value || '').trim();
+    p.pendingItems     = items;
+    p.pendingOther     = items.includes('Other') ? other : '';
+    p.pendingNote      = (document.getElementById('prospectPendingNote').value || '').trim();
+    p.pendingUpdatedAt = new Date().toISOString();
+    p.pendingUpdatedBy = currentUser || '';
+
+    _prospectSave(prospects);
+    prospectClosePending();
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
 }
 
 function archiveProspectToAMS(p) {
@@ -3494,8 +3576,15 @@ function renderProspectsTable() {
         const fullName  = `${p.firstName || ''} ${p.lastName || ''}`.trim();
         const sStyle    = statusColors[p.status] || '';
         const followUp  = p.followUpDate ? new Date(p.followUpDate + 'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+        // Outstanding paperwork, shown as chips under the client's name.
+        const pending      = _prospectPendingList(p);
+        const pendingCount = pending.length;
+        const pendingChips = pending.map(it => {
+            const label = it === 'Other' ? (p.pendingOther ? `Other: ${p.pendingOther}` : 'Other') : it;
+            return `<span style="display:inline-block;margin:2px 3px 0 0;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;">${_esc(label)}</span>`;
+        }).join('');
         return `<tr>
-            <td style="font-weight:600;">${fullName}</td>
+            <td style="font-weight:600;">${fullName}${pendingChips ? `<div style="margin-top:3px;font-weight:400;">${pendingChips}</div>` : ''}</td>
             <td>${p.phone || '—'}</td>
             <td>${p.email || '—'}</td>
             <td>${p.lob || '—'}</td>
@@ -3510,6 +3599,7 @@ function renderProspectsTable() {
                 ${_prospectIsMine(p, currentUser) && _prospectAgentList(p).length === 1
                     ? `<span title="You are the assigned agent" style="display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;">🙋 Yours</span>`
                     : `<button class="btn-sm" onclick="prospectTakeLead('${p.id}')" title="Assign this lead to yourself" style="background:linear-gradient(to right,#6d28d9,#7c3aed);color:#fff;border:none;">🙋 Take the Lead</button>`}
+                <button class="btn-sm" onclick="prospectOpenPending('${p.id}')" title="What is still outstanding from this client" style="background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;">📋 Items${pendingCount ? ` (${pendingCount})` : ''}</button>
                 <button class="btn-success btn-sm" onclick="prospectMarkSold('${p.id}')" title="Mark as sold and create the Daily Sales Entry">💰 Sold</button>
                 <button class="btn-danger btn-sm" onclick="prospectMarkLost('${p.id}')" title="Mark as lost and archive into AMS as an Inactive Prospect">✖ Lost</button>`}
             </td>
