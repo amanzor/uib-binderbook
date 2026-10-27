@@ -10,6 +10,13 @@ backups/
 *.md
 *.xlsx
 *.pdf
+# …except the blank ACORD form the Certificate Master fills. The rule above
+# exists to keep client documents off the public site, and it should: this
+# is the one PDF that IS part of the app. Without this line the form 404s in
+# production and no certificate can be generated, while everything looks
+# fine locally — so add any future form here deliberately, never by relaxing
+# the *.pdf rule.
+!forms/acord25.pdf
 binder_may26_import.json
 jorge_import.json
 
