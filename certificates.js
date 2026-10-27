@@ -134,7 +134,8 @@
             description: '',
             aiFilled:    {},          // key -> true for values Claude proposed
             createdAt:   new Date().toISOString(),
-            createdBy:   (window.amsCurrentUser || ''),
+            // ams.js declares amsCurrentUser with `let`, so it is not on window.
+            createdBy:   (typeof amsCurrentUser !== 'undefined' && amsCurrentUser) ? amsCurrentUser : '',
             voided:      false
         }, producerDefaults());
         return c;

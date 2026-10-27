@@ -20,11 +20,20 @@
 
     var _editing = null;   // the certificate currently open in the editor
 
+    // ams.js declares amsActiveKey, amsClientIndex and amsCurrentUser with
+    // `let`, so they are NOT properties of window — reading them off window
+    // yields undefined with no error, which looks exactly like "no client is
+    // selected". Read the bindings themselves, guarded in case this file is
+    // ever loaded on a page without ams.js.
+    function activeKey()   { return (typeof amsActiveKey   !== 'undefined') ? amsActiveKey   : null; }
+    function clientIndex() { return (typeof amsClientIndex !== 'undefined') ? amsClientIndex : {}; }
+    function currentUser() { return (typeof amsCurrentUser !== 'undefined' && amsCurrentUser) ? amsCurrentUser : ''; }
+
     // ── List ─────────────────────────────────────────────────
     function renderList() {
         var el = document.getElementById('certMasterList');
         if (!el) return;
-        var key = window.amsActiveKey;
+        var key = activeKey();
         if (!key) { el.innerHTML = '<p style="color:var(--gray-400);font-size:12px;">Select a client first.</p>'; return; }
 
         var list = C().forClient(key);
@@ -89,11 +98,11 @@
 
     // ── Create ───────────────────────────────────────────────
     function newForClient() {
-        var key = window.amsActiveKey;
+        var key = activeKey();
         if (!key) { alert('Open a client first.'); return; }
         var contacts = window.amsGetClientData ? window.amsGetClientData() : {};
         var contact  = contacts[key] || {};
-        var name     = (window.amsClientIndex && window.amsClientIndex[key] && window.amsClientIndex[key].displayName) || key;
+        var name     = (clientIndex()[key] && clientIndex()[key].displayName) || key;
         var cert     = C().create(key, name, contact);
         C().save(cert);
         renderList();
@@ -253,7 +262,7 @@
         // Once the agent has saved, the AI flags come off: they have
         // seen the values and taken responsibility for them.
         _editing.aiFilled = {};
-        _editing.reviewedBy = window.amsCurrentUser || '';
+        _editing.reviewedBy = currentUser();
         _editing.reviewedAt = new Date().toISOString();
         var cert = C().save(_editing);
         renderList();
@@ -273,7 +282,7 @@
     function pullFromPolicies() {
         if (!_editing) return;
         collect(_editing);
-        var client = window.amsClientIndex && window.amsClientIndex[_editing.clientKey];
+        var client = clientIndex()[_editing.clientKey];
         var pols = (client && client.policies) || [];
         if (!pols.length) { alert('This client has no policies in the AMS yet.'); return; }
 
