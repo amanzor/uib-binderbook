@@ -27,7 +27,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202610273;
+const APP_BUILD = 202610274;
 
 let _appOutdated = false;
 // Check for a newer published build as soon as any page opens, so a phone
@@ -318,7 +318,47 @@ function mergeBinderData(localArr, cloudArr, tombstones) {
     // Enforce the carrier/LOB rule on every merge so corrections propagate to
     // and from the cloud, not just on the device that first loaded the data.
     normalizeRestrictedCarrierLOBs(merged);
+    reassignAdminEntries(merged);
     return merged;
+}
+
+// Policies logged from the shared "Admin" login are Alberto Manzor's book.
+const ADMIN_RECORDS_AGENT = 'Alberto Manzor';
+function recordAgentFor(user) {
+    return user === 'Admin' ? ADMIN_RECORDS_AGENT : (user || '');
+}
+
+// Move any entry still filed under "Admin" to ADMIN_RECORDS_AGENT. Runs on
+// every merge, stamping updatedAt so the change wins on other devices.
+// Idempotent — once moved, an entry no longer matches.
+function reassignAdminEntries(entries) {
+    if (!Array.isArray(entries)) return 0;
+    let moved = 0;
+    entries.forEach(e => {
+        if (!e) return;
+        let hit = false;
+        if (e.agent === 'Admin') { e.agent = ADMIN_RECORDS_AGENT; hit = true; }
+        if (e.secondAgent === 'Admin') { e.secondAgent = ADMIN_RECORDS_AGENT; hit = true; }
+        if (hit) { e.updatedAt = Date.now(); moved++; }
+    });
+    return moved;
+}
+
+// Same rule for AMS client records (assignedAgent). Reads the cloud copy
+// fresh so only the matching clients change and nothing else is overwritten.
+async function reassignAdminClients() {
+    if (_appOutdated) return;
+    const res = await driveGetResult('amsClientData');
+    if (!res.ok || !res.value || typeof res.value !== 'object' || Array.isArray(res.value)) return;
+    const contacts = res.value;
+    const now = new Date().toISOString();
+    let moved = 0;
+    Object.values(contacts).forEach(c => {
+        if (c && c.assignedAgent === 'Admin') { c.assignedAgent = ADMIN_RECORDS_AGENT; c.updatedAt = now; moved++; }
+    });
+    if (!moved) return;
+    _lsMirror('amsClientData', JSON.stringify(contacts));
+    await driveSet('amsClientData', contacts);
 }
 
 // Infinity and Kemper do not write Homeowners policies. Any entry pairing one
@@ -546,6 +586,7 @@ async function syncFromDrive() {
             _lsMirror(key, JSON.stringify(data));
         }
     }
+    await reassignAdminClients().catch(e => console.warn('Admin client reassignment skipped:', e));
     if (banner) banner.style.display = 'none';
 }
 
@@ -1861,7 +1902,7 @@ async function saveEntry() {
 
     const entry = {
         id: Date.now(),
-        agent: currentUser,
+        agent: recordAgentFor(currentUser),
         customerName: toTitleCase(gid('customerName').value),
         documentationStatus,
         contactName: toTitleCase(gid('contactName').value),

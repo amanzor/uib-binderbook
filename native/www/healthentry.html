@@ -409,7 +409,7 @@
 
 <span id="userDisplay" style="display:none;"></span>
 
-<script src="app.js?v=20261027c"></script>
+<script src="app.js?v=20261027d"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="motion.js"></script>
 <script>
@@ -532,7 +532,7 @@
         const g = id => document.getElementById(id);
         const entry = {
             id: Date.now(), type: 'health',
-            agent: (typeof currentUser !== 'undefined' && currentUser) || '',
+            agent: recordAgentFor((typeof currentUser !== 'undefined' && currentUser) || ''),
             date: g('h_date').value,
             clientName: g('h_clientName').value.trim(),
             organization: g('h_org').value.trim(),
@@ -571,17 +571,18 @@
         document.getElementById('membersContainer').innerHTML = '';
         addMemberRow();
         g('h_date').value = _healthToday();
-        g('h_agent').value = (typeof currentUser !== 'undefined' && currentUser) || '';
+        g('h_agent').value = recordAgentFor((typeof currentUser !== 'undefined' && currentUser) || '');
         g('h_commissionRule').value = '';
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         const authUser = (window.UIBAuth && UIBAuth.user()) || null;
-        const savedUser = authUser ? (authUser.role === 'admin' ? 'Admin' : authUser.name) : null;
+        // Same rule as the main app: only the unnamed admin login is "Admin".
+        const savedUser = authUser ? ((authUser.role === 'admin' && (!authUser.name || authUser.name === 'Admin')) ? 'Admin' : authUser.name) : null;
         if (!savedUser) { window.location.href = './'; return; }
         try { currentUser = savedUser; currentRole = savedUser === 'Admin' ? 'admin' : 'agent'; } catch (e) {}
         const ud = document.getElementById('userDisplay'); if (ud) ud.textContent = '👤 ' + savedUser;
-        document.getElementById('h_agent').value = savedUser;
+        document.getElementById('h_agent').value = recordAgentFor(savedUser);
         document.getElementById('h_date').value = _healthToday();
         document.getElementById('healthForm').addEventListener('submit', saveHealthEntry);
         addMemberRow();
