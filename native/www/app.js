@@ -27,7 +27,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202610271;
+const APP_BUILD = 202610272;
 
 let _appOutdated = false;
 // Check for a newer published build as soon as any page opens, so a phone
@@ -1094,14 +1094,23 @@ function renderCredentialList() {
 
 // ── Login accounts (Supabase Auth), managed through the admin-users function ──
 const ADMIN_USERS_FN = SUPABASE_URL + '/functions/v1/admin-users';
+const ADMIN_USERS_MISSING = 'The admin-users function is not deployed yet. In Supabase ▸ Edge Functions, deploy supabase/functions/admin-users/index.ts as "admin-users".';
 async function _adminUsers(action, extra) {
-    const res = await fetch(ADMIN_USERS_FN, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.assign({ action }, extra || {}))
-    });
+    // A function that is not deployed fails the browser's CORS preflight
+    // (Supabase answers it with a 404), so it surfaces as a network error,
+    // not as a readable 404 response.
+    let res;
+    try {
+        res = await fetch(ADMIN_USERS_FN, {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ action }, extra || {}))
+        });
+    } catch (e) {
+        throw new Error(navigator.onLine === false ? 'You are offline.' : 'Could not reach the admin-users function. ' + ADMIN_USERS_MISSING);
+    }
     let data = null; try { data = await res.json(); } catch (e) {}
-    if (res.status === 404) throw new Error('The admin-users function is not deployed yet. In Supabase ▸ Edge Functions, deploy supabase/functions/admin-users/index.ts as "admin-users".');
+    if (res.status === 404) throw new Error(ADMIN_USERS_MISSING);
     if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || ('HTTP ' + res.status));
     return data;
 }
@@ -2552,10 +2561,13 @@ async function notifyProspectAgents(prospect, agents) {
         return { ok: false, text: '✓ Prospect saved. No agent was assigned, so no email was sent.' };
     }
     try {
+        // An undeployed function fails the CORS preflight, so it shows up as a network error.
         const res = await fetch(PROSPECT_NOTIFY_FN, {
             method: 'POST',
             headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
             body: JSON.stringify({ prospect: prospect, agents: agents, submittedBy: currentUser || '' })
+        }).catch(() => {
+            throw new Error(navigator.onLine === false ? 'you are offline' : 'could not reach the prospect-notify function (it is likely not deployed in Supabase yet)');
         });
         let data = null; try { data = await res.json(); } catch (err) {}
         if (res.status === 404) throw new Error('the prospect-notify function is not deployed in Supabase yet');
