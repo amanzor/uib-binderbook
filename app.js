@@ -27,7 +27,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202610151;
+const APP_BUILD = 202610271;
 
 let _appOutdated = false;
 // Check for a newer published build as soon as any page opens, so a phone
@@ -2512,7 +2512,19 @@ function openNewProspectModal() {
     document.getElementById('prospectAgentSelectAll').checked = false;
     prospectAgentUpdateDisplay();
 
-    document.getElementById('prospectSuccessMsg').style.display = 'none';
+    _prospectResetNotice();
+}
+
+// Clear the banner back to its default green "saved" look, so an amber
+// mail-failure notice from a previous save doesn't linger on reopen.
+function _prospectResetNotice() {
+    const msg = document.getElementById('prospectSuccessMsg');
+    if (!msg) return;
+    clearTimeout(_prospectNoticeTimer);
+    msg.style.display = 'none';
+    msg.style.background = '#d1fae5';
+    msg.style.color = '#065f46';
+    msg.textContent = '✓ Prospect saved successfully!';
 }
 
 function closeNewProspectModal() {
@@ -2524,11 +2536,59 @@ function closeNewProspectModal() {
     document.querySelectorAll('.prospect-agent-cb').forEach(cb => cb.checked = false);
     document.getElementById('prospectAgentSelectAll').checked = false;
     prospectAgentUpdateDisplay();
-    document.getElementById('prospectSuccessMsg').style.display = 'none';
+    _prospectResetNotice();
 }
+
+// ── New-prospect agent notification ──────────────────────────────
+// Saving a prospect emails the form details to the agent(s) assigned on
+// it. The browser sends assigned agent NAMES only; the Edge Function
+// looks the addresses up in the agent roster itself, so this endpoint
+// can never be used to mail an address that is not a registered agent.
+// Deploy supabase/functions/prospect-notify/index.ts as "prospect-notify".
+const PROSPECT_NOTIFY_FN = SUPABASE_URL + '/functions/v1/prospect-notify';
+
+async function notifyProspectAgents(prospect, agents) {
+    if (!agents || !agents.length) {
+        return { ok: false, text: '✓ Prospect saved. No agent was assigned, so no email was sent.' };
+    }
+    try {
+        const res = await fetch(PROSPECT_NOTIFY_FN, {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prospect: prospect, agents: agents, submittedBy: currentUser || '' })
+        });
+        let data = null; try { data = await res.json(); } catch (err) {}
+        if (res.status === 404) throw new Error('the prospect-notify function is not deployed in Supabase yet');
+        if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || ('HTTP ' + res.status));
+        const who = (data.notified && data.notified.length) ? data.notified.join(', ') : (data.to || []).join(', ');
+        let text = '✓ Prospect saved and emailed to ' + who + '.';
+        if (data.missing && data.missing.length) {
+            text += ' No email address on file for ' + data.missing.join(', ') + '.';
+        }
+        return { ok: true, text: text };
+    } catch (err) {
+        return { ok: false, text: '✓ Prospect saved — but the agent email did not send: ' + (err.message || err) };
+    }
+}
+
+// Show the outcome in the modal's banner: green when the mail went out,
+// amber when it did not. The prospect itself is already saved either way.
+function _prospectShowNotice(note) {
+    const msg = document.getElementById('prospectSuccessMsg');
+    if (!msg) return;
+    msg.textContent = note.text;
+    msg.style.background = note.ok ? '#d1fae5' : '#fef3c7';
+    msg.style.color      = note.ok ? '#065f46' : '#92400e';
+    msg.style.display    = 'block';
+    clearTimeout(_prospectNoticeTimer);
+    _prospectNoticeTimer = setTimeout(() => { msg.style.display = 'none'; }, note.ok ? 5000 : 10000);
+}
+let _prospectNoticeTimer = null;
 
 function saveProspect(e) {
     e.preventDefault();
+    // Captured before the form is reset below — the email needs these names.
+    const assignedAgents = prospectAgentGetSelected();
     const prospect = {
         id:          'PROS-' + Date.now(),
         firstName:   document.getElementById('prospectFirstName').value.trim(),
@@ -2538,7 +2598,7 @@ function saveProspect(e) {
         lob:         document.getElementById('prospectLOB').value,
         source:      document.getElementById('prospectSource').value,
         referredBy:  document.getElementById('prospectReferredBy').value.trim(),
-        agent:       prospectAgentGetSelected().join(', '),
+        agent:       assignedAgents.join(', '),
         followUpDate:document.getElementById('prospectFollowUpDate').value,
         dateAdded:   getEasternDateTimeDisplay(),
         notes:       document.getElementById('prospectNotes').value.trim(),
@@ -2555,9 +2615,10 @@ function saveProspect(e) {
     document.querySelectorAll('.prospect-agent-cb').forEach(cb => cb.checked = false);
     document.getElementById('prospectAgentSelectAll').checked = false;
     prospectAgentUpdateDisplay();
-    const msg = document.getElementById('prospectSuccessMsg');
-    msg.style.display = 'block';
-    setTimeout(() => { msg.style.display = 'none'; }, 3000);
+    _prospectShowNotice({ ok: true, text: assignedAgents.length ? '✓ Prospect saved — emailing ' + assignedAgents.join(', ') + '…' : '✓ Prospect saved successfully!' });
+
+    // Never block the save on the mail: report the outcome when it lands.
+    notifyProspectAgents(prospect, assignedAgents).then(_prospectShowNotice);
 
     // Refresh list if prospects section is open
     if (document.getElementById('prospectsSection')?.classList.contains('active')) {
@@ -3311,6 +3372,44 @@ function prospectMarkLost(id) {
     renderProspectsTable();
 }
 
+// ── Take the Lead ────────────────────────────────────────────────
+// Any signed-in agent can claim a still-active prospect from the list.
+// The claimer becomes the assigned agent; whoever held it before is kept
+// in previousAgent so the handover stays on the record.
+function _prospectAgentList(p) {
+    return String((p && p.agent) || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+function _prospectIsMine(p, who) {
+    const me = String(who || '').trim().toLowerCase();
+    return !!me && _prospectAgentList(p).some(a => a.toLowerCase() === me);
+}
+
+function prospectTakeLead(id) {
+    const me = (currentUser || '').trim();
+    if (!me) { alert('Sign in first — the lead is assigned to whoever takes it.'); return; }
+
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    if (p.status === 'Closed' || p.status === 'Lost') { alert('This prospect is already closed.'); return; }
+
+    const name    = _prospectFullName(p) || 'this prospect';
+    const holders = _prospectAgentList(p).filter(a => a.toLowerCase() !== me.toLowerCase());
+    if (_prospectIsMine(p, me) && !holders.length) { alert(`${name} is already assigned to you.`); return; }
+
+    const who = holders.length ? holders.join(', ') : '';
+    if (!confirm(`Take the lead on ${name}?\n\n${who ? `Currently assigned to ${who}. You will replace them as the assigned agent.` : 'It has no assigned agent. You will become the assigned agent.'}`)) return;
+
+    if (who) p.previousAgent = who;
+    p.agent   = me;
+    p.takenBy = me;
+    p.takenAt = new Date().toISOString();
+
+    _prospectSave(prospects);
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+}
+
 function archiveProspectToAMS(p) {
     const name = _prospectFullName(p);
     const key = amsClientKeyFromName(name);
@@ -3401,13 +3500,16 @@ function renderProspectsTable() {
             <td>${p.email || '—'}</td>
             <td>${p.lob || '—'}</td>
             <td>${p.source || '—'}</td>
-            <td>${p.agent || '—'}</td>
+            <td>${p.agent || '—'}${p.previousAgent ? `<div style="font-size:11px;color:var(--gray-500);">took over from ${p.previousAgent}</div>` : ''}</td>
             <td>${followUp}</td>
             <td><span style="padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;${sStyle}">${p.status || 'Open'}</span></td>
             <td style="font-size:12px;color:var(--gray-500);">${p.dateAdded || '—'}</td>
             <td style="max-width:200px;font-size:12px;color:var(--gray-600);">${p.notes || '—'}</td>
             <td style="white-space:nowrap;">
                 ${(p.status === 'Closed' || p.status === 'Lost') ? `<span style="font-size:12px;color:var(--gray-500);">${p.status === 'Closed' ? '✅ Sold' : '📁 Archived'}</span>` : `
+                ${_prospectIsMine(p, currentUser) && _prospectAgentList(p).length === 1
+                    ? `<span title="You are the assigned agent" style="display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;">🙋 Yours</span>`
+                    : `<button class="btn-sm" onclick="prospectTakeLead('${p.id}')" title="Assign this lead to yourself" style="background:linear-gradient(to right,#6d28d9,#7c3aed);color:#fff;border:none;">🙋 Take the Lead</button>`}
                 <button class="btn-success btn-sm" onclick="prospectMarkSold('${p.id}')" title="Mark as sold and create the Daily Sales Entry">💰 Sold</button>
                 <button class="btn-danger btn-sm" onclick="prospectMarkLost('${p.id}')" title="Mark as lost and archive into AMS as an Inactive Prospect">✖ Lost</button>`}
             </td>
