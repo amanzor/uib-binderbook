@@ -4511,13 +4511,17 @@ function renderNavMonthStats() {
     try {
         uwPending = uwBuildList().filter(r => r.entry.agent === currentUser && !r.cleared && /^new/i.test(r.entry.policyType || '')).length;
     } catch (e) { uwPending = 0; }
-    // Prospects assigned to this agent that are still open (not Closed or Lost).
+    // Still-open prospects (not Closed or Lost). Agent admins see the whole
+    // office, everyone else sees their own — the same rule getVisibleData()
+    // uses, so the card always agrees with the Prospects section it opens.
     let prospectsPending = 0;
     try {
         const me = (currentUser || '').trim().toLowerCase();
+        const seesAll = isAgentAdmin();
         prospectsPending = (JSON.parse(localStorage.getItem('prospectData')) || []).filter(pr => {
             const st = pr.status || 'Open';
             if (st === 'Closed' || st === 'Lost') return false;
+            if (seesAll) return true;
             return String(pr.agent || '').split(',').map(a => a.trim().toLowerCase()).includes(me);
         }).length;
     } catch (e) { prospectsPending = 0; }
