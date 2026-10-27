@@ -4688,7 +4688,7 @@ function renderAgentTable(entries) {
             <td style="text-align:center;">${canModify ? `<input type="checkbox" class="agent-row-cb" value="${entry.id}" onchange="_updateBulkDeleteBar()">` : ''}</td>
             <td>${formatDate(entry.entryDate)}</td>
             ${admin ? `<td>${String(entry.agent || '—').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</td>` : ''}
-            <td>${entry.customerName}</td>
+            <td>${amsCustomerCell(entry.customerName)}</td>
             <td>${entry.policyType}</td>
             <td>${entry.lineOfBusiness}</td>
             <td>${entry.company}</td>
@@ -12370,6 +12370,26 @@ function updateVehiclesEmptyState(suffix = '') {
 
 function amsClientKeyFromName(name) {
     return (name || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+// A customer's own profile in the AMS. The AMS keys clients by the
+// upper-cased, space-collapsed name (its amsClientKey is this same
+// transform), so the link needs no stored id to find the right record.
+function amsClientUrl(name) {
+    const base = String((window.UIB_CONFIG || {}).AMS_URL || '/ams').replace(/\/+$/, '');
+    return base + '?client=' + encodeURIComponent(amsClientKeyFromName(name));
+}
+
+// The customer cell on the Your Submissions table — the one place a name
+// is a link. Everywhere else a name is still plain text on purpose: this
+// table is the agent's own book, where opening the client is the next
+// thing they want.
+function amsCustomerCell(name) {
+    if (!name) return '—';
+    return `<a href="${_esc(amsClientUrl(name))}" target="_blank" rel="noopener"` +
+           ` title="Open ${_esc(name)} in the AMS"` +
+           ` style="color:#1d4ed8;font-weight:600;text-decoration:none;border-bottom:1px solid rgba(29,78,216,.3);">` +
+           `${_esc(name)}</a>`;
 }
 
 function splitCustomerName(fullName) {

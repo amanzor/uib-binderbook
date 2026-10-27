@@ -613,6 +613,26 @@ function amsStartLiveRefresh() {
     }
 }
 
+// A ?client= link from the Binder Book opens that client's profile here.
+// The key is the upper-cased, space-collapsed customer name, which is what
+// amsClientKey produces, so the two sides agree without storing an id.
+// Runs after login, so a deep link still goes through the sign-in screen.
+function amsOpenDeepLinkedClient() {
+    var key;
+    try { key = new URLSearchParams(location.search).get('client'); } catch (e) { return; }
+    if (!key) return;
+    key = amsClientKey(decodeURIComponent(key));
+    if (!amsClientIndex[key]) {
+        // The name may have reached the AMS only moments ago, or not at all.
+        // Say which client, rather than silently showing the empty list.
+        amsFlashBanner('No AMS record yet for "' + key + '" — it may still be syncing');
+        return;
+    }
+    amsLoadClientDetail(key);
+    // Leave the address bar clean so a refresh does not keep re-opening it.
+    try { history.replaceState({}, '', location.pathname); } catch (e) {}
+}
+
 // ── App launch ───────────────────────────────────────────────
 function amsLaunchApp() {
     document.getElementById('amsLoginScreen').style.display = 'none';
@@ -635,6 +655,7 @@ function amsLaunchApp() {
         amsPopulateModalDropdowns();
         lucide.createIcons();
         amsStartLiveRefresh();
+        amsOpenDeepLinkedClient();
     });
 
     // Keyboard: Escape closes preview
