@@ -25,9 +25,16 @@ In the Vercel dashboard:
 1. **Add New ▸ Project**, and import the **same** `uib-binderbook`
    repository the Binder Book already uses. Vercel allows a repository to
    back any number of projects.
-2. Name it so the hostname **starts with `ams`** — e.g. `ams-uib`, giving
-   `ams-uib.vercel.app`. This matters: the host rewrite in `vercel.json`
-   keys on it (see step 3).
+2. Name it so the hostname's **first label is `ams` or starts with `ams-`**
+   — e.g. `ams-uib`, giving `ams-uib.vercel.app`. This matters: the host
+   rewrite in `vercel.json` keys on it (see step 3).
+
+   | Hostname | Serves the AMS at `/`? |
+   |---|---|
+   | `ams-uib.vercel.app` | yes |
+   | `ams.universalinsurancebroker.com` | yes |
+   | `amsuib.vercel.app` | **no** — no `-` or `.` after `ams` |
+   | `uib-ams.vercel.app` | **no** — `ams` is not the first label |
 3. Framework preset **Other**. Leave Root Directory, Build Command and
    Output Directory empty — it is a static site.
 4. Deploy.
@@ -37,8 +44,8 @@ Both projects now redeploy on every push to `master`.
 ## 2. Point a domain at it (optional)
 
 Add a custom domain under the new project's **Settings ▸ Domains**. Use a
-hostname whose first label starts with `ams`, such as
-`ams.universalinsurancebroker.com`, for the same reason as above.
+hostname whose first label is `ams` — such as
+`ams.universalinsurancebroker.com` — for the same reason as above.
 
 ## 3. How the root rewrite works
 
@@ -47,17 +54,20 @@ the **hostname of the request**:
 
 ```json
 "rewrites": [
-  { "source": "/", "has": [{ "type": "host", "value": "ams.*" }], "destination": "/ams.html" }
+  { "source": "/", "has": [{ "type": "host", "value": "^ams([-.].*)?$" }], "destination": "/ams.html" }
 ]
 ```
 
-On a host beginning with `ams`, `/` serves `ams.html`. On every other host
-— the Binder Book's — `/` serves `index.html` exactly as before.
+On a matching host, `/` serves `ams.html`. On every other host — the Binder
+Book's — `/` serves `index.html` exactly as before.
 
-If you give the AMS a hostname that does **not** start with `ams`, add its
-host to that `value` (it is a regular expression) or the AMS domain will
-serve the Binder Book at `/`. `https://<that-host>/ams` keeps working
-either way.
+**Check it after the first deploy:** open the AMS project's URL at `/`. If
+you get the Binder Book, the hostname did not match; either rename the
+project per the table above or add the host to that `value`, which is a
+regular expression.
+
+`https://<the-ams-host>/ams` serves the AMS whatever the hostname, so it is
+the fallback if you would rather not rename anything.
 
 ## 4. Check the two apps still share data
 

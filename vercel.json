@@ -5,12 +5,12 @@
   "rewrites": [
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "ams.*" }],
+      "has": [{ "type": "host", "value": "^ams([-.].*)?$" }],
       "destination": "/ams.html"
     },
     {
       "source": "/index.html",
-      "has": [{ "type": "host", "value": "ams.*" }],
+      "has": [{ "type": "host", "value": "^ams([-.].*)?$" }],
       "destination": "/ams.html"
     }
   ],
