@@ -342,6 +342,10 @@
         .nav-stat-uw:focus-visible { outline: 3px solid rgba(249,115,22,.45); outline-offset: 2px; }
         .nav-stat-prospects { background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 60%, #a78bfa 100%); box-shadow: 0 6px 18px rgba(124,58,237,.3); cursor: pointer; }
         .nav-stat-prospects:focus-visible { outline: 3px solid rgba(124,58,237,.45); outline-offset: 2px; }
+        /* Unread count — items added since this agent last opened the section. */
+        .nav-stat-badge { position: absolute; top: 6px; left: 6px; z-index: 2; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: #dc2626; border: 2px solid rgba(255,255,255,.9); color: #fff; font-size: 11px; font-weight: 800; line-height: 16px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+        @keyframes navBadgePop { 0% { transform: scale(.4); opacity: 0; } 70% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+        .nav-stat-badge { animation: navBadgePop .28s ease-out; }
         .nav-search { flex-basis: 100%; padding-top: 12px; border-top: 1px solid rgba(37,99,235,.14); }
         .collapse-toggle { width: 100%; display: flex; align-items: center; gap: 10px; margin: 30px 0 0; padding: 14px 18px; background: linear-gradient(180deg, #fff, #f3f6ff); border: 1px solid rgba(37,99,235,.18); border-radius: 12px; color: #1e3a8a; font-size: 1.15em; font-weight: 800; text-align: left; cursor: pointer; font-family: inherit; }
         .collapse-toggle .collapse-hint { margin-left: auto; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #2563eb; }

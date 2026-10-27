@@ -2630,6 +2630,9 @@ function saveProspect(e) {
 // ── Prospects List Section ─────────────────────────────────────
 function showProspectsSection() {
     showSection('prospectsSection');
+    // Everything on show counts as read — clears the red bubble on the card.
+    _seenMark('Prospects', _openProspectsForUser().map(pr => pr.id));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
     renderProspectsDashboard();
     renderProspectsTable();
     refreshIcons();
@@ -2745,6 +2748,9 @@ function uwClearedAt(r) {
 function showUnderwritingSection() {
     uwUpdateUndoButton();
     showSection('underwritingSection');
+    // Everything on show counts as read — clears the red bubble on the card.
+    _seenMark('UW', _openUnderwritingForUser().map(r => r.entry.id));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
     _uwJustCleared.clear();
     const data = JSON.parse(localStorage.getItem('binderData')) || [];
     const agents = getAllAgents();
@@ -4493,6 +4499,50 @@ function _restoreAgentSubmissionsState() {
     toggleAgentSubmissions(open);
 }
 
+// ── "New since you last looked" markers ──────────────────────────
+// Which prospect / underwriting rows this agent has already seen. Purely a
+// per-device, per-agent read marker, so it is written with _origSetItem to
+// stay out of the shared cloud store.
+function _seenKey(kind) { return 'uibSeen' + kind + '_' + ((currentUser || '').trim().toLowerCase() || 'anon'); }
+function _seenGet(kind) {
+    try { const v = JSON.parse(localStorage.getItem(_seenKey(kind))); return new Set(Array.isArray(v) ? v : []); }
+    catch (e) { return new Set(); }
+}
+function _seenMark(kind, ids) {
+    try {
+        const set = _seenGet(kind);
+        (ids || []).forEach(id => set.add(String(id)));
+        // Keep the marker from growing without bound on a long-lived device.
+        const keep = [...set].slice(-2000);
+        _origSetItem(_seenKey(kind), JSON.stringify(keep));
+    } catch (e) {}
+}
+
+// Still-open prospects this agent can see (admins: the whole office).
+function _openProspectsForUser() {
+    let all = [];
+    try { all = JSON.parse(localStorage.getItem('prospectData')) || []; } catch (e) { return []; }
+    const me = (currentUser || '').trim().toLowerCase();
+    const seesAll = isAgentAdmin();
+    return all.filter(pr => {
+        const st = pr.status || 'Open';
+        if (st === 'Closed' || st === 'Lost') return false;
+        if (seesAll) return true;
+        return String(pr.agent || '').split(',').map(a => a.trim().toLowerCase()).includes(me);
+    });
+}
+
+// New policies still in underwriting that this agent can see.
+function _openUnderwritingForUser() {
+    try {
+        const seesAll = isAgentAdmin();
+        return uwBuildList().filter(r =>
+            !r.cleared &&
+            /^new/i.test(r.entry.policyType || '') &&
+            (seesAll || r.entry.agent === currentUser));
+    } catch (e) { return []; }
+}
+
 // Current-month cards in the agent nav bar: this agent's own policies, premium,
 // agency commission and agent commission for the current calendar month (ET).
 function renderNavMonthStats() {
@@ -4507,24 +4557,21 @@ function renderNavMonthStats() {
     const special = _specialCommissionRows(currentUser, monthLabel);
     const agentComm = special ? special.total : mine.reduce((sum, d) => sum + (parseFloat(d.agentCommissionShare) || 0), 0);
     // New policies still in underwriting (any month): outstanding pending items.
-    let uwPending = 0;
-    try {
-        uwPending = uwBuildList().filter(r => r.entry.agent === currentUser && !r.cleared && /^new/i.test(r.entry.policyType || '')).length;
-    } catch (e) { uwPending = 0; }
-    // Still-open prospects (not Closed or Lost). Agent admins see the whole
-    // office, everyone else sees their own — the same rule getVisibleData()
-    // uses, so the card always agrees with the Prospects section it opens.
-    let prospectsPending = 0;
-    try {
-        const me = (currentUser || '').trim().toLowerCase();
-        const seesAll = isAgentAdmin();
-        prospectsPending = (JSON.parse(localStorage.getItem('prospectData')) || []).filter(pr => {
-            const st = pr.status || 'Open';
-            if (st === 'Closed' || st === 'Lost') return false;
-            if (seesAll) return true;
-            return String(pr.agent || '').split(',').map(a => a.trim().toLowerCase()).includes(me);
-        }).length;
-    } catch (e) { prospectsPending = 0; }
+    // Agent admins see the whole office, everyone else their own — the same
+    // rule the prospects card and getVisibleData() use.
+    const uwRows = _openUnderwritingForUser();
+    const uwPending = uwRows.length;
+    // Still-open prospects (not Closed or Lost), scoped the same way, so the
+    // card always agrees with the Prospects section it opens.
+    const prospectRows = _openProspectsForUser();
+    const prospectsPending = prospectRows.length;
+    // Red bubble: how many of those arrived since this agent last opened the
+    // section. Clicking a card marks everything in it as seen.
+    const seenP = _seenGet('Prospects');
+    const seenU = _seenGet('UW');
+    const newProspects = prospectRows.filter(pr => !seenP.has(String(pr.id))).length;
+    const newUW = uwRows.filter(r => !seenU.has(String(r.entry.id))).length;
+    const badge = n => n > 0 ? `<span class="nav-stat-badge" title="${n} new since you last looked">${n > 99 ? '99+' : n}</span>` : '';
     const $m = v => '$' + (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     host.innerHTML = `
         <div class="nav-stats-title"><i data-lucide="calendar-days"></i> ${monthLabel}</div>
@@ -4533,8 +4580,8 @@ function renderNavMonthStats() {
         <div class="nav-stat-card"><h4>Agency Fees</h4><div class="number">${$m(agencyFees)}</div></div>
         <div class="nav-stat-card"><h4>Agency Commission</h4><div class="number">${$m(agencyComm)}</div></div>
         <div class="nav-stat-card"><h4>Agent Commission</h4><div class="number">${$m(agentComm)}</div></div>
-        <div class="nav-stat-card nav-stat-uw" role="button" tabindex="0" title="Open Underwriting" onclick="showUnderwritingSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showUnderwritingSection();}"><h4>UW Pending</h4><div class="number">${uwPending}</div></div>
-        <div class="nav-stat-card nav-stat-prospects" role="button" tabindex="0" title="Open Prospects" onclick="showProspectsSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showProspectsSection();}"><h4>Prospects Pending</h4><div class="number">${prospectsPending}</div></div>`;
+        <div class="nav-stat-card nav-stat-uw" role="button" tabindex="0" title="Open Underwriting" onclick="showUnderwritingSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showUnderwritingSection();}">${badge(newUW)}<h4>UW Pending</h4><div class="number">${uwPending}</div></div>
+        <div class="nav-stat-card nav-stat-prospects" role="button" tabindex="0" title="Open Prospects" onclick="showProspectsSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showProspectsSection();}">${badge(newProspects)}<h4>Prospects Pending</h4><div class="number">${prospectsPending}</div></div>`;
     if (window.refreshIcons) refreshIcons();
 }
 
