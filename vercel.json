@@ -2,6 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "ams.*" }],
+      "destination": "/ams.html"
+    },
+    {
+      "source": "/index.html",
+      "has": [{ "type": "host", "value": "ams.*" }],
+      "destination": "/ams.html"
+    }
+  ],
   "redirects": [
     {
       "source": "/uib-binderbook",

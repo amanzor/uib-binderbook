@@ -43,6 +43,21 @@
     // Keep a handle to the REAL setItem before we wrap it.
     const _setItem = localStorage.setItem.bind(localStorage);
 
+    // Is this key owned by the merge-sync layer? Writing such a key from
+    // THIS file is destructive: it replaces the whole row instead of
+    // merging, so a device with a stale copy wipes what other agents just
+    // saved. The list lives in uib-binder-sync.js so it also holds on
+    // pages without app.js (ams.html), where SYNC_KEYS is undefined and
+    // binderData used to be pushed raw — including the shortened array
+    // that a delete produced.
+    function isMergeManaged(key) {
+        if (window.UIBBinderSync && typeof window.UIBBinderSync.isMergeManaged === 'function') {
+            return window.UIBBinderSync.isMergeManaged(key);
+        }
+        return typeof SYNC_KEYS !== 'undefined' &&
+            (SYNC_KEYS.includes(key) || key === 'binderDeletedIds');
+    }
+
     // ── Push one key/value up (upsert on primary key) ──────────
     // Carrier portal passwords never leave the device: the rater's carrier
     // list syncs without them, and a restore keeps the local ones.
@@ -93,12 +108,14 @@
         let done = 0;
         for (const k of keys) {
             const v = localStorage.getItem(k);
-            // Merge-managed keys go through driveSet so a manual "Back up
-            // now" can't overwrite other agents' recent entries either.
-            if (typeof driveSet === 'function' && typeof SYNC_KEYS !== 'undefined' &&
-                (SYNC_KEYS.includes(k) || k === 'binderDeletedIds')) {
-                try { await driveSet(k, JSON.parse(v)); }
-                catch (e) { await cloudSet(k, v); }
+            // Merge-managed keys go through the merge layer so a manual "Back
+            // up now" can't overwrite other agents' recent entries either.
+            // There is deliberately no raw-push fallback here: falling back to
+            // cloudSet is precisely the overwrite this guard exists to stop.
+            if (isMergeManaged(k)) {
+                if (window.UIBBinderSync) await window.UIBBinderSync.save(k, JSON.parse(v));
+                else if (typeof driveSet === 'function') await driveSet(k, JSON.parse(v));
+                else console.warn('Skipping "' + k + '" — no merge layer loaded on this page.');
             } else {
                 await cloudSet(k, v);
             }
@@ -182,14 +199,12 @@
         // Device-local read markers (uibSeen*) and sync bookkeeping never
         // belong in the shared store.
         if (SKIP.has(key) || key.indexOf('uibDirty_') === 0 || key.indexOf('uibSeen') === 0) return;
-        // Keys owned by app.js's merge-sync layer must NOT be pushed raw
-        // from here: this layer writes the same app_store table without
-        // merging, so a device with a stale copy overwrote entries other
-        // agents had just saved (this is how transactions kept vanishing).
-        // On pages without app.js (ams.html) SYNC_KEYS is undefined and this
-        // layer still backs everything up.
-        if (typeof SYNC_KEYS !== 'undefined' &&
-            (SYNC_KEYS.includes(key) || key === 'binderDeletedIds')) return;
+        // Keys owned by the merge-sync layer must NOT be pushed raw from
+        // here: this layer writes the same app_store table without merging,
+        // so a device with a stale copy overwrote entries other agents had
+        // just saved (this is how transactions kept vanishing). Those keys
+        // reach the cloud through UIBBinderSync.save / driveSet instead.
+        if (isMergeManaged(key)) return;
         dirty.add(key);
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(flushDirty, DEBOUNCE_MS);

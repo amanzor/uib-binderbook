@@ -242,7 +242,15 @@ function amsGetCredentials() {
 }
 function amsGetCarriers()    { return JSON.parse(localStorage.getItem('carrierMasterData')) || {}; }
 
+// Shared data (the book of business above all) must be MERGED into the
+// cloud copy, never written over it. A plain setItem here used to push the
+// whole binderData array raw — so an AMS tab holding a stale or filtered
+// copy replaced the book for every other device. UIBBinderSync does the
+// merge, the shrink guard and the local mirror; only device-local keys take
+// the plain path.
 function amsSave(key, value) {
+    var S = window.UIBBinderSync;
+    if (S && S.isMergeManaged(key)) { S.save(key, value); return; }
     localStorage.setItem(key, JSON.stringify(value));
 }
 
@@ -547,6 +555,64 @@ async function amsSyncDataFromDrive() {
     }
 }
 
+// ── Live refresh from the cloud ──────────────────────────────
+// The AMS and the Binder Book run as separate deployments on separate
+// origins, so they share no browser storage — the Supabase row IS the
+// connection between them. A client entered in the Binder Book therefore
+// appears here only once this page pulls again, so pull on a timer and
+// whenever the tab comes back to the front rather than only at login.
+const AMS_REFRESH_MS = 60000;
+let _amsRefreshTimer  = null;
+let _amsRefreshing    = false;
+let _amsRefreshBound  = false;
+
+// Never redraw out from under someone: an open dialog or a focused field
+// means they are mid-entry, and re-rendering would discard it.
+function amsRefreshBusy() {
+    if (document.querySelector('.ams-modal.open')) return true;
+    const a = document.activeElement;
+    return !!(a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName));
+}
+
+function _amsVisible(el) { return !!(el && el.offsetParent !== null); }
+
+async function amsRefreshFromCloud() {
+    if (_amsRefreshing || !window.UIBBinderSync) return;
+    if (amsRefreshBusy()) return;
+    _amsRefreshing = true;
+    try {
+        const res = await window.UIBBinderSync.pull();
+        // Nothing new, or the cloud did not answer — keep the current view.
+        if (!res.ok || !res.changed) return;
+        amsBuildClientIndex();
+        if (amsRefreshBusy()) return;          // they started typing mid-pull
+        amsRenderClientList();
+        if (amsActiveKey) amsRenderPolicies(amsActiveKey);
+        const rnw = document.getElementById('amsRenewalsPanel');
+        if (_amsVisible(rnw) && typeof amsRenewalsRender === 'function') amsRenewalsRender();
+    } catch (e) {
+        // Offline or the cloud is down: show what this device already has.
+    } finally {
+        _amsRefreshing = false;
+    }
+}
+
+function amsStartLiveRefresh() {
+    if (!_amsRefreshTimer) {
+        // Hidden tabs are skipped: polling from a dozen background tabs is
+        // what exhausted the database's IO budget before.
+        _amsRefreshTimer = setInterval(() => {
+            if (!document.hidden) amsRefreshFromCloud();
+        }, AMS_REFRESH_MS);
+    }
+    if (!_amsRefreshBound) {
+        _amsRefreshBound = true;
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) amsRefreshFromCloud();
+        });
+    }
+}
+
 // ── App launch ───────────────────────────────────────────────
 function amsLaunchApp() {
     document.getElementById('amsLoginScreen').style.display = 'none';
@@ -568,6 +634,7 @@ function amsLaunchApp() {
         amsRenderClientList();
         amsPopulateModalDropdowns();
         lucide.createIcons();
+        amsStartLiveRefresh();
     });
 
     // Keyboard: Escape closes preview
@@ -2347,10 +2414,27 @@ function amsDeletePolicy(policyId) {
     
     const binder = amsGetBinderData();
     const filtered = binder.filter(p => p.id !== policyId);
+    const redraw = () => { amsBuildClientIndex(); amsRenderPolicies(amsActiveKey); };
+
+    // A delete has to travel as a tombstone. Writing the shortened array on
+    // its own deletes nothing: the merge unions the entry back in from the
+    // cloud, and the shrink guard rightly refuses the write. Record the
+    // tombstone FIRST so both honour the deletion, and redraw only once the
+    // merged book has landed — otherwise the row is still on screen.
+    if (window.UIBBinderSync) {
+        window.UIBBinderSync.markDeleted(policyId)
+            .then(() => window.UIBBinderSync.save('binderData', filtered))
+            .then(ok => {
+                redraw();
+                amsFlashBanner(ok ? 'Policy deleted ✓'
+                                  : 'Deleted on this device — the cloud could not be reached, it will sync later');
+            })
+            .catch(() => { redraw(); amsFlashBanner('Could not delete the policy — try again'); });
+        return;
+    }
+
     amsSave('binderData', filtered);
-    
-    amsBuildClientIndex();
-    amsRenderPolicies(amsActiveKey);
+    redraw();
     amsFlashBanner('Policy deleted ✓');
 }
 
