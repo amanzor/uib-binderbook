@@ -88,7 +88,7 @@
         const keys = [];
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
-            if (k && !SKIP.has(k) && k.indexOf('uibDirty_') !== 0) keys.push(k);
+            if (k && !SKIP.has(k) && k.indexOf('uibDirty_') !== 0 && k.indexOf('uibSeen') !== 0) keys.push(k);
         }
         let done = 0;
         for (const k of keys) {
@@ -179,7 +179,9 @@
 
     function queueDirty(key) {
         if (!autoEnabled || suppressAuto) return;
-        if (SKIP.has(key) || key.indexOf('uibDirty_') === 0) return; // device-local sync bookkeeping
+        // Device-local read markers (uibSeen*) and sync bookkeeping never
+        // belong in the shared store.
+        if (SKIP.has(key) || key.indexOf('uibDirty_') === 0 || key.indexOf('uibSeen') === 0) return;
         // Keys owned by app.js's merge-sync layer must NOT be pushed raw
         // from here: this layer writes the same app_store table without
         // merging, so a device with a stale copy overwrote entries other

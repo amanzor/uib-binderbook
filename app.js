@@ -27,7 +27,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202610151;
+const APP_BUILD = 202610272;
 
 let _appOutdated = false;
 // Check for a newer published build as soon as any page opens, so a phone
@@ -1094,14 +1094,23 @@ function renderCredentialList() {
 
 // ── Login accounts (Supabase Auth), managed through the admin-users function ──
 const ADMIN_USERS_FN = SUPABASE_URL + '/functions/v1/admin-users';
+const ADMIN_USERS_MISSING = 'The admin-users function is not deployed yet. In Supabase ▸ Edge Functions, deploy supabase/functions/admin-users/index.ts as "admin-users".';
 async function _adminUsers(action, extra) {
-    const res = await fetch(ADMIN_USERS_FN, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.assign({ action }, extra || {}))
-    });
+    // A function that is not deployed fails the browser's CORS preflight
+    // (Supabase answers it with a 404), so it surfaces as a network error,
+    // not as a readable 404 response.
+    let res;
+    try {
+        res = await fetch(ADMIN_USERS_FN, {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ action }, extra || {}))
+        });
+    } catch (e) {
+        throw new Error(navigator.onLine === false ? 'You are offline.' : 'Could not reach the admin-users function. ' + ADMIN_USERS_MISSING);
+    }
     let data = null; try { data = await res.json(); } catch (e) {}
-    if (res.status === 404) throw new Error('The admin-users function is not deployed yet. In Supabase ▸ Edge Functions, deploy supabase/functions/admin-users/index.ts as "admin-users".');
+    if (res.status === 404) throw new Error(ADMIN_USERS_MISSING);
     if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || ('HTTP ' + res.status));
     return data;
 }
@@ -2512,7 +2521,19 @@ function openNewProspectModal() {
     document.getElementById('prospectAgentSelectAll').checked = false;
     prospectAgentUpdateDisplay();
 
-    document.getElementById('prospectSuccessMsg').style.display = 'none';
+    _prospectResetNotice();
+}
+
+// Clear the banner back to its default green "saved" look, so an amber
+// mail-failure notice from a previous save doesn't linger on reopen.
+function _prospectResetNotice() {
+    const msg = document.getElementById('prospectSuccessMsg');
+    if (!msg) return;
+    clearTimeout(_prospectNoticeTimer);
+    msg.style.display = 'none';
+    msg.style.background = '#d1fae5';
+    msg.style.color = '#065f46';
+    msg.textContent = '✓ Prospect saved successfully!';
 }
 
 function closeNewProspectModal() {
@@ -2524,11 +2545,62 @@ function closeNewProspectModal() {
     document.querySelectorAll('.prospect-agent-cb').forEach(cb => cb.checked = false);
     document.getElementById('prospectAgentSelectAll').checked = false;
     prospectAgentUpdateDisplay();
-    document.getElementById('prospectSuccessMsg').style.display = 'none';
+    _prospectResetNotice();
 }
+
+// ── New-prospect agent notification ──────────────────────────────
+// Saving a prospect emails the form details to the agent(s) assigned on
+// it. The browser sends assigned agent NAMES only; the Edge Function
+// looks the addresses up in the agent roster itself, so this endpoint
+// can never be used to mail an address that is not a registered agent.
+// Deploy supabase/functions/prospect-notify/index.ts as "prospect-notify".
+const PROSPECT_NOTIFY_FN = SUPABASE_URL + '/functions/v1/prospect-notify';
+
+async function notifyProspectAgents(prospect, agents) {
+    if (!agents || !agents.length) {
+        return { ok: false, text: '✓ Prospect saved. No agent was assigned, so no email was sent.' };
+    }
+    try {
+        // An undeployed function fails the CORS preflight, so it shows up as a network error.
+        const res = await fetch(PROSPECT_NOTIFY_FN, {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prospect: prospect, agents: agents, submittedBy: currentUser || '' })
+        }).catch(() => {
+            throw new Error(navigator.onLine === false ? 'you are offline' : 'could not reach the prospect-notify function (it is likely not deployed in Supabase yet)');
+        });
+        let data = null; try { data = await res.json(); } catch (err) {}
+        if (res.status === 404) throw new Error('the prospect-notify function is not deployed in Supabase yet');
+        if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || ('HTTP ' + res.status));
+        const who = (data.notified && data.notified.length) ? data.notified.join(', ') : (data.to || []).join(', ');
+        let text = '✓ Prospect saved and emailed to ' + who + '.';
+        if (data.missing && data.missing.length) {
+            text += ' No email address on file for ' + data.missing.join(', ') + '.';
+        }
+        return { ok: true, text: text };
+    } catch (err) {
+        return { ok: false, text: '✓ Prospect saved — but the agent email did not send: ' + (err.message || err) };
+    }
+}
+
+// Show the outcome in the modal's banner: green when the mail went out,
+// amber when it did not. The prospect itself is already saved either way.
+function _prospectShowNotice(note) {
+    const msg = document.getElementById('prospectSuccessMsg');
+    if (!msg) return;
+    msg.textContent = note.text;
+    msg.style.background = note.ok ? '#d1fae5' : '#fef3c7';
+    msg.style.color      = note.ok ? '#065f46' : '#92400e';
+    msg.style.display    = 'block';
+    clearTimeout(_prospectNoticeTimer);
+    _prospectNoticeTimer = setTimeout(() => { msg.style.display = 'none'; }, note.ok ? 5000 : 10000);
+}
+let _prospectNoticeTimer = null;
 
 function saveProspect(e) {
     e.preventDefault();
+    // Captured before the form is reset below — the email needs these names.
+    const assignedAgents = prospectAgentGetSelected();
     const prospect = {
         id:          'PROS-' + Date.now(),
         firstName:   document.getElementById('prospectFirstName').value.trim(),
@@ -2538,7 +2610,7 @@ function saveProspect(e) {
         lob:         document.getElementById('prospectLOB').value,
         source:      document.getElementById('prospectSource').value,
         referredBy:  document.getElementById('prospectReferredBy').value.trim(),
-        agent:       prospectAgentGetSelected().join(', '),
+        agent:       assignedAgents.join(', '),
         followUpDate:document.getElementById('prospectFollowUpDate').value,
         dateAdded:   getEasternDateTimeDisplay(),
         notes:       document.getElementById('prospectNotes').value.trim(),
@@ -2555,9 +2627,10 @@ function saveProspect(e) {
     document.querySelectorAll('.prospect-agent-cb').forEach(cb => cb.checked = false);
     document.getElementById('prospectAgentSelectAll').checked = false;
     prospectAgentUpdateDisplay();
-    const msg = document.getElementById('prospectSuccessMsg');
-    msg.style.display = 'block';
-    setTimeout(() => { msg.style.display = 'none'; }, 3000);
+    _prospectShowNotice({ ok: true, text: assignedAgents.length ? '✓ Prospect saved — emailing ' + assignedAgents.join(', ') + '…' : '✓ Prospect saved successfully!' });
+
+    // Never block the save on the mail: report the outcome when it lands.
+    notifyProspectAgents(prospect, assignedAgents).then(_prospectShowNotice);
 
     // Refresh list if prospects section is open
     if (document.getElementById('prospectsSection')?.classList.contains('active')) {
@@ -2569,6 +2642,9 @@ function saveProspect(e) {
 // ── Prospects List Section ─────────────────────────────────────
 function showProspectsSection() {
     showSection('prospectsSection');
+    // Everything on show counts as read — clears the red bubble on the card.
+    _seenMark('Prospects', _openProspectsForUser().map(pr => pr.id));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
     renderProspectsDashboard();
     renderProspectsTable();
     refreshIcons();
@@ -2684,6 +2760,9 @@ function uwClearedAt(r) {
 function showUnderwritingSection() {
     uwUpdateUndoButton();
     showSection('underwritingSection');
+    // Everything on show counts as read — clears the red bubble on the card.
+    _seenMark('UW', _openUnderwritingForUser().map(r => r.entry.id));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
     _uwJustCleared.clear();
     const data = JSON.parse(localStorage.getItem('binderData')) || [];
     const agents = getAllAgents();
@@ -3311,6 +3390,126 @@ function prospectMarkLost(id) {
     renderProspectsTable();
 }
 
+// ── Take the Lead ────────────────────────────────────────────────
+// Any signed-in agent can claim a still-active prospect from the list.
+// The claimer becomes the assigned agent; whoever held it before is kept
+// in previousAgent so the handover stays on the record.
+function _prospectAgentList(p) {
+    return String((p && p.agent) || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+function _prospectIsMine(p, who) {
+    const me = String(who || '').trim().toLowerCase();
+    return !!me && _prospectAgentList(p).some(a => a.toLowerCase() === me);
+}
+
+function prospectTakeLead(id) {
+    const me = (currentUser || '').trim();
+    if (!me) { alert('Sign in first — the lead is assigned to whoever takes it.'); return; }
+
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    if (p.status === 'Closed' || p.status === 'Lost') { alert('This prospect is already closed.'); return; }
+
+    const name    = _prospectFullName(p) || 'this prospect';
+    const holders = _prospectAgentList(p).filter(a => a.toLowerCase() !== me.toLowerCase());
+    if (_prospectIsMine(p, me) && !holders.length) { alert(`${name} is already assigned to you.`); return; }
+
+    const who = holders.length ? holders.join(', ') : '';
+    if (!confirm(`Take the lead on ${name}?\n\n${who ? `Currently assigned to ${who}. You will replace them as the assigned agent.` : 'It has no assigned agent. You will become the assigned agent.'}`)) return;
+
+    if (who) p.previousAgent = who;
+    p.agent   = me;
+    p.takenBy = me;
+    p.takenAt = new Date().toISOString();
+
+    _prospectSave(prospects);
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+
+    // Straight into the checklist of what is still needed from the client.
+    prospectOpenPending(id);
+}
+
+// ── Pending items on a prospect ──────────────────────────────────
+// What the agent is still waiting on from the client. Opens by itself
+// right after a lead is taken, and from the 📋 button on any row.
+const PROSPECT_PENDING_ITEMS = [
+    '4 Point Inspection',
+    'Wind Mitigation Inspection',
+    "Driver's License (DL)",
+    'VIN Number',
+    'Prior Dec Page',
+    'Other'
+];
+let _prospectPendingId = null;
+
+function _prospectPendingList(p) {
+    return Array.isArray(p && p.pendingItems) ? p.pendingItems : [];
+}
+
+function prospectOpenPending(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    _prospectPendingId = id;
+
+    const chosen = _prospectPendingList(p);
+    document.getElementById('prospectPendingWho').textContent =
+        `${_prospectFullName(p) || 'This prospect'}${p.agent ? ' · ' + p.agent : ''}`;
+
+    document.getElementById('prospectPendingList').innerHTML = PROSPECT_PENDING_ITEMS.map((item, i) => `
+        <label style="display:flex;align-items:center;gap:11px;padding:11px 14px;cursor:pointer;font-size:14px;color:#374151;background:${i % 2 ? '#fafafa' : '#fff'};"
+               onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='${i % 2 ? '#fafafa' : '#fff'}'">
+            <input type="checkbox" class="prospect-pending-cb" value="${_esc(item)}" ${chosen.includes(item) ? 'checked' : ''}
+                   ${item === 'Other' ? 'onchange="prospectPendingOtherToggle()"' : ''}
+                   style="width:16px;height:16px;accent-color:#7c3aed;cursor:pointer;">
+            ${_esc(item)}
+        </label>`).join('') + `
+        <div id="prospectPendingOtherRow" style="display:${chosen.includes('Other') ? 'block' : 'none'};padding:10px 14px;background:#faf5ff;border-top:1px solid #e9d5ff;">
+            <input type="text" id="prospectPendingOther" placeholder="What else is outstanding?" value="${_esc(p.pendingOther || '')}"
+                   style="width:100%;padding:8px 10px;border:1px solid #d8b4fe;border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>`;
+
+    document.getElementById('prospectPendingNote').value = p.pendingNote || '';
+    const m = document.getElementById('prospectPendingModal');
+    m.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    refreshIcons();
+}
+
+function prospectPendingOtherToggle() {
+    const on  = [...document.querySelectorAll('.prospect-pending-cb')].some(cb => cb.value === 'Other' && cb.checked);
+    const row = document.getElementById('prospectPendingOtherRow');
+    if (row) row.style.display = on ? 'block' : 'none';
+    if (on) document.getElementById('prospectPendingOther')?.focus();
+}
+
+function prospectClosePending() {
+    document.getElementById('prospectPendingModal').classList.remove('active');
+    _prospectPendingId = null;
+}
+
+function prospectSavePending() {
+    if (!_prospectPendingId) return prospectClosePending();
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === _prospectPendingId);
+    if (!p) return prospectClosePending();
+
+    const items = [...document.querySelectorAll('.prospect-pending-cb:checked')].map(cb => cb.value);
+    const other = (document.getElementById('prospectPendingOther')?.value || '').trim();
+    p.pendingItems     = items;
+    p.pendingOther     = items.includes('Other') ? other : '';
+    p.pendingNote      = (document.getElementById('prospectPendingNote').value || '').trim();
+    p.pendingUpdatedAt = new Date().toISOString();
+    p.pendingUpdatedBy = currentUser || '';
+
+    _prospectSave(prospects);
+    prospectClosePending();
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+}
+
 function archiveProspectToAMS(p) {
     const name = _prospectFullName(p);
     const key = amsClientKeyFromName(name);
@@ -3395,19 +3594,30 @@ function renderProspectsTable() {
         const fullName  = `${p.firstName || ''} ${p.lastName || ''}`.trim();
         const sStyle    = statusColors[p.status] || '';
         const followUp  = p.followUpDate ? new Date(p.followUpDate + 'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+        // Outstanding paperwork, shown as chips under the client's name.
+        const pending      = _prospectPendingList(p);
+        const pendingCount = pending.length;
+        const pendingChips = pending.map(it => {
+            const label = it === 'Other' ? (p.pendingOther ? `Other: ${p.pendingOther}` : 'Other') : it;
+            return `<span style="display:inline-block;margin:2px 3px 0 0;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;">${_esc(label)}</span>`;
+        }).join('');
         return `<tr>
-            <td style="font-weight:600;">${fullName}</td>
+            <td style="font-weight:600;">${fullName}${pendingChips ? `<div style="margin-top:3px;font-weight:400;">${pendingChips}</div>` : ''}</td>
             <td>${p.phone || '—'}</td>
             <td>${p.email || '—'}</td>
             <td>${p.lob || '—'}</td>
             <td>${p.source || '—'}</td>
-            <td>${p.agent || '—'}</td>
+            <td>${p.agent || '—'}${p.previousAgent ? `<div style="font-size:11px;color:var(--gray-500);">took over from ${p.previousAgent}</div>` : ''}</td>
             <td>${followUp}</td>
             <td><span style="padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;${sStyle}">${p.status || 'Open'}</span></td>
             <td style="font-size:12px;color:var(--gray-500);">${p.dateAdded || '—'}</td>
             <td style="max-width:200px;font-size:12px;color:var(--gray-600);">${p.notes || '—'}</td>
             <td style="white-space:nowrap;">
                 ${(p.status === 'Closed' || p.status === 'Lost') ? `<span style="font-size:12px;color:var(--gray-500);">${p.status === 'Closed' ? '✅ Sold' : '📁 Archived'}</span>` : `
+                ${_prospectIsMine(p, currentUser) && _prospectAgentList(p).length === 1
+                    ? `<span title="You are the assigned agent" style="display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;">🙋 Yours</span>`
+                    : `<button class="btn-sm" onclick="prospectTakeLead('${p.id}')" title="Assign this lead to yourself" style="background:linear-gradient(to right,#6d28d9,#7c3aed);color:#fff;border:none;">🙋 Take the Lead</button>`}
+                <button class="btn-sm" onclick="prospectOpenPending('${p.id}')" title="What is still outstanding from this client" style="background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;">📋 Items${pendingCount ? ` (${pendingCount})` : ''}</button>
                 <button class="btn-success btn-sm" onclick="prospectMarkSold('${p.id}')" title="Mark as sold and create the Daily Sales Entry">💰 Sold</button>
                 <button class="btn-danger btn-sm" onclick="prospectMarkLost('${p.id}')" title="Mark as lost and archive into AMS as an Inactive Prospect">✖ Lost</button>`}
             </td>
@@ -4301,6 +4511,50 @@ function _restoreAgentSubmissionsState() {
     toggleAgentSubmissions(open);
 }
 
+// ── "New since you last looked" markers ──────────────────────────
+// Which prospect / underwriting rows this agent has already seen. Purely a
+// per-device, per-agent read marker, so it is written with _origSetItem to
+// stay out of the shared cloud store.
+function _seenKey(kind) { return 'uibSeen' + kind + '_' + ((currentUser || '').trim().toLowerCase() || 'anon'); }
+function _seenGet(kind) {
+    try { const v = JSON.parse(localStorage.getItem(_seenKey(kind))); return new Set(Array.isArray(v) ? v : []); }
+    catch (e) { return new Set(); }
+}
+function _seenMark(kind, ids) {
+    try {
+        const set = _seenGet(kind);
+        (ids || []).forEach(id => set.add(String(id)));
+        // Keep the marker from growing without bound on a long-lived device.
+        const keep = [...set].slice(-2000);
+        _origSetItem(_seenKey(kind), JSON.stringify(keep));
+    } catch (e) {}
+}
+
+// Still-open prospects this agent can see (admins: the whole office).
+function _openProspectsForUser() {
+    let all = [];
+    try { all = JSON.parse(localStorage.getItem('prospectData')) || []; } catch (e) { return []; }
+    const me = (currentUser || '').trim().toLowerCase();
+    const seesAll = isAgentAdmin();
+    return all.filter(pr => {
+        const st = pr.status || 'Open';
+        if (st === 'Closed' || st === 'Lost') return false;
+        if (seesAll) return true;
+        return String(pr.agent || '').split(',').map(a => a.trim().toLowerCase()).includes(me);
+    });
+}
+
+// New policies still in underwriting that this agent can see.
+function _openUnderwritingForUser() {
+    try {
+        const seesAll = isAgentAdmin();
+        return uwBuildList().filter(r =>
+            !r.cleared &&
+            /^new/i.test(r.entry.policyType || '') &&
+            (seesAll || r.entry.agent === currentUser));
+    } catch (e) { return []; }
+}
+
 // Current-month cards in the agent nav bar: this agent's own policies, premium,
 // agency commission and agent commission for the current calendar month (ET).
 function renderNavMonthStats() {
@@ -4315,20 +4569,21 @@ function renderNavMonthStats() {
     const special = _specialCommissionRows(currentUser, monthLabel);
     const agentComm = special ? special.total : mine.reduce((sum, d) => sum + (parseFloat(d.agentCommissionShare) || 0), 0);
     // New policies still in underwriting (any month): outstanding pending items.
-    let uwPending = 0;
-    try {
-        uwPending = uwBuildList().filter(r => r.entry.agent === currentUser && !r.cleared && /^new/i.test(r.entry.policyType || '')).length;
-    } catch (e) { uwPending = 0; }
-    // Prospects assigned to this agent that are still open (not Closed or Lost).
-    let prospectsPending = 0;
-    try {
-        const me = (currentUser || '').trim().toLowerCase();
-        prospectsPending = (JSON.parse(localStorage.getItem('prospectData')) || []).filter(pr => {
-            const st = pr.status || 'Open';
-            if (st === 'Closed' || st === 'Lost') return false;
-            return String(pr.agent || '').split(',').map(a => a.trim().toLowerCase()).includes(me);
-        }).length;
-    } catch (e) { prospectsPending = 0; }
+    // Agent admins see the whole office, everyone else their own — the same
+    // rule the prospects card and getVisibleData() use.
+    const uwRows = _openUnderwritingForUser();
+    const uwPending = uwRows.length;
+    // Still-open prospects (not Closed or Lost), scoped the same way, so the
+    // card always agrees with the Prospects section it opens.
+    const prospectRows = _openProspectsForUser();
+    const prospectsPending = prospectRows.length;
+    // Red bubble: how many of those arrived since this agent last opened the
+    // section. Clicking a card marks everything in it as seen.
+    const seenP = _seenGet('Prospects');
+    const seenU = _seenGet('UW');
+    const newProspects = prospectRows.filter(pr => !seenP.has(String(pr.id))).length;
+    const newUW = uwRows.filter(r => !seenU.has(String(r.entry.id))).length;
+    const badge = n => n > 0 ? `<span class="nav-stat-badge" title="${n} new since you last looked">${n > 99 ? '99+' : n}</span>` : '';
     const $m = v => '$' + (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     host.innerHTML = `
         <div class="nav-stats-title"><i data-lucide="calendar-days"></i> ${monthLabel}</div>
@@ -4337,8 +4592,8 @@ function renderNavMonthStats() {
         <div class="nav-stat-card"><h4>Agency Fees</h4><div class="number">${$m(agencyFees)}</div></div>
         <div class="nav-stat-card"><h4>Agency Commission</h4><div class="number">${$m(agencyComm)}</div></div>
         <div class="nav-stat-card"><h4>Agent Commission</h4><div class="number">${$m(agentComm)}</div></div>
-        <div class="nav-stat-card nav-stat-uw" role="button" tabindex="0" title="Open Underwriting" onclick="showUnderwritingSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showUnderwritingSection();}"><h4>UW Pending</h4><div class="number">${uwPending}</div></div>
-        <div class="nav-stat-card nav-stat-prospects" role="button" tabindex="0" title="Open Prospects" onclick="showProspectsSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showProspectsSection();}"><h4>Prospects Pending</h4><div class="number">${prospectsPending}</div></div>`;
+        <div class="nav-stat-card nav-stat-uw" role="button" tabindex="0" title="Open Underwriting" onclick="showUnderwritingSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showUnderwritingSection();}">${badge(newUW)}<h4>UW Pending</h4><div class="number">${uwPending}</div></div>
+        <div class="nav-stat-card nav-stat-prospects" role="button" tabindex="0" title="Open Prospects" onclick="showProspectsSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showProspectsSection();}">${badge(newProspects)}<h4>Prospects Pending</h4><div class="number">${prospectsPending}</div></div>`;
     if (window.refreshIcons) refreshIcons();
 }
 
