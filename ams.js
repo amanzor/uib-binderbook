@@ -1358,13 +1358,14 @@ function amsRenderNotes(key) {
 
 // ── Tabs ─────────────────────────────────────────────────────
 function amsShowTab(tab) {
-    ['contact','policies','notes','communications','documents','forms'].forEach(t => {
+    ['contact','policies','notes','communications','documents','forms','certificates'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         if (el) el.style.display = t === tab ? 'block' : 'none';
         document.querySelector(`.ams-tab[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
     });
     if (tab === 'documents' && amsActiveKey) amsRenderFileGrid();
     if (tab === 'forms' && amsActiveKey) acordRenderFormsList();
+    if (tab === 'certificates' && amsActiveKey && typeof certRenderList === 'function') certRenderList();
     if (tab === 'communications' && amsActiveKey && typeof amsRenderCommunications === 'function') amsRenderCommunications(amsActiveKey);
 }
 
@@ -1608,6 +1609,16 @@ function amsSavePolicyModal() {
     amsRenderClientList();
     amsRenderPolicies(amsActiveKey);
     amsFlashBanner(editId ? 'Policy updated ✓' : 'Policy added ✓');
+
+    // A newly added line that belongs on a Certificate of Liability
+    // Insurance is the moment to offer the certificate — not days later
+    // when the holder asks for it. Only on a new policy: re-editing one
+    // should not nag.
+    if (!editId && window.UIBCertUI) {
+        const saved = binder[binder.length - 1];
+        const who   = amsClientIndex[amsActiveKey]?.displayName || amsActiveKey;
+        setTimeout(() => window.UIBCertUI.offerAfterSave(amsActiveKey, [saved], who), 250);
+    }
 }
 
 // ── Print ────────────────────────────────────────────────────
@@ -5379,7 +5390,22 @@ After a brief summary (1-3 sentences: what the document is, how many clients fou
           "effectiveDate": "YYYY-MM-DD", "expirationDate": "YYYY-MM-DD",
           "policyStatus": "Active|Cancelled|Expired|Pending",
           "drivers":  [ { "firstName": "", "lastName": "", "dob": "YYYY-MM-DD", "dl": "" } ],
-          "vehicles": [ { "year": "", "make": "", "model": "", "vin": "" } ]
+          "vehicles": [ { "year": "", "make": "", "model": "", "vin": "" } ],
+          "certificate": {
+            "appliesTo": "General Liability | Automobile Liability | Umbrella/Excess | Workers Compensation — omit entirely for any other line",
+            "naic": "carrier NAIC number if the document shows one",
+            "occurrenceOrClaimsMade": "Occurrence | Claims-made",
+            "aggregateAppliesPer": "Policy | Project | Loc | Other",
+            "autoCoveredAutos": [ "Any Auto", "Owned", "Scheduled", "Hired", "Non-Owned" ],
+            "limits": {
+              "eachOccurrence": "", "damageToRentedPremises": "", "medExpAnyOnePerson": "",
+              "personalAndAdvInjury": "", "generalAggregate": "", "productsCompOpAgg": "",
+              "combinedSingleLimit": "", "bodilyInjuryPerPerson": "", "bodilyInjuryPerAccident": "",
+              "propertyDamagePerAccident": "",
+              "umbrellaEachOccurrence": "", "umbrellaAggregate": "", "umbrellaDeductibleOrRetention": "",
+              "elEachAccident": "", "elDiseaseEachEmployee": "", "elDiseasePolicyLimit": ""
+            }
+          }
         }
       ]
     }
@@ -5392,7 +5418,13 @@ EXTRACTION TIPS:
 - Home/property policies usually have no drivers/vehicles — leave those arrays empty.
 - On spreadsheet exports, map the columns intelligently (e.g. "Insured Name" → customerName, "Cell" → phone1, "Eff Date" → effectiveDate).
 - If a document has no policy info (e.g. a driver license photo), return the client with an empty "policies" array — contact info alone is still valuable.
-- Omit any field you can't find. Never guess SSNs, license numbers, or VINs.`;
+- Omit any field you can't find. Never guess SSNs, license numbers, or VINs.
+
+CERTIFICATE OF LIABILITY INSURANCE (ACORD 25):
+The agency issues certificates from this data, and a certificate is a legal statement of coverage — a wrong limit on one is a real liability, so accuracy here matters more than completeness.
+- Include the "certificate" object ONLY when the policy is one of the four lines an ACORD 25 carries: General Liability, Automobile Liability, Umbrella/Excess, or Workers Compensation. Omit it entirely for homeowners, flood, boat and every other line — those have no row on the form.
+- Copy limits EXACTLY as the declaration page states them, digits only (1,000,000 not "1M", 2000000 not "two million"). Omit any limit the document does not state. Never infer a limit from a premium, from another limit, or from what is typical — a limit you did not read is a limit you must leave out.
+- In your summary sentence, say plainly which of the four certificate lines you found, so the agent knows what the certificate will cover before they open it.`;
 }
 
 // ── API call (same proxy as Binder Book) ─────────────────────
@@ -5605,6 +5637,7 @@ function aiCreateClient(setIdx, clientIdx, silent) {
 
     // Add policies (skip duplicates by policy number for this client)
     let added = 0, skipped = 0;
+    const addedPolicies = [];
     const pols = Array.isArray(c.policies) ? c.policies : [];
     if (pols.length) {
         const binder = amsGetBinderData();
@@ -5642,6 +5675,7 @@ function aiCreateClient(setIdx, clientIdx, silent) {
                 drivers:  Array.isArray(p.drivers)  ? p.drivers.map(d => ({ firstName: d.firstName || '', lastName: d.lastName || '', dob: d.dob || '', dl: d.dl || '' })) : [],
                 vehicles: Array.isArray(p.vehicles) ? p.vehicles.map(v => ({ year: String(v.year || ''), make: v.make || '', model: v.model || '', vin: String(v.vin || '').replace(/\s+/g, '').toUpperCase() })) : []
             });
+            addedPolicies.push(binder[binder.length - 1]);
             added++;
         });
         amsSave('binderData', binder);
@@ -5663,8 +5697,15 @@ function aiCreateClient(setIdx, clientIdx, silent) {
     if (!silent) {
         amsLoadClientDetail(key);
         amsFlashBanner(`${existedBefore ? 'Client updated' : 'Client created'}: ${name} ✓`);
+        // The policies just read off the declaration page may be lines the
+        // ACORD 25 carries. Ask before building anything — and let the
+        // offer itself name which lines matched, so the agent is deciding
+        // about a certificate, not about a dialog.
+        if (addedPolicies.length && window.UIBCertUI) {
+            setTimeout(() => window.UIBCertUI.offerFromExtraction(key, name, addedPolicies), 250);
+        }
     }
-    return { key, name, existedBefore, added, skipped };
+    return { key, name, existedBefore, added, skipped, addedPolicies };
 }
 
 function aiCreateAllClients(setIdx) {

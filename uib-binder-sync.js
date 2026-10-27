@@ -44,7 +44,8 @@
     var MERGE_KEYS = [
         'binderData', 'agentMasterData', 'commissionData', 'carrierMasterData',
         'prospectData', 'verificationLogs', 'commissionStatements',
-        'underwritingData', 'healthData', 'healthCarrierData', 'amsClientData'
+        'underwritingData', 'healthData', 'healthCarrierData', 'amsClientData',
+        'certificateData'
     ];
     var TOMBSTONE_KEYS = ['binderDeletedIds', 'verificationLogsDeleted'];
     var TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -214,16 +215,30 @@
         return merged;
     }
 
-    // Client contact records are a map of client key -> contact, not an id
-    // array, so they get a union instead: the cloud's clients first, then
-    // this device's overlaid on top. Like the entry merge it can only ever
-    // ADD, so a stale AMS tab cannot drop contacts another device added.
-    // Deleting a client is therefore not propagated by a save — losing a
-    // contact record silently is the worse failure of the two.
+    // Contact records and certificates are maps of key -> record, not id
+    // arrays, so they get a union: the cloud's records first, then this
+    // device's on top. Where BOTH hold the same record, the newer
+    // updatedAt wins — two agents editing different clients must not
+    // overwrite each other just because one saved second. Like the entry
+    // merge it can only ever ADD, so a stale AMS tab cannot drop a record
+    // another device added. Deleting is therefore not propagated by a
+    // save: losing a client or a certificate silently is the worse
+    // failure of the two (certificates are voided, not deleted).
+    var RECORD_MAP_KEYS = ['amsClientData', 'certificateData'];
+
     function mergeClientData(localObj, cloudObj) {
         var out = {};
+        var stamp = function (r) {
+            var t = r && (r.updatedAt || r.createdAt);
+            if (!t) return 0;
+            var n = typeof t === 'number' ? t : Date.parse(t);
+            return isFinite(n) ? n : 0;
+        };
         if (cloudObj && typeof cloudObj === 'object') Object.keys(cloudObj).forEach(function (k) { out[k] = cloudObj[k]; });
-        if (localObj && typeof localObj === 'object') Object.keys(localObj).forEach(function (k) { out[k] = localObj[k]; });
+        if (localObj && typeof localObj === 'object') Object.keys(localObj).forEach(function (k) {
+            var mine = localObj[k], theirs = out[k];
+            out[k] = (theirs && stamp(theirs) > stamp(mine)) ? theirs : mine;
+        });
         return out;
     }
 
@@ -261,6 +276,12 @@
 
         if (key === 'binderData') {
             value = stampChanged(Array.isArray(value) ? value : []);
+            // Mirror locally BEFORE the cloud round trip. Callers save and
+            // then immediately re-read and re-render (amsSavePolicyModal
+            // does exactly that), so deferring this until the network
+            // answers would redraw the screen from the pre-save copy. The
+            // merged result overwrites this a moment later.
+            rawSet('binderData', JSON.stringify(value));
             return syncTombstones('binderDeletedIds').then(function (tombs) {
                 return readCloud('binderData').then(function (cloudRes) {
                     // Cloud unreachable: merging against an empty array and
@@ -309,18 +330,19 @@
             });
         }
 
-        if (key === 'amsClientData') {
-            return readCloud('amsClientData').then(function (cloudRes) {
+        if (RECORD_MAP_KEYS.indexOf(key) !== -1) {
+            rawSet(key, JSON.stringify(value));   // same reasoning as binderData above
+            return readCloud(key).then(function (cloudRes) {
                 if (!cloudRes.ok) {
-                    console.warn('Skipping amsClientData cloud write — cloud read failed; local copy kept.');
-                    rawSet('amsClientData', JSON.stringify(value));
+                    console.warn('Skipping ' + key + ' cloud write — cloud read failed; local copy kept.');
+                    rawSet(key, JSON.stringify(value));
                     return false;
                 }
                 var merged = mergeClientData(value, cloudRes.value);
-                rawSet('amsClientData', JSON.stringify(merged));
-                return writeCloud('amsClientData', merged).then(function () { return true; });
+                rawSet(key, JSON.stringify(merged));
+                return writeCloud(key, merged).then(function () { return true; });
             }).catch(function (e) {
-                console.warn('Cloud write failed for amsClientData:', e);
+                console.warn('Cloud write failed for ' + key + ':', e);
                 return false;
             });
         }
@@ -368,24 +390,27 @@
     // A new client shows up as both a policy entry and a contact record, so
     // a refresh has to bring down both or the client list and the contact
     // card disagree.
-    function pullClientData() {
-        return readCloud('amsClientData').then(function (res) {
+    function pullRecordMap(key) {
+        return readCloud(key).then(function (res) {
             if (!res.ok) return { ok: false, changed: false };
-            var local = readLocal('amsClientData', {});
+            var local = readLocal(key, {});
             var merged = mergeClientData(local, res.value);
             var str = JSON.stringify(merged);
             var changed = str !== JSON.stringify(local);
-            if (changed) rawSet('amsClientData', str);
+            if (changed) rawSet(key, str);
             return { ok: true, changed: changed };
         }).catch(function () { return { ok: false, changed: false }; });
     }
 
+    function pullClientData() { return pullRecordMap('amsClientData'); }
+
     function pull() {
-        return Promise.all([pullBinderData(), pullClientData()]).then(function (r) {
+        var jobs = [pullBinderData()].concat(RECORD_MAP_KEYS.map(pullRecordMap));
+        return Promise.all(jobs).then(function (r) {
             return {
-                ok: r[0].ok || r[1].ok,
+                ok: r.some(function (x) { return x.ok; }),
                 count: r[0].count,
-                changed: !!(r[0].changed || r[1].changed)
+                changed: r.some(function (x) { return x.changed; })
             };
         });
     }

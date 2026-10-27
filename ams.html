@@ -1391,6 +1391,7 @@
                         <button class="ams-tab"         data-tab="communications" onclick="amsShowTab('communications')"><i data-lucide="phone-call"></i> Communications <span id="commTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="documents" onclick="amsShowTab('documents')"><i data-lucide="folder-open"></i> Documents <span id="docTabBadge" style="display:none;background:var(--blue);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="forms" onclick="amsShowTab('forms')"><i data-lucide="clipboard-list"></i> Forms</button>
+                        <button class="ams-tab"         data-tab="certificates" onclick="amsShowTab('certificates')"><i data-lucide="award"></i> Certificate Master</button>
                     </div>
 
                     <!-- ── TAB: Contact Info ── -->
@@ -1712,6 +1713,22 @@
                     </div><!-- /tabDocuments -->
 
                     <!-- ── TAB: Forms ── -->
+                    <div id="tabCertificates" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:12px;flex-wrap:wrap;">
+                            <h3 style="color:var(--navy);font-size:16px;"><i data-lucide="award" style="width:16px;height:16px;vertical-align:-3px;"></i> Certificate Master</h3>
+                            <div style="display:flex;gap:8px;">
+                                <button onclick="certEditProducer()" style="padding:7px 13px;background:#fff;color:var(--navy);border:1px solid var(--gray-200);border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">Agency details</button>
+                                <button onclick="certNewForClient()" style="padding:7px 14px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">+ New certificate</button>
+                            </div>
+                        </div>
+                        <p style="font-size:11px;color:var(--gray-400);margin-bottom:14px;">
+                            Certificates of Liability Insurance for this client. Each one prints on the official
+                            ACORD 25 (2025/12) form — the agency's own form file is filled directly, so what the
+                            holder receives is the real ACORD document.
+                        </p>
+                        <div id="certMasterList"></div>
+                    </div>
+
                     <div id="tabForms" style="display:none;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
                             <h3 style="color:var(--navy);font-size:16px;"><i data-lucide="clipboard-list" style="width:16px;height:16px;vertical-align:-3px;"></i> ACORD Forms</h3>
@@ -2210,7 +2227,10 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261027a"></script>
+    <script src="ams.js?v=20261027b"></script>
+    <script src="acord25-map.js?v=20261027a"></script>
+    <script src="certificates.js?v=20261027a"></script>
+    <script src="certificates-ui.js?v=20261027a"></script>
     <script src="supabase.js?v=20261027a"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
