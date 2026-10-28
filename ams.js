@@ -613,6 +613,16 @@ function amsStartLiveRefresh() {
     }
 }
 
+// Point the login screen's "← Back to Binder Book" link at wherever the
+// Binder Book actually is. On this site's own copy of the AMS the markup's
+// relative href is already right; on the standalone deployment it is not,
+// and config is the one place that knows.
+function amsSetBinderLink() {
+    var a = document.getElementById('amsBackToBinder');
+    var url = (window.UIB_CONFIG || {}).BINDER_URL;
+    if (a && url) a.href = url;
+}
+
 // A ?client= link from the Binder Book opens that client's profile here.
 // The key is the upper-cased, space-collapsed customer name, which is what
 // amsClientKey produces, so the two sides agree without storing an id.
@@ -1116,7 +1126,7 @@ async function amsPerformMerge(primaryKey, sourceKeys) {
                 }
             }
         });
-        if (changed) localStorage.setItem('acordSavedForms', JSON.stringify(forms));
+        if (changed) amsSave('acordSavedForms', forms);
     } catch (e) { /* forms are best-effort */ }
 
     // 4) Move local (IndexedDB) documents onto the primary key.
@@ -1379,13 +1389,13 @@ function amsRenderNotes(key) {
 
 // ── Tabs ─────────────────────────────────────────────────────
 function amsShowTab(tab) {
-    ['contact','policies','notes','communications','documents','forms','certificates'].forEach(t => {
+    ['contact','policies','notes','communications','documents','clientApps','certificates'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         if (el) el.style.display = t === tab ? 'block' : 'none';
         document.querySelector(`.ams-tab[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
     });
     if (tab === 'documents' && amsActiveKey) amsRenderFileGrid();
-    if (tab === 'forms' && amsActiveKey) acordRenderFormsList();
+    if (tab === 'clientApps' && amsActiveKey) clientAppsRender();
     if (tab === 'certificates' && amsActiveKey && typeof certRenderList === 'function') certRenderList();
     if (tab === 'communications' && amsActiveKey && typeof amsRenderCommunications === 'function') amsRenderCommunications(amsActiveKey);
 }
@@ -1682,6 +1692,7 @@ async function amsPullCredentialsFromDrive() { /* logins live in Supabase Auth n
 
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
+    amsSetBinderLink();
 
     // Already signed in (opened from the Binder Book, or same tab)? Go straight in.
     const authUser = (window.UIBAuth && UIBAuth.user()) || null;
@@ -4962,6 +4973,111 @@ function acordGetClientMapping() {
     };
 }
 
+// ── Client Apps ──────────────────────────────────────────────
+// The tab holds two things: the applications already filled out for this
+// client (at the top — that is the work, and what an agent comes back
+// for) and, behind a toggle, the blank ACORD library to start a new one.
+
+// Saved drafts live in `acordSavedForms` under `${clientKey}_${formId}`.
+// Older drafts carry only field values; the metadata below is added on
+// save, so anything saved before this is shown without a date rather
+// than hidden.
+function clientAppsSavedFor(clientKey) {
+    var out = [];
+    var all = {};
+    try { all = JSON.parse(localStorage.getItem('acordSavedForms') || '{}'); } catch (e) { return out; }
+    Object.keys(all).forEach(function (k) {
+        if (k.indexOf(clientKey + '_') !== 0) return;
+        if (all[k] && all[k]._deleted) return;          // soft-deleted elsewhere
+        var formId = k.slice(clientKey.length + 1);
+        var form   = ACORD_FORMS.find(function (f) { return f.id === formId; });
+        if (!form) return;                      // a form we no longer ship
+        var data   = all[k] || {};
+        var filled = Object.keys(data).filter(function (f) {
+            return f !== 'updatedAt' && f !== 'savedBy' && String(data[f] || '').trim() !== '';
+        }).length;
+        out.push({ storageKey: k, form: form, filled: filled,
+                   updatedAt: data.updatedAt || 0, savedBy: data.savedBy || '' });
+    });
+    return out.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+}
+
+function clientAppsRender() {
+    var el = document.getElementById('clientAppsSaved');
+    if (!el) return;
+    if (!amsActiveKey) { el.innerHTML = '<p style="color:var(--gray-400);font-size:12px;">Select a client first.</p>'; return; }
+
+    var saved = clientAppsSavedFor(amsActiveKey);
+    if (!saved.length) {
+        el.innerHTML =
+            '<div style="border:1px dashed var(--gray-200);border-radius:10px;padding:22px 16px;text-align:center;color:var(--gray-400);">' +
+              '<div style="font-size:24px;margin-bottom:6px;">🗂</div>' +
+              '<p style="font-size:12px;margin:0;">No applications saved for this client yet.</p>' +
+              '<p style="font-size:11px;margin:4px 0 0;">Open <strong>Forms</strong> below and fill one in — it will be listed here.</p>' +
+            '</div>';
+        return;
+    }
+
+    el.innerHTML =
+        '<div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">' +
+          'Saved applications · ' + saved.length +
+        '</div>' +
+        saved.map(function (s) {
+            var when = s.updatedAt
+                ? new Date(s.updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                : 'saved earlier';
+            return '' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;' +
+                 'border:1px solid var(--gray-200);border-radius:10px;padding:12px 14px;margin-bottom:8px;">' +
+              '<div style="min-width:0;">' +
+                '<div style="font-weight:700;color:var(--navy);font-size:13px;">' +
+                   s.form.icon + ' ' + amsEscHtml(s.form.num) + ' — ' + amsEscHtml(s.form.name) +
+                '</div>' +
+                '<div style="font-size:11px;color:var(--gray-500);margin-top:3px;">' +
+                   s.filled + ' field' + (s.filled === 1 ? '' : 's') + ' filled · ' + amsEscHtml(when) +
+                   (s.savedBy ? ' · ' + amsEscHtml(s.savedBy) : '') +
+                '</div>' +
+              '</div>' +
+              '<div style="display:flex;gap:6px;flex-shrink:0;">' +
+                '<button onclick="acordOpenForm(\'' + amsEsc(s.form.id) + '\')" style="padding:6px 13px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Open</button>' +
+                '<button onclick="clientAppsDeleteSaved(\'' + amsEsc(s.storageKey) + '\')" style="padding:6px 11px;background:#fff;color:#991b1b;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Delete</button>' +
+              '</div>' +
+            '</div>';
+        }).join('');
+}
+
+// Expanding renders the library on first open, so a client with no saved
+// applications does not pay for building forty cards.
+function clientAppsToggleForms() {
+    var body = document.getElementById('clientAppsFormsBody');
+    var hint = document.getElementById('clientAppsFormsHint');
+    var btn  = document.getElementById('clientAppsFormsToggle');
+    if (!body) return;
+    var open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    if (hint) hint.textContent = open ? 'Show' : 'Hide';
+    if (btn)  btn.setAttribute('aria-expanded', String(!open));
+    if (!open) {
+        acordRenderFormsList();
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+function clientAppsDeleteSaved(storageKey) {
+    var all = {};
+    try { all = JSON.parse(localStorage.getItem('acordSavedForms') || '{}'); } catch (e) { return; }
+    var entry = all[storageKey];
+    if (!entry) return;
+    if (!confirm('Delete this saved application?\n\nThe filled-in answers are discarded. The blank form stays available.')) return;
+    // Marked deleted rather than removed. Shared records merge by union, so
+    // a key that simply disappears here is restored from another device's
+    // copy on the next pull; a newer updatedAt carrying the flag travels.
+    all[storageKey] = { _deleted: true, updatedAt: Date.now(), savedBy: amsCurrentUser || '' };
+    amsSave('acordSavedForms', all);
+    clientAppsRender();
+    amsFlashBanner('Saved application deleted');
+}
+
 function acordRenderFormsList() {
     const el = document.getElementById('acordFormsList');
     if (!el) return;
@@ -5134,9 +5250,16 @@ function acordSaveForm(formId) {
         });
     });
 
+    // Stamped so the Client Apps list can show when it was saved and by
+    // whom. Neither name collides with an ACORD field id, and acordOpenForm
+    // reads values by field id, so the extra keys are inert on reload.
+    data.updatedAt = Date.now();
+    data.savedBy   = amsCurrentUser || '';
+
     const savedForms = JSON.parse(localStorage.getItem('acordSavedForms') || '{}');
     savedForms[amsActiveKey + '_' + formId] = data;
-    localStorage.setItem('acordSavedForms', JSON.stringify(savedForms));
+    amsSave('acordSavedForms', savedForms);
+    if (typeof clientAppsRender === 'function') clientAppsRender();
     alert('Draft saved for ' + form.num + '!');
 }
 

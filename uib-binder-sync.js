@@ -45,7 +45,7 @@
         'binderData', 'agentMasterData', 'commissionData', 'carrierMasterData',
         'prospectData', 'verificationLogs', 'commissionStatements',
         'underwritingData', 'healthData', 'healthCarrierData', 'amsClientData',
-        'certificateData'
+        'certificateData', 'acordSavedForms'
     ];
     var TOMBSTONE_KEYS = ['binderDeletedIds', 'verificationLogsDeleted'];
     var TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -224,7 +224,7 @@
     // another device added. Deleting is therefore not propagated by a
     // save: losing a client or a certificate silently is the worse
     // failure of the two (certificates are voided, not deleted).
-    var RECORD_MAP_KEYS = ['amsClientData', 'certificateData'];
+    var RECORD_MAP_KEYS = ['amsClientData', 'certificateData', 'acordSavedForms'];
 
     function mergeClientData(localObj, cloudObj) {
         var out = {};

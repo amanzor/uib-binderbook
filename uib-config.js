@@ -14,6 +14,12 @@ window.UIB_CONFIG = {
     // follow it — no other change needed.
     AMS_URL: '/ams',
 
+    // Where the Binder Book lives, for the AMS's "← Back to Binder Book"
+    // link. It is read at load rather than written into the markup so that
+    // ams.html is byte-identical in both repositories — a file that has to
+    // be hand-edited on the way across is a file that goes stale.
+    BINDER_URL: 'https://uib-binderbook.vercel.app',
+
     SUPABASE_URL:  'https://jgjmobktucyimupelfxd.supabase.co',
     SUPABASE_ANON: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ'
 };
