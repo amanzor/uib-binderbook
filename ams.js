@@ -608,9 +608,63 @@ function amsStartLiveRefresh() {
     if (!_amsRefreshBound) {
         _amsRefreshBound = true;
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) amsRefreshFromCloud();
+            if (!document.hidden) { amsRefreshFromCloud(); amsCheckForUpdate(); }
         });
     }
+    // Records the current page's ETag now, so only a deploy AFTER this
+    // point raises the banner.
+    amsCheckForUpdate();
+    setInterval(amsCheckForUpdate, AMS_UPDATE_CHECK_MS);
+}
+
+// ── Stale-tab guard ──────────────────────────────────────────
+// The Binder Book has APP_BUILD: a tab left open across a deploy notices
+// and reloads. The AMS had nothing, so an agent who leaves it open for
+// days keeps running whatever shipped the day they opened it — which is
+// how a browser pointed at a deployment that HAS a Certificate Master tab
+// shows one that does not.
+//
+// This needs no build step and no new file: the server already sends an
+// ETag for this page, so an ETag that has changed since load IS a new
+// deployment. The agent is offered the reload rather than having it
+// forced — they may be halfway through a form.
+const AMS_UPDATE_CHECK_MS = 5 * 60 * 1000;
+let _amsPageTag     = null;
+let _amsUpdateShown = false;
+
+async function amsCheckForUpdate() {
+    if (_amsUpdateShown || document.hidden) return;
+    let tag;
+    try {
+        const res = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' });
+        if (!res.ok) return;
+        tag = res.headers.get('etag') || res.headers.get('last-modified');
+    } catch (e) { return; }                 // offline: nothing to say
+    if (!tag) return;                       // no validator: cannot tell, stay quiet
+    if (_amsPageTag === null) { _amsPageTag = tag; return; }
+    if (tag === _amsPageTag) return;
+    _amsUpdateShown = true;
+    amsShowUpdateBanner();
+}
+
+function amsShowUpdateBanner() {
+    if (document.getElementById('amsUpdateBanner')) return;
+    const bar = document.createElement('div');
+    bar.id = 'amsUpdateBanner';
+    bar.style.cssText =
+        'position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:100001;' +
+        'display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:11px;' +
+        'background:#0d1f3c;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.35);' +
+        'font-family:system-ui,Arial,sans-serif;font-size:13px;max-width:92vw;';
+    bar.innerHTML =
+        '<span>A newer version of the AMS has been released.</span>' +
+        '<button id="amsUpdateReload" style="background:#22c55e;color:#fff;border:none;border-radius:7px;' +
+            'padding:7px 14px;font-weight:700;font-size:12px;cursor:pointer;">Reload</button>' +
+        '<button id="amsUpdateLater" style="background:none;color:rgba(255,255,255,.7);border:none;' +
+            'font-size:12px;cursor:pointer;">Later</button>';
+    document.body.appendChild(bar);
+    bar.querySelector('#amsUpdateReload').onclick = function () { location.reload(); };
+    bar.querySelector('#amsUpdateLater').onclick  = function () { bar.remove(); };
 }
 
 // Point the login screen's "← Back to Binder Book" link at wherever the

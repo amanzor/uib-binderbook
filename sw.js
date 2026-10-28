@@ -1,18 +1,25 @@
-const CACHE = 'uib-app-v3';
+const CACHE = 'uib-app-v4';
+// Offline fallbacks only — the fetch handler below is network-first, so
+// these are what a device falls back to with no connection, never what a
+// connected one is served.
+//
+// Listed WITHOUT the `?v=` cache-busting suffixes the pages use. A pinned
+// version here goes stale the moment a file is bumped, leaving an entry
+// that can never match; the offline lookup already retries with
+// ignoreSearch, so the bare path is both simpler and durable.
 const SHELL = [
   '/',
   '/index.html',
   '/ams',
-  '/ams.html',
   '/manifest.json',
-  '/icon.png?v=20261015w',
+  '/icon.png',
   '/icons/uib-w-192.png',
   '/icons/uib-w-512.png',
-  '/uib-theme.css?v=20261003a',
-  '/uib-motion.js?v=20261002a',
+  '/uib-theme.css',
+  '/uib-motion.js',
   '/lz-string.min.js',
-  '/storage-codec.js?v=20260914a',
-  '/supabase.js?v=20260916a'
+  '/storage-codec.js',
+  '/supabase.js'
 ];
 const CDN_OK = ['https://unpkg.com/', 'https://cdn.jsdelivr.net/', 'https://fonts.googleapis.com/', 'https://fonts.gstatic.com/'];
 const NEVER_CACHE = ['supabase.co', 'zippopotam.us', 'nhtsa.dot.gov'];
