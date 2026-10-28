@@ -200,27 +200,106 @@
             saveBar();
     }
 
-    // The roster is already maintained under Agent Management; showing it
-    // here rather than keeping a second list means the two cannot disagree.
-    function agentsTab() {
+    // The agent roster is the Binder Book's: agentMasterData, which both
+    // apps sync from the same cloud row, so this is the Agent Management
+    // list rather than a second copy that would drift from it.
+    //
+    // Anyone who has written business is shown too, even if they were never
+    // added to the roster — an agent on policies but not on the list is
+    // exactly the thing worth seeing here, not hiding.
+    function agentsFromBinderBook() {
         var master = {};
         try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
-        var names = Object.keys(master).sort();
-        if (!names.length) {
-            return '<p style="color:var(--gray-400);font-size:12px;">No agents on the roster yet.</p>';
-        }
-        return '<p style="font-size:11px;color:var(--gray-400);margin-bottom:12px;">' +
-                 names.length + ' agent' + (names.length === 1 ? '' : 's') +
-                 ' on the roster. This is the Agent Management list — change it there and it changes here.</p>' +
-               '<div style="border:1px solid var(--gray-200);border-radius:9px;overflow:hidden;">' +
-               names.map(function (n, i) {
-                   var a = master[n] || {};
-                   return '<div style="display:flex;justify-content:space-between;gap:12px;padding:11px 14px;' +
-                       (i ? 'border-top:1px solid var(--gray-200);' : '') + '">' +
-                       '<span style="font-weight:600;color:var(--navy);font-size:13px;">' + esc(n) + '</span>' +
-                       '<span style="font-size:12px;color:var(--gray-500);">' + esc(a.email || '—') + '</span>' +
+
+        var book = [];
+        try {
+            var b = JSON.parse(localStorage.getItem('binderData'));
+            if (Array.isArray(b)) book = b;
+            else if (b && Array.isArray(b.value)) book = b.value;
+        } catch (e) {}
+
+        var rows = {};
+        Object.keys(master).forEach(function (name) {
+            var m = master[name] || {};
+            rows[name] = {
+                name: name, onRoster: true,
+                email: m.email || '', phone: m.phone || '', address: m.address || '',
+                licenses: Array.isArray(m.licenses) ? m.licenses : [],
+                policies: 0, premium: 0, last: ''
+            };
+        });
+
+        book.forEach(function (e) {
+            var n = (e && e.agent) ? String(e.agent).trim() : '';
+            if (!n) return;
+            if (!rows[n]) {
+                rows[n] = { name: n, onRoster: false, email: '', phone: '', address: '',
+                            licenses: [], policies: 0, premium: 0, last: '' };
+            }
+            rows[n].policies += 1;
+            rows[n].premium  += parseFloat(e.totalPremium) || 0;
+            var d = e.entryDate || e.effectiveDate || '';
+            if (d && d > rows[n].last) rows[n].last = d;
+        });
+
+        return Object.keys(rows).map(function (k) { return rows[k]; })
+            .sort(function (a, b) {
+                if (b.policies !== a.policies) return b.policies - a.policies;
+                return a.name.localeCompare(b.name);
+            });
+    }
+
+    function money(n) {
+        return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function agentsTab() {
+        var list = agentsFromBinderBook();
+        if (!list.length) {
+            return '<div style="border:1px dashed var(--gray-200);border-radius:10px;padding:24px 16px;text-align:center;color:var(--gray-400);">' +
+                     '<p style="font-size:12px;margin:0 0 4px;">No agents yet.</p>' +
+                     '<p style="font-size:11px;margin:0;">The roster comes from the Binder Book\'s Agent Management list, ' +
+                     'and anyone who writes a policy appears here too.</p>' +
                    '</div>';
-               }).join('') + '</div>';
+        }
+
+        var offRoster = list.filter(function (a) { return !a.onRoster; }).length;
+
+        return '<p style="font-size:11px;color:var(--gray-400);margin-bottom:12px;">' +
+                 list.length + ' agent' + (list.length === 1 ? '' : 's') +
+                 ' — from the Binder Book\'s Agent Management list, with what each has written.' +
+                 (offRoster ? ' <strong style="color:#b45309;">' + offRoster + ' not on the roster.</strong>' : '') +
+               '</p>' +
+               '<div style="border:1px solid var(--gray-200);border-radius:10px;overflow:hidden;">' +
+               list.map(function (a, i) {
+                   var bits = [];
+                   if (a.email)   bits.push('✉️ ' + esc(a.email));
+                   if (a.phone)   bits.push('📞 ' + esc(a.phone));
+                   if (a.licenses.length) bits.push('🪪 ' + esc(a.licenses.join(', ')));
+                   if (a.address) bits.push('📍 ' + esc(a.address));
+                   return '<div style="padding:12px 15px;' + (i ? 'border-top:1px solid var(--gray-200);' : '') +
+                              'display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;">' +
+                       '<div style="min-width:0;">' +
+                         '<div style="font-weight:700;color:var(--navy);font-size:13px;">' + esc(a.name) +
+                           (a.onRoster ? ''
+                              : ' <span style="background:#fef3c7;color:#92400e;border-radius:9px;padding:2px 7px;' +
+                                'font-size:10px;font-weight:700;">not on the roster</span>') +
+                         '</div>' +
+                         '<div style="font-size:11px;color:var(--gray-500);margin-top:3px;">' +
+                           (bits.length ? bits.join(' &nbsp; ') : 'No contact details on the roster') +
+                         '</div>' +
+                       '</div>' +
+                       '<div style="text-align:right;flex-shrink:0;">' +
+                         '<div style="font-weight:700;color:var(--navy);font-size:13px;">' +
+                            a.policies + ' polic' + (a.policies === 1 ? 'y' : 'ies') + '</div>' +
+                         '<div style="font-size:11px;color:var(--gray-500);margin-top:3px;">' +
+                            money(a.premium) + (a.last ? ' · last ' + esc(a.last) : '') + '</div>' +
+                       '</div>' +
+                   '</div>';
+               }).join('') + '</div>' +
+               '<p style="font-size:11px;color:var(--gray-400);margin-top:12px;">' +
+                 'Add, edit or remove agents in the Binder Book under Agent Management — this list follows it.' +
+               '</p>';
     }
 
     // Commission lives in the Accounting and Commission screens already.
