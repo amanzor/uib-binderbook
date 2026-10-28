@@ -45,7 +45,7 @@
         'binderData', 'agentMasterData', 'commissionData', 'carrierMasterData',
         'prospectData', 'verificationLogs', 'commissionStatements',
         'underwritingData', 'healthData', 'healthCarrierData', 'amsClientData',
-        'certificateData', 'acordSavedForms'
+        'certificateData', 'acordSavedForms', 'agencyProfile'
     ];
     var TOMBSTONE_KEYS = ['binderDeletedIds', 'verificationLogsDeleted'];
     var TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -224,6 +224,11 @@
     // another device added. Deleting is therefore not propagated by a
     // save: losing a client or a certificate silently is the worse
     // failure of the two (certificates are voided, not deleted).
+    //
+    // agencyProfile is deliberately NOT here. It is one settings record,
+    // not a map of them, so a per-field union would let a device that has
+    // a field blank beat one that has it filled. It takes the plain-upsert
+    // path instead: the whole record is written as a unit.
     var RECORD_MAP_KEYS = ['amsClientData', 'certificateData', 'acordSavedForms'];
 
     function mergeClientData(localObj, cloudObj) {
