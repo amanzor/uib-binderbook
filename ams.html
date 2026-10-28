@@ -698,7 +698,9 @@
 
         <!-- Header -->
         <header class="ams-header">
-            <div class="logo">
+            <div class="logo" onclick="amsSidebarNav('agency')" role="button" tabindex="0"
+                 title="Agency Profile" style="cursor:pointer;"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();amsSidebarNav('agency');}">
                 <i data-lucide="building-2" style="width:20px;height:20px;"></i>
                 UIB AMS
                 <span class="badge">Agency Management</span>
@@ -723,16 +725,9 @@
 
         <!-- Section tab bar (below header) -->
         <nav class="ams-tabbar" id="amsTabbar">
-            <!-- Dashboard carries a menu: the agency-wide screens hang off it
-                 in a column rather than widening an already-scrolling tab bar. -->
             <div class="ams-nav-group" style="position:relative;display:flex;align-items:center;flex-shrink:0;">
                 <button class="ams-tab-btn" id="sidebarNavDashboard" onclick="amsSidebarNav('dashboard')">
                     <i data-lucide="layout-dashboard" style="width:15px;height:15px;"></i> Dashboard
-                </button>
-                <button class="ams-tab-btn" id="amsDashMenuBtn" onclick="amsToggleDashMenu(event)"
-                        aria-haspopup="true" aria-expanded="false" title="Agency"
-                        style="padding:8px 6px;margin-left:-8px;">
-                    <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
                 </button>
             </div>
             <button class="ams-tab-btn" id="sidebarNavReports" onclick="amsSidebarNav('reports')">
@@ -751,27 +746,6 @@
                 <i data-lucide="zap" style="width:15px;height:15px;"></i> Real Time
             </button>
         </nav>
-
-        <!-- The Dashboard menu lives OUTSIDE the tab bar on purpose: that bar
-             sets overflow:hidden for horizontal scrolling, which clips any
-             dropdown rendered inside it to an empty sliver. Positioned under
-             the Dashboard button at open time instead. -->
-        <div id="amsDashMenu" style="display:none;position:fixed;z-index:400;
-             min-width:200px;background:#fff;border:1px solid var(--gray-200);border-radius:10px;
-             box-shadow:0 12px 32px rgba(15,23,42,.18);padding:6px;">
-            <button onclick="amsDashMenuGo('agency')" style="display:flex;align-items:center;gap:9px;width:100%;
-                    padding:10px 11px;border:none;background:none;cursor:pointer;font-family:inherit;
-                    font-size:13px;font-weight:600;color:var(--gray-700);border-radius:7px;text-align:left;"
-                    onmouseover="this.style.background='var(--blue-pale,#eff6ff)'" onmouseout="this.style.background='none'">
-                <i data-lucide="building-2" style="width:15px;height:15px;"></i> Agency Profile
-            </button>
-            <button onclick="amsDashMenuGo('admin')" style="display:flex;align-items:center;gap:9px;width:100%;
-                    padding:10px 11px;border:none;background:none;cursor:pointer;font-family:inherit;
-                    font-size:13px;font-weight:600;color:var(--gray-700);border-radius:7px;text-align:left;"
-                    onmouseover="this.style.background='var(--blue-pale,#eff6ff)'" onmouseout="this.style.background='none'">
-                <i data-lucide="shield" style="width:15px;height:15px;"></i> Admin
-            </button>
-        </div>
 
         <!-- Body -->
         <div class="ams-body">
