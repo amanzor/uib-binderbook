@@ -617,113 +617,16 @@ function amsStartLiveRefresh() {
     setInterval(amsCheckForUpdate, AMS_UPDATE_CHECK_MS);
 }
 
-// ── Dashboard menu: Agency Profile and Admin ─────────────────
-function amsToggleDashMenu(ev) {
-    if (ev) ev.stopPropagation();
-    const m = document.getElementById('amsDashMenu');
-    const b = document.getElementById('amsDashMenuBtn');
-    if (!m) return;
-    const open = m.style.display !== 'none';
-    if (open) { amsCloseDashMenuOnce(); return; }
-    // Anchored to the Dashboard button at open time. The menu is a child of
-    // body, not of the tab bar, so it cannot be clipped by that bar's
-    // overflow — place it here rather than relying on CSS positioning.
-    const anchor = document.getElementById('sidebarNavDashboard');
-    if (anchor) {
-        const r = anchor.getBoundingClientRect();
-        m.style.top  = (r.bottom + 4) + 'px';
-        m.style.left = r.left + 'px';
-    }
-    m.style.display = 'block';
-    if (b) b.setAttribute('aria-expanded', 'true');
-    if (window.lucide) lucide.createIcons();
-    setTimeout(() => document.addEventListener('click', amsCloseDashMenuOnce, { once: true }), 0);
-}
-function amsCloseDashMenuOnce() {
-    const m = document.getElementById('amsDashMenu');
-    const b = document.getElementById('amsDashMenuBtn');
-    if (m) m.style.display = 'none';
-    if (b) b.setAttribute('aria-expanded', 'false');
-}
-
-function amsDashMenuGo(what) {
-    amsCloseDashMenuOnce();
-    if (what === 'agency') { amsSidebarNav('agency'); return; }
-    if (what === 'admin')  { amsAdminGate(); }
-}
-
-// Admin is a gate, not a page: it asks for the same administrator
-// credentials the login screen does and raises this session's role. An
-// agent who already signed in as an administrator is simply let through.
-function amsAdminGate() {
-    if (amsIsAdminUser()) {
-        amsFlashBanner('Already signed in as an administrator');
-        amsSidebarNav('agency');
-        return;
-    }
-    if (document.getElementById('amsAdminGateModal')) return;
-    const m = document.createElement('div');
-    m.id = 'amsAdminGateModal';
-    m.className = 'ams-modal open';
-    m.innerHTML =
-      '<div class="ams-modal-box" style="max-width:420px;">' +
-        '<h3><i data-lucide="shield"></i> Administrator sign-in</h3>' +
-        '<p style="font-size:12px;color:var(--gray-500);margin:-10px 0 16px;">' +
-          'Use the same administrator credentials as the login screen.</p>' +
-        '<div id="amsAdminGateForm" data-uib-login>' +
-          '<div class="form-group"><label>E-mail</label>' +
-            '<input type="email" id="amsGateEmail" placeholder="admin@email.com" autocomplete="username"></div>' +
-          '<div class="form-group"><label>Password</label>' +
-            '<input type="password" id="amsGatePassword" placeholder="Administrator password" autocomplete="current-password"></div>' +
-          '<div id="amsGateError" style="display:none;color:#dc2626;font-size:12px;margin-bottom:10px;"></div>' +
-        '</div>' +
-        '<div class="modal-actions">' +
-          '<button class="btn-secondary" onclick="amsCloseAdminGate()">Cancel</button>' +
-          '<button class="btn-primary" id="amsGateSubmit" onclick="amsAdminGateSubmit()">Sign in</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(m);
-    if (window.lucide) lucide.createIcons();
-    const pwd = document.getElementById('amsGatePassword');
-    if (pwd) pwd.addEventListener('keydown', e => { if (e.key === 'Enter') amsAdminGateSubmit(); });
-    setTimeout(() => document.getElementById('amsGateEmail')?.focus(), 60);
-}
-
-function amsCloseAdminGate() {
-    document.getElementById('amsAdminGateModal')?.remove();
-}
-
-function amsAdminGateSubmit() {
-    const email = (document.getElementById('amsGateEmail')?.value || '').trim().toLowerCase();
-    const pwd   = (document.getElementById('amsGatePassword')?.value || '');
-    const err   = document.getElementById('amsGateError');
-    const btn   = document.getElementById('amsGateSubmit');
-    const fail  = (msg) => {
-        if (err) { err.textContent = msg; err.style.display = 'block'; }
-        if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
-    };
-    if (!window.UIBAuth || !window.UIBMfa) return fail('Sign-in is unavailable on this device.');
-    if (!email || !pwd) return fail('Enter the e-mail and password.');
-    if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
-    if (err) err.style.display = 'none';
-
-    UIBMfa.signIn(email, pwd, document.getElementById('amsAdminGateForm')).then((user) => {
-        if (!user || user.role !== 'admin') {
-            // Signed in, but not an administrator: do not leave the session
-            // holding that identity.
-            UIBAuth.signOut();
-            return fail('This account is not an administrator.');
-        }
-        amsCurrentUser = 'Admin';
-        amsCurrentRole = 'admin';
-        const label = document.getElementById('amsUserLabel');
-        const av    = document.getElementById('amsUserAvatar');
-        if (label) label.textContent = amsCurrentUser;
-        if (av)    av.textContent    = 'AD';
-        amsCloseAdminGate();
-        amsFlashBanner('Administrator access granted ✓');
-        amsSidebarNav('agency');
-    }).catch(() => fail('Incorrect e-mail or password.'));
+// Enter the app if a session is present. Safe to call twice: the second
+// call finds amsCurrentUser already set and does nothing.
+function amsEnterIfSignedIn() {
+    if (amsCurrentUser) return true;
+    const u = (window.UIBAuth && UIBAuth.user()) || null;
+    if (!u) return false;
+    amsCurrentUser = (u.name && u.name !== 'Admin') ? u.name : 'Admin';
+    amsCurrentRole = u.role;
+    amsLaunchApp();
+    return true;
 }
 
 // ── Stale-tab guard ──────────────────────────────────────────
@@ -1858,11 +1761,15 @@ document.addEventListener('DOMContentLoaded', () => {
     amsSetBinderLink();
 
     // Already signed in (opened from the Binder Book, or same tab)? Go straight in.
-    const authUser = (window.UIBAuth && UIBAuth.user()) || null;
-    if (authUser) {
-        amsCurrentUser = (authUser.name && authUser.name !== 'Admin') ? authUser.name : 'Admin';
-        amsCurrentRole = authUser.role;
-        amsLaunchApp();
+    amsEnterIfSignedIn();
+
+    // Opened from the Binder Book on the other domain: the browser does not
+    // copy the sign-in across origins, so uib-auth.js asks the opener for it
+    // over postMessage. That answer is a round trip away — wait for it
+    // rather than flashing a login screen at an agent who is signed in. If
+    // no answer comes, the login screen is already what is on screen.
+    if (!amsCurrentUser && window.opener) {
+        window.addEventListener('uib-auth-adopted', amsEnterIfSignedIn, { once: true });
     }
 
     // Pre-fill remembered email

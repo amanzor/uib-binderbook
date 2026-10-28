@@ -306,6 +306,84 @@
         return true;
     }
 
+    // ── Cross-app session bridge ───────────────────────────────
+    // The session lives in sessionStorage, which the browser copies into a
+    // tab this app opens itself — but ONLY when that tab is the same
+    // origin. The AMS is its own deployment now, so clicking "AMS" would
+    // otherwise drop an already-signed-in agent on a second login screen.
+    //
+    // The two windows hand the session over directly instead. Nothing goes
+    // in the URL, so no token reaches the address bar, browser history, a
+    // server log or a Referer header. Both ends check the exact origin of
+    // the other, and a reply is addressed to that one origin — never '*',
+    // which would hand the session to whatever page happened to ask.
+    function originOf(u) {
+        try { return new URL(u, location.href).origin; } catch (e) { return ''; }
+    }
+
+    // The other UIB app's origin(s), from config. Our own origin is left
+    // out: a same-origin tab already inherits the session by itself.
+    function peerOrigins() {
+        const cfg = window.UIB_CONFIG || {};
+        const out = [];
+        [cfg.AMS_URL, cfg.BINDER_URL].forEach((u) => {
+            const o = u ? originOf(u) : '';
+            if (o && o !== location.origin && out.indexOf(o) === -1) out.push(o);
+        });
+        return out;
+    }
+
+    // Take a session handed over by the other app. Refuses anything that is
+    // not a complete, unexpired, fully-authenticated session — a half-done
+    // MFA sign-in must never arrive here as a finished one.
+    function adoptSession(s) {
+        if (!s || typeof s !== 'object') return false;
+        if (!s.access_token || !s.refresh_token || !s.user) return false;
+        if (s.pendingMfa) return false;
+        if (s.expires_at && (s.expires_at * 1000) <= Date.now()) return false;
+        const copy = Object.assign({}, s);
+        delete copy.pendingMfa;
+        copy.lastActive = Date.now();
+        writeSession(copy);
+        try {
+            sessionStorage.setItem('uibCurrentUser',
+                (copy.user.role === 'admin' && (!copy.user.name || copy.user.name === 'Admin')) ? 'Admin' : copy.user.name);
+        } catch (e) {}
+        return true;
+    }
+
+    function bridge() {
+        const peers = peerOrigins();
+        if (!peers.length) return;
+
+        window.addEventListener('message', (e) => {
+            if (peers.indexOf(e.origin) === -1) return;       // not one of our apps
+            const d = e.data;
+            if (!d || typeof d !== 'object') return;
+
+            if (d.uib === 'auth-request') {
+                if (!e.source) return;
+                const s = readSession();
+                if (!s || !s.access_token || s.pendingMfa) return;   // nothing worth sending
+                e.source.postMessage({ uib: 'auth-session', session: s }, e.origin);
+                return;
+            }
+            if (d.uib === 'auth-session' && !isSignedIn()) {
+                if (adoptSession(d.session)) {
+                    try { window.dispatchEvent(new CustomEvent('uib-auth-adopted')); } catch (err) {}
+                }
+            }
+        });
+
+        // Ask whoever opened this window — but only if we actually need a
+        // session, and only addressed to our own other app.
+        if (!isSignedIn() && window.opener) {
+            peers.forEach((o) => {
+                try { window.opener.postMessage({ uib: 'auth-request' }, o); } catch (err) {}
+            });
+        }
+    }
+
     function token() { const s = readSession(); return s ? s.access_token : null; }
     function user() { const s = readSession(); return (s && !s.pendingMfa) ? s.user : null; }
     function pendingMfa() { const s = readSession(); return s ? (s.pendingMfa || null) : null; }
@@ -356,5 +434,9 @@
         }
     });
 
-    window.UIBAuth = { signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, KNOWN_AGENTS, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
+    window.UIBAuth = { bridge, adoptSession, signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, KNOWN_AGENTS, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
+
+    // Installed for every page that loads this file, so neither app has
+    // to remember to ask for it.
+    bridge();
 })();

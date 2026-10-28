@@ -12372,6 +12372,18 @@ function amsClientKeyFromName(name) {
     return (name || '').trim().toUpperCase().replace(/\s+/g, ' ');
 }
 
+// Open the AMS. It is a separate deployment, so the browser does NOT copy
+// this tab's sign-in into it the way it does for a same-origin tab — the
+// opened window asks for the session back over postMessage instead (see
+// the bridge in uib-auth.js), which is why the reference is kept rather
+// than discarded.
+function binderOpenAms(path) {
+    const base = String((window.UIB_CONFIG || {}).AMS_URL || '/ams').replace(/\/+$/, '');
+    const w = window.open(base + (path || ''), '_blank');
+    if (w) { try { w.focus(); } catch (e) {} }
+    return w;
+}
+
 // A customer's own profile in the AMS. The AMS keys clients by the
 // upper-cased, space-collapsed name (its amsClientKey is this same
 // transform), so the link needs no stored id to find the right record.
@@ -12386,7 +12398,13 @@ function amsClientUrl(name) {
 // thing they want.
 function amsCustomerCell(name) {
     if (!name) return '—';
-    return `<a href="${_esc(amsClientUrl(name))}" target="_blank" rel="noopener"` +
+    // Opened with window.open, not by letting the anchor do it: browsers
+    // now imply rel=noopener for target=_blank, and without an opener the
+    // AMS has nobody to ask for the sign-in and lands the agent on a login
+    // screen. The href stays real so the row is still a proper link.
+    const url = amsClientUrl(name);
+    return `<a href="${_esc(url)}" onclick="event.preventDefault();binderOpenAms(this.dataset.q)"` +
+           ` data-q="${_esc(url.slice(url.indexOf('?')))}"` +
            ` title="Open ${_esc(name)} in the AMS"` +
            ` style="color:#1d4ed8;font-weight:600;text-decoration:none;border-bottom:1px solid rgba(29,78,216,.3);">` +
            `${_esc(name)}</a>`;
