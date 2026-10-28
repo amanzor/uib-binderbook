@@ -125,6 +125,16 @@
         .ams-header .user-chip .avatar { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,.2); color: white; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
 
         /* ── TOP TAB BAR (section nav, below header) ─────────────── */
+        /* An agent name is a link wherever it appears -- reports, renewals,
+           accounting. Underlined faintly until hovered so a table of them
+           does not turn into a wall of blue. */
+        .ams-agent-link:hover,
+        .ams-agent-link:focus-visible {
+            color: var(--blue) !important;
+            text-decoration-color: var(--blue) !important;
+        }
+        .ams-agent-link:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 3px; }
+
         .ams-tabbar {
             height: var(--tabbar-h); display: flex; align-items: center; gap: 6px;
             padding: 0 20px; background: white; border-bottom: 1px solid var(--gray-200);
@@ -2502,7 +2512,7 @@
                         <table class="policies-table" style="min-width:400px;">
                             <thead><tr><th>Agent</th><th style="text-align:center;">Transactions</th><th style="text-align:right;">Commission</th></tr></thead>
                             <tbody>${rows.map(([a, t]) => `<tr>
-                                <td style="font-weight:${a.startsWith('—') ? '400' : '600'};color:${a.startsWith('—') ? 'var(--gray-400)' : 'var(--gray-700)'};">${amsEscHtml(a)}</td>
+                                <td style="font-weight:${a.startsWith('—') ? '400' : '600'};color:${a.startsWith('—') ? 'var(--gray-400)' : 'var(--gray-700)'};">${amsAgentLink(a, amsEscHtml(a))}</td>
                                 <td style="text-align:center;">${t.count}</td>
                                 <td style="text-align:right;font-weight:700;color:var(--green,#059669);">$${t.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             </tr>`).join('')}</tbody>
@@ -2651,7 +2661,7 @@
                     return `<details style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius-md,10px);margin-bottom:12px;box-shadow:var(--shadow-sm,0 1px 2px rgba(0,0,0,.05));">
                         <summary style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 16px;cursor:pointer;list-style:none;">
                             <span style="font-weight:700;font-size:14px;color:${unmatched ? 'var(--gray-400)' : 'var(--navy)'};">
-                                ${unmatched ? '❔' : '👤'} ${amsEscHtml(agent)}
+                                ${unmatched ? '❔' : '👤'} ${amsAgentLink(agent, amsEscHtml(agent))}
                                 <span style="font-weight:400;color:var(--gray-400);font-size:12px;">· ${list.length} transactions</span>
                             </span>
                             <span style="display:flex;align-items:center;gap:12px;">
@@ -3966,7 +3976,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <td>${_rptFmt$(p.totalPremium)}</td>
                     <td><strong>${p.expirationDate}</strong></td>
                     <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
-                    <td>${_rptEsc(p.agent || '—')}</td>
+                    <td>${amsAgentLink(p.agent, _rptEsc(p.agent || '—'))}</td>
                     <td><div style="display:flex;flex-wrap:nowrap;gap:5px;align-items:center;">${assignSel}${renewBtn}${abBtn}${cancelBtn}${callBtn}${memoBtn}</div></td>
                 </tr>`;
             }).join('');
@@ -4778,7 +4788,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                                 <td>${i+1}</td>
                                 <td><strong>${_rptEsc(p.customerName||'—')}</strong></td>
                                 <td>${_rptEsc(phone)}</td>
-                                <td>${_rptEsc(p.agent||'—')}</td>
+                                <td>${amsAgentLink(p.agent, _rptEsc(p.agent||'—'))}</td>
                                 <td>${_rptEsc(p.company||'—')}</td>
                                 <td>${_rptEsc(p.lineOfBusiness||'—')}</td>
                                 <td style="font-family:monospace;font-size:11px;">${_rptEsc(p.policyNumber||'—')}</td>
@@ -4867,7 +4877,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <thead><tr><th>Agent</th><th>Policies</th><th>New Biz</th><th>Renewals</th><th>Total Premium</th><th>Avg Premium</th><th>Agency Comm</th><th>Agent Comm</th></tr></thead>
                     <tbody>
                     ${agents.map(([agent,v]) => `<tr>
-                        <td><strong>${_rptEsc(agent)}</strong></td>
+                        <td>${amsAgentLink(agent, '<strong>' + _rptEsc(agent) + '</strong>')}</td>
                         <td>${v.policies}</td>
                         <td>${v.newBiz}</td>
                         <td>${v.renewals}</td>
@@ -5227,7 +5237,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <thead><tr><th>Agent</th><th>Policies</th><th>Total Premium</th><th>Agency Comm</th><th>Agent Comm</th><th>Net to Agency</th><th>Agency Fees</th><th>Comm %</th></tr></thead>
                     <tbody>
                     ${agents.map(([a,v])=>`<tr>
-                        <td><strong>${_rptEsc(a)}</strong></td>
+                        <td>${amsAgentLink(a, '<strong>' + _rptEsc(a) + '</strong>')}</td>
                         <td>${v.policies}</td>
                         <td>${_rptFmt$(v.premium)}</td>
                         <td style="color:var(--green);font-weight:700;">${_rptFmt$(v.agencyComm)}</td>

@@ -1392,7 +1392,7 @@ function amsRenderPolicies(key) {
 
         return `<tr style="cursor:${hasCarrierData ? 'pointer' : 'default'};" ${hasCarrierData ? `onclick="amsTxnToggle(${p.id})"` : ''}>
             <td style="white-space:nowrap;">${dateStr}</td>
-            <td>${amsEscHtml(p.agent || '—')}</td>
+            <td>${amsAgentLink(p.agent, amsEscHtml(p.agent || '—'))}</td>
             <td><span class="tag tag-blue">${amsEscHtml(p.policyType || '—')}</span></td>
             <td>${amsEscHtml(p.lineOfBusiness || '—')}</td>
             <td><strong>${amsEscHtml(p.company || '—')}</strong></td>
@@ -6347,3 +6347,35 @@ document.addEventListener('DOMContentLoaded', () => {
     // Android Back gesture / button returns to the list instead of leaving the AMS.
     window.addEventListener('popstate', () => { if (document.body.classList.contains('ams-m-detail')) amsMobileBack(true); });
 });
+
+
+// ── Agent names, clickable wherever they appear ──────────────
+//  Reports, renewals, accounting -- one helper so a name looks and behaves
+//  the same everywhere. Placeholders ("Unassigned", "—", blank) are not
+//  people and stay plain text; linking them would open an empty profile.
+function amsAgentIsReal(name) {
+    var n = String(name == null ? '' : name).trim();
+    if (!n) return false;
+    if (/^[—–-]+$/.test(n)) return false;
+    return !/^(unassigned|unmatched|unknown|n\/a|none)$/i.test(n.replace(/^[—–-]\s*/, ''));
+}
+
+// `inner` lets a caller keep its own markup (a <strong>, an icon) and still
+// get the link; it must already be escaped.
+function amsAgentLink(name, inner, extraCss) {
+    var raw = String(name == null ? '' : name).trim();
+    var shown = inner != null ? inner : amsEscHtml(raw || '—');
+    if (!amsAgentIsReal(raw)) return shown;
+    // encodeURIComponent leaves ' ! * ( ) as-is, so a name like O'Brien would
+    // close the JS string literal inside the attribute and the click would
+    // throw. Percent-encode those too; any name then survives the round trip.
+    var packed = encodeURIComponent(raw).replace(/['!*()]/g, function (c) {
+        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+    });
+    return '<a href="#" class="ams-agent-link" title="Open ' + amsEscHtml(raw) + '’s profile"' +
+           ' onclick="event.preventDefault();event.stopPropagation();amsOpenAgentProfile(decodeURIComponent(\'' +
+           packed + '\'));return false;"' +
+           ' style="color:inherit;text-decoration:underline;text-underline-offset:2px;' +
+           'text-decoration-color:rgba(29,78,216,.45);cursor:pointer;' + (extraCss || '') + '">' +
+           shown + '</a>';
+}

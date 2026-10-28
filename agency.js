@@ -1014,6 +1014,18 @@
         render();
     };
 
+    // The way in from anywhere else in the AMS -- a report row, the renewals
+    // list, an accounting breakdown. Opens the Agency Profile on that one
+    // agent, whether or not they are on the roster.
+    window.amsOpenAgentProfile = function (name) {
+        name = String(name == null ? '' : name).trim();
+        if (!name) return;
+        if (typeof amsSidebarNav === 'function') amsSidebarNav('agency');
+        if (typeof window.agencyTab === 'function') window.agencyTab('agents');
+        window.agencyOpenAgent(name);
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+    };
+
     window.agencyCloseAgent = function () {
         collectAgent();              // keep what is on screen
         _agentOpen = null;
