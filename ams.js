@@ -617,6 +617,18 @@ function amsStartLiveRefresh() {
     setInterval(amsCheckForUpdate, AMS_UPDATE_CHECK_MS);
 }
 
+// Enter the app if a session is present. Safe to call twice: the second
+// call finds amsCurrentUser already set and does nothing.
+function amsEnterIfSignedIn() {
+    if (amsCurrentUser) return true;
+    const u = (window.UIBAuth && UIBAuth.user()) || null;
+    if (!u) return false;
+    amsCurrentUser = (u.name && u.name !== 'Admin') ? u.name : 'Admin';
+    amsCurrentRole = u.role;
+    amsLaunchApp();
+    return true;
+}
+
 // ── Dashboard menu: Agency Profile and Admin ─────────────────
 function amsToggleDashMenu(ev) {
     if (ev) ev.stopPropagation();
@@ -1858,11 +1870,15 @@ document.addEventListener('DOMContentLoaded', () => {
     amsSetBinderLink();
 
     // Already signed in (opened from the Binder Book, or same tab)? Go straight in.
-    const authUser = (window.UIBAuth && UIBAuth.user()) || null;
-    if (authUser) {
-        amsCurrentUser = (authUser.name && authUser.name !== 'Admin') ? authUser.name : 'Admin';
-        amsCurrentRole = authUser.role;
-        amsLaunchApp();
+    amsEnterIfSignedIn();
+
+    // Opened from the Binder Book on the other domain: the browser does not
+    // copy the sign-in across origins, so uib-auth.js asks the opener for it
+    // over postMessage. That answer is a round trip away — wait for it
+    // rather than flashing a login screen at an agent who is signed in. If
+    // no answer comes, the login screen is already what is on screen.
+    if (!amsCurrentUser && window.opener) {
+        window.addEventListener('uib-auth-adopted', amsEnterIfSignedIn, { once: true });
     }
 
     // Pre-fill remembered email

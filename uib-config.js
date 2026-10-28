@@ -7,12 +7,11 @@
 //  address to connect-src in vercel.json, and deploy.
 // ============================================================
 window.UIB_CONFIG = {
-    // Where the AMS lives. It is its own deployment now, but /ams on this
-    // site still serves a copy, so that stays the default until the AMS
-    // project has its own domain. Point this at that domain (e.g.
-    // 'https://ams-uib.vercel.app') and the Binder Book's client links
-    // follow it — no other change needed.
-    AMS_URL: '/ams',
+    // Where the AMS lives. It is its own deployment, and this is the one
+    // place that says so: the AMS button, the client links out of Your
+    // Submissions, and the origin check on the sign-in handover all read
+    // it. /ams on this site still serves a copy as a fallback.
+    AMS_URL: 'https://uib-ams.vercel.app',
 
     // Where the Binder Book lives, for the AMS's "← Back to Binder Book"
     // link. It is read at load rather than written into the markup so that
