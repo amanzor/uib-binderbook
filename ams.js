@@ -608,9 +608,172 @@ function amsStartLiveRefresh() {
     if (!_amsRefreshBound) {
         _amsRefreshBound = true;
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) amsRefreshFromCloud();
+            if (!document.hidden) { amsRefreshFromCloud(); amsCheckForUpdate(); }
         });
     }
+    // Records the current page's ETag now, so only a deploy AFTER this
+    // point raises the banner.
+    amsCheckForUpdate();
+    setInterval(amsCheckForUpdate, AMS_UPDATE_CHECK_MS);
+}
+
+// ── Dashboard menu: Agency Profile and Admin ─────────────────
+function amsToggleDashMenu(ev) {
+    if (ev) ev.stopPropagation();
+    const m = document.getElementById('amsDashMenu');
+    const b = document.getElementById('amsDashMenuBtn');
+    if (!m) return;
+    const open = m.style.display !== 'none';
+    if (open) { amsCloseDashMenuOnce(); return; }
+    // Anchored to the Dashboard button at open time. The menu is a child of
+    // body, not of the tab bar, so it cannot be clipped by that bar's
+    // overflow — place it here rather than relying on CSS positioning.
+    const anchor = document.getElementById('sidebarNavDashboard');
+    if (anchor) {
+        const r = anchor.getBoundingClientRect();
+        m.style.top  = (r.bottom + 4) + 'px';
+        m.style.left = r.left + 'px';
+    }
+    m.style.display = 'block';
+    if (b) b.setAttribute('aria-expanded', 'true');
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => document.addEventListener('click', amsCloseDashMenuOnce, { once: true }), 0);
+}
+function amsCloseDashMenuOnce() {
+    const m = document.getElementById('amsDashMenu');
+    const b = document.getElementById('amsDashMenuBtn');
+    if (m) m.style.display = 'none';
+    if (b) b.setAttribute('aria-expanded', 'false');
+}
+
+function amsDashMenuGo(what) {
+    amsCloseDashMenuOnce();
+    if (what === 'agency') { amsSidebarNav('agency'); return; }
+    if (what === 'admin')  { amsAdminGate(); }
+}
+
+// Admin is a gate, not a page: it asks for the same administrator
+// credentials the login screen does and raises this session's role. An
+// agent who already signed in as an administrator is simply let through.
+function amsAdminGate() {
+    if (amsIsAdminUser()) {
+        amsFlashBanner('Already signed in as an administrator');
+        amsSidebarNav('agency');
+        return;
+    }
+    if (document.getElementById('amsAdminGateModal')) return;
+    const m = document.createElement('div');
+    m.id = 'amsAdminGateModal';
+    m.className = 'ams-modal open';
+    m.innerHTML =
+      '<div class="ams-modal-box" style="max-width:420px;">' +
+        '<h3><i data-lucide="shield"></i> Administrator sign-in</h3>' +
+        '<p style="font-size:12px;color:var(--gray-500);margin:-10px 0 16px;">' +
+          'Use the same administrator credentials as the login screen.</p>' +
+        '<div id="amsAdminGateForm" data-uib-login>' +
+          '<div class="form-group"><label>E-mail</label>' +
+            '<input type="email" id="amsGateEmail" placeholder="admin@email.com" autocomplete="username"></div>' +
+          '<div class="form-group"><label>Password</label>' +
+            '<input type="password" id="amsGatePassword" placeholder="Administrator password" autocomplete="current-password"></div>' +
+          '<div id="amsGateError" style="display:none;color:#dc2626;font-size:12px;margin-bottom:10px;"></div>' +
+        '</div>' +
+        '<div class="modal-actions">' +
+          '<button class="btn-secondary" onclick="amsCloseAdminGate()">Cancel</button>' +
+          '<button class="btn-primary" id="amsGateSubmit" onclick="amsAdminGateSubmit()">Sign in</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(m);
+    if (window.lucide) lucide.createIcons();
+    const pwd = document.getElementById('amsGatePassword');
+    if (pwd) pwd.addEventListener('keydown', e => { if (e.key === 'Enter') amsAdminGateSubmit(); });
+    setTimeout(() => document.getElementById('amsGateEmail')?.focus(), 60);
+}
+
+function amsCloseAdminGate() {
+    document.getElementById('amsAdminGateModal')?.remove();
+}
+
+function amsAdminGateSubmit() {
+    const email = (document.getElementById('amsGateEmail')?.value || '').trim().toLowerCase();
+    const pwd   = (document.getElementById('amsGatePassword')?.value || '');
+    const err   = document.getElementById('amsGateError');
+    const btn   = document.getElementById('amsGateSubmit');
+    const fail  = (msg) => {
+        if (err) { err.textContent = msg; err.style.display = 'block'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
+    };
+    if (!window.UIBAuth || !window.UIBMfa) return fail('Sign-in is unavailable on this device.');
+    if (!email || !pwd) return fail('Enter the e-mail and password.');
+    if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+    if (err) err.style.display = 'none';
+
+    UIBMfa.signIn(email, pwd, document.getElementById('amsAdminGateForm')).then((user) => {
+        if (!user || user.role !== 'admin') {
+            // Signed in, but not an administrator: do not leave the session
+            // holding that identity.
+            UIBAuth.signOut();
+            return fail('This account is not an administrator.');
+        }
+        amsCurrentUser = 'Admin';
+        amsCurrentRole = 'admin';
+        const label = document.getElementById('amsUserLabel');
+        const av    = document.getElementById('amsUserAvatar');
+        if (label) label.textContent = amsCurrentUser;
+        if (av)    av.textContent    = 'AD';
+        amsCloseAdminGate();
+        amsFlashBanner('Administrator access granted ✓');
+        amsSidebarNav('agency');
+    }).catch(() => fail('Incorrect e-mail or password.'));
+}
+
+// ── Stale-tab guard ──────────────────────────────────────────
+// The Binder Book has APP_BUILD: a tab left open across a deploy notices
+// and reloads. The AMS had nothing, so an agent who leaves it open for
+// days keeps running whatever shipped the day they opened it — which is
+// how a browser pointed at a deployment that HAS a Certificate Master tab
+// shows one that does not.
+//
+// This needs no build step and no new file: the server already sends an
+// ETag for this page, so an ETag that has changed since load IS a new
+// deployment. The agent is offered the reload rather than having it
+// forced — they may be halfway through a form.
+const AMS_UPDATE_CHECK_MS = 5 * 60 * 1000;
+let _amsPageTag     = null;
+let _amsUpdateShown = false;
+
+async function amsCheckForUpdate() {
+    if (_amsUpdateShown || document.hidden) return;
+    let tag;
+    try {
+        const res = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' });
+        if (!res.ok) return;
+        tag = res.headers.get('etag') || res.headers.get('last-modified');
+    } catch (e) { return; }                 // offline: nothing to say
+    if (!tag) return;                       // no validator: cannot tell, stay quiet
+    if (_amsPageTag === null) { _amsPageTag = tag; return; }
+    if (tag === _amsPageTag) return;
+    _amsUpdateShown = true;
+    amsShowUpdateBanner();
+}
+
+function amsShowUpdateBanner() {
+    if (document.getElementById('amsUpdateBanner')) return;
+    const bar = document.createElement('div');
+    bar.id = 'amsUpdateBanner';
+    bar.style.cssText =
+        'position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:100001;' +
+        'display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:11px;' +
+        'background:#0d1f3c;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.35);' +
+        'font-family:system-ui,Arial,sans-serif;font-size:13px;max-width:92vw;';
+    bar.innerHTML =
+        '<span>A newer version of the AMS has been released.</span>' +
+        '<button id="amsUpdateReload" style="background:#22c55e;color:#fff;border:none;border-radius:7px;' +
+            'padding:7px 14px;font-weight:700;font-size:12px;cursor:pointer;">Reload</button>' +
+        '<button id="amsUpdateLater" style="background:none;color:rgba(255,255,255,.7);border:none;' +
+            'font-size:12px;cursor:pointer;">Later</button>';
+    document.body.appendChild(bar);
+    bar.querySelector('#amsUpdateReload').onclick = function () { location.reload(); };
+    bar.querySelector('#amsUpdateLater').onclick  = function () { bar.remove(); };
 }
 
 // Point the login screen's "← Back to Binder Book" link at wherever the
