@@ -970,6 +970,25 @@
                         </div>
                     </div>
 
+                    <!-- Uploaded renewal reports, kept one year -->
+                    <div id="amsRnwReportsCard" style="display:none;background:#fff;border:1px solid var(--gray-200);
+                                border-radius:12px;padding:14px 16px;margin-bottom:16px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;cursor:pointer;"
+                             onclick="amsRnwToggleReports()">
+                            <div>
+                                <div style="font-size:13px;font-weight:800;color:var(--navy);">
+                                    &#128193; Renewal Reports <span id="amsRnwReportsCount" style="font-weight:600;color:var(--gray-500);"></span>
+                                </div>
+                                <div style="font-size:11.5px;color:var(--gray-500);margin-top:2px;">
+                                    Every report uploaded above is filed here by month, with who uploaded it. Kept for one year.
+                                </div>
+                            </div>
+                            <button type="button" id="amsRnwReportsToggle" style="padding:6px 14px;border:1px solid var(--gray-200);
+                                    border-radius:7px;background:#fff;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">Show</button>
+                        </div>
+                        <div id="amsRnwReportsBody" style="display:none;margin-top:12px;"></div>
+                    </div>
+
                     <!-- Looking forward (the default) or back -->
                     <div style="display:flex;gap:6px;margin-bottom:10px;">
                         <button type="button" id="amsRnwScopeUpcoming" onclick="amsRnwSetScope(false)"
@@ -3997,6 +4016,12 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 winSel.title = _amsRnwPast
                     ? 'Not used in Past — pick a month on the left to narrow the history'
                     : '';
+            }
+
+            // Load the filed reports once the renewals view is up.
+            if (!window.__rnwReportsLoaded) {
+                window.__rnwReportsLoaded = true;
+                if (typeof amsRnwLoadReports === 'function') amsRnwLoadReports();
             }
 
             const tabsEl = document.getElementById('amsRnwMonthTabs');
