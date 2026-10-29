@@ -970,6 +970,17 @@
                         </div>
                     </div>
 
+                    <!-- Looking forward (the default) or back -->
+                    <div style="display:flex;gap:6px;margin-bottom:10px;">
+                        <button type="button" id="amsRnwScopeUpcoming" onclick="amsRnwSetScope(false)"
+                            style="padding:6px 16px;border-radius:999px;border:1px solid var(--gray-200);background:#fff;
+                                   font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">Upcoming</button>
+                        <button type="button" id="amsRnwScopePast" onclick="amsRnwSetScope(true)"
+                            title="Policies whose expiration has already passed, and what happened to each"
+                            style="padding:6px 16px;border-radius:999px;border:1px solid var(--gray-200);background:#fff;
+                                   font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">Past</button>
+                    </div>
+
                     <!-- Month view buttons -->
                     <div id="amsRnwMonthTabs" class="rnw-month-tabs"></div>
 
@@ -978,7 +989,7 @@
                         <table class="policies-table">
                             <thead><tr>
                                 <th>Client</th><th>Line of Business</th><th>Carrier</th><th>Policy #</th>
-                                <th>Premium</th><th>Expiration</th><th>Time Left</th><th>Agent</th><th>Actions</th>
+                                <th>Premium</th><th>Expiration</th><th id="amsRnwThTime">Time Left</th><th>Agent</th><th>Actions</th>
                             </tr></thead>
                             <tbody id="amsRnwTableBody">
                                 <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">No renewals due in the next 90 days.</td></tr>
@@ -3729,6 +3740,40 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // Multi-select agent filter. Empty set = All Agents.
         let _amsRnwSelectedAgents = new Set();
 
+        // Upcoming (the default) or Past. Past shows policies whose
+        // expiration has already gone by -- they are still in the book, the
+        // list simply stops at today -- so you can see what happened to them.
+        let _amsRnwPast = false;
+        function amsRnwSetScope(past) {
+            past = !!past;
+            if (past === _amsRnwPast) return;
+            _amsRnwPast       = past;
+            _amsRnwActiveMonth = '';     // months differ between the two views
+            _amsRnwOpenYears   = null;   // let the accordion re-seed
+            amsRenewalsRender();
+        }
+
+        // What became of a policy that has already expired, read back from
+        // the book itself: a renewal carries renewalSourceId / renewalOfPolicy
+        // pointing at the policy it replaced.
+        function _amsRnwOutcome(p, binder) {
+            if (p.cancellationDate || /^cancel/i.test(p.policyStatus || '')) {
+                return { label: 'Cancelled', bg: '#fee2e2', fg: '#b91c1c',
+                         note: [p.cancellationDate, p.cancelReason].filter(Boolean).join(' · ') };
+            }
+            const next = binder.find(q => q !== p && (
+                (p.id != null && q.renewalSourceId != null && String(q.renewalSourceId) === String(p.id)) ||
+                (p.policyNumber && q.renewalOfPolicy && q.renewalOfPolicy === p.policyNumber)
+            ));
+            if (next) {
+                const rewrite = String(next.policyType || '').toLowerCase().indexOf('a-b') !== -1;
+                return { label: rewrite ? 'Rewritten' : 'Renewed', bg: '#d1fae5', fg: '#047857',
+                         note: [next.company, next.effectiveDate].filter(Boolean).join(' · ') };
+            }
+            return { label: 'Lapsed', bg: '#fef3c7', fg: '#b45309',
+                     note: 'expired with no renewal on record' };
+        }
+
         function amsRnwBuildAgentMenu(agents) {
             const menu = document.getElementById('amsRnwAgentMenu');
             if (!menu) return;
@@ -3826,6 +3871,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             // both views draw from, before the middle filter bar is applied.
             const pool = binder.filter(p => {
                 if (!p.expirationDate || (p.policyType || '').toLowerCase() === 'cancellation') return false;
+                // Past keeps cancelled policies: what happened to them is
+                // exactly what this view is for.
+                if (_amsRnwPast) return p.expirationDate < todayStr;
                 if (/^cancel/i.test(p.policyStatus || '')) return false; // Cancelled / Canceled
                 return p.expirationDate >= todayStr;
             });
@@ -3860,6 +3908,27 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             // year. A year expands to reveal its months; the active month stays
             // highlighted. No "All" button — clearing the month (or the active
             // month toggled off) falls back to the expiring-within-window view.
+            // Paint the active scope and retitle the column it changes.
+            [['amsRnwScopeUpcoming', !_amsRnwPast], ['amsRnwScopePast', _amsRnwPast]].forEach(([id, on]) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.style.background  = on ? 'var(--navy)' : '#fff';
+                el.style.color       = on ? '#fff' : 'var(--gray-600)';
+                el.style.borderColor = on ? 'var(--navy)' : 'var(--gray-200)';
+            });
+            const thTime = document.getElementById('amsRnwThTime');
+            if (thTime) thTime.textContent = _amsRnwPast ? 'Outcome' : 'Time Left';
+            // The forward window means nothing looking back, and a live-looking
+            // control that changes nothing is worse than a disabled one.
+            const winSel = document.getElementById('amsRnwWindow');
+            if (winSel) {
+                winSel.disabled = _amsRnwPast;
+                winSel.style.opacity = _amsRnwPast ? '0.45' : '';
+                winSel.title = _amsRnwPast
+                    ? 'Not used in Past — pick a month on the left to narrow the history'
+                    : '';
+            }
+
             const tabsEl = document.getElementById('amsRnwMonthTabs');
             if (tabsEl) {
                 const byYear = {};
@@ -3869,7 +3938,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     (byYear[yr] = byYear[yr] || {});
                     byYear[yr][key] = (byYear[yr][key] || 0) + 1;
                 });
+                // Looking back, the most recent year and month come first.
                 const years = Object.keys(byYear).sort();
+                if (_amsRnwPast) years.reverse();
 
                 // Drop an active month that no longer exists under the filters.
                 if (_amsRnwActiveMonth && !years.some(y => byYear[y][_amsRnwActiveMonth])) _amsRnwActiveMonth = '';
@@ -3878,7 +3949,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 // active month, else the earliest year, so months are reachable.
                 if (_amsRnwOpenYears === null) {
                     _amsRnwOpenYears = new Set();
-                    const seed = _amsRnwActiveMonth ? _amsRnwActiveMonth.slice(0, 4) : years[0];
+                    const seed = _amsRnwActiveMonth ? _amsRnwActiveMonth.slice(0, 4) : years[0];   // years[0] is the latest in Past
                     if (seed) _amsRnwOpenYears.add(seed);
                 }
                 // Always keep the active month's year open.
@@ -3898,7 +3969,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                         <span style="color:var(--gray-400);font-size:11px;transition:transform .15s;transform:rotate(${open ? '90' : '0'}deg);">▶</span>
                     </button>`;
                     if (!open) return `<div style="margin-bottom:6px;">${header}</div>`;
-                    const months = Object.keys(byYear[yr]).sort().map(key => {
+                    const monthKeys = Object.keys(byYear[yr]).sort();
+                    if (_amsRnwPast) monthKeys.reverse();
+                    const months = monthKeys.map(key => {
                         const active = _amsRnwActiveMonth === key;
                         return `<button onclick="amsRnwToggleMonth('${key}')"
                             style="width:100%;text-align:left;padding:7px 12px 7px 22px;border:1px solid ${active ? 'var(--blue)' : 'var(--gray-100)'};
@@ -3915,20 +3988,33 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             const monthLabel = _amsRnwActiveMonth
                 ? new Date(_amsRnwActiveMonth + '-01T12:00:00').toLocaleString('en-US', { month: 'long', year: 'numeric' })
                 : '';
-            const rows = upcoming.filter(p => _amsRnwActiveMonth
+            const allRows = upcoming.filter(p => _amsRnwActiveMonth
                 ? p.expirationDate.slice(0, 7) === _amsRnwActiveMonth
-                : p.expirationDate <= cutoffStr
-            ).sort((a, b) => a.expirationDate.localeCompare(b.expirationDate));
+                : (_amsRnwPast ? true : p.expirationDate <= cutoffStr)
+            ).sort((a, b) => _amsRnwPast
+                ? b.expirationDate.localeCompare(a.expirationDate)   // newest first looking back
+                : a.expirationDate.localeCompare(b.expirationDate));
+            // A whole book's history is far more than anyone reads at once;
+            // pick a month from the list to see the rest.
+            const PAST_CAP = 500;
+            const capped = _amsRnwPast && !_amsRnwActiveMonth && allRows.length > PAST_CAP;
+            const rows = capped ? allRows.slice(0, PAST_CAP) : allRows;
 
             const badge = document.getElementById('amsRnwBadge');
-            if (badge) badge.textContent = _amsRnwActiveMonth
-                ? `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring in ${monthLabel}`
-                : `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring within ${days} days`;
+            if (badge) badge.textContent = _amsRnwPast
+                ? (_amsRnwActiveMonth
+                    ? `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expired in ${monthLabel}`
+                    : `${capped ? 'showing ' + rows.length + ' of ' + allRows.length : allRows.length} past ${allRows.length === 1 ? 'policy' : 'policies'}`)
+                : (_amsRnwActiveMonth
+                    ? `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring in ${monthLabel}`
+                    : `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring within ${days} days`);
 
             if (!rows.length) {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">${_amsRnwActiveMonth
-                    ? `No renewals due in ${monthLabel}.`
-                    : `No renewals due in the next ${days} days.`}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">${_amsRnwPast
+                    ? (_amsRnwActiveMonth ? `Nothing expired in ${monthLabel}.` : 'No past renewals on record.')
+                    : (_amsRnwActiveMonth
+                        ? `No renewals due in ${monthLabel}.`
+                        : `No renewals due in the next ${days} days.`)}</td></tr>`;
                 return;
             }
 
@@ -3938,6 +4024,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             _amsRnwRows   = rows;
             tbody.innerHTML = rows.map((p, idx) => {
                 const daysLeft = Math.ceil((new Date(p.expirationDate + 'T12:00:00') - today) / 86400000);
+                const outcome  = _amsRnwPast ? _amsRnwOutcome(p, binder) : null;
                 const tlColor  = daysLeft <= 14 ? '#dc2626' : daysLeft <= 30 ? '#ea580c' : '#059669';
                 const tlBg     = daysLeft <= 14 ? '#fee2e2' : daysLeft <= 30 ? '#ffedd5' : '#d1fae5';
                 const key      = amsClientKey(p.customerName || '');
@@ -3975,7 +4062,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <td style="font-family:monospace;font-size:11px;">${_rptEsc(p.policyNumber || '—')}</td>
                     <td>${_rptFmt$(p.totalPremium)}</td>
                     <td><strong>${p.expirationDate}</strong></td>
-                    <td><span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span></td>
+                    <td>${_amsRnwPast
+                        ? `<span style="background:${outcome.bg};color:${outcome.fg};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;" title="${_rptEsc(outcome.note || '').replace(/"/g, '&quot;')}">${outcome.label}</span>${outcome.note ? `<div style="margin-top:3px;font-size:10.5px;color:var(--gray-500);">${_rptEsc(outcome.note)}</div>` : ''}`
+                        : `<span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span>`}</td>
                     <td>${amsAgentLink(p.agent, _rptEsc(p.agent || '—'))}</td>
                     <td><div style="display:flex;flex-wrap:nowrap;gap:5px;align-items:center;">${assignSel}${renewBtn}${abBtn}${cancelBtn}${callBtn}${memoBtn}</div></td>
                 </tr>`;
