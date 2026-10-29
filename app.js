@@ -52,6 +52,17 @@ async function _cloudAppBuild() {
     }
 }
 
+// Vercel builds a preview of every pull request, and it talks to the same
+// database as the real site. A preview publishing its newer build would mark
+// every production device outdated — gated, no cloud saves — until that pull
+// request ships. So only the real site (and the native app) publishes.
+function _isPreviewHost(host = location.hostname) {
+    try {
+        const real = new URL((window.UIB_CONFIG || {}).BINDER_URL || '').hostname;
+        return /\.vercel\.app$/i.test(host) && !!real && host !== real;
+    } catch (e) { return false; }
+}
+
 // Advertise this build as the fleet's latest (only ever raises the number).
 async function _publishAppBuild() {
     try {
@@ -103,7 +114,7 @@ async function enforceAppVersion() {
         // time, when no build has been advertised yet).
         _appOutdated = false;
         _hideOutdatedBanner();
-        if ((cloudBuild == null || cloudBuild < APP_BUILD)) await _publishAppBuild();
+        if ((cloudBuild == null || cloudBuild < APP_BUILD) && !_isPreviewHost()) await _publishAppBuild();
     } finally {
         _versionEnforcing = false;
     }
