@@ -103,7 +103,7 @@ async function enforceAppVersion() {
         // time, when no build has been advertised yet).
         _appOutdated = false;
         _hideOutdatedBanner();
-        if (cloudBuild == null || cloudBuild < APP_BUILD) await _publishAppBuild();
+        if ((cloudBuild == null || cloudBuild < APP_BUILD)) await _publishAppBuild();
     } finally {
         _versionEnforcing = false;
     }
@@ -8875,10 +8875,8 @@ let _acRulesRoster = [];     // the names the rules form was drawn over, in its 
 let _acRulesDirty = false;   // unsaved edits in the rules form — a redraw must not discard them
 let _acRulesOpen = true;
 
-// Half a cent rounds away from zero, so a chargeback comes back off at the
-// same amount the matching sale would have paid (Math.round alone would take
-// -4.205 to -4.20 but 4.205 to 4.21).
-const _acCents = v => { const n = Math.round((Math.abs(v || 0) + Number.EPSILON) * 100) / 100; return v < 0 ? -n : n; };
+const _acToCents = v => Math.round((parseFloat(v) || 0) * 100);
+const _acCents   = v => Math.round((v || 0) * 100) / 100;   // tidies a sum of cent amounts
 const _acMoney = v => (v < 0 ? '-$' : '$') + Math.abs(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const _acIsSet = v => v !== null && v !== undefined && v !== '' && isFinite(Number(v));
 const _acMonthValue = label => { const [n, y] = String(label).split(' '); const d = new Date(`${n} 1, ${y}`); return isNaN(d) ? 0 : d.getTime(); };
@@ -8918,21 +8916,42 @@ function _acRuleFor(name, c) {
     return { pct: _acDefaultAgentPct(c), own: false };
 }
 
+// Agent % of a set of earned lines, all in whole cents. The total is the
+// agent % of the earned total, rounded once — half a cent away from zero —
+// so it is exactly what the rule says: 50% of $2,839.10 is $1,419.55.
+// Rounding each line first and adding them up drifts a few cents from that.
+// The cents are then dealt out to the lines, largest remainder first (the
+// bigger line on a tie), so each line is a whole cent and the lines still
+// add up to exactly the total.
+function _acSplit(earnedCents, pct) {
+    const num   = earnedCents.reduce((s, c) => s + c, 0) * pct;
+    const total = (num < 0 ? -1 : 1) * Math.floor((Math.abs(num) + 50) / 100);
+    const parts = earnedCents.map((c, i) => {
+        const n = c * pct;
+        const base = Math.floor(n / 100);
+        return { i, c, base, rem: n - base * 100 };
+    });
+    const lines = parts.map(p => p.base);
+    let left = total - lines.reduce((s, b) => s + b, 0);
+    parts.slice()
+        .sort((a, b) => (b.rem - a.rem) || (Math.abs(b.c) - Math.abs(a.c)) || (a.i - b.i))
+        .forEach(p => { if (left > 0 && p.rem > 0) { lines[p.i]++; left--; } });
+    return { lines, total };
+}
+
 // One agent's month: what they wrote (their Binder Book entries dated in the
 // month) and what the carriers paid on their policies (that month's statement
-// lines). Each line is rounded to the cent on its own, so the detail always
-// foots to the total in the list.
+// lines).
 function _acMonthFor(name, production, stmt, pct) {
-    const txns = (stmt ? stmt.entries : []).filter(e => _acAgentOf(e) === name).map(e => {
-        const earned = parseFloat(e.commission) || 0;
-        return { e, earned, agentAmt: pct == null ? 0 : _acCents(earned * pct / 100) };
-    });
+    const lines  = (stmt ? stmt.entries : []).filter(e => _acAgentOf(e) === name);
+    const earned = lines.map(e => _acToCents(e.commission));
+    const split  = pct == null ? null : _acSplit(earned, pct);
     return {
         production,
         premium: production.reduce((s, e) => s + (parseFloat(e.totalPremium) || 0), 0),
-        txns,
-        earned:    _acCents(txns.reduce((s, t) => s + t.earned, 0)),
-        agentComm: _acCents(txns.reduce((s, t) => s + t.agentAmt, 0))
+        txns: lines.map((e, i) => ({ e, earned: earned[i] / 100, agentAmt: split ? split.lines[i] / 100 : 0 })),
+        earned:    earned.reduce((s, c) => s + c, 0) / 100,
+        agentComm: split ? split.total / 100 : 0
     };
 }
 
@@ -9051,7 +9070,7 @@ function acCloseAgent() {
 // and what they earned. Commission is at today's rule.
 function _acHistory(name, pct) {
     const byMonth = {};
-    const bucket = m => byMonth[m] || (byMonth[m] = { month: m, policies: 0, premium: 0, txns: 0, earned: 0, agentComm: 0, hasStmt: false });
+    const bucket = m => byMonth[m] || (byMonth[m] = { month: m, policies: 0, premium: 0, txns: 0, earnedCents: [], hasStmt: false });
     allData.forEach(e => {
         if (!e || String(e.agent || '').trim() !== name) return;
         const m = _entryMonth(e);
@@ -9065,12 +9084,13 @@ function _acHistory(name, pct) {
         const b = bucket(m);
         b.hasStmt = true;
         (stmt ? stmt.entries : []).forEach(e => {
-            if (_acAgentOf(e) !== name) return;
-            const earned = parseFloat(e.commission) || 0;
-            b.txns++;
-            b.earned += earned;
-            b.agentComm += _acCents(earned * pct / 100);
+            if (_acAgentOf(e) === name) b.earnedCents.push(_acToCents(e.commission));
         });
+    });
+    Object.values(byMonth).forEach(b => {
+        b.txns      = b.earnedCents.length;
+        b.earned    = b.earnedCents.reduce((s, c) => s + c, 0) / 100;
+        b.agentComm = _acSplit(b.earnedCents, pct).total / 100;
     });
     return Object.values(byMonth)
         .sort((a, b) => _acMonthValue(b.month) - _acMonthValue(a.month))
@@ -9134,7 +9154,7 @@ function _acRenderDetail(monthLabel) {
                     <td style="${td}text-align:right;">${_acMoney(h.premium)}</td>
                     <td style="${td}text-align:center;">${h.hasStmt ? h.txns : '—'}</td>
                     <td style="${td}text-align:right;">${h.hasStmt ? _acMoney(h.earned) : '<span style="color:var(--gray-400);">no statement</span>'}</td>
-                    <td style="${td}text-align:right;font-weight:600;">${h.hasStmt ? _acMoney(_acCents(h.agentComm)) : '—'}</td>
+                    <td style="${td}text-align:right;font-weight:600;">${h.hasStmt ? _acMoney(h.agentComm) : '—'}</td>
                 </tr>`;
             }).join('') + '</tbody></table></div>';
 
