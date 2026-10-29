@@ -1421,7 +1421,7 @@
                         <button class="ams-tab active" data-tab="contact"   onclick="amsShowTab('contact')"><i data-lucide="user"></i> Contact Info</button>
                         <button class="ams-tab"         data-tab="policies" onclick="amsShowTab('policies')"><i data-lucide="file-text"></i> Policies</button>
                         <button class="ams-tab"         data-tab="notes"    onclick="amsShowTab('notes')"><i data-lucide="message-square"></i> Notes</button>
-                        <button class="ams-tab"         data-tab="communications" onclick="amsShowTab('communications')"><i data-lucide="phone-call"></i> Communications <span id="commTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
+                        <button class="ams-tab"         data-tab="communications" onclick="amsShowTab('communications')"><i data-lucide="history"></i> Activity <span id="commTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="documents" onclick="amsShowTab('documents')"><i data-lucide="folder-open"></i> Documents <span id="docTabBadge" style="display:none;background:var(--blue);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="clientApps" onclick="amsShowTab('clientApps')"><i data-lucide="clipboard-list"></i> Client Apps</button>
                         <button class="ams-tab"         data-tab="certificates" onclick="amsShowTab('certificates')"><i data-lucide="award"></i> Certificate Master</button>
@@ -2132,8 +2132,8 @@
                 </div>
             </div>
             <div class="info-field" style="margin-top:14px;">
-                <label>Memo (optional)</label>
-                <textarea id="amsRnwCancelNote" placeholder="Notes about the cancellation — saved to the policy's memos."></textarea>
+                <label>Why Was It Cancelled? <span style="color:var(--red)">*</span></label>
+                <textarea id="amsRnwCancelNote" placeholder="Why the policy was cancelled — saved to this policy's memos."></textarea>
             </div>
             <div style="margin-top:12px;font-size:12px;color:var(--gray-500);">
                 A date of today or earlier removes the policy from the renewals list. A future date keeps it listed with a
@@ -3758,8 +3758,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // pointing at the policy it replaced.
         function _amsRnwOutcome(p, binder) {
             if (p.cancellationDate || /^cancel/i.test(p.policyStatus || '')) {
+                const when = p.cancellationDate ? 'cancelled ' + p.cancellationDate : 'cancelled';
                 return { label: 'Cancelled', bg: '#fee2e2', fg: '#b91c1c',
-                         note: [p.cancellationDate, p.cancelReason].filter(Boolean).join(' · ') };
+                         note: [when, p.cancelReason].filter(Boolean).join(' · ') };
             }
             const next = binder.find(q => q !== p && (
                 (p.id != null && q.renewalSourceId != null && String(q.renewalSourceId) === String(p.id)) ||
@@ -3768,10 +3769,12 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             if (next) {
                 const rewrite = String(next.policyType || '').toLowerCase().indexOf('a-b') !== -1;
                 return { label: rewrite ? 'Rewritten' : 'Renewed', bg: '#d1fae5', fg: '#047857',
-                         note: [next.company, next.effectiveDate].filter(Boolean).join(' · ') };
+                         note: [next.company, next.effectiveDate ? 'eff ' + next.effectiveDate : '']
+                                   .filter(Boolean).join(' · ') };
             }
-            return { label: 'Lapsed', bg: '#fef3c7', fg: '#b45309',
-                     note: 'expired with no renewal on record' };
+            // Expired and nobody acted on it: the renewal was not worked.
+            return { label: 'Expired', bg: '#fef3c7', fg: '#b45309',
+                     note: 'not renewed · expired ' + (p.expirationDate || '') };
         }
 
         function amsRnwBuildAgentMenu(agents) {
@@ -3873,7 +3876,11 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 if (!p.expirationDate || (p.policyType || '').toLowerCase() === 'cancellation') return false;
                 // Past keeps cancelled policies: what happened to them is
                 // exactly what this view is for.
-                if (_amsRnwPast) return p.expirationDate < todayStr;
+                // A policy cancelled mid-term has not expired, so it would
+                // otherwise fall out of both views -- gone from Upcoming for
+                // being cancelled, absent from Past for not being expired.
+                if (_amsRnwPast) return p.expirationDate < todayStr ||
+                    !!p.cancellationDate || /^cancel/i.test(p.policyStatus || '');
                 if (/^cancel/i.test(p.policyStatus || '')) return false; // Cancelled / Canceled
                 return p.expirationDate >= todayStr;
             });
@@ -4446,10 +4453,36 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             const gen = (contacts[key] && Array.isArray(contacts[key].callLog)) ? contacts[key].callLog : [];
             gen.forEach((c, i) => out.push({ at: c.at, by: c.by, note: c.note || '', kind: 'general', callIdx: i, ctxLabel: 'General call' }));
             (client.policies || []).forEach((p, polIdx) => {
+                const ctxLabel = `${p.company || 'Policy'}${p.policyNumber ? ' \u00b7 ' + p.policyNumber : ''}${p.lineOfBusiness ? ' \u00b7 ' + p.lineOfBusiness : ''}`;
                 (Array.isArray(p.callLog) ? p.callLog : []).forEach((c, i) => out.push({
-                    at: c.at, by: c.by, note: c.note || '', kind: 'policy', polIdx, callIdx: i,
-                    ctxLabel: `${p.company || 'Policy'}${p.policyNumber ? ' · ' + p.policyNumber : ''}${p.lineOfBusiness ? ' · ' + p.lineOfBusiness : ''}`
+                    at: c.at, by: c.by, note: c.note || '', kind: 'policy', polIdx, callIdx: i, ctxLabel
                 }));
+                // Memos, cancellations and renewals belong on the client's own
+                // page too, not only inside the renewals modals.
+                (Array.isArray(p.memos) ? p.memos : []).forEach((m) => out.push({
+                    at: m.at, by: m.by, note: m.text || '', kind: 'memo', polIdx, ctxLabel
+                }));
+                if (p.cancellationDate || /^cancel/i.test(p.policyStatus || '')) {
+                    const pending = /^pending/i.test(p.policyStatus || '');
+                    out.push({
+                        at: p.cancellationDate ? p.cancellationDate + 'T12:00:00' : '',
+                        by: '', kind: 'cancellation', polIdx, ctxLabel, dateOnly: true,
+                        title: pending ? 'Cancellation scheduled' : 'Policy cancelled',
+                        note: [p.cancellationDate ? 'Effective ' + p.cancellationDate : '',
+                               p.cancelReason || '', p.cancelNotes || ''].filter(Boolean).join(' \u00b7 ')
+                    });
+                }
+                if (p.renewalOfPolicy || p.renewalSourceId != null) {
+                    const rewrite = String(p.policyType || '').toLowerCase().indexOf('a-b') !== -1;
+                    out.push({
+                        at: (p.effectiveDate || p.entryDate || '') ? ((p.effectiveDate || p.entryDate) + 'T12:00:00') : '',
+                        by: p.agent || '', kind: 'renewal', polIdx, ctxLabel, dateOnly: true,
+                        title: rewrite ? 'Rewritten to a new carrier' : 'Policy renewed',
+                        note: [p.renewalOfPolicy ? 'Replaces ' + p.renewalOfPolicy : '',
+                               p.company || '', p.expirationDate ? 'through ' + p.expirationDate : '']
+                                  .filter(Boolean).join(' \u00b7 ')
+                    });
+                }
             });
             out.sort((a, b) => (b.at || '').localeCompare(a.at || ''));   // newest first
             return out;
@@ -4472,20 +4505,33 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             const client = amsClientIndex[key];
             const name = (client && client.displayName) || 'this client';
 
+            const KIND = {
+                general:      { icon: '\ud83d\udcde', word: 'Call',        bg: '#eef2ff', fg: '#4338ca' },
+                policy:       { icon: '\ud83d\udcde', word: 'Call',        bg: '#ecfeff', fg: '#0e7490' },
+                memo:         { icon: '\ud83d\udcdd', word: 'Memo',        bg: '#fef3c7', fg: '#b45309' },
+                cancellation: { icon: '\u26d4', word: 'Cancellation', bg: '#fee2e2', fg: '#b91c1c' },
+                renewal:      { icon: '\ud83d\udd01', word: 'Renewal',     bg: '#d1fae5', fg: '#047857' }
+            };
             const rows = calls.map((c, i) => {
-                const when = c.at ? new Date(c.at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
-                const tag = c.kind === 'policy'
-                    ? `<span style="background:#ecfeff;color:#0e7490;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:700;">📄 ${_rptEsc(c.ctxLabel)}</span>`
-                    : `<span style="background:#eef2ff;color:#4338ca;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:700;">📞 General</span>`;
-                return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border:1px solid var(--gray-200);border-left:3px solid #0891b2;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;">
+                const k = KIND[c.kind] || KIND.general;
+                const isCall = c.kind === 'general' || c.kind === 'policy';
+                // A cancellation or renewal is dated by the day it takes
+                // effect, so showing a time beside it would invent precision.
+                const when = !c.at ? 'date not recorded'
+                    : c.dateOnly
+                        ? new Date(c.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : new Date(c.at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+                const tag = `<span style="background:${k.bg};color:${k.fg};border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:700;">${k.icon} ${_rptEsc(c.kind === 'general' ? 'General' : c.ctxLabel || k.word)}</span>`;
+                const title = c.title || (isCall ? 'Call' : k.word);
+                return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border:1px solid var(--gray-200);border-left:3px solid ${k.fg};border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;">
                     <div style="min-width:0;">
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
-                            <strong style="font-size:12.5px;color:var(--navy);">Call ${calls.length - i}</strong> ${tag}
+                            <strong style="font-size:12.5px;color:var(--navy);">${_rptEsc(title)}</strong> ${tag}
                         </div>
-                        <div style="font-size:12px;color:var(--gray-500);">${_rptEsc(when)} · by ${_rptEsc(c.by || 'Unknown')}</div>
+                        <div style="font-size:12px;color:var(--gray-500);">${_rptEsc(when)}${c.by ? ' \u00b7 by ' + _rptEsc(c.by) : ''}</div>
                         ${c.note ? `<div style="font-size:12.5px;color:var(--gray-700);margin-top:4px;white-space:pre-wrap;">${_rptEsc(c.note)}</div>` : ''}
                     </div>
-                    <button onclick="amsCommDelete(${i})" title="Remove this call" style="background:none;border:none;color:var(--gray-400);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;flex-shrink:0;">✕</button>
+                    ${isCall ? `<button onclick="amsCommDelete(${i})" title="Remove this call" style="background:none;border:none;color:var(--gray-400);cursor:pointer;font-size:15px;flex-shrink:0;">\u00d7</button>` : ''}
                 </div>`;
             }).join('');
 
@@ -4493,12 +4539,12 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 <div class="info-card">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
                         <div>
-                            <h3 style="margin:0;"><i data-lucide="phone-call"></i> Communications</h3>
-                            <div style="font-size:12.5px;color:var(--gray-500);margin-top:2px;">Every call logged to ${_rptEsc(name)} — from the renewals list and general outreach.</div>
+                            <h3 style="margin:0;"><i data-lucide="history"></i> Activity</h3>
+                            <div style="font-size:12.5px;color:var(--gray-500);margin-top:2px;">Everything recorded against ${_rptEsc(name)} — calls, memos, cancellations and renewals, newest first.</div>
                         </div>
                         <div style="text-align:center;background:#ecfeff;border:1px solid #a5f3fc;border-radius:10px;padding:8px 18px;">
                             <div style="font-size:26px;font-weight:800;color:#0e7490;line-height:1;">${calls.length}</div>
-                            <div style="font-size:10px;color:#0891b2;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">total calls</div>
+                            <div style="font-size:10px;color:#0891b2;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">entries</div>
                         </div>
                     </div>
                     <div style="background:var(--gray-50,#f9fafb);border:1px solid var(--gray-200);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
@@ -4506,7 +4552,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                         <textarea id="amsCommNote" rows="2" placeholder="Optional note — what was discussed, voicemail left, callback time…" style="width:100%;box-sizing:border-box;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
                         <div style="margin-top:8px;"><button class="btn-success btn-sm" onclick="amsCommLogCall()" style="background:linear-gradient(135deg,#0e7490,#0891b2);border:none;color:#fff;"><i data-lucide="phone-outgoing"></i> Log a Call</button></div>
                     </div>
-                    <div>${rows || `<div style="text-align:center;padding:24px;color:var(--gray-400);font-style:italic;font-size:13px;">No calls logged yet. Use “Log a Call” above, or the 📞 button on the Renewals list.</div>`}</div>
+                    <div>${rows || `<div style="text-align:center;padding:24px;color:var(--gray-400);font-style:italic;font-size:13px;">Nothing recorded for this client yet. Use “Log a Call” above, or the 📞 button on the Renewals list.</div>`}</div>
                 </div>`;
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
@@ -4529,6 +4575,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             const key = amsActiveKey;
             const rec = _amsCommLast[i];
             if (!key || !rec) return;
+            // Memos, cancellations and renewals are read back from the policy;
+            // there is no call row behind them to splice out.
+            if (rec.kind !== 'general' && rec.kind !== 'policy') return;
             if (!confirm('Remove this call from the communications log?')) return;
             if (rec.kind === 'general') {
                 const contacts = amsGetClientData();
@@ -4565,7 +4614,10 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             if (sub) sub.textContent = [p.customerName || '—', p.company || '—',
                 p.policyNumber || 'no policy #', `exp ${p.expirationDate || '—'}`].join(' · ');
             const dateEl = document.getElementById('amsRnwCancelDate');
-            if (dateEl) dateEl.value = p.cancellationDate || _amsRnwToday();
+            // Left blank on purpose for a new cancellation. Pre-filling today
+            // invites accepting a date that is usually wrong; the carrier's
+            // effective date is the one that matters.
+            if (dateEl) dateEl.value = p.cancellationDate || '';
             const reasonEl = document.getElementById('amsRnwCancelReason');
             if (reasonEl) {
                 reasonEl.innerHTML = ['<option value="">— Select Reason —</option>']
@@ -4606,6 +4658,11 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             if (!date) { alert('Enter the cancellation date.'); return; }
             if (!picked) { alert('Select a cancellation reason.'); return; }
             if (picked === 'Other' && !other) { alert('Describe the "Other" cancellation reason.'); return; }
+            if (!note) {
+                alert('Add a note explaining why this policy was cancelled.\n\nIt is saved to the policy\u2019s memos.');
+                document.getElementById('amsRnwCancelNote')?.focus();
+                return;
+            }
             const reason  = picked === 'Other' ? other : picked;
             const pending = date > _amsRnwToday();
             if (!confirm(`${pending ? 'Schedule a cancellation' : 'Cancel this policy'} for ${p.customerName || 'this client'} effective ${date}?` +
@@ -4613,7 +4670,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
 
             p.cancellationDate = date;
             p.cancelReason     = reason;
-            if (note) p.cancelNotes = note;
+            p.cancelNotes = note;
             p.policyStatus     = pending ? 'Pending Cancellation' : 'Cancelled';
             p.memos = [..._amsRnwMemos(p), {
                 at: new Date().toISOString(), by: _amsRnwWho(),
