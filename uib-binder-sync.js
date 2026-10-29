@@ -45,7 +45,7 @@
         'binderData', 'agentMasterData', 'commissionData', 'carrierMasterData',
         'prospectData', 'verificationLogs', 'commissionStatements',
         'underwritingData', 'healthData', 'healthCarrierData', 'amsClientData',
-        'certificateData', 'acordSavedForms', 'agencyProfile'
+        'certificateData', 'acordSavedForms', 'agencyProfile', 'healthCommissionStatements'
     ];
     var TOMBSTONE_KEYS = ['binderDeletedIds', 'verificationLogsDeleted'];
     var TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
