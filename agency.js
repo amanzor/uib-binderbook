@@ -1225,22 +1225,27 @@
 
         // Fold the roster record over: keep the target's own details, fill
         // any gap from the one being merged away, then drop that name.
-        var master = {};
-        try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
-        if (master[fromName]) {
-            var src = master[fromName];
-            var dst = master[target] || {};
-            Object.keys(src).forEach(function (k) {
-                if (dst[k] === undefined || dst[k] === '' ||
-                    (Array.isArray(dst[k]) && !dst[k].length)) dst[k] = src[k];
-            });
-            dst.updatedAt = new Date().toISOString();
-            master[target] = dst;
-            delete master[fromName];
-        }
+        var foldRoster = function (master) {
+            master = (master && typeof master === 'object') ? master : {};
+            if (master[fromName]) {
+                var src = master[fromName];
+                var dst = master[target] || {};
+                Object.keys(src).forEach(function (k) {
+                    if (dst[k] === undefined || dst[k] === '' ||
+                        (Array.isArray(dst[k]) && !dst[k].length)) dst[k] = src[k];
+                });
+                dst.updatedAt = new Date().toISOString();
+                master[target] = dst;
+                delete master[fromName];
+            }
+            return master;
+        };
+
+        var localMaster = {};
+        try { localMaster = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
 
         var local = binderEntries();
-        var finish = function (book, n) {
+        var finish = function (book, master, n) {
             if (typeof amsSave === 'function') {
                 amsSave('binderData', book);
                 amsSave('agentMasterData', master);
@@ -1258,20 +1263,36 @@
         var sync = window.UIBBinderSync;
         if (sync && typeof sync.readCloud === 'function' && typeof sync.mergeBinderData === 'function') {
             agencyMergeBusy(true);
-            return sync.readCloud('binderData').then(function (res) {
-                // Only widen the set when the cloud actually answered; a failed
-                // read must not be mistaken for an empty book.
-                var book = (res && res.ok && Array.isArray(res.value))
-                         ? sync.mergeBinderData(local, res.value)
+            // The roster is written back whole, so it has to be read whole --
+            // from the cloud, not from whatever this tab happens to hold.
+            // Writing a stale local copy over it would drop agents added
+            // on another device, the same way a stale book would.
+            return Promise.all([
+                sync.readCloud('binderData'),
+                sync.readCloud('agentMasterData')
+            ]).then(function (res) {
+                var bRes = res[0], mRes = res[1];
+                // Only widen either set when the cloud actually answered; a
+                // failed read must not be mistaken for an empty one.
+                var book = (bRes && bRes.ok && Array.isArray(bRes.value))
+                         ? sync.mergeBinderData(local, bRes.value)
                          : local;
+                var master = localMaster;
+                if (mRes && mRes.ok && mRes.value && typeof mRes.value === 'object' && !Array.isArray(mRes.value)) {
+                    master = mRes.value;
+                    // Anything this device knows that the cloud does not, keep.
+                    Object.keys(localMaster).forEach(function (k) {
+                        if (!master[k]) master[k] = localMaster[k];
+                    });
+                }
                 agencyMergeBusy(false);
-                finish(book, rename(book));
+                finish(book, foldRoster(master), rename(book));
             }).catch(function () {
                 agencyMergeBusy(false);
-                finish(local, rename(local));
+                finish(local, foldRoster(localMaster), rename(local));
             });
         }
-        finish(local, rename(local));
+        finish(local, foldRoster(localMaster), rename(local));
     };
 
     // The read can take a moment on a big book; make it obvious the merge is
