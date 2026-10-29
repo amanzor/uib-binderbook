@@ -3,7 +3,7 @@
 // ============================================================
 const SUPABASE_URL = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co');
 const SUPABASE_ANON_KEY = (window.UIB_CONFIG || {}).SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
-const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'prospectData', 'verificationLogs', 'commissionStatements', 'underwritingData', 'healthData', 'healthCarrierData'];
+const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'prospectData', 'verificationLogs', 'commissionStatements', 'underwritingData', 'healthData', 'healthCarrierData', 'agencyProfile'];
 
 const _SB_HEADERS = {
     'apikey': SUPABASE_ANON_KEY,
@@ -27,7 +27,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202610273;
+const APP_BUILD = 202610290;
 
 let _appOutdated = false;
 // Check for a newer published build as soon as any page opens, so a phone
@@ -8042,6 +8042,7 @@ function showCommissionStatements() {
     initializeCommissionStatements();
     showSection('commissionStatementsSection');
     loadCommissionStatementsList();
+    _acPullRules().then(changed => { if (changed && csCurrentMonthKey) renderAgentCommissions(csCurrentMonthKey); });
     if (window.UIBMotion) UIBMotion.animateStatCards();
     refreshIcons();
 }
@@ -8482,6 +8483,7 @@ function renderCSMonthDetail(monthKey) {
     renderCSAgentBreakdown(monthKey);
     renderCSAgentReport(monthKey);
     renderCSAdjustments(monthKey);
+    renderAgentCommissions(monthKey);
 
     // Reset filters
     const csCarrFilter = document.getElementById('csCarrierFilter');
@@ -8847,6 +8849,541 @@ function exportCSAgentReportCSV() {
     a.download = `${label.replace(/[^\w]+/g, '_')}_Commission_${csCurrentMonthKey.replace(/\s+/g, '_')}.csv`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+// ── Agent Commissions dashboard ──────────────────────────────
+// What each agent is owed for the month: their share of the commission the
+// carriers actually paid on their policies, under the same rules as
+// AMS → Agency Profile → Commission Rules. Those rules are one shared row
+// (app_store "agencyProfile"), so a change made on either screen reads the
+// same on the other.
+//
+// A statement line belongs to the agent Commission by Agent gives it — the
+// Binder Book agent, matched by policy number. The agent is paid their
+// agent % of it, new business and renewals alike, and a negative line (a
+// cancellation or chargeback) comes back off at the same rate.
+
+// The standard rule: half of earned commission, unless the agency default or
+// an agent's own rule says otherwise. agency.js carries the same number.
+const AC_DEFAULT_AGENT_PCT = 50;
+const AC_UNASSIGNED = '__UNASSIGNED__';   // the key _csGroupByAgent uses
+
+let acSelectedAgent = null;
+let _acRows = [];            // the last render's rows; onclick handlers pass an index into it
+let _acHistoryRows = [];     // the selected agent's month-by-month rows, same reason
+let _acRulesRoster = [];     // the names the rules form was drawn over, in its order
+let _acRulesDirty = false;   // unsaved edits in the rules form — a redraw must not discard them
+let _acRulesOpen = true;
+
+// Half a cent rounds away from zero, so a chargeback comes back off at the
+// same amount the matching sale would have paid (Math.round alone would take
+// -4.205 to -4.20 but 4.205 to 4.21).
+const _acCents = v => { const n = Math.round((Math.abs(v || 0) + Number.EPSILON) * 100) / 100; return v < 0 ? -n : n; };
+const _acMoney = v => (v < 0 ? '-$' : '$') + Math.abs(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const _acIsSet = v => v !== null && v !== undefined && v !== '' && isFinite(Number(v));
+const _acMonthValue = label => { const [n, y] = String(label).split(' '); const d = new Date(`${n} 1, ${y}`); return isNaN(d) ? 0 : d.getTime(); };
+const _acAgentOf = e => String((e && e.agentMatch) || '').trim() || AC_UNASSIGNED;
+
+// The same roster, in the same order, as the AMS Agency Profile's agent
+// rules (agentsFromBinderBook in agency.js): everyone on Agent Management,
+// plus any name a Binder Book entry was written under, busiest first.
+function _acRoster() {
+    let master = {};
+    try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    const rows = {};
+    Object.keys(master).forEach(name => { rows[name] = { name, policies: 0 }; });
+    (allData || []).forEach(e => {
+        const n = (e && e.agent) ? String(e.agent).trim() : '';
+        if (!n) return;
+        if (!rows[n]) rows[n] = { name: n, policies: 0 };
+        rows[n].policies += 1;
+    });
+    return Object.values(rows).sort((a, b) => (b.policies - a.policies) || a.name.localeCompare(b.name));
+}
+
+function _acCommissionRules() {
+    let p = {};
+    try { p = JSON.parse(localStorage.getItem('agencyProfile')) || {}; } catch (e) {}
+    return (p.commission && typeof p.commission === 'object') ? p.commission : {};
+}
+
+function _acDefaultAgentPct(c) {
+    return _acIsSet(c.agentPct) ? Number(c.agentPct) : AC_DEFAULT_AGENT_PCT;
+}
+
+// The agent % that applies to one agent, and whether it is their own rule.
+function _acRuleFor(name, c) {
+    const own = (c.agents && c.agents[name]) || {};
+    if (_acIsSet(own.agentPct)) return { pct: Number(own.agentPct), own: true };
+    return { pct: _acDefaultAgentPct(c), own: false };
+}
+
+// One agent's month: what they wrote (their Binder Book entries dated in the
+// month) and what the carriers paid on their policies (that month's statement
+// lines). Each line is rounded to the cent on its own, so the detail always
+// foots to the total in the list.
+function _acMonthFor(name, production, stmt, pct) {
+    const txns = (stmt ? stmt.entries : []).filter(e => _acAgentOf(e) === name).map(e => {
+        const earned = parseFloat(e.commission) || 0;
+        return { e, earned, agentAmt: pct == null ? 0 : _acCents(earned * pct / 100) };
+    });
+    return {
+        production,
+        premium: production.reduce((s, e) => s + (parseFloat(e.totalPremium) || 0), 0),
+        txns,
+        earned:    _acCents(txns.reduce((s, t) => s + t.earned, 0)),
+        agentComm: _acCents(txns.reduce((s, t) => s + t.agentAmt, 0))
+    };
+}
+
+function _acBuildRows(monthLabel) {
+    const stmt  = csGetCombined(monthLabel);
+    const rules = _acCommissionRules();
+    const names = _acRoster().map(r => r.name);
+    // A line can carry a name the roster no longer lists (merged or renamed
+    // since the statement was imported). List it rather than lose its money.
+    (stmt ? stmt.entries : []).forEach(e => {
+        const n = _acAgentOf(e);
+        if (n !== AC_UNASSIGNED && !names.includes(n)) names.push(n);
+    });
+    // The month's entries by agent, in one pass over the book.
+    const written = {};
+    allData.forEach(e => {
+        if (!e || _entryMonth(e) !== monthLabel) return;
+        const n = String(e.agent || '').trim();
+        (written[n] = written[n] || []).push(e);
+    });
+    const rows = names.map(name => {
+        const rule = _acRuleFor(name, rules);
+        return Object.assign({ name, rule }, _acMonthFor(name, written[name] || [], stmt, rule.pct));
+    });
+    const unassigned = _acMonthFor(AC_UNASSIGNED, [], stmt, null);
+    if (unassigned.txns.length) rows.push(Object.assign({ name: AC_UNASSIGNED, rule: null }, unassigned));
+    return rows;
+}
+
+function renderAgentCommissions(monthLabel) {
+    const body = document.getElementById('acAgentBody');
+    if (!body || !monthLabel) return;
+    const rows = _acBuildRows(monthLabel);
+    _acRows = rows;
+    if (acSelectedAgent && !rows.some(r => r.name === acSelectedAgent)) acSelectedAgent = null;
+
+    const agents     = rows.filter(r => r.name !== AC_UNASSIGNED);
+    const unassigned = rows.find(r => r.name === AC_UNASSIGNED);
+    const earned     = _acCents(rows.reduce((s, r) => s + r.earned, 0));
+    const paid       = _acCents(agents.reduce((s, r) => s + r.agentComm, 0));
+    const dflt       = _acDefaultAgentPct(_acCommissionRules());
+    const ownCount   = agents.filter(r => r.rule.own).length;
+
+    document.getElementById('acMonthLabel').textContent = '— ' + monthLabel;
+
+    const chip = (label, value, color) =>
+        `<span style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:4px 12px;font-size:11.5px;display:inline-flex;gap:6px;align-items:baseline;">
+            <span style="opacity:.75;">${label}</span>
+            <strong style="font-size:13px;${color ? 'color:' + color + ';' : ''}">${value}</strong>
+        </span>`;
+    document.getElementById('acKpis').innerHTML =
+        chip('Earned Commission', _acMoney(earned), earned >= 0 ? '#6ee7b7' : '#fca5a5') +
+        chip('Paid to Agents', _acMoney(paid)) +
+        chip('Unassigned (not paid)', _acMoney(unassigned ? unassigned.earned : 0), unassigned ? '#fde68a' : '') +
+        chip('Agency Keeps', _acMoney(earned - paid));
+
+    document.getElementById('acRuleLine').innerHTML =
+        `<strong style="color:var(--navy);">Agent commission = agent % × the commission the carrier paid</strong>, ` +
+        `new business and renewals alike. Every agent gets <strong>${dflt}%</strong> unless they have their own rule` +
+        (ownCount ? ` (${ownCount} do)` : '') + `. Click an agent for their production, carrier transactions and commission.`;
+
+    const cell = 'padding:9px 12px;';
+    body.innerHTML = rows.map((r, i) => {
+        const un   = r.name === AC_UNASSIGNED;
+        const sel  = r.name === acSelectedAgent;
+        const idle = !un && !r.production.length && !r.txns.length;
+        const bg   = sel ? 'background:#ecfdf5;' : un ? 'background:#fffbeb;' : '';
+        return `<tr tabindex="0" onclick="acSelectAgent(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();acSelectAgent(${i});}"
+                    style="cursor:pointer;border-bottom:1px solid var(--gray-100);${bg}${idle ? 'color:var(--gray-400);' : ''}">
+            <td style="${cell}border-left:3px solid ${sel ? '#047857' : 'transparent'};">
+                <div style="font-weight:600;color:${un ? '#92400e' : idle ? 'var(--gray-400)' : 'var(--navy)'};">${un ? '⚠️ Unassigned / Needs Review' : _esc(r.name)}</div>
+                <div style="font-size:10.5px;margin-top:2px;color:${un ? '#b45309' : r.rule.own ? '#1d4ed8' : 'var(--gray-400)'};">
+                    ${un ? 'policy # not found in the Binder Book — nobody is paid on these yet' : r.rule.own ? 'own rule' : 'agency default'}
+                </div>
+            </td>
+            <td style="${cell}text-align:center;">${un ? '—' : r.production.length}</td>
+            <td style="${cell}text-align:right;">${un ? '—' : _acMoney(r.premium)}</td>
+            <td style="${cell}text-align:center;">${r.txns.length}</td>
+            <td style="${cell}text-align:right;font-weight:600;color:${r.earned < 0 ? '#dc2626' : idle ? 'inherit' : '#059669'};">${_acMoney(r.earned)}</td>
+            <td style="${cell}text-align:center;">${un ? '—' : r.rule.pct + '%'}</td>
+            <td style="${cell}text-align:right;font-weight:700;color:${un ? 'var(--gray-400)' : r.agentComm < 0 ? '#dc2626' : idle ? 'inherit' : 'var(--navy)'};">${un ? '—' : _acMoney(r.agentComm)}</td>
+        </tr>`;
+    }).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:24px;">No agents yet — add them under Agents.</td></tr>`;
+
+    const ft = 'padding:10px 12px;font-weight:700;';
+    document.getElementById('acAgentFoot').innerHTML = `
+        <tr style="background:var(--gray-50);border-top:2px solid var(--gray-200);">
+            <td style="${ft}">Total</td>
+            <td style="${ft}text-align:center;">${agents.reduce((s, r) => s + r.production.length, 0)}</td>
+            <td style="${ft}text-align:right;">${_acMoney(agents.reduce((s, r) => s + r.premium, 0))}</td>
+            <td style="${ft}text-align:center;">${rows.reduce((s, r) => s + r.txns.length, 0)}</td>
+            <td style="${ft}text-align:right;">${_acMoney(earned)}</td>
+            <td></td>
+            <td style="${ft}text-align:right;">${_acMoney(paid)}</td>
+        </tr>`;
+
+    _acRenderDetail(monthLabel);
+    _acRenderRules();
+    refreshIcons();
+}
+
+function acSelectAgent(i) {
+    const row = _acRows[i];
+    if (!row) return;
+    acSelectedAgent = acSelectedAgent === row.name ? null : row.name;
+    renderAgentCommissions(csCurrentMonthKey);
+    if (acSelectedAgent) document.getElementById('acAgentDetail')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function acCloseAgent() {
+    acSelectedAgent = null;
+    renderAgentCommissions(csCurrentMonthKey);
+}
+
+// Every month this agent wrote business or has a statement: what they wrote
+// and what they earned. Commission is at today's rule.
+function _acHistory(name, pct) {
+    const byMonth = {};
+    const bucket = m => byMonth[m] || (byMonth[m] = { month: m, policies: 0, premium: 0, txns: 0, earned: 0, agentComm: 0, hasStmt: false });
+    allData.forEach(e => {
+        if (!e || String(e.agent || '').trim() !== name) return;
+        const m = _entryMonth(e);
+        if (!m) return;
+        const b = bucket(m);
+        b.policies++;
+        b.premium += parseFloat(e.totalPremium) || 0;
+    });
+    [...new Set(Object.keys(commissionStatements).map(csMonthOf))].forEach(m => {
+        const stmt = csGetCombined(m);
+        const b = bucket(m);
+        b.hasStmt = true;
+        (stmt ? stmt.entries : []).forEach(e => {
+            if (_acAgentOf(e) !== name) return;
+            const earned = parseFloat(e.commission) || 0;
+            b.txns++;
+            b.earned += earned;
+            b.agentComm += _acCents(earned * pct / 100);
+        });
+    });
+    return Object.values(byMonth)
+        .sort((a, b) => _acMonthValue(b.month) - _acMonthValue(a.month))
+        .slice(0, 24);
+}
+
+function acPickMonth(i) {
+    const row = _acHistoryRows[i];
+    if (row && row.hasStmt) csSelectMonth(row.month);
+}
+
+function _acRenderDetail(monthLabel) {
+    const host = document.getElementById('acAgentDetail');
+    if (!host) return;
+    const row = _acRows.find(r => r.name === acSelectedAgent);
+    if (!row) { host.style.display = 'none'; host.innerHTML = ''; return; }
+
+    const un = row.name === AC_UNASSIGNED;
+    const th = (label, align) => `<th style="padding:7px 10px;text-align:${align || 'left'};font-size:11px;font-weight:600;color:var(--gray-500);white-space:nowrap;">${label}</th>`;
+    const td = 'padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--gray-100);';
+    const tf = 'padding:8px 10px;font-size:12.5px;font-weight:700;';
+    const tableOpen = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;border:1px solid var(--gray-200);min-width:560px;">';
+    const heading = (icon, text, note) =>
+        `<h4 style="font-size:13px;font-weight:700;color:var(--navy);margin:18px 0 8px;"><i data-lucide="${icon}" style="width:15px;height:15px;vertical-align:-2px;"></i> ${text}` +
+        (note ? ` <span style="font-weight:400;font-size:11px;color:var(--gray-400);">${note}</span>` : '') + '</h4>';
+    const fmtDate = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); return m ? `${m[2]}/${m[3]}/${m[1]}` : (d || '—'); };
+    const pill = (label, value) =>
+        `<div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:8px 12px;min-width:120px;">
+            <div style="font-size:10.5px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px;">${label}</div>
+            <div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:2px;">${value}</div>
+        </div>`;
+
+    let html = `
+        <div style="border:1.5px solid #6ee7b7;border-radius:12px;padding:14px 16px;background:#fff;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+                <div>
+                    <h3 style="margin:0;font-size:16px;color:${un ? '#92400e' : 'var(--navy)'};">${un ? '⚠️ Unassigned / Needs Review' : _esc(row.name)}</h3>
+                    <div style="font-size:12px;color:var(--gray-500);margin-top:3px;">
+                        ${un ? 'Statement lines whose policy number did not match a Binder Book entry. Nobody is paid on them until they are matched to an agent.'
+                             : `${row.rule.pct}% of earned commission, new business and renewals alike — ${row.rule.own ? 'their own rule' : 'the agency default'} · ${_esc(monthLabel)}`}
+                    </div>
+                </div>
+                <button class="btn-secondary btn-sm" onclick="acCloseAgent()"><i data-lucide="x"></i> Close</button>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+                ${un ? '' : pill('Policies Written', row.production.length) + pill('Premium Written', _acMoney(row.premium))}
+                ${pill('Carrier Transactions', row.txns.length)}
+                ${pill('Earned Commission', _acMoney(row.earned))}
+                ${un ? '' : pill('Agent Commission', _acMoney(row.agentComm))}
+            </div>`;
+
+    if (!un) {
+        _acHistoryRows = _acHistory(row.name, row.rule.pct);
+        html += heading('calendar-days', 'Month by Month', 'click a month with a statement to open it · agent commission at today\'s rule');
+        html += tableOpen + `<thead><tr style="background:var(--gray-50);">${th('Month')}${th('Policies Written', 'center')}${th('Premium Written', 'right')}${th('Carrier Transactions', 'center')}${th('Earned Commission', 'right')}${th('Agent Commission', 'right')}</tr></thead><tbody>` +
+            _acHistoryRows.map((h, i) => {
+                const cur = h.month === monthLabel;
+                return `<tr ${h.hasStmt ? `onclick="acPickMonth(${i})" style="cursor:pointer;${cur ? 'background:#ecfdf5;' : ''}"` : ''}>
+                    <td style="${td}font-weight:${cur ? 700 : 600};">${_esc(h.month)}${cur ? ' ◂' : ''}</td>
+                    <td style="${td}text-align:center;">${h.policies}</td>
+                    <td style="${td}text-align:right;">${_acMoney(h.premium)}</td>
+                    <td style="${td}text-align:center;">${h.hasStmt ? h.txns : '—'}</td>
+                    <td style="${td}text-align:right;">${h.hasStmt ? _acMoney(h.earned) : '<span style="color:var(--gray-400);">no statement</span>'}</td>
+                    <td style="${td}text-align:right;font-weight:600;">${h.hasStmt ? _acMoney(_acCents(h.agentComm)) : '—'}</td>
+                </tr>`;
+            }).join('') + '</tbody></table></div>';
+
+        const prod = row.production.slice().sort((a, b) => String(a.entryDate || '').localeCompare(String(b.entryDate || '')));
+        html += heading('file-text', `Production — ${_esc(monthLabel)}`, 'policies entered in the Binder Book this month');
+        html += tableOpen + `<thead><tr style="background:var(--gray-50);">${th('Date')}${th('Client')}${th('Type')}${th('Carrier')}${th('Line of Business')}${th('Policy #')}${th('Premium', 'right')}${th('Agency Fee', 'right')}</tr></thead><tbody>` +
+            (prod.map(e => `<tr>
+                <td style="${td}white-space:nowrap;">${fmtDate(e.entryDate)}</td>
+                <td style="${td}font-weight:600;">${_esc(e.customerName || '—')}</td>
+                <td style="${td}">${_esc(e.policyType || '—')}</td>
+                <td style="${td}">${_esc(e.company || '—')}</td>
+                <td style="${td}">${_esc(e.lineOfBusiness || '—')}</td>
+                <td style="${td}font-family:monospace;">${_esc(e.policyNumber || e.binderNumber || '—')}</td>
+                <td style="${td}text-align:right;">${_acMoney(parseFloat(e.totalPremium) || 0)}</td>
+                <td style="${td}text-align:right;">${_acMoney(parseFloat(e.agencyFee) || 0)}</td>
+            </tr>`).join('') || `<tr><td colspan="8" style="${td}text-align:center;color:var(--gray-400);padding:16px;">No policies entered this month.</td></tr>`) +
+            `</tbody>` + (prod.length ? `<tfoot><tr style="background:var(--gray-50);">
+                <td colspan="6" style="${tf}">${prod.length} polic${prod.length === 1 ? 'y' : 'ies'}</td>
+                <td style="${tf}text-align:right;">${_acMoney(row.premium)}</td>
+                <td style="${tf}text-align:right;">${_acMoney(prod.reduce((s, e) => s + (parseFloat(e.agencyFee) || 0), 0))}</td>
+            </tr></tfoot>` : '') + '</table></div>';
+    }
+
+    const txns = row.txns.slice().sort((a, b) =>
+        String(a.e.carrier || '').localeCompare(String(b.e.carrier || '')) ||
+        String(_csClientName(a.e)).localeCompare(String(_csClientName(b.e))));
+    html += heading('receipt', `Carrier Transactions — ${_esc(monthLabel)}`, 'from this month\'s carrier statements');
+    html += tableOpen + `<thead><tr style="background:var(--gray-50);">${th('Insured')}${th('Policy #')}${th('Carrier')}${th('Transaction')}${th('Earned Commission', 'right')}${un ? '' : th(`Agent Commission (${row.rule.pct}%)`, 'right')}</tr></thead><tbody>` +
+        (txns.map(t => `<tr>
+            <td style="${td}font-weight:600;">${_esc(_csClientName(t.e) || '—')}</td>
+            <td style="${td}font-family:monospace;">${_esc(t.e.policyNumber || '—')}</td>
+            <td style="${td}">${_esc(t.e.carrier || '—')}</td>
+            <td style="${td}">${_esc(t.e.transaction || '—')}</td>
+            <td style="${td}text-align:right;color:${t.earned < 0 ? '#dc2626' : '#059669'};">${_acMoney(t.earned)}</td>
+            ${un ? '' : `<td style="${td}text-align:right;font-weight:600;color:${t.agentAmt < 0 ? '#dc2626' : 'var(--navy)'};">${_acMoney(t.agentAmt)}</td>`}
+        </tr>`).join('') || `<tr><td colspan="${un ? 5 : 6}" style="${td}text-align:center;color:var(--gray-400);padding:16px;">No carrier transactions on this month's statements.</td></tr>`) +
+        `</tbody>` + (txns.length ? `<tfoot><tr style="background:var(--gray-50);">
+            <td colspan="4" style="${tf}">${txns.length} transaction${txns.length === 1 ? '' : 's'}</td>
+            <td style="${tf}text-align:right;">${_acMoney(row.earned)}</td>
+            ${un ? '' : `<td style="${tf}text-align:right;">${_acMoney(row.agentComm)}</td>`}
+        </tr></tfoot>` : '') + '</table></div></div>';
+
+    host.innerHTML = html;
+    host.style.display = 'block';
+}
+
+// ── Commission Rules — the AMS Agency Profile's, on this screen ──
+// The same fields over the same roster: an agency default, then one row per
+// agent. An empty box means "follow the agency default" and is stored as no
+// rule at all, exactly as the AMS stores it — not as 0, which would be a
+// real rule that pays nothing.
+// force: the user asked for the redraw (discard, collapse, after a save).
+function _acRenderRules(force) {
+    const host = document.getElementById('acRules');
+    if (!host) return;
+    // The background sync redraws this screen every minute; never over a
+    // field being typed in or edits that have not been saved.
+    const typing = host.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
+    if (!force && (_acRulesDirty || typing)) return;
+
+    const c      = _acCommissionRules();
+    const admin  = currentRole === 'admin';
+    const roster = _acRoster();
+    const own    = (c.agents && typeof c.agents === 'object') ? c.agents : {};
+    const dAgent = _acDefaultAgentPct(c);
+    _acRulesRoster = roster.map(r => r.name);
+
+    const label = 'display:block;font-size:11px;font-weight:600;color:var(--gray-500);margin-bottom:4px;';
+    const input = 'width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;' +
+                  (admin ? '' : 'background:#f8fafc;color:var(--gray-500);');
+    const box = (id, value, placeholder, extra) =>
+        `<input type="number" min="0" step="0.1" id="${id}" value="${_esc(value == null ? '' : value)}" placeholder="${_esc(placeholder)}"
+            oninput="acRulesChanged()" ${admin ? '' : 'disabled'} style="${input}${extra || ''}">`;
+    const ownCount = roster.filter(r => Object.keys(own[r.name] || {}).length).length;
+
+    const header = `
+        <button type="button" onclick="acToggleRules()" aria-expanded="${_acRulesOpen}"
+            style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--gray-50);border:1px solid var(--gray-200);
+                   border-radius:${_acRulesOpen ? '10px 10px 0 0' : '10px'};padding:10px 14px;cursor:pointer;font-family:inherit;text-align:left;">
+            <span style="font-size:13.5px;font-weight:700;color:var(--navy);"><i data-lucide="percent" style="width:15px;height:15px;vertical-align:-2px;"></i> Commission Rules
+                <span style="font-weight:400;font-size:11.5px;color:var(--gray-400);">— the same rules as AMS → Agency Profile → Commission Rules</span></span>
+            <span style="font-size:11.5px;color:var(--gray-500);white-space:nowrap;">${dAgent}% standard · ${ownCount} own rule${ownCount === 1 ? '' : 's'} ${_acRulesOpen ? '▲' : '▼'}</span>
+        </button>`;
+    if (!_acRulesOpen) { host.innerHTML = header; return; }
+
+    const rows = roster.map((r, i) => {
+        const rule = own[r.name] || {};
+        const has  = Object.keys(rule).some(k => _acIsSet(rule[k]));
+        return `<div style="display:grid;grid-template-columns:minmax(150px,1.6fr) repeat(3,1fr);gap:9px;align-items:center;padding:9px 12px;border-top:1px solid var(--gray-200);">
+            <div style="min-width:0;">
+                <div style="font-size:12.5px;font-weight:600;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(r.name)}</div>
+                <div style="font-size:10.5px;margin-top:2px;color:${has ? '#1d4ed8' : 'var(--gray-400)'};">${has ? 'own rule' : 'uses the agency default'}</div>
+            </div>
+            ${box(`acr_${i}_agencyPct`, rule.agencyPct, _acIsSet(c.agencyPct) ? c.agencyPct : '—', 'padding:6px 8px;font-size:12px;')}
+            ${box(`acr_${i}_agentPct`,  rule.agentPct,  dAgent, 'padding:6px 8px;font-size:12px;')}
+            ${box(`acr_${i}_agencyFee`, rule.agencyFee, _acIsSet(c.agencyFee) ? c.agencyFee : '—', 'padding:6px 8px;font-size:12px;')}
+        </div>`;
+    }).join('');
+
+    host.innerHTML = header + `
+        <div style="border:1px solid var(--gray-200);border-top:none;border-radius:0 0 10px 10px;padding:14px;">
+            <div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Agency default</div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:8px;">
+                <div><label style="${label}" for="acr_def_agencyPct">Agency commission %</label>${box('acr_def_agencyPct', c.agencyPct, '')}</div>
+                <div><label style="${label}" for="acr_def_agentPct">Agent share % of earned commission</label>${box('acr_def_agentPct', dAgent, '')}</div>
+                <div><label style="${label}" for="acr_def_agencyFee">Default agency fee ($)</label>${box('acr_def_agencyFee', c.agencyFee, '')}</div>
+            </div>
+            <p style="font-size:11.5px;color:var(--gray-500);margin:0 0 16px;">
+                Standard rule: every agent is paid <strong>${dAgent}%</strong> of the commission the carrier paid on their policies —
+                new business and renewals alike — unless they have their own rule below. Agent commission uses the agent %;
+                the agency % and fee are recorded with the rule and do not change the payout.
+            </p>
+            <div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Agent rules</div>
+            <div style="overflow-x:auto;"><div style="border:1px solid var(--gray-200);border-radius:10px;overflow:hidden;min-width:520px;">
+                <div style="display:grid;grid-template-columns:minmax(150px,1.6fr) repeat(3,1fr);gap:9px;padding:9px 12px;background:#f8fafc;font-size:10px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px;">
+                    <div>Agent</div><div>Agency %</div><div>Agent %</div><div>Fee ($)</div>
+                </div>
+                ${rows || '<div style="padding:14px;font-size:12px;color:var(--gray-400);">No agents yet — add them under Agents.</div>'}
+            </div></div>
+            <p style="font-size:11px;color:var(--gray-400);margin:8px 0 14px;">
+                Leave a box empty to follow the agency default. The roster is the Binder Book's, the same list the AMS shows.
+                A change saved here appears in the AMS, and the other way round.
+            </p>
+            ${admin
+                ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                       <button class="btn-primary btn-sm" id="acRulesSaveBtn" onclick="acSaveRules()"><i data-lucide="save"></i> Save Rules</button>
+                       <button class="btn-secondary btn-sm" id="acRulesDiscardBtn" onclick="acDiscardRules()" style="display:none;">Discard Changes</button>
+                       <span id="acRulesStatus" style="font-size:12px;color:var(--gray-500);"></span>
+                   </div>`
+                : '<p style="font-size:12px;color:var(--gray-500);margin:0;">Only an administrator can change the rules.</p>'}
+        </div>`;
+}
+
+function acToggleRules() {
+    if (_acRulesDirty && _acRulesOpen && !confirm('Close the rules without saving your changes?')) return;
+    _acRulesOpen = !_acRulesOpen;
+    _acRulesDirty = false;
+    _acRenderRules(true);
+    refreshIcons();
+}
+
+function acRulesChanged() {
+    _acRulesDirty = true;
+    const status = document.getElementById('acRulesStatus');
+    if (status) { status.textContent = 'Unsaved changes'; status.style.color = '#b45309'; }
+    const discard = document.getElementById('acRulesDiscardBtn');
+    if (discard) discard.style.display = '';
+}
+
+function acDiscardRules() {
+    _acRulesDirty = false;
+    _acRenderRules(true);
+    refreshIcons();
+}
+
+// Read the form back into the AMS's shape. Returns { error } on the first box
+// that is not a usable number, so nothing half-valid is saved.
+function _acReadRulesForm() {
+    const read = (id, what, isPct) => {
+        const el = document.getElementById(id);
+        const raw = el ? el.value.trim() : '';
+        if (raw === '') return '';
+        const n = Number(raw);
+        if (!isFinite(n) || n < 0 || (isPct && n > 100)) throw new Error(`${what} must be ${isPct ? 'between 0 and 100' : '0 or more'}.`);
+        return n;
+    };
+    try {
+        const out = {
+            agencyPct: read('acr_def_agencyPct', 'Agency commission %', true),
+            agentPct:  read('acr_def_agentPct',  'Agent share %', true),
+            agencyFee: read('acr_def_agencyFee', 'Default agency fee', false),
+            agents: {}
+        };
+        _acRulesRoster.forEach((name, i) => {
+            const one = {};
+            [['agencyPct', 'Agency %', true], ['agentPct', 'Agent %', true], ['agencyFee', 'Fee', false]].forEach(([k, what, isPct]) => {
+                const v = read(`acr_${i}_${k}`, `${name}: ${what}`, isPct);
+                if (v !== '') one[k] = v;
+            });
+            out.agents[name] = one;
+        });
+        return out;
+    } catch (e) {
+        return { error: e.message };
+    }
+}
+
+async function acSaveRules() {
+    if (currentRole !== 'admin') return;
+    const form = _acReadRulesForm();
+    if (form.error) { alert(form.error); return; }
+
+    const btn = document.getElementById('acRulesSaveBtn');
+    // Looked up each time: a successful save redraws the form under it.
+    const say = (text, color) => {
+        const status = document.getElementById('acRulesStatus');
+        if (status) { status.textContent = text; status.style.color = color || 'var(--gray-500)'; }
+    };
+    if (btn) btn.disabled = true;
+    say('Saving…');
+
+    // One shared row, also edited from the AMS. Take the cloud's copy and
+    // change only the commission rules on it, so nothing else the AMS saved
+    // there (name, locations, folders) is written back stale.
+    const res = await driveGetResult('agencyProfile');
+    if (!res.ok) {
+        if (btn) btn.disabled = false;
+        say('Could not reach the cloud — nothing was saved. Try again in a moment.', '#dc2626');
+        return;
+    }
+    let rec = res.value;
+    if (!rec || typeof rec !== 'object' || Array.isArray(rec)) {
+        try { rec = JSON.parse(localStorage.getItem('agencyProfile')) || {}; } catch (e) { rec = {}; }
+    }
+    const prev   = (rec.commission && typeof rec.commission === 'object') ? rec.commission : {};
+    // Agents shown here are replaced; a rule for anyone not on this roster
+    // is left exactly as it was.
+    const agents = Object.assign({}, prev.agents || {});
+    Object.keys(form.agents).forEach(name => {
+        if (Object.keys(form.agents[name]).length) agents[name] = form.agents[name];
+        else delete agents[name];
+    });
+    rec.commission = Object.assign({}, prev, {
+        agencyPct: form.agencyPct, agentPct: form.agentPct, agencyFee: form.agencyFee, agents
+    });
+    rec.updatedAt = new Date().toISOString();
+    rec.updatedBy = currentUser || '';
+
+    _lsMirror('agencyProfile', JSON.stringify(rec));
+    const ok = await driveSet('agencyProfile', rec);
+    _acRulesDirty = false;
+    renderAgentCommissions(csCurrentMonthKey);
+    _acRenderRules(true);
+    refreshIcons();
+    say(ok ? 'Saved ✓ — the AMS shows the same rules.'
+           : 'Saved on this device. The cloud copy updates on the next sync.', ok ? '#059669' : '#b45309');
+}
+
+// The AMS writes the same row, so look for a newer copy whenever this screen
+// opens rather than waiting up to a minute for the background sync.
+async function _acPullRules() {
+    // A save from here is still on its way up; the cloud copy is the older one.
+    if (localStorage.getItem(_dirtyKey('agencyProfile')) !== null) return false;
+    const res = await driveGetResult('agencyProfile');
+    if (!res.ok || !res.value || typeof res.value !== 'object' || Array.isArray(res.value)) return false;
+    const str = JSON.stringify(res.value);
+    if (str === localStorage.getItem('agencyProfile')) return false;
+    _lsMirror('agencyProfile', str);
+    return true;
 }
 
 // ── Policy Adjustments — everything that is NOT new business, renewal, or

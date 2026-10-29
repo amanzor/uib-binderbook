@@ -15,6 +15,13 @@
 
     var STORE_KEY = 'agencyProfile';
 
+    // The standard rule: every agent is paid this share of earned commission
+    // (what the carrier paid), new business and renewals alike, unless the
+    // agency default or their own rule says otherwise. The Binder Book's
+    // Agent Commissions dashboard reads these same rules and carries the same
+    // number (AC_DEFAULT_AGENT_PCT in app.js).
+    var DEFAULT_AGENT_PCT = 50;
+
     // Agency documents live in the same bucket and `documents` table as
     // client files, under a reserved key no client name can collide with
     // (amsClientKey upper-cases and collapses spaces; it never produces
@@ -130,10 +137,25 @@
         return v;
     }
 
+    // Set while a save is on its way to the cloud and cleared once it lands
+    // — the same uibDirty_ marker the Binder Book keeps — so a pull can tell
+    // an edit this device has not sent yet from a copy that is merely stale.
+    var DIRTY_KEY = 'uibDirty_' + STORE_KEY;
+    var _saveSeq = 0;
+
     function save(v) {
         v.updatedAt = new Date().toISOString();
         v.updatedBy = (typeof amsCurrentUser !== 'undefined' && amsCurrentUser) ? amsCurrentUser : '';
-        if (typeof amsSave === 'function') amsSave(STORE_KEY, v);
+        var sync = window.UIBBinderSync;
+        if (sync && typeof sync.save === 'function' && sync.isMergeManaged(STORE_KEY)) {
+            var seq = String(++_saveSeq) + '.' + Date.now();
+            try { localStorage.setItem(DIRTY_KEY, seq); } catch (e) {}
+            Promise.resolve(sync.save(STORE_KEY, v)).then(function (ok) {
+                // Only the latest save may clear it; an earlier one landing
+                // after a later one failed must not.
+                if (ok && localStorage.getItem(DIRTY_KEY) === seq) localStorage.removeItem(DIRTY_KEY);
+            });
+        } else if (typeof amsSave === 'function') amsSave(STORE_KEY, v);
         else localStorage.setItem(STORE_KEY, JSON.stringify(v));
         return v;
     }
@@ -764,6 +786,7 @@
     function commissionTab(a) {
         var c  = a.commission || {};
         var ro = isAdmin() ? '' : ' disabled';
+        var dAgent = (c.agentPct == null || c.agentPct === '') ? DEFAULT_AGENT_PCT : c.agentPct;
         var pct = function (id, label, val) {
             return '<div><label style="' + labelCss() + '">' + esc(label) + '</label>' +
                 '<input type="number" min="0" step="0.1" id="' + id + '" value="' + esc(val == null ? '' : val) + '"' +
@@ -775,11 +798,12 @@
                  'letter-spacing:.3px;margin-bottom:8px;">Agency default</div>' +
             '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:8px;">' +
               pct('agcom_agencyPct', 'Agency commission %',    c.agencyPct) +
-              pct('agcom_agentPct',  'Agent share %',          c.agentPct) +
+              pct('agcom_agentPct',  'Agent share %',          dAgent) +
               pct('agcom_agencyFee', 'Default agency fee ($)', c.agencyFee) +
             '</div>' +
             '<p style="font-size:11px;color:var(--gray-400);margin-bottom:20px;">' +
-              'Applied to an agent with no rule of their own.' +
+              'Applied to an agent with no rule of their own. Agent share is a percentage of the ' +
+              'commission the carrier paid, new business and renewals alike.' +
             '</p>';
 
         // Per-agent rules, over the same roster the Agents tab shows, so a
@@ -808,7 +832,7 @@
                   '</div>' +
                 '</div>' +
                 cell('agencyPct', String(c.agencyPct == null ? '—' : c.agencyPct)) +
-                cell('agentPct',  String(c.agentPct  == null ? '—' : c.agentPct)) +
+                cell('agentPct',  String(dAgent)) +
                 cell('agencyFee', String(c.agencyFee == null ? '—' : c.agencyFee)) +
             '</div>';
         }).join('');
@@ -841,7 +865,9 @@
             '</div>' +
             '<p style="font-size:11px;color:var(--gray-400);margin-bottom:16px;">' +
               'These are the rules. What was actually earned lives in the commission screens — ' +
-              'a second copy of those numbers would only disagree with the first.' +
+              'a second copy of those numbers would only disagree with the first. The Binder Book\'s ' +
+              'Commission Statements screen applies them in its Agent Commissions dashboard, and can ' +
+              'edit them there too.' +
             '</p>';
 
         return head + table + links + saveBar();
@@ -1225,22 +1251,27 @@
 
         // Fold the roster record over: keep the target's own details, fill
         // any gap from the one being merged away, then drop that name.
-        var master = {};
-        try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
-        if (master[fromName]) {
-            var src = master[fromName];
-            var dst = master[target] || {};
-            Object.keys(src).forEach(function (k) {
-                if (dst[k] === undefined || dst[k] === '' ||
-                    (Array.isArray(dst[k]) && !dst[k].length)) dst[k] = src[k];
-            });
-            dst.updatedAt = new Date().toISOString();
-            master[target] = dst;
-            delete master[fromName];
-        }
+        var foldRoster = function (master) {
+            master = (master && typeof master === 'object') ? master : {};
+            if (master[fromName]) {
+                var src = master[fromName];
+                var dst = master[target] || {};
+                Object.keys(src).forEach(function (k) {
+                    if (dst[k] === undefined || dst[k] === '' ||
+                        (Array.isArray(dst[k]) && !dst[k].length)) dst[k] = src[k];
+                });
+                dst.updatedAt = new Date().toISOString();
+                master[target] = dst;
+                delete master[fromName];
+            }
+            return master;
+        };
+
+        var localMaster = {};
+        try { localMaster = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
 
         var local = binderEntries();
-        var finish = function (book, n) {
+        var finish = function (book, master, n) {
             if (typeof amsSave === 'function') {
                 amsSave('binderData', book);
                 amsSave('agentMasterData', master);
@@ -1258,20 +1289,36 @@
         var sync = window.UIBBinderSync;
         if (sync && typeof sync.readCloud === 'function' && typeof sync.mergeBinderData === 'function') {
             agencyMergeBusy(true);
-            return sync.readCloud('binderData').then(function (res) {
-                // Only widen the set when the cloud actually answered; a failed
-                // read must not be mistaken for an empty book.
-                var book = (res && res.ok && Array.isArray(res.value))
-                         ? sync.mergeBinderData(local, res.value)
+            // The roster is written back whole, so it has to be read whole --
+            // from the cloud, not from whatever this tab happens to hold.
+            // Writing a stale local copy over it would drop agents added
+            // on another device, the same way a stale book would.
+            return Promise.all([
+                sync.readCloud('binderData'),
+                sync.readCloud('agentMasterData')
+            ]).then(function (res) {
+                var bRes = res[0], mRes = res[1];
+                // Only widen either set when the cloud actually answered; a
+                // failed read must not be mistaken for an empty one.
+                var book = (bRes && bRes.ok && Array.isArray(bRes.value))
+                         ? sync.mergeBinderData(local, bRes.value)
                          : local;
+                var master = localMaster;
+                if (mRes && mRes.ok && mRes.value && typeof mRes.value === 'object' && !Array.isArray(mRes.value)) {
+                    master = mRes.value;
+                    // Anything this device knows that the cloud does not, keep.
+                    Object.keys(localMaster).forEach(function (k) {
+                        if (!master[k]) master[k] = localMaster[k];
+                    });
+                }
                 agencyMergeBusy(false);
-                finish(book, rename(book));
+                finish(book, foldRoster(master), rename(book));
             }).catch(function () {
                 agencyMergeBusy(false);
-                finish(local, rename(local));
+                finish(local, foldRoster(localMaster), rename(local));
             });
         }
-        finish(local, rename(local));
+        finish(local, foldRoster(localMaster), rename(local));
     };
 
     // The read can take a moment on a big book; make it obvious the merge is
@@ -1284,13 +1331,40 @@
         b.style.opacity = on ? '0.6' : '';
     }
 
-    window.agencyRender = render;
+    // The Binder Book's Agent Commissions screen edits this same row, and
+    // every tab switch here saves the whole record — so read the cloud copy
+    // before anything can be written back from a stale one.
+    var _pulled = false;
+    function pullProfile() {
+        var sync = window.UIBBinderSync;
+        if (!sync || typeof sync.readCloud !== 'function') { _pulled = true; return Promise.resolve(false); }
+        return sync.readCloud(STORE_KEY).then(function (res) {
+            var cloud = (res && res.ok) ? res.value : null;
+            if (!cloud || typeof cloud !== 'object' || Array.isArray(cloud)) return false;
+            // A save from this device that never reached the cloud; keep it.
+            if (localStorage.getItem(DIRTY_KEY) !== null) return false;
+            var str = JSON.stringify(cloud);
+            if (str === localStorage.getItem(STORE_KEY)) return false;
+            if (typeof _amsRawSet === 'function') _amsRawSet(STORE_KEY, str);
+            else localStorage.setItem(STORE_KEY, str);
+            return true;
+        }).catch(function () { return false; })
+          .then(function (changed) { _pulled = true; return changed; });
+    }
+
+    window.agencyRender = function () {
+        render();
+        pullProfile().then(function (changed) {
+            var busy = typeof amsRefreshBusy === 'function' && amsRefreshBusy();
+            if (changed && !busy) render();
+        });
+    };
     window.agencyTab = function (id) {
         if (id !== 'agents') _agentOpen = null;
         if (id === 'files') { reloadFiles().then(function () { if (_tab === 'files') render(); }); }
         // Keep what is on screen before switching, so a half-filled tab is
         // not lost to a click.
-        if (isAdmin()) { try { save(collect()); } catch (e) {} }
+        if (isAdmin() && _pulled) { try { save(collect()); } catch (e) {} }
         _tab = id;
         render();
     };
