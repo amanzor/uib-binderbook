@@ -2051,6 +2051,64 @@
     <!-- ═══════════════════════════════════════════════════════════
          MODAL: Renew A-B — rewrite the policy with a new carrier
     ════════════════════════════════════════════════════════════ -->
+    <div class="ams-modal" id="amsRnwRenewModal">
+        <div class="ams-modal-box" style="max-width:640px;">
+            <h3>🔄 Renew Policy</h3>
+            <div id="amsRnwRenewSubtitle" style="font-size:12.5px;color:var(--gray-500);margin:-12px 0 16px;"></div>
+            <div class="info-grid" style="gap:12px;">
+                <div class="info-field">
+                    <label>Carrier</label>
+                    <input type="text" id="amsRnwRenewCarrier" disabled style="background:var(--gray-100);">
+                </div>
+                <div class="info-field">
+                    <label>Prior Policy #</label>
+                    <input type="text" id="amsRnwRenewPriorNum" disabled style="background:var(--gray-100);">
+                </div>
+                <div class="info-field">
+                    <label>Prior Premium</label>
+                    <input type="text" id="amsRnwRenewPriorPremium" disabled style="background:var(--gray-100);">
+                </div>
+                <div class="info-field">
+                    <label>New Policy #</label>
+                    <input type="text" id="amsRnwRenewPolicyNum" placeholder="Leave blank if not issued yet">
+                </div>
+                <div class="info-field">
+                    <label>New Premium</label>
+                    <input type="number" id="amsRnwRenewPremium" step="0.01" min="0"
+                           oninput="amsRnwRenewPremiumChange()">
+                    <div id="amsRnwRenewPremiumDelta" style="font-size:11px;font-weight:700;margin-top:4px;"></div>
+                </div>
+                <div class="info-field">
+                    <label>Effective Date <span style="color:var(--red)">*</span></label>
+                    <input type="date" id="amsRnwRenewEff" onchange="amsRnwRenewSyncExp()">
+                </div>
+                <div class="info-field">
+                    <label>Term</label>
+                    <select id="amsRnwRenewTerm" onchange="amsRnwRenewSyncExp()">
+                        <option value="12">12 Months</option>
+                        <option value="6">6 Months</option>
+                    </select>
+                </div>
+                <div class="info-field">
+                    <label>Expiration Date</label>
+                    <input type="date" id="amsRnwRenewExp" disabled style="background:var(--gray-100);">
+                </div>
+            </div>
+            <div class="info-field" style="margin-top:14px;">
+                <label>Memo (optional)</label>
+                <textarea id="amsRnwRenewMemo" placeholder="What the insured was told, quoted premium, anything the agent should know…"></textarea>
+            </div>
+            <div style="margin-top:12px;font-size:12px;color:var(--gray-500);">
+                Files a <strong>Renewal</strong> in the assigned agent's Binder Book for the new term, adds it to the
+                client's profile, and leaves a memo on the expiring policy.
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="amsRnwCloseRenew()">Close</button>
+                <button class="btn-success" id="amsRnwRenewSubmitBtn" onclick="amsRnwSubmitRenew()">🔄 Send Renewal</button>
+            </div>
+        </div>
+    </div>
+
     <div class="ams-modal" id="amsRnwAbModal">
         <div class="ams-modal-box" style="max-width:640px;">
             <h3>🔀 Renew A-B — Rewrite with a New Carrier</h3>
@@ -2059,6 +2117,10 @@
                 <div class="info-field">
                     <label>Current Carrier (A)</label>
                     <input type="text" id="amsRnwAbFrom" disabled style="background:var(--gray-100);">
+                </div>
+                <div class="info-field">
+                    <label>Prior Premium (A)</label>
+                    <input type="text" id="amsRnwAbPriorPremium" disabled style="background:var(--gray-100);">
                 </div>
                 <div class="info-field">
                     <label>New Carrier (B) <span style="color:var(--red)">*</span></label>
@@ -2077,8 +2139,9 @@
                     <input type="text" id="amsRnwAbPolicyNum" placeholder="Leave blank if not issued yet">
                 </div>
                 <div class="info-field">
-                    <label>New Premium</label>
-                    <input type="number" id="amsRnwAbPremium" step="0.01" min="0">
+                    <label>New Premium (B)</label>
+                    <input type="number" id="amsRnwAbPremium" step="0.01" min="0" oninput="amsRnwAbPremiumChange()">
+                    <div id="amsRnwAbPremiumDelta" style="font-size:11px;font-weight:700;margin-top:4px;"></div>
                 </div>
                 <div class="info-field">
                     <label>Effective Date <span style="color:var(--red)">*</span></label>
@@ -4145,14 +4208,104 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             };
         }
 
+        // How a premium moved, shown beside the box the moment it is typed:
+        // the agent sees the increase before sending it, not afterwards.
+        function _amsRnwPremiumDelta(priorRaw, newRaw, el) {
+            if (!el) return;
+            const prior = parseFloat(priorRaw) || 0;
+            const next  = parseFloat(newRaw);
+            if (!prior || isNaN(next) || next <= 0) { el.textContent = ''; return; }
+            const diff = next - prior;
+            if (Math.abs(diff) < 0.005) { el.textContent = 'Same as prior premium'; el.style.color = 'var(--gray-500)'; return; }
+            const pct = Math.round((diff / prior) * 1000) / 10;
+            el.textContent = (diff > 0 ? '\u25b2 up ' : '\u25bc down ') + _rptFmt$(Math.abs(diff)) +
+                             ' (' + (diff > 0 ? '+' : '\u2212') + Math.abs(pct) + '%) vs prior';
+            el.style.color = diff > 0 ? '#b45309' : '#047857';
+        }
+        function amsRnwAbPremiumChange() {
+            _amsRnwPremiumDelta(_amsRnwCtx?.entry?.totalPremium,
+                document.getElementById('amsRnwAbPremium')?.value,
+                document.getElementById('amsRnwAbPremiumDelta'));
+        }
+        function amsRnwRenewPremiumChange() {
+            _amsRnwPremiumDelta(_amsRnwCtx?.entry?.totalPremium,
+                document.getElementById('amsRnwRenewPremium')?.value,
+                document.getElementById('amsRnwRenewPremiumDelta'));
+        }
+
+        function amsRnwOpenRenew(rowIdx) { _amsRnwOpenRenewCtx(_amsRnwCtxFromRow(rowIdx)); }
+
+        function _amsRnwOpenRenewCtx(ctx) {
+            if (!amsIsRenewalAdmin() || !ctx) return;
+            const src = ctx.entry;
+            if (!src.agent) {
+                alert('Assign this policy to an agent first, then click Renew \u2014 the record is sent to that agent\u2019s Binder Book.');
+                return;
+            }
+            if (!src.expirationDate) {
+                alert('This policy has no expiration date, so there is no new term to renew into. Add one on the policy first.');
+                return;
+            }
+            _amsRnwCtx = ctx;
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+            const sub = document.getElementById('amsRnwRenewSubtitle');
+            if (sub) sub.textContent = `${src.customerName || '\u2014'} \u00b7 ${src.policyNumber || 'no policy #'} \u00b7 ${src.agent} \u00b7 exp ${src.expirationDate}`;
+            set('amsRnwRenewCarrier',      src.company || '\u2014');
+            set('amsRnwRenewPriorNum',     src.policyNumber || '\u2014');
+            set('amsRnwRenewPriorPremium', _rptFmt$(src.totalPremium));
+            // Blank, not the old number: a renewal usually gets a new one, and
+            // a pre-filled box is the one nobody edits.
+            set('amsRnwRenewPolicyNum', '');
+            set('amsRnwRenewPremium',   parseFloat(src.totalPremium) || '');
+            set('amsRnwRenewEff',       src.expirationDate);
+            const termEl = document.getElementById('amsRnwRenewTerm');
+            if (termEl) termEl.value = String(_amsRnwTermMonths(src.effectiveDate, src.expirationDate) || 12);
+            set('amsRnwRenewMemo', '');
+            amsRnwRenewSyncExp();
+            amsRnwRenewPremiumChange();
+            document.getElementById('amsRnwRenewModal')?.classList.add('open');
+        }
+
+        function amsRnwCloseRenew() {
+            document.getElementById('amsRnwRenewModal')?.classList.remove('open');
+            _amsRnwCtx = null;
+        }
+
+        function amsRnwRenewSyncExp() {
+            const eff  = document.getElementById('amsRnwRenewEff')?.value || '';
+            const term = parseInt(document.getElementById('amsRnwRenewTerm')?.value || '12');
+            const exp  = document.getElementById('amsRnwRenewExp');
+            if (exp) exp.value = eff ? _amsRnwAddMonths(eff, term) : '';
+        }
+
+        async function amsRnwSubmitRenew() {
+            if (!amsIsRenewalAdmin()) return;
+            const ctx = _amsRnwCtx;
+            if (!ctx || !ctx.entry) return;
+            const eff = document.getElementById('amsRnwRenewEff')?.value || '';
+            if (!eff) { alert('Enter the effective date of the new term.'); return; }
+            const opts = {
+                effectiveDate: eff,
+                term:          parseInt(document.getElementById('amsRnwRenewTerm')?.value || '12'),
+                policyNumber:  (document.getElementById('amsRnwRenewPolicyNum')?.value || '').trim(),
+                premium:       parseFloat(document.getElementById('amsRnwRenewPremium')?.value),
+                memo:          (document.getElementById('amsRnwRenewMemo')?.value || '').trim()
+            };
+            if (isNaN(opts.premium) || opts.premium <= 0) { alert('Enter the new premium for this renewal.'); return; }
+            const btn = document.getElementById('amsRnwRenewSubmitBtn');
+            await _amsRnwRenewEntry(ctx.entry, ctx.list, btn, opts);
+            amsRnwCloseRenew();
+        }
+
         async function amsRnwRenew(rowIdx, btnEl) {
             const src = _amsRnwRows[rowIdx];
-            if (src) await _amsRnwRenewEntry(src, _amsRnwBinder, btnEl);
+            if (src) _amsRnwOpenRenewCtx({ entry: src, list: _amsRnwBinder });
         }
 
         // Renew core — shared by the Renewals table and a client's policy row.
         // `binder` is the array holding src, so the new term is saved alongside it.
-        async function _amsRnwRenewEntry(src, binder, btnEl) {
+        async function _amsRnwRenewEntry(src, binder, btnEl, opts) {
+            opts = opts || {};
             if (!amsIsRenewalAdmin()) return; // admins / agency admins only
             if (!src) return;
             if (!src.agent) {
@@ -4163,7 +4316,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 alert('This policy has no expiration date, so there is no new term to renew into. Add one on the policy first.');
                 return;
             }
-            const newEff = src.expirationDate;
+            const newEff = opts.effectiveDate || src.expirationDate;
             // Already renewed locally. That can mean the cloud push failed
             // earlier (offline / database down), leaving the renewal stranded on
             // this device — so offer to re-send it instead of refusing outright.
@@ -4180,9 +4333,27 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             const entry = _amsRnwBuildEntry(src, {
                 policyType:    'Renewal',
                 effectiveDate: newEff,
-                term:          _amsRnwTermMonths(src.effectiveDate, newEff),
-                notes:         'Renewal generated from the AMS — pending completion.'
+                term:          opts.term || _amsRnwTermMonths(src.effectiveDate, newEff),
+                policyNumber:  opts.policyNumber != null ? opts.policyNumber : undefined,
+                premium:       opts.premium != null && !isNaN(opts.premium) ? opts.premium : undefined,
+                notes:         'Renewal generated from the AMS — pending completion.' +
+                               (opts.memo ? ' ' + opts.memo : '')
             });
+
+            // The expiring policy carries the record of what was done to it, so
+            // it shows on the client's Activity without waiting on a server log.
+            const priorPrem = parseFloat(src.totalPremium) || 0;
+            const newPrem   = parseFloat(entry.totalPremium) || 0;
+            src.memos = [..._amsRnwMemos(src), {
+                at: new Date().toISOString(), by: _amsRnwWho(),
+                text: `Renewed effective ${newEff}` +
+                      (entry.policyNumber && entry.policyNumber !== src.policyNumber
+                          ? ` — new policy # ${entry.policyNumber}` : '') +
+                      (priorPrem || newPrem
+                          ? ` — premium ${_rptFmt$(priorPrem)} \u2192 ${_rptFmt$(newPrem)}` : '') +
+                      (opts.memo ? `. ${opts.memo}` : '')
+            }];
+            src.updatedAt = Date.now();
             // Save to the AMS's own store (Apps Script + localStorage) and re-render
             binder.push(entry);
             amsSave('binderData', binder);
@@ -4192,9 +4363,13 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             // normal sync writes to a different backend, so push the new entry to
             // Supabase directly (merged) or the agent never sees it.
             const ok = await amsRnwPushToSupabase(entry);
+            await _amsRnwPersistEdit(src, binder);   // mirror the memo onto the cloud copy
+            // The modal's button outlives this call, unlike the table row's,
+            // so put it back rather than leaving it stuck on "Sending…".
+            if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🔄 Send Renewal'; }
 
             _amsRnwRefreshViews();
-            if (ok) amsFlashBanner(`Renewal sent to ${src.agent}'s Binder Book ✓`);
+            if (ok) amsFlashBanner(`Renewal sent to ${src.agent}'s Binder Book \u2713`);
             else alert(`Saved locally, but the cloud sync to ${src.agent}'s Binder Book FAILED — check your connection and click Renew again.`);
         }
 
@@ -4736,6 +4911,8 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             if (sub) sub.textContent = `${src.customerName || '—'} · ${src.policyNumber || 'no policy #'} · ${src.agent}`;
             const fromEl = document.getElementById('amsRnwAbFrom');
             if (fromEl) fromEl.value = src.company || '—';
+            const priorEl = document.getElementById('amsRnwAbPriorPremium');
+            if (priorEl) priorEl.value = _rptFmt$(src.totalPremium);
             const toEl = document.getElementById('amsRnwAbTo');
             if (toEl) {
                 toEl.innerHTML = ['<option value="">— Select New Carrier —</option>']
@@ -4846,7 +5023,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // Same action as the Renewals table's Renew button.
         async function amsPolicyRenew(clientKey, polIdx, btnEl) {
             const ctx = _amsRnwCtxFromClient(clientKey, polIdx);
-            if (ctx) await _amsRnwRenewEntry(ctx.entry, ctx.list, btnEl);
+            if (ctx) _amsRnwOpenRenewCtx(ctx);
         }
 
         function amsRnwOpenClient(key) {
