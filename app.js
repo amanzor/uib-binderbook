@@ -7650,6 +7650,10 @@ function loadAgentCommissionData() {
 // Some agents are paid a flat dollar amount per transaction instead of the
 // percentage-based agency/agent split. Scoped to the current month (ET),
 // matching the rest of the My Commissions view.
+// Agents whose personal auto book Amanda services. Their renewals are her
+// work even though the policies are written under their names.
+const RENEWAL_SERVICE_AGENTS = ['Uriel Rendon', 'Alberto Manzor', 'Randy Diaz'];
+
 const SPECIAL_COMMISSION_RULES = {
     'Amanda Montano': {
         label: "Amanda's Commission Rule",
@@ -7658,7 +7662,21 @@ const SPECIAL_COMMISSION_RULES = {
             { label: 'Renew A-B',    rate: 10, match: pt => (pt || '').trim().toLowerCase() === 'renew a-b' },
             { label: 'Rewrites',     rate: 10, match: pt => /^rewrite/i.test((pt || '').trim()) }
         ],
-        underwriting: { label: 'Cleared Underwriting', rate: 10 }
+        underwriting: { label: 'Cleared Underwriting', rate: 10 },
+        // Paid on renewals she services, which is not the same set as the
+        // policies written under her name: her own renewals, plus the whole
+        // personal auto book of the three agents whose service she handles.
+        bookItems: [{
+            label: 'Renewals Serviced',
+            rate: 5,
+            note: 'her renewals + all personal auto for Uriel Rendon, Alberto Manzor, Randy Diaz',
+            match: (e, agent) => {
+                const type = String(e.policyType || '').trim().toLowerCase();
+                if (e.agent === agent) return type === 'renewal';
+                if (RENEWAL_SERVICE_AGENTS.indexOf(e.agent) === -1) return false;
+                return /personal\s*auto/i.test(String(e.lineOfBusiness || ''));
+            }
+        }]
     }
 };
 
@@ -7683,6 +7701,21 @@ function _specialCommissionRows(agent, monthLabel) {
         const amount = count * item.rate;
         total += amount;
         rows.push({ label: item.label, count, rate: item.rate, amount });
+    });
+
+    // Rows counted across the whole book rather than the agent's own entries.
+    // Deduped by id so a policy cannot be paid on twice if a rule widens.
+    (rule.bookItems || []).forEach(item => {
+        const seen = new Set();
+        allData.forEach(e => {
+            if (_entryMonth(e) !== monthLabel) return;
+            if (!item.match(e, agent)) return;
+            const id = e.id != null ? String(e.id) : JSON.stringify([e.policyNumber, e.customerName, e.entryDate]);
+            seen.add(id);
+        });
+        const amount = seen.size * item.rate;
+        total += amount;
+        rows.push({ label: item.label, count: seen.size, rate: item.rate, amount, note: item.note });
     });
 
     // Cleared underwriting: clients this agent cleared in the current month.
@@ -7717,7 +7750,7 @@ function renderSpecialCommissionPanel(agent) {
     const $ = v => `$${(v || 0).toFixed(2)}`;
     const rowsHtml = rows.map(r => `
         <tr>
-            <td style="padding:10px 14px;font-weight:600;color:#3730a3;">${r.label}</td>
+            <td style="padding:10px 14px;font-weight:600;color:#3730a3;">${r.label}${r.note ? `<div style="font-weight:400;font-size:11px;color:#64748b;margin-top:2px;">${r.note}</div>` : ''}</td>
             <td style="padding:10px 14px;text-align:center;color:#475569;">${r.count}</td>
             <td style="padding:10px 14px;text-align:center;color:#475569;">$${r.rate.toFixed(2)} each</td>
             <td style="padding:10px 14px;text-align:right;font-weight:700;font-family:monospace;color:#166534;">${$(r.amount)}</td>
