@@ -515,6 +515,7 @@ function amsLogout() {
     amsCurrentUser = null;
     amsCurrentRole = null;
     amsActiveKey   = null;
+    if (typeof amsHomeResetUser === 'function') amsHomeResetUser();
     const aiBtn = document.getElementById('aiBubbleBtn');
     if (aiBtn) aiBtn.style.display = 'none';
     document.getElementById('aiChatPanel')?.classList.remove('open');
@@ -599,6 +600,7 @@ async function amsRefreshFromCloud() {
         // Certificates and additional interests another agent saved.
         if (amsActiveKey && _amsVisible(document.getElementById('tabCertificates')) && typeof certRenderList === 'function') certRenderList();
         if (amsActiveKey && _amsVisible(document.getElementById('tabInterests')) && typeof aiRender === 'function') aiRender();
+        if (_amsVisible(document.getElementById('amsHomePanel')) && typeof amsHomeRender === 'function') amsHomeRender();
         const rnw = document.getElementById('amsRenewalsPanel');
         if (_amsVisible(rnw) && typeof amsRenewalsRender === 'function') amsRenewalsRender();
     } catch (e) {
@@ -743,6 +745,8 @@ function amsLaunchApp() {
         lucide.createIcons();
         amsStartLiveRefresh();
         amsOpenDeepLinkedClient();
+        // Land on Home unless a link opened a client.
+        if (!amsActiveKey && typeof amsSidebarNav === 'function' && typeof amsHomeRender === 'function') amsSidebarNav('home');
     });
 
     // Keyboard: Escape closes preview

@@ -160,6 +160,10 @@
         #sidebarNavHealth:hover { background: #fff1f2; color: #be123c; }
         #sidebarNavHealth.active { background: linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%); color: #fff; box-shadow: 0 2px 8px rgba(225,29,72,.3); }
 
+        /* Home uses the full width: the client list has nothing to show there. */
+        body.ams-home-on .ams-sidebar { display: none; }
+        body.ams-home-on .ams-main { margin-left: 0; background: #f4f7fb; }
+
         /* ── MAIN BODY LAYOUT ─────────────────────────────────────── */
         .ams-body { display: flex; flex: 1; padding-top: calc(var(--header-h) + var(--tabbar-h)); min-height: 100vh; }
 
@@ -740,6 +744,9 @@
         <!-- Section tab bar (below header) -->
         <nav class="ams-tabbar" id="amsTabbar">
             <div class="ams-nav-group" style="position:relative;display:flex;align-items:center;flex-shrink:0;">
+                <button class="ams-tab-btn" id="sidebarNavHome" onclick="amsSidebarNav('home')">
+                    <i data-lucide="home" style="width:15px;height:15px;"></i> Home
+                </button>
                 <button class="ams-tab-btn" id="sidebarNavDashboard" onclick="amsSidebarNav('dashboard')">
                     <i data-lucide="layout-dashboard" style="width:15px;height:15px;"></i> Dashboard
                 </button>
@@ -1059,6 +1066,11 @@
                 </div>
 
                 <!-- Health panel (Health Book clients, reports, carriers, statements — health.js) -->
+                <!-- Home panel (ams-home.js): the signed-in agent's own production -->
+                <div id="amsHomePanel" style="display:none;">
+                    <div id="amsHomeBody"></div>
+                </div>
+
                 <div id="amsHealthPanel" style="display:none;" class="reports-panel">
                     <div style="flex:1;padding:24px;overflow-y:auto;">
                         <div id="amsHealthBody"></div>
@@ -2400,13 +2412,14 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261030a"></script>
+    <script src="ams.js?v=20261030b"></script>
     <script src="acord25-map.js?v=20261027a"></script>
     <script src="certificates.js?v=20261030a"></script>
     <script src="additional-interests.js?v=20261030a"></script>
     <script src="certificates-ui.js?v=20261030a"></script>
     <script src="agency.js?v=20261028a"></script>
     <script src="health.js?v=20261029a"></script>
+    <script src="ams-home.js?v=20261030a"></script>
     <script src="supabase.js?v=20261027a"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
@@ -2451,7 +2464,7 @@
         function amsSidebarNav(section) {
             // 'search' has no tab button of its own — it's reached via the header
             // search box (onfocus) — so it's excluded from the active-tab toggle.
-            const sections = ['dashboard','reports','renewals','health','accounting','commissions','download','realtime','agency'];
+            const sections = ['home','dashboard','reports','renewals','health','accounting','commissions','download','realtime','agency'];
             sections.forEach(s => {
                 const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
                 if (btn) btn.classList.toggle('active', s === section);
@@ -2466,12 +2479,14 @@
             const commPanel     = document.getElementById('amsCommissionsPanel');
             const agencyPanel   = document.getElementById('amsAgencyPanel');
             const healthPanel   = document.getElementById('amsHealthPanel');
+            const homePanel     = document.getElementById('amsHomePanel');
             const dlPanel       = document.getElementById('amsDownloadPanel');
             const rtPanel       = document.getElementById('amsRealtimePanel');
             const welcome       = document.getElementById('amsWelcome');
             const detail        = document.getElementById('amsClientDetail');
 
             amsMountPanelNav(section);
+            document.body.classList.toggle('ams-home-on', section === 'home');
 
             toolbar.style.display      = 'none';
             clientList.style.display   = 'none';
@@ -2482,6 +2497,7 @@
             commPanel.style.display    = 'none';
             if (agencyPanel) agencyPanel.style.display = 'none';
             if (healthPanel) healthPanel.style.display = 'none';
+            if (homePanel) homePanel.style.display = 'none';
             dlPanel.style.display      = 'none';
             rtPanel.style.display      = 'none';
             welcome.style.display      = 'none';
@@ -2492,6 +2508,9 @@
                 clientList.style.display = '';
                 if (amsActiveKey) { detail.style.display  = 'block'; }
                 else              { welcome.style.display = ''; }
+            } else if (section === 'home') {
+                if (homePanel) homePanel.style.display = 'block';
+                if (typeof amsHomeRender === 'function') amsHomeRender();
             } else if (section === 'dashboard') {
                 dashPanel.style.display = 'block';
                 amsRenderDashboard();
