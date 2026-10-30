@@ -569,20 +569,19 @@
 // ═══════════════════════════════════════════════════
 // SERVER
 // ═══════════════════════════════════════════════════
-// Everything comes from the insured-portal Supabase function, which
-// decides what this client may see. Business logins (commercial
-// clients) sign in with e-mail + password set by their agent on the
-// AMS "Insured Login" tab; personal clients with last name + policy #.
-const SB_URL   = (window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co';
-const PORTAL_FN = SB_URL + '/functions/v1/insured-portal';
+// Everything comes from the Client Portal function on the AMS's own
+// Vercel site (/api/insured-portal), which decides what this client may
+// see. Business logins (commercial clients) sign in with e-mail +
+// password set by their agent on the AMS "Insured Login" tab; personal
+// clients with last name + policy #. The Binder Book serves a copy of
+// this page, so there it calls the AMS's function.
+const AMS_SITE  = String((window.UIB_CONFIG || {}).AMS_URL || 'https://uib-ams.vercel.app').replace(/\/+$/, '');
+const PORTAL_FN = (/binderbook/i.test(location.hostname) ? AMS_SITE : '') + '/api/insured-portal';
 
 async function api(body, opts) {
-    const key = (window.UIB_CONFIG || {}).SUPABASE_ANON || '';
     let r;
     try {
-        r = await fetch(PORTAL_FN, { method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'apikey': key, 'Authorization': 'Bearer ' + key },
-            body: JSON.stringify(body) });
+        r = await fetch(PORTAL_FN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     } catch (e) { return { ok: false, error: 'Could not reach the portal. Check your connection and try again.', offline: true }; }
     if (opts && opts.raw) return r;
     const out = await r.json().catch(() => null);

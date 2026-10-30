@@ -11,7 +11,7 @@
 //  merged record by record like additionalInterestData. The password
 //  never leaves this browser in the clear: it is hashed here
 //  (PBKDF2-SHA256, random salt) and only the hash is stored. The
-//  insured-portal Supabase function checks a sign-in against that hash
+//  Client Portal function (api/insured-portal.js on the AMS site) checks a sign-in against that hash
 //  and enforces the permissions on every request — the portal page
 //  only draws what the server already decided to send.
 //
@@ -82,7 +82,7 @@
         return p;
     }
 
-    // ── Password hashing (must match supabase/functions/insured-portal) ──
+    // ── Password hashing (must match api/insured-portal.js on the AMS site) ──
     function b64(bytes) {
         var s = '';
         bytes = new Uint8Array(bytes);
