@@ -981,11 +981,48 @@ function amsApplyFilters(q) {
 }
 
 // What a record in the client list is: a client, a prospect (no policies
-// yet, status Prospect), or a Health Book client.
+// yet, status Prospect), an inactive client (every policy canceled or
+// expired), or a Health Book client.
 function amsClientKind(client) {
     if (client.isHealth) return 'health';
     const st = (client.contact && client.contact.clientStatus) || '';
-    return (!client.policies.length && /prospect/i.test(st)) ? 'prospects' : 'clients';
+    if (!client.policies.length && /prospect/i.test(st)) return 'prospects';
+    return amsClientActivity(client).inactive ? 'inactive' : 'clients';
+}
+
+// Is anything still in force for this client? Each policy number counts
+// once, by its most recent entry; a client whose every policy is canceled
+// or expired is inactive. Worked out from the policies each time, so a
+// new policy makes the client active again with nothing to undo.
+function amsClientActivity(client) {
+    const pols = (client && client.policies) || [];
+    if (!pols.length) return { inactive: false, reason: '', lastDate: '', policies: 0 };
+    const groups = {};
+    pols.forEach((p, i) => {
+        const k = String(p.policyNumber || '').trim().toUpperCase() || ('#' + i);
+        (groups[k] = groups[k] || []).push(p);
+    });
+    let anyLive = false, canceled = 0, expired = 0, lastDate = '';
+    Object.values(groups).forEach(list => {
+        const dateOf = p => String(p.expirationDate || p.effectiveDate || p.effDate || p.entryDate || '');
+        list.forEach(p => { const d = String(p.cancellationDate || p.expirationDate || p.entryDate || ''); if (d > lastDate) lastDate = d; });
+        if (list.some(p => amsGetPolicyStatus(p) === 'Canceled')) { canceled++; return; }
+        const latest = list.slice().sort((a, b) => dateOf(b).localeCompare(dateOf(a)))[0];
+        const st = amsGetPolicyStatus(latest);
+        if (st === 'Expired') expired++;
+        else anyLive = true;
+    });
+    if (anyLive) return { inactive: false, reason: '', lastDate, policies: Object.keys(groups).length };
+    const reason = canceled && expired ? 'Canceled & expired' : canceled ? 'Canceled' : 'Expired';
+    return { inactive: true, reason, lastDate, policies: Object.keys(groups).length };
+}
+
+// The status a client shows: a manual Prospect / Inactive on the record
+// stands; otherwise a client with nothing in force reads Inactive.
+function amsClientStatusOf(client) {
+    const manual = (client && client.contact && client.contact.clientStatus) || '';
+    if (/prospect|inactive/i.test(manual)) return manual;
+    return amsClientActivity(client).inactive ? 'Inactive' : (manual || 'Active');
 }
 
 // ── Render client list ───────────────────────────────────────
@@ -1014,7 +1051,7 @@ function amsRenderClientList(relatedCount = 0) {
         }
         const contact = c.contact || {};
         const numPolicies = c.policies.length;
-        const clientStatus = contact.clientStatus || 'Active';
+        const clientStatus = amsClientStatusOf(c);
         const statusClass  = /inactive/i.test(clientStatus) ? 'status-inactive'
                            : /prospect/i.test(clientStatus) ? 'status-prospect'
                            : 'status-active';
@@ -1302,7 +1339,7 @@ function amsLoadClientDetail(key) {
     if (contact.email)  metaItems.push(`<span><i data-lucide="mail"  style="width:12px;height:12px;"></i> ${amsEscHtml(contact.email)}</span>`);
     if (contact.city)   metaItems.push(`<span><i data-lucide="map-pin" style="width:12px;height:12px;"></i> ${amsEscHtml(contact.city)}</span>`);
     metaItems.push(`<span class="tag tag-blue">${numPol} Polic${numPol !== 1 ? 'ies' : 'y'}</span>`);
-    const _detailStatus = contact.clientStatus || 'Active';
+    const _detailStatus = amsClientStatusOf(client);
     const _statusTag = /inactive/i.test(_detailStatus) ? 'tag-gray'
                      : /prospect/i.test(_detailStatus) ? 'tag-orange'
                      : 'tag-green';
@@ -1440,7 +1477,7 @@ function amsRenderPolicies(key) {
         return `<tr style="cursor:${hasCarrierData ? 'pointer' : 'default'};" ${hasCarrierData ? `onclick="amsTxnToggle(${p.id})"` : ''}>
             <td style="white-space:nowrap;">${dateStr}</td>
             <td>${amsAgentLink(p.agent, amsEscHtml(p.agent || '—'))}</td>
-            <td><span class="tag tag-blue">${amsEscHtml(p.policyType || '—')}</span></td>
+            <td>${(() => { const t = amsTxnTypeLabel(p, policies); return t ? `<span class="tag tag-blue">${amsEscHtml(t)}</span>` : '<span style="color:var(--gray-400);">—</span>'; })()}</td>
             <td>${amsEscHtml(p.lineOfBusiness || '—')}</td>
             <td><strong>${amsEscHtml(p.company || '—')}</strong></td>
             <td style="font-family:monospace;font-size:11.5px;">${amsEscHtml(p.policyNumber || '—')}</td>
@@ -1587,6 +1624,7 @@ function amsOpenAddPolicyModal() {
                     'mp_effDate','mp_expDate','mp_policyStatus',
                     'mp_propAddress','mp_propUnit','mp_propCity','mp_propState','mp_propZip','mp_propYearBuilt'];
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.querySelectorAll('#mp_policyType option[data-legacy]').forEach(o => o.remove());
 
     // Pre-fill the insured property address from the client's contact record so
     // homeowner policies default to the address already on file.
@@ -1651,6 +1689,20 @@ function amsEditPolicy(policyId) {
         const el = document.getElementById(elId);
         if (el) el.value = entry[field] || '';
     });
+    // Transaction type: older AMS entries say "New Business"; a cancellation
+    // entry keeps its stored value so saving it does not turn it into a sale.
+    const ptSel = document.getElementById('mp_policyType');
+    if (ptSel) {
+        [...ptSel.options].filter(o => o.dataset.legacy).forEach(o => o.remove());
+        const stored = String(entry.policyType || '');
+        if (/^new\b/i.test(stored)) ptSel.value = 'New';
+        else if (stored && ![...ptSel.options].some(o => o.value === stored)) {
+            const o = new Option(stored + (amsIsCancellationEntry(entry) ? ' (status: Canceled)' : ''), stored);
+            o.dataset.legacy = '1';
+            ptSel.add(o);
+            ptSel.value = stored;
+        }
+    }
 
     // Load drivers and vehicles from the entry
     amsResetDriversVehicles(entry.drivers, entry.vehicles);
@@ -1673,7 +1725,7 @@ function amsSavePolicyModal() {
     const carrier    = document.getElementById('mp_carrier')?.value    || '';
 
     if (!agent)      { alert('Please select an Agent.');            return; }
-    if (!policyType) { alert('Please select a Policy Type.');       return; }
+    if (!policyType) { alert('Please select a Transaction Type.');  return; }
     if (!lob)        { alert('Please select a Line of Business.');  return; }
     if (!carrier)    { alert('Please select a Carrier.');           return; }
     if (amsIsRestrictedHomeownerCarrier(carrier) && amsIsHomeownerLOB(lob)) {
@@ -2363,7 +2415,38 @@ function amsCollectProperty() {
 
 // ── Policy Status Management ─────────────────────────────────
 // Determine policy status based on dates and explicit status field
+// ── Transaction type ─────────────────────────────────────────
+// What the Binder Book records as policyType is the TRANSACTION: New,
+// Renewal, Endorsement, Rewrite, Renew A-B, Miscellaneous. A cancellation
+// is not a transaction type here — it is the policy's status — so an entry
+// recorded as a cancellation ("Canc", "Cancellation") shows the transaction
+// it cancelled and reads Canceled under Status.
+function amsIsCancellationEntry(p) { return /^canc/i.test(String((p && p.policyType) || '').trim()); }
+function amsTxnTypeLabel(p, siblings) {
+    let t = String((p && p.policyType) || '').trim();
+    if (amsIsCancellationEntry(p)) {
+        const num = String(p.policyNumber || '').trim();
+        const orig = num && (siblings || []).find(o => o !== p && String(o.policyNumber || '').trim() === num && !amsIsCancellationEntry(o) && o.policyType);
+        if (!orig) return '';
+        t = String(orig.policyType).trim();
+    }
+    if (/^new/i.test(t) || /^nbs$/i.test(t)) return 'New';
+    if (/renew\s*a\s*-?\s*b/i.test(t)) return 'Renew A-B';
+    if (/^renew/i.test(t)) return 'Renew';
+    if (/^end/i.test(t)) return 'Endorsement';
+    if (/^rewrite/i.test(t)) return 'Rewrite';
+    if (/^misc/i.test(t)) return 'Miscellaneous';
+    return t;
+}
+
 function amsGetPolicyStatus(policy) {
+    // A cancellation transaction, or a policy with a cancellation date that
+    // has passed, is a canceled policy.
+    if (amsIsCancellationEntry(policy)) return 'Canceled';
+    if (policy.cancellationDate) {
+        const today = new Date().toISOString().slice(0, 10);
+        if (String(policy.cancellationDate).slice(0, 10) <= today) return 'Canceled';
+    }
     // The Renewals page writes 'Cancelled' (the spelling the Binder Book filters
     // on) — fold both spellings into the one this app displays.
     if (/^cancell?ed$/i.test(policy.policyStatus || '')) return 'Canceled';

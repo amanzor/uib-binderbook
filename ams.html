@@ -167,17 +167,16 @@
             font-family: inherit; background: var(--gray-50, #f8fafc); color: var(--navy); }
         .ams-top-search input:focus { outline: none; border-color: var(--blue); background: #fff; box-shadow: 0 0 0 3px rgba(29,78,216,.12); }
         .ams-top-search .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--gray-400); pointer-events: none; display: flex; }
-        /* Bottom padding keeps the card clear of the floating cloud-sync button. */
-        .ams-logo-section { margin-top: auto; padding: 12px 10px 78px; border-top: 1px solid var(--gray-200); flex-shrink: 0; background: #fff; }
-        .ams-logo-card { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 12px;
+        .ams-logo-section { margin-left: auto; padding-left: 12px; flex-shrink: 0; align-self: center; }
+        .ams-logo-card { display: flex; align-items: center; gap: 9px; padding: 4px 12px 4px 5px; border: 1px solid var(--gray-200); border-radius: 12px;
             background: linear-gradient(135deg,#f8fafc,#eef4ff); cursor: pointer; font-family: inherit; text-align: left; transition: box-shadow .15s, border-color .15s, transform .15s; }
         .ams-logo-card:hover { border-color: #93c5fd; box-shadow: 0 8px 20px -12px rgba(13,31,60,.45); transform: translateY(-1px); }
-        .ams-logo-card img { width: 44px; height: 44px; object-fit: contain; border-radius: 10px; background: #fff; padding: 3px; box-shadow: 0 1px 3px rgba(15,23,42,.12); flex-shrink: 0; }
+        .ams-logo-card img { width: 30px; height: 30px; object-fit: contain; border-radius: 10px; background: #fff; padding: 3px; box-shadow: 0 1px 3px rgba(15,23,42,.12); flex-shrink: 0; }
         .ams-logo-card span { display: flex; flex-direction: column; min-width: 0; }
-        .ams-logo-card b { font-size: 13px; color: var(--navy); }
-        .ams-logo-card small { font-size: 11px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ams-logo-card .ams-logo-initials { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg,#0d1f3c,#1d4ed8); color: #fff;
-            font-weight: 800; font-size: 15px; align-items: center; justify-content: center; flex-shrink: 0; }
+        .ams-logo-card b { font-size: 12.5px; color: var(--navy); line-height: 1.2; }
+        .ams-logo-card small { font-size: 10.5px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ams-logo-card .ams-logo-initials { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,#0d1f3c,#1d4ed8); color: #fff;
+            font-weight: 800; font-size: 12px; align-items: center; justify-content: center; flex-shrink: 0; }
         .ams-book-tabs { display: flex; gap: 4px; height: 100%; align-items: flex-end; }
         .ams-book-tab {
             display: flex; align-items: center; gap: 8px; padding: 10px 22px 11px; border: none; background: none;
@@ -775,6 +774,8 @@
                 <input type="text" id="amsGlobalSearch" placeholder="Search clients by name, phone, policy #…"
                     onfocus="amsSidebarNav('search')" oninput="amsSearch(this.value)">
             </div>
+            <!-- Agency Management (managers) / Agent Management (agents) — agency.js -->
+            <div class="ams-logo-section" id="amsLogoSection"></div>
         </nav>
 
         <!-- Body -->
@@ -825,6 +826,7 @@
                             <option value="">All Records</option>
                             <option value="clients">Clients</option>
                             <option value="prospects">Prospects</option>
+                            <option value="inactive">Inactive clients</option>
                             <option value="health">Health</option>
                         </select>
                     </div>
@@ -846,8 +848,6 @@
 
                 <!-- Active panel's buttons live here — see amsMountPanelNav() -->
                 <div class="sidebar-panel-nav" id="amsPanelNav"></div>
-                <!-- Agency Management (managers) / Agent Management (agents) — agency.js -->
-                <div class="ams-logo-section" id="amsLogoSection"></div>
             </aside>
 
             <!-- ── MAIN DETAIL ── -->
@@ -918,6 +918,8 @@
                         <button class="report-tab" onclick="amsShowReport('monthly')">📅 Monthly Trend</button>
                         <button class="report-tab" onclick="amsShowReport('paymethod')">💳 Payment Methods</button>
                         <button class="report-tab" onclick="amsShowReport('prospects')">🎯 Prospects</button>
+                        <button class="report-tab" onclick="amsShowReport('inactive')">💤 Inactive Clients</button>
+                        <button class="report-tab" onclick="amsShowReport('missinglob')">🧩 Missing Line of Business</button>
                         <button class="report-tab" onclick="amsSidebarNav('health'); healthTab('report');" style="color:#be123c;">❤️ Health Insurance</button>
                         <button class="report-tab" onclick="amsSidebarNav('health'); healthTab('commissions');" style="color:#be123c;">❤️ Health Commissions</button>
                     </div>
@@ -1729,7 +1731,7 @@
                                         <tr>
                                             <th>Date</th>
                                             <th>Agent</th>
-                                            <th>Policy Type</th>
+                                            <th>Transaction Type</th>
                                             <th>LOB</th>
                                             <th>Carrier</th>
                                             <th>Policy #</th>
@@ -1923,14 +1925,15 @@
                     <select id="mp_agent"></select>
                 </div>
                 <div class="info-field">
-                    <label>Policy Type <span style="color:var(--red)">*</span></label>
+                    <label>Transaction Type <span style="color:var(--red)">*</span></label>
                     <select id="mp_policyType">
                         <option value="">— Select —</option>
-                        <option>New Business</option>
-                        <option>Renewal</option>
-                        <option>Endorsement</option>
-                        <option>Rewrite</option>
-                        <option>Cancellation</option>
+                        <option value="New">New</option>
+                        <option value="Renewal">Renew</option>
+                        <option value="Endorsement">Endorsement</option>
+                        <option value="Rewrite">Rewrite</option>
+                        <option value="Renew A-B">Renew A-B</option>
+                        <option value="Miscellaneous">Miscellaneous</option>
                     </select>
                 </div>
                 <div class="info-field">
@@ -2445,12 +2448,12 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261030d"></script>
+    <script src="ams.js?v=20261030e"></script>
     <script src="acord25-map.js?v=20261027a"></script>
     <script src="certificates.js?v=20261030a"></script>
     <script src="additional-interests.js?v=20261030a"></script>
     <script src="certificates-ui.js?v=20261030a"></script>
-    <script src="agency.js?v=20261030a"></script>
+    <script src="agency.js?v=20261030b"></script>
     <script src="health.js?v=20261030a"></script>
     <script src="ams-home.js?v=20261030b"></script>
     <script src="ams-books.js?v=20261030b"></script>
@@ -3816,7 +3819,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsShowReport(type) {
             _activeReport = type;
             document.querySelectorAll('.report-tab').forEach(b => b.classList.remove('active'));
-            const tabMap = {expiring:0,production:1,lob:2,carrier:3,newvsrenewal:4,commission:5,monthly:6,paymethod:7,prospects:8};
+            const tabMap = {expiring:0,production:1,lob:2,carrier:3,newvsrenewal:4,commission:5,monthly:6,paymethod:7,prospects:8,inactive:9,missinglob:10};
             const tabs   = document.querySelectorAll('.report-tab');
             if (tabs[tabMap[type]]) tabs[tabMap[type]].classList.add('active');
             Object.keys(_rptCharts).forEach(id => _rptDestroyChart(id));
@@ -3829,7 +3832,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 commission:   amsReportCommission,
                 monthly:      amsReportMonthly,
                 paymethod:    amsReportPayMethod,
-                prospects:    amsReportProspects
+                prospects:    amsReportProspects,
+                inactive:     amsReportInactive,
+                missinglob:   amsReportMissingLob
             }[type];
             if (fn) fn();
         }
@@ -6062,6 +6067,182 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 </table></div>
             </div>`;
         }
+        // ══════════════════════════════════════════════════════
+        // 10. INACTIVE CLIENTS — every policy canceled or expired
+        //     (amsClientActivity in ams.js decides).
+        // ══════════════════════════════════════════════════════
+        function _rptInactiveRows() {
+            const agent  = document.getElementById('rptInAgent')?.value  || '';
+            const reason = document.getElementById('rptInReason')?.value || '';
+            const q      = (document.getElementById('rptInSearch')?.value || '').trim().toLowerCase();
+            const all = Object.values(amsClientIndex).filter(c => !c.isHealth && c.policies.length).map(c => ({ c, a: amsClientActivity(c) }))
+                .filter(x => x.a.inactive)
+                .filter(x => typeof amsBookMatch !== 'function' || x.c.policies.some(p => amsBookMatch(p)))
+                .map(x => {
+                    const last = x.c.policies.slice().sort((p, q2) => String(q2.entryDate || '').localeCompare(String(p.entryDate || '')))[0] || {};
+                    return Object.assign(x, { last, agent: (x.c.contact && x.c.contact.assignedAgent) || last.agent || '' });
+                });
+            const rows = all.filter(x => {
+                if (agent && x.agent !== agent) return false;
+                if (reason && x.a.reason !== reason) return false;
+                if (q) {
+                    const hay = [x.c.displayName, x.c.contact?.phone1, x.c.contact?.email, x.last.company, x.last.lineOfBusiness].join(' ').toLowerCase();
+                    if (!hay.includes(q)) return false;
+                }
+                return true;
+            }).sort((a, b) => String(b.a.lastDate).localeCompare(String(a.a.lastDate)));
+            return { all, rows };
+        }
+        function amsReportInactive() {
+            const body = document.getElementById('amsReportBody');
+            const keep = id => document.getElementById(id)?.value || '';
+            const prev = { agent: keep('rptInAgent'), reason: keep('rptInReason'), q: keep('rptInSearch') };
+            const { all, rows } = _rptInactiveRows();
+            const agents = [...new Set(all.map(x => x.agent).filter(Boolean))].sort();
+            const opt = (list, sel, label) => `<option value="">${label}</option>` + list.map(v => `<option value="${_rptEsc(v)}"${v === sel ? ' selected' : ''}>${_rptEsc(v)}</option>`).join('');
+            const count = r => rows.filter(x => x.a.reason === r).length;
+            body.innerHTML = `
+            <div class="rpt-filters">
+                <div class="rpt-filter-group"><label>Agent</label><select id="rptInAgent" onchange="amsReportInactive()">${opt(agents, prev.agent, 'All agents')}</select></div>
+                <div class="rpt-filter-group"><label>Why inactive</label><select id="rptInReason" onchange="amsReportInactive()">${opt(['Canceled', 'Expired', 'Canceled & expired'], prev.reason, 'Canceled or expired')}</select></div>
+                <div class="rpt-filter-group"><label>Search</label><input type="text" id="rptInSearch" value="${_rptEsc(prev.q)}" placeholder="name, phone, carrier…" onchange="amsReportInactive()"></div>
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvInactive')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid #64748b;"><div class="rk-label">Inactive clients</div><div class="rk-val">${rows.length}</div><div class="rk-sub">no policy in force</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--red);"><div class="rk-label">Canceled</div><div class="rk-val">${count('Canceled')}</div><div class="rk-sub">every policy canceled</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid #7c3aed;"><div class="rk-label">Expired</div><div class="rk-val">${count('Expired')}</div><div class="rk-sub">never renewed</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);"><div class="rk-label">With a phone</div><div class="rk-val">${rows.filter(x => x.c.contact?.phone1).length}</div><div class="rk-sub">ready to win back</div></div>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Inactive clients (${rows.length})</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>Client</th><th>Why</th><th>Agent</th><th>Last policy</th><th>Carrier</th><th>Line</th><th>Last date</th><th>Phone</th><th>Email</th></tr></thead>
+                    <tbody>${rows.slice(0, 500).map(x => `<tr style="cursor:pointer;" onclick="amsSidebarNav('search'); amsLoadClientDetail('${amsEscHtml(amsEsc(x.c.key))}')">
+                        <td><strong>${_rptEsc(x.c.displayName)}</strong></td>
+                        <td><span style="background:${x.a.reason === 'Expired' ? '#ede9fe;color:#6d28d9' : '#fee2e2;color:#b91c1c'};border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;">${_rptEsc(x.a.reason)}</span></td>
+                        <td>${_rptEsc(x.agent)}</td><td>${_rptEsc(x.last.policyNumber || '')}</td><td>${_rptEsc(x.last.company || '')}</td>
+                        <td>${_rptEsc(x.last.lineOfBusiness || '')}</td><td>${_rptEsc(x.a.lastDate)}</td>
+                        <td>${_rptEsc(x.c.contact?.phone1 || '')}</td><td>${_rptEsc(x.c.contact?.email || '')}</td></tr>`).join('')}
+                    ${rows.length > 500 ? `<tr><td colspan="9" style="color:var(--gray-500);">Showing 500 of ${rows.length} — export the CSV for the full list.</td></tr>` : ''}</tbody>
+                </table></div>
+            </div>`;
+        }
+        window._csvInactive = function () {
+            const { rows } = _rptInactiveRows();
+            _rptExportCSV(['Client', 'Why inactive', 'Agent', 'Last policy #', 'Carrier', 'Line of business', 'Last date', 'Phone', 'Email', 'Address', 'City', 'State', 'ZIP'],
+                rows.map(x => [x.c.displayName, x.a.reason, x.agent, x.last.policyNumber, x.last.company, x.last.lineOfBusiness, x.a.lastDate,
+                               x.c.contact?.phone1, x.c.contact?.email, x.c.contact?.address, x.c.contact?.city, x.c.contact?.state, x.c.contact?.zip]),
+                'inactive_clients.csv');
+        };
+
+        // ══════════════════════════════════════════════════════
+        // 11. MISSING LINE OF BUSINESS — entries with no line of business,
+        //     each with the line the rest of the book points to. Only the
+        //     confident ones are filled, and only when an admin says so;
+        //     the rest are listed to pick by hand.
+        // ══════════════════════════════════════════════════════
+        function _lobAll() { let d = typeof amsGetBinderData === 'function' ? amsGetBinderData() : JSON.parse(localStorage.getItem('binderData') || '[]'); return Array.isArray(d) ? d : []; }
+        function _lobSuggest() {
+            const book = _lobAll();
+            const has = e => String(e.lineOfBusiness || '').trim();
+            const known = book.filter(has);
+            const byPol = {}, byCarrier = {}, byClientCarrier = {};
+            const key = s => String(s || '').trim().toUpperCase();
+            known.forEach(e => {
+                const l = has(e);
+                const pn = key(e.policyNumber);
+                if (pn) (byPol[pn] = byPol[pn] || {})[l] = ((byPol[pn] || {})[l] || 0) + 1;
+                const c = key(e.company);
+                if (c) (byCarrier[c] = byCarrier[c] || {})[l] = ((byCarrier[c] || {})[l] || 0) + 1;
+                const cc = key(e.customerName) + '|' + c;
+                if (c) (byClientCarrier[cc] = byClientCarrier[cc] || {})[l] = ((byClientCarrier[cc] || {})[l] || 0) + 1;
+            });
+            const top = m => { const e = Object.entries(m || {}).sort((a, b) => b[1] - a[1]); const n = e.reduce((s, x) => s + x[1], 0); return e.length ? { lob: e[0][0], share: e[0][1] / n, n, kinds: e.length } : null; };
+            return book.filter(e => !has(e)).map(e => {
+                const pn = key(e.policyNumber), c = key(e.company);
+                let t;
+                if (pn && (t = top(byPol[pn])) && t.kinds === 1) return { e, lob: t.lob, sure: true, why: 'Same policy # on another entry' };
+                if (c && (t = top(byClientCarrier[key(e.customerName) + '|' + c])) && t.kinds === 1) return { e, lob: t.lob, sure: true, why: 'This client\u2019s other ' + e.company + ' policy' };
+                if (c && (t = top(byCarrier[c]))) {
+                    const pct = Math.round(t.share * 100);
+                    if (t.share >= 0.95 && t.n >= 5) return { e, lob: t.lob, sure: true, why: e.company + ' is ' + t.lob + ' on ' + pct + '% of ' + t.n + ' entries' };
+                    return { e, lob: t.lob, sure: false, why: 'Best guess: ' + e.company + ' is ' + t.lob + ' on ' + pct + '% of ' + t.n + ' entries' };
+                }
+                return { e, lob: '', sure: false, why: e.company ? 'No other ' + e.company + ' entry has a line of business' : 'No carrier or policy # to go on' };
+            });
+        }
+        function _lobOptions(sel) {
+            const std = ['BOP', 'Boat', 'Builders Risk', 'Business Owner', 'Classic Collectors', 'Commercial Auto', 'Commercial Property', 'Flood',
+                'Garage Keepers', 'General Liability', 'Home Owners DP1', 'Home Owners DP2', 'Home Owners DP3', 'Home Owners H3', 'Home Owners H4',
+                'Home Owners H6', 'Home Owners H8', 'Inland Marine', 'Motorcycle/ATV', 'Non-Trucking Liability', 'Personal Auto', 'Pollution Liability',
+                'Professional Liability', 'Renters', 'Surety Bond', 'Trucking', 'Umbrella', 'Workers Comp'];
+            const seen = [...new Set(std.concat(_lobAll().map(e => String(e.lineOfBusiness || '').trim()).filter(Boolean)))].sort();
+            return '<option value="">— pick —</option>' + seen.map(l => `<option${l === sel ? ' selected' : ''}>${_rptEsc(l)}</option>`).join('');
+        }
+        function amsReportMissingLob() {
+            const body = document.getElementById('amsReportBody');
+            const list = _lobSuggest();
+            const sure = list.filter(x => x.sure), unsure = list.filter(x => !x.sure);
+            const admin = amsIsAdminUser();
+            const row = (x, i, pick) => `<tr>
+                <td>${_rptEsc(x.e.entryDate || '')}</td><td><strong>${_rptEsc(x.e.customerName || '')}</strong></td><td>${_rptEsc(x.e.agent || '')}</td>
+                <td>${_rptEsc(x.e.company || '')}</td><td style="font-family:monospace;">${_rptEsc(x.e.policyNumber || '')}</td>
+                <td>${_rptEsc(amsTxnTypeLabel(x.e, _lobAll()) || x.e.policyType || '')}</td>
+                <td>${pick && admin ? `<select data-lobfix="${_rptEsc(String(x.e.id))}" style="padding:4px 6px;border:1px solid var(--gray-200);border-radius:6px;font-size:12px;">${_lobOptions(x.lob)}</select>`
+                                     : `<strong style="color:var(--navy);">${_rptEsc(x.lob || '—')}</strong>`}</td>
+                <td style="font-size:11.5px;color:var(--gray-500);">${_rptEsc(x.why)}</td></tr>`;
+            const head = '<thead><tr><th>Entered</th><th>Client</th><th>Agent</th><th>Carrier</th><th>Policy #</th><th>Transaction</th><th>Line of business</th><th>Why</th></tr></thead>';
+            body.innerHTML = `
+            <div class="rpt-filters">
+                <div style="font-size:12.5px;color:var(--gray-600);flex:1;min-width:260px;">Every entry with no line of business, with the line the rest of the book points to.
+                    ${admin ? 'Confident matches are filled only when you click <b>Fill confident matches</b>; pick the others by hand and click <b>Save my picks</b>.' : 'An admin applies these.'}</div>
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvMissingLob', 'Export list')}
+                    ${admin && sure.length ? `<button class="btn-sm" style="background:var(--green);color:#fff;border:none;" onclick="amsLobApply('sure')">✓ Fill ${sure.length} confident match${sure.length === 1 ? '' : 'es'}</button>` : ''}
+                    ${admin && unsure.length ? `<button class="btn-sm" style="background:var(--navy);color:#fff;border:none;" onclick="amsLobApply('picks')">💾 Save my picks</button>` : ''}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);"><div class="rk-label">Missing a line</div><div class="rk-val">${list.length}</div><div class="rk-sub">entries in the book</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);"><div class="rk-label">Confident</div><div class="rk-val">${sure.length}</div><div class="rk-sub">same policy #, same client & carrier, or a single-line carrier</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid #d97706;"><div class="rk-label">Not sure</div><div class="rk-val">${unsure.length}</div><div class="rk-sub">listed below to pick by hand</div></div>
+            </div>
+            ${unsure.length ? `<div class="rpt-section"><div class="rpt-section-title">⚠️ Not sure — please check (${unsure.length})</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">${head}<tbody>${unsure.slice(0, 500).map((x, i) => row(x, i, true)).join('')}</tbody></table></div></div>` : ''}
+            ${sure.length ? `<div class="rpt-section"><div class="rpt-section-title">✓ Confident (${sure.length})</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">${head}<tbody>${sure.slice(0, 500).map((x, i) => row(x, i, false)).join('')}</tbody></table></div></div>` : ''}
+            ${!list.length ? '<div class="rpt-no-data" style="margin-top:40px;">Every entry has a line of business. 🎉</div>' : ''}`;
+        }
+        window._csvMissingLob = function () {
+            _rptExportCSV(['Entered', 'Client', 'Agent', 'Carrier', 'Policy #', 'Transaction', 'Suggested line of business', 'Confidence', 'Why', 'Entry id'],
+                _lobSuggest().map(x => [x.e.entryDate, x.e.customerName, x.e.agent, x.e.company, x.e.policyNumber, x.e.policyType, x.lob,
+                                        x.sure ? 'Confident' : 'Not sure', x.why, x.e.id]),
+                'missing_line_of_business.csv');
+        };
+        window.amsLobApply = function (which) {
+            if (!amsIsAdminUser()) return;
+            const picks = {};
+            if (which === 'sure') _lobSuggest().filter(x => x.sure).forEach(x => { picks[String(x.e.id)] = { lob: x.lob, why: x.why }; });
+            else document.querySelectorAll('[data-lobfix]').forEach(s => { if (s.value) picks[s.getAttribute('data-lobfix')] = { lob: s.value, why: 'Picked by ' + (amsCurrentUser || 'admin') }; });
+            const n = Object.keys(picks).length;
+            if (!n) { alert(which === 'sure' ? 'Nothing confident to fill.' : 'Pick a line of business on at least one row first.'); return; }
+            if (!confirm('Fill the line of business on ' + n + ' entr' + (n === 1 ? 'y' : 'ies') + '?\n\nOnly entries with no line of business are touched.')) return;
+            const book = _lobAll();
+            const stamp = new Date().toISOString();
+            let done = 0;
+            book.forEach(e => {
+                const p = picks[String(e.id)];
+                if (!p || String(e.lineOfBusiness || '').trim()) return;
+                e.lineOfBusiness = p.lob;
+                e.lobFilledBy = (amsCurrentUser || 'admin') + ' · ' + stamp.slice(0, 10);
+                e.lobFilledWhy = p.why;
+                done++;
+            });
+            amsSave('binderData', book);
+            amsBuildClientIndex();
+            amsReportMissingLob();
+            if (typeof amsFlashBanner === 'function') amsFlashBanner('Line of business filled on ' + done + ' entr' + (done === 1 ? 'y' : 'ies') + ' ✓');
+        };
+
         window._csvProspects = function () {
             const { rows } = _rptProspectRows();
             _rptExportCSV(['First Name', 'Last Name', 'Status', 'Agent', 'Phone', 'Phone 2', 'Email', 'Address', 'City', 'State', 'ZIP',
