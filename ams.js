@@ -596,6 +596,9 @@ async function amsRefreshFromCloud() {
         if (amsRefreshBusy()) return;          // they started typing mid-pull
         amsRenderClientList();
         if (amsActiveKey) amsRenderPolicies(amsActiveKey);
+        // Certificates and additional interests another agent saved.
+        if (amsActiveKey && _amsVisible(document.getElementById('tabCertificates')) && typeof certRenderList === 'function') certRenderList();
+        if (amsActiveKey && _amsVisible(document.getElementById('tabInterests')) && typeof aiRender === 'function') aiRender();
         const rnw = document.getElementById('amsRenewalsPanel');
         if (_amsVisible(rnw) && typeof amsRenewalsRender === 'function') amsRenewalsRender();
     } catch (e) {
@@ -1316,6 +1319,8 @@ function amsLoadClientDetail(key) {
     amsRenderNotes(key);
     amsUpdateDocBadge();
     if (typeof amsUpdateCommBadge === 'function') amsUpdateCommBadge(key);
+    if (window.UIBCertUI) window.UIBCertUI.updateBadge(key);
+    if (window.UIBInterests) window.UIBInterests.updateBadge(key);
     amsShowTab('contact');
     lucide.createIcons();
 }
@@ -1483,7 +1488,7 @@ function amsRenderNotes(key) {
 
 // ── Tabs ─────────────────────────────────────────────────────
 function amsShowTab(tab) {
-    ['contact','policies','notes','communications','documents','clientApps','certificates'].forEach(t => {
+    ['contact','policies','notes','communications','documents','clientApps','certificates','interests'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         if (el) el.style.display = t === tab ? 'block' : 'none';
         document.querySelector(`.ams-tab[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
@@ -1491,6 +1496,7 @@ function amsShowTab(tab) {
     if (tab === 'documents' && amsActiveKey) amsRenderFileGrid();
     if (tab === 'clientApps' && amsActiveKey) clientAppsRender();
     if (tab === 'certificates' && amsActiveKey && typeof certRenderList === 'function') certRenderList();
+    if (tab === 'interests' && amsActiveKey && typeof aiRender === 'function') aiRender();
     if (tab === 'communications' && amsActiveKey && typeof amsRenderCommunications === 'function') amsRenderCommunications(amsActiveKey);
 }
 
