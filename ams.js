@@ -745,6 +745,7 @@ function amsLaunchApp() {
         lucide.createIcons();
         amsStartLiveRefresh();
         if (typeof amsRenderLogoSection === 'function') amsRenderLogoSection();
+        if (typeof amsRenderRecent === 'function') amsRenderRecent();
         amsOpenDeepLinkedClient();
         // Land on Home unless a link opened a client.
         if (!amsActiveKey && typeof amsSidebarNav === 'function' && typeof amsHomeRender === 'function') amsSidebarNav('home');

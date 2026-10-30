@@ -195,6 +195,30 @@
 
         body.ams-home-on .ams-main { background: #f4f7fb; }
 
+        /* ── Clients view in the main area ── */
+        #amsClientsPanel .ams-clients-head h2 { display: flex; align-items: center; gap: 8px; font-size: 20px; color: var(--navy); margin: 0 0 12px; }
+        #amsClientsPanel .sidebar-toolbar { border: 1px solid var(--gray-200); border-radius: 12px; background: #fff; margin-bottom: 14px; padding: 14px; display: grid;
+            grid-template-columns: minmax(220px, 1.4fr) minmax(320px, 2fr) auto auto auto; gap: 10px; align-items: center; }
+        #amsClientsPanel .sidebar-toolbar > * { margin: 0 !important; }
+        #amsClientsPanel .sidebar-filters { display: flex; gap: 8px; }
+        #amsClientsPanel .sidebar-filters select { flex: 1; }
+        #amsClientsPanel .client-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; overflow: visible; }
+        #amsClientsPanel .client-card { border: 1px solid var(--gray-200); border-radius: 12px; background: #fff; }
+        @media (max-width: 1100px) { #amsClientsPanel .sidebar-toolbar { grid-template-columns: 1fr 1fr; } }
+        .ams-recent { padding: 12px 10px 80px; overflow-y: auto; flex: 1; }
+        .ams-recent-title { font-size: 10.5px; font-weight: 800; color: var(--gray-500); text-transform: uppercase; letter-spacing: .6px; padding: 0 6px 6px; }
+        .ams-recent-row { width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 8px; border: none; background: none; border-radius: 9px; cursor: pointer;
+            font-family: inherit; text-align: left; }
+        .ams-recent-row:hover { background: var(--blue-pale); }
+        .ams-recent-row.active { background: #eef4ff; box-shadow: inset 3px 0 0 var(--blue); }
+        .ams-recent-row .av { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg,var(--blue),var(--navy)); color: #fff; font-size: 10.5px;
+            font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .ams-recent-row b { display: block; font-size: 12.5px; color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ams-recent-row small { font-size: 10.5px; color: var(--gray-400); }
+        .ams-back-clients { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 12px; padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: 999px;
+            background: #fff; color: var(--navy); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .ams-back-clients:hover { background: var(--blue-pale); }
+
         /* ── MAIN BODY LAYOUT ─────────────────────────────────────── */
         .ams-body { display: flex; flex: 1; padding-top: calc(var(--header-h) + var(--tabbar-h)); min-height: 100vh; }
 
@@ -809,6 +833,20 @@
                 </button>
                 </nav>
 
+                <div class="sidebar-panel-nav" id="amsPanelNav"></div>
+
+                <!-- Recently opened clients (ams-books.js) -->
+                <div class="ams-recent" id="amsRecentClients"></div>
+            </aside>
+
+            <!-- ── MAIN DETAIL ── -->
+            <main class="ams-main">
+
+                <!-- Clients: filters and the client list (opened by Clients) -->
+                <div id="amsClientsPanel" style="display:none;">
+                    <div class="ams-clients-head">
+                        <h2><i data-lucide="users" style="width:20px;height:20px;"></i> Clients</h2>
+                    </div>
                 <div class="sidebar-toolbar" id="sidebarSearchToolbar">
                     <div class="sidebar-search">
                         <span class="s-icon"><i data-lucide="search" style="width:13px;height:13px;"></i></span>
@@ -847,11 +885,7 @@
                 </div>
 
                 <!-- Active panel's buttons live here — see amsMountPanelNav() -->
-                <div class="sidebar-panel-nav" id="amsPanelNav"></div>
-            </aside>
-
-            <!-- ── MAIN DETAIL ── -->
-            <main class="ams-main">
+                </div>
 
                 <!-- Welcome state -->
                 <div class="ams-welcome" id="amsWelcome">
@@ -2448,7 +2482,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261030e"></script>
+    <script src="ams.js?v=20261030f"></script>
     <script src="acord25-map.js?v=20261027a"></script>
     <script src="certificates.js?v=20261030a"></script>
     <script src="additional-interests.js?v=20261030a"></script>
@@ -2456,7 +2490,7 @@
     <script src="agency.js?v=20261030b"></script>
     <script src="health.js?v=20261030a"></script>
     <script src="ams-home.js?v=20261030b"></script>
-    <script src="ams-books.js?v=20261030b"></script>
+    <script src="ams-books.js?v=20261030c"></script>
     <script src="supabase.js?v=20261027a"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
