@@ -85,6 +85,11 @@
 
     function nav(section) {
         if (section === 'clients') section = 'search';
+        // Agency Management is for the managers; everyone else gets their own profile.
+        if (section === 'agency' && typeof window.amsCanManageAgency === 'function' && !window.amsCanManageAgency()) {
+            if (typeof window.amsOpenMyProfile === 'function') window.amsOpenMyProfile();
+            return;
+        }
         _section = section;
         if (section !== 'home') _lastSection = section;
         renderTabs();
