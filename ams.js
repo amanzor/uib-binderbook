@@ -327,6 +327,8 @@ function amsBuildClientIndex() {
 
     // Also include clients that have contact info but no policies yet
     Object.keys(contacts).forEach(key => {
+        // A client record a monday.com import created, since undone.
+        if (!index[key] && contacts[key] && contacts[key].importUndone) return;
         if (!index[key]) {
             index[key] = {
                 key,
@@ -349,6 +351,12 @@ function amsBuildClientIndex() {
             return db - da;
         });
     });
+
+    // Health Book clients join the list as their own records (health.js),
+    // even when a P&C client carries the same name.
+    if (typeof window.healthIndexClients === 'function') {
+        try { window.healthIndexClients(index); } catch (e) { console.warn('Health clients not indexed:', e); }
+    }
 
     amsClientIndex = index;
     amsFilteredKeys = Object.keys(index).sort();
@@ -507,6 +515,7 @@ function amsLogout() {
     amsCurrentUser = null;
     amsCurrentRole = null;
     amsActiveKey   = null;
+    if (typeof amsHomeResetUser === 'function') amsHomeResetUser();
     const aiBtn = document.getElementById('aiBubbleBtn');
     if (aiBtn) aiBtn.style.display = 'none';
     document.getElementById('aiChatPanel')?.classList.remove('open');
@@ -533,7 +542,7 @@ function _amsRawSet(key, value) {
 }
 
 async function amsSyncDataFromDrive() {
-    const keys = ['binderData', 'amsClientData', 'carrierMasterData', 'agentMasterData'];
+    const keys = ['binderData', 'amsClientData', 'carrierMasterData', 'agentMasterData', 'healthData', 'healthCarrierData'];
     try {
         const res = await fetch(`${AMS_SB_URL}/rest/v1/app_store?select=key,value&key=in.(${keys.join(',')})`, { headers: AMS_SB_HEADERS });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -588,6 +597,10 @@ async function amsRefreshFromCloud() {
         if (amsRefreshBusy()) return;          // they started typing mid-pull
         amsRenderClientList();
         if (amsActiveKey) amsRenderPolicies(amsActiveKey);
+        // Certificates and additional interests another agent saved.
+        if (amsActiveKey && _amsVisible(document.getElementById('tabCertificates')) && typeof certRenderList === 'function') certRenderList();
+        if (amsActiveKey && _amsVisible(document.getElementById('tabInterests')) && typeof aiRender === 'function') aiRender();
+        if (_amsVisible(document.getElementById('amsHomePanel')) && typeof amsHomeRender === 'function') amsHomeRender();
         const rnw = document.getElementById('amsRenewalsPanel');
         if (_amsVisible(rnw) && typeof amsRenewalsRender === 'function') amsRenewalsRender();
     } catch (e) {
@@ -732,6 +745,8 @@ function amsLaunchApp() {
         lucide.createIcons();
         amsStartLiveRefresh();
         amsOpenDeepLinkedClient();
+        // Land on Home unless a link opened a client.
+        if (!amsActiveKey && typeof amsSidebarNav === 'function' && typeof amsHomeRender === 'function') amsSidebarNav('home');
     });
 
     // Keyboard: Escape closes preview
@@ -858,6 +873,7 @@ function amsBackfillAgentOnRecord() {
     let changed = 0;
 
     Object.values(amsClientIndex).forEach(client => {
+        if (client.isHealth) return;   // Health Book records are not client records
         const agent = amsClientCurrentAgent(client);
         if (!agent) return;
         const rec = contacts[client.key] || (contacts[client.key] = {});
@@ -899,6 +915,7 @@ function amsApplyFilters(q) {
     if (q === undefined) q = (document.getElementById('amsSidebarSearch')?.value || '').toLowerCase().trim();
     const agentFilter    = document.getElementById('amsAgentFilter')?.value   || '';
     const carrierFilter  = document.getElementById('amsCarrierFilter')?.value || '';
+    const typeFilter     = document.getElementById('amsTypeFilter')?.value    || '';
     const includeRelated = document.getElementById('amsIncludeRelated')?.checked !== false;
 
     amsRelationReasons = {};
@@ -909,7 +926,9 @@ function amsApplyFilters(q) {
         if (!client) return false;
         if (agentFilter && !client.policies.some(p => p.agent === agentFilter)
             && (client.contact?.assignedAgent || '') !== agentFilter) return false;
-        if (carrierFilter && !client.policies.some(p => p.company === carrierFilter)) return false;
+        if (carrierFilter && !client.policies.some(p => p.company === carrierFilter)
+            && !(client.isHealth && (client.health || []).some(h => h.carrier === carrierFilter))) return false;
+        if (typeFilter && amsClientKind(client) !== typeFilter) return false;
         return true;
     };
 
@@ -951,6 +970,14 @@ function amsApplyFilters(q) {
     amsRenderClientList(relatedKeys.length);
 }
 
+// What a record in the client list is: a client, a prospect (no policies
+// yet, status Prospect), or a Health Book client.
+function amsClientKind(client) {
+    if (client.isHealth) return 'health';
+    const st = (client.contact && client.contact.clientStatus) || '';
+    return (!client.policies.length && /prospect/i.test(st)) ? 'prospects' : 'clients';
+}
+
 // ── Render client list ───────────────────────────────────────
 function amsRenderClientList(relatedCount = 0) {
     const container = document.getElementById('amsClientList');
@@ -972,6 +999,9 @@ function amsRenderClientList(relatedCount = 0) {
 
     container.innerHTML = amsFilteredKeys.map(key => {
         const c = amsClientIndex[key];
+        if (c.isHealth && typeof window.healthClientCard === 'function') {
+            return window.healthClientCard(c, key === amsActiveKey, amsRelationReasons[key]);
+        }
         const contact = c.contact || {};
         const numPolicies = c.policies.length;
         const clientStatus = contact.clientStatus || 'Active';
@@ -987,7 +1017,7 @@ function amsRenderClientList(relatedCount = 0) {
         const relReason = amsRelationReasons[key];
 
         return `
-        <div class="client-card ${key === amsActiveKey ? 'active' : ''} ${relReason ? 'is-related' : ''}" onclick="amsLoadClientDetail('${amsEsc(key)}')">
+        <div class="client-card ${key === amsActiveKey ? 'active' : ''} ${relReason ? 'is-related' : ''}" onclick="amsLoadClientDetail('${amsEscHtml(amsEsc(key))}')">
             <div style="display:flex;gap:10px;align-items:center;">
                 <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--navy));color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${initials}</div>
                 <div style="flex:1;min-width:0;">
@@ -1020,11 +1050,12 @@ let _amsMergePrimaryIdx = -1;   // index of the record to keep
 
 function amsUpdateMergeButton() {
     const btn = document.getElementById('amsMergeBtn');
-    if (btn) btn.style.display = amsFilteredKeys.length >= 2 ? 'inline-flex' : 'none';
+    if (btn) btn.style.display = amsFilteredKeys.filter(k => !amsClientIndex[k]?.isHealth).length >= 2 ? 'inline-flex' : 'none';
 }
 
 function amsOpenMergeModal() {
-    _amsMergeKeys = amsFilteredKeys.slice();
+    // Health Book records keep their own card; they are never merged into a client.
+    _amsMergeKeys = amsFilteredKeys.filter(k => !amsClientIndex[k]?.isHealth);
     if (_amsMergeKeys.length < 2) {
         alert('Need at least two clients in the list to merge. Adjust your search or filters first.');
         return;
@@ -1229,6 +1260,10 @@ async function amsPerformMerge(primaryKey, sourceKeys) {
 
 // ── Load & render client detail ──────────────────────────────
 function amsLoadClientDetail(key) {
+    if (/^HEALTH::/.test(key || '') && typeof window.healthOpenClient === 'function') {
+        window.healthOpenClient(key);
+        return;
+    }
     const client = amsClientIndex[key];
     if (!client) return;
     amsActiveKey = key;
@@ -1288,6 +1323,8 @@ function amsLoadClientDetail(key) {
     amsRenderNotes(key);
     amsUpdateDocBadge();
     if (typeof amsUpdateCommBadge === 'function') amsUpdateCommBadge(key);
+    if (window.UIBCertUI) window.UIBCertUI.updateBadge(key);
+    if (window.UIBInterests) window.UIBInterests.updateBadge(key);
     amsShowTab('contact');
     lucide.createIcons();
 }
@@ -1455,7 +1492,7 @@ function amsRenderNotes(key) {
 
 // ── Tabs ─────────────────────────────────────────────────────
 function amsShowTab(tab) {
-    ['contact','policies','notes','communications','documents','clientApps','certificates'].forEach(t => {
+    ['contact','policies','notes','communications','documents','clientApps','certificates','interests'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         if (el) el.style.display = t === tab ? 'block' : 'none';
         document.querySelector(`.ams-tab[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
@@ -1463,6 +1500,7 @@ function amsShowTab(tab) {
     if (tab === 'documents' && amsActiveKey) amsRenderFileGrid();
     if (tab === 'clientApps' && amsActiveKey) clientAppsRender();
     if (tab === 'certificates' && amsActiveKey && typeof certRenderList === 'function') certRenderList();
+    if (tab === 'interests' && amsActiveKey && typeof aiRender === 'function') aiRender();
     if (tab === 'communications' && amsActiveKey && typeof amsRenderCommunications === 'function') amsRenderCommunications(amsActiveKey);
 }
 

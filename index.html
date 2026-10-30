@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
-    <script src="storage-codec.js?v=20261026a"></script>
+    <script src="storage-codec.js?v=20261029a"></script>
     <script src="uib-auth.js?v=20261022c"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
@@ -985,6 +985,64 @@
                             <div class="form-group">
                                 <label>Date &amp; Time Added</label>
                                 <input type="text" id="prospectDateAdded" readonly style="background:#f0f0f0; cursor:not-allowed; font-size:13px;">
+                            </div>
+                        </div>
+                        <div style="font-size:12px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.4px;margin:4px 0 10px;">Contact &amp; Address</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Alternate Phone</label>
+                                <input type="tel" id="prospectPhone2" placeholder="(555) 987-6543">
+                            </div>
+                            <div class="form-group">
+                                <label>Date of Birth</label>
+                                <input type="date" id="prospectDob">
+                            </div>
+                            <div class="form-group">
+                                <label>Business Name</label>
+                                <input type="text" id="prospectBusinessName" placeholder="If the prospect is a business">
+                            </div>
+                            <div class="form-group" style="grid-column:1/-1;">
+                                <label>Street Address</label>
+                                <input type="text" id="prospectAddress" placeholder="123 Main St, Apt 4">
+                            </div>
+                            <div class="form-group">
+                                <label>City</label>
+                                <input type="text" id="prospectCity" placeholder="Miami">
+                            </div>
+                            <div class="form-group">
+                                <label>State</label>
+                                <input type="text" id="prospectState" maxlength="2" placeholder="FL" style="text-transform:uppercase;">
+                            </div>
+                            <div class="form-group">
+                                <label>ZIP Code</label>
+                                <input type="text" id="prospectZip" maxlength="10" placeholder="33101">
+                            </div>
+                        </div>
+                        <div style="font-size:12px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.4px;margin:4px 0 10px;">Current Coverage &amp; Quote</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Current Carrier</label>
+                                <input type="text" id="prospectCurrentCarrier" placeholder="Who insures them today">
+                            </div>
+                            <div class="form-group">
+                                <label>Current Policy #</label>
+                                <input type="text" id="prospectCurrentPolicy">
+                            </div>
+                            <div class="form-group">
+                                <label>Current Premium ($)</label>
+                                <input type="number" id="prospectCurrentPremium" min="0" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label>Policy Expiration</label>
+                                <input type="date" id="prospectPolicyExpiration">
+                            </div>
+                            <div class="form-group">
+                                <label>Quoted Premium ($)</label>
+                                <input type="number" id="prospectQuotedPremium" min="0" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label>Lead Generator</label>
+                                <input type="text" id="prospectLeadGenerator" placeholder="Who brought the lead in">
                             </div>
                         </div>
                         <div class="form-group" style="margin-top:8px;">
@@ -3031,6 +3089,7 @@
                     <button class="btn-primary" style="background:linear-gradient(to right,#111827 0%,#374151 60%,#6b7280 100%);" onclick="openAiEngine()" title="Choose Claude (cloud) or Ollama (local) for the AI features"><i data-lucide="cpu"></i> AI Engine</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#14b8a6 60%,#5eead4 100%);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#2dd4bf 60%,#5eead4 100%);" onclick="showDataSafety()" title="Download an off-cloud snapshot of the whole book, or merge one back in"><i data-lucide="life-buoy"></i> Data Safety</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0d1f3c 0%,#6d28d9 60%,#a78bfa 100%);" onclick="showMondayImport()" title="Bring the monday.com account in: sales into the Binder Book, prospects into New Prospects and the AMS, health clients into the AMS Health section"><i data-lucide="file-input"></i> Import from monday.com</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);" onclick="window.open('https://uibautorater.vercel.app','_blank','noopener')" title="Open the Auto Rater (separate app)"><i data-lucide="calculator"></i> Auto Rater</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#3b1a8c 0%,#7c3aed 60%,#a78bfa 100%);" onclick="window.open('https://maxai-sable.vercel.app','_blank','noopener')" title="Open MAX, the lead app for marketing partners"><i data-lucide="bot"></i> MAX</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);" onclick="binderOpenAms()"><i data-lucide="building-2"></i> AMS</button>
@@ -4051,8 +4110,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261029a"></script>
-    <script src="uib-binder-sync.js?v=20261027a"></script>
+    <script src="app.js?v=20261030a"></script>
+    <script src="uib-binder-sync.js?v=20261030a"></script>
+    <script src="monday-import.js?v=20261029a"></script>
     <script src="supabase.js?v=20261027a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){var s=(r.active||r.waiting||r.installing||{}).scriptURL||'';if(/rater-sw\.js/.test(s)||/\/rater\/?$/.test(r.scope))r.unregister();});}).catch(function(){});navigator.serviceWorker.register('/sw.js');}</script>

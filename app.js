@@ -27,7 +27,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202610300;
+const APP_BUILD = 202610301;
 
 let _appOutdated = false;
 // Check for a newer published build as soon as any page opens, so a phone
@@ -2605,6 +2605,7 @@ function saveProspect(e) {
     e.preventDefault();
     // Captured before the form is reset below — the email needs these names.
     const assignedAgents = prospectAgentGetSelected();
+    const pv = id => (document.getElementById(id)?.value || '').trim();
     const prospect = {
         id:          'PROS-' + Date.now(),
         firstName:   document.getElementById('prospectFirstName').value.trim(),
@@ -2618,7 +2619,20 @@ function saveProspect(e) {
         followUpDate:document.getElementById('prospectFollowUpDate').value,
         dateAdded:   getEasternDateTimeDisplay(),
         notes:       document.getElementById('prospectNotes').value.trim(),
-        status:      'Open'
+        status:      'Open',
+        phone2:      pv('prospectPhone2'),
+        dob:         pv('prospectDob'),
+        businessName:pv('prospectBusinessName'),
+        address:     pv('prospectAddress'),
+        city:        pv('prospectCity'),
+        state:       pv('prospectState').toUpperCase(),
+        zip:         pv('prospectZip'),
+        currentCarrier:      pv('prospectCurrentCarrier'),
+        currentPolicyNumber: pv('prospectCurrentPolicy'),
+        currentPremium:      parseFloat(pv('prospectCurrentPremium')) || 0,
+        policyExpiration:    pv('prospectPolicyExpiration'),
+        quotedPremium:       parseFloat(pv('prospectQuotedPremium')) || 0,
+        leadGenerator:       pv('prospectLeadGenerator')
     };
 
     const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
@@ -3362,6 +3376,7 @@ function prospectMarkSold(id) {
     p.soldAt = new Date().toISOString();
     p.soldBy = currentUser || '';
     _prospectSave(prospects);
+    _prospectCloseInAMS(p);
     if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
     renderProspectsTable();
 
@@ -3375,6 +3390,22 @@ function prospectMarkSold(id) {
         sessionStorage.setItem('uibCurrentUser', currentUser || '');
         window.location.href = './dailysalesentry';
     }
+}
+
+// A sold prospect leaves the AMS prospect report: its client record, when
+// it has one, is marked Closed there.
+function _prospectCloseInAMS(p) {
+    try {
+        const key = amsClientKeyFromName(_prospectFullName(p));
+        const contacts = JSON.parse(localStorage.getItem('amsClientData')) || {};
+        const rec = contacts[key];
+        if (!rec || !rec.prospectStatus || rec.prospectStatus === 'Closed') return;
+        rec.prospectStatus = 'Closed';
+        rec.prospectClosedAt = new Date().toISOString();
+        rec.updatedAt = rec.prospectClosedAt;
+        localStorage.setItem('amsClientData', JSON.stringify(contacts));
+        if (typeof driveSet === 'function') driveSet('amsClientData', contacts);
+    } catch (e) { console.warn('Could not close the prospect in the AMS', e); }
 }
 
 // Lost: status Lost, and the client's info is archived in the AMS as an
@@ -3534,7 +3565,13 @@ function archiveProspectToAMS(p) {
             firstName:      existing.firstName     || p.firstName || '',
             lastName:       existing.lastName      || p.lastName  || '',
             phone1:         existing.phone1        || p.phone     || '',
+            phone2:         existing.phone2        || p.phone2    || '',
             email:          existing.email         || p.email     || '',
+            dob:            existing.dob           || p.dob       || '',
+            address:        existing.address       || p.address   || '',
+            city:           existing.city          || p.city      || '',
+            state:          existing.state         || p.state     || '',
+            zip:            existing.zip           || p.zip       || '',
             assignedAgent:  existing.assignedAgent || p.agent     || '',
             referral:       existing.referral      || p.referredBy || '',
             referralSource: existing.referralSource|| p.source    || '',
@@ -3542,6 +3579,7 @@ function archiveProspectToAMS(p) {
             clientStatus:   (existing.clientStatus && /active/i.test(existing.clientStatus) && !/inactive/i.test(existing.clientStatus))
                                 ? existing.clientStatus : 'Inactive Prospect',
             prospectId:     p.id,
+            prospectStatus: 'Lost',
             prospectLostAt: now,
             notes,
             updatedAt: now,
@@ -3565,9 +3603,9 @@ function renderProspectsTable() {
         const name = `${p.firstName} ${p.lastName}`.toLowerCase();
         const matchSearch = !search ||
             name.includes(search) ||
-            (p.phone || '').toLowerCase().includes(search) ||
-            (p.email || '').toLowerCase().includes(search) ||
-            (p.lob || '').toLowerCase().includes(search);
+            [p.phone, p.phone2, p.email, p.lob, p.businessName, p.address, p.city, p.zip,
+             p.currentCarrier, p.currentPolicyNumber, p.notes]
+                .some(v => String(v || '').toLowerCase().includes(search));
         const matchAgent  = !agentF  || p.agent === agentF;
         const st = p.status || 'Open';
         const matchStatus = statusF === 'all' ? true
@@ -3605,9 +3643,19 @@ function renderProspectsTable() {
             const label = it === 'Other' ? (p.pendingOther ? `Other: ${p.pendingOther}` : 'Other') : it;
             return `<span style="display:inline-block;margin:2px 3px 0 0;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;">${_esc(label)}</span>`;
         }).join('');
+        // The rest of what is known about them, one quiet line under the name.
+        const where   = [p.address, p.city, [p.state, p.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+        const current = [p.currentCarrier, p.currentPolicyNumber ? `#${p.currentPolicyNumber}` : '',
+                         p.policyExpiration ? `exp ${p.policyExpiration}` : '',
+                         p.currentPremium ? `$${Number(p.currentPremium).toLocaleString('en-US')}` : ''].filter(Boolean).join(' · ');
+        const detail  = [p.businessName && p.businessName !== fullName ? `🏢 ${_esc(p.businessName)}` : '', where ? `📍 ${_esc(where)}` : '',
+                         current ? `🛡 ${_esc(current)}` : '',
+                         p.quotedPremium ? `💬 quoted $${Number(p.quotedPremium).toLocaleString('en-US')}` : '',
+                         p.dob ? `🎂 ${_esc(p.dob)}` : '']
+                        .filter(Boolean).map(t => `<div style="font-size:11px;font-weight:400;color:var(--gray-500);margin-top:2px;">${t}</div>`).join('');
         return `<tr>
-            <td style="font-weight:600;">${fullName}${pendingChips ? `<div style="margin-top:3px;font-weight:400;">${pendingChips}</div>` : ''}</td>
-            <td>${p.phone || '—'}</td>
+            <td style="font-weight:600;">${fullName}${detail}${pendingChips ? `<div style="margin-top:3px;font-weight:400;">${pendingChips}</div>` : ''}</td>
+            <td>${p.phone || '—'}${p.phone2 ? `<div style="font-size:11px;color:var(--gray-500);">${_esc(p.phone2)}</div>` : ''}</td>
             <td>${p.email || '—'}</td>
             <td>${p.lob || '—'}</td>
             <td>${p.source || '—'}</td>
@@ -3615,7 +3663,7 @@ function renderProspectsTable() {
             <td>${followUp}</td>
             <td><span style="padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;${sStyle}">${p.status || 'Open'}</span></td>
             <td style="font-size:12px;color:var(--gray-500);">${p.dateAdded || '—'}</td>
-            <td style="max-width:200px;font-size:12px;color:var(--gray-600);">${p.notes || '—'}</td>
+            <td style="max-width:200px;font-size:12px;color:var(--gray-600);" title="${_esc(p.notes || '')}">${p.notes ? _esc(p.notes.length > 90 ? p.notes.slice(0, 90) + '…' : p.notes) : '—'}</td>
             <td style="white-space:nowrap;">
                 ${(p.status === 'Closed' || p.status === 'Lost') ? `<span style="font-size:12px;color:var(--gray-500);">${p.status === 'Closed' ? '✅ Sold' : '📁 Archived'}</span>` : `
                 ${_prospectIsMine(p, currentUser) && _prospectAgentList(p).length === 1

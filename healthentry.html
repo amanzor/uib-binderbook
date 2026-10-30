@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
-    <script src="storage-codec.js?v=20261026a"></script>
+    <script src="storage-codec.js?v=20261029a"></script>
     <script src="uib-auth.js?v=20261022c"></script>
     <script src="uib-audit.js?v=20261013j"></script>
     <script src="uib-ai.js?v=20261022c"></script>
@@ -409,7 +409,7 @@
 
 <span id="userDisplay" style="display:none;"></span>
 
-<script src="app.js?v=20261029a"></script>
+<script src="app.js?v=20261030a"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="motion.js"></script>
 <script>
@@ -467,6 +467,9 @@
         const r = carrier.commissionRules[0];
         const nw = (r.newRate != null && r.newRate !== '') ? r.newRate : '—';
         const rn = (r.renewRate != null && r.renewRate !== '') ? r.renewRate : '—';
+        // Carriers set up in AMS → Health → Carriers may pay per member or per policy.
+        if (carrier.commissionType === 'pmpm') return 'New $' + nw + ' / Renewal $' + rn + ' per member per month';
+        if (carrier.commissionType === 'flat') return 'New $' + nw + ' / Renewal $' + rn + ' per policy per month';
         return 'New ' + nw + '% / Renewal ' + rn + '%';
     }
     function refreshHealthCarrierDropdown(selectName) {

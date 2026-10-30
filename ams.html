@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
-    <script src="storage-codec.js?v=20261026a"></script>
-    <script src="uib-binder-sync.js?v=20261027a"></script>
+    <script src="storage-codec.js?v=20261029a"></script>
+    <script src="uib-binder-sync.js?v=20261030a"></script>
     <script src="uib-auth.js?v=20261022c"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
@@ -155,6 +155,14 @@
             box-shadow: 0 2px 8px rgba(29,78,216,.25);
         }
         .ams-tab-btn svg { flex-shrink: 0; }
+        /* Health takes the Health Book's rose instead of the AMS blue. */
+        #sidebarNavHealth { color: #e11d48; }
+        #sidebarNavHealth:hover { background: #fff1f2; color: #be123c; }
+        #sidebarNavHealth.active { background: linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%); color: #fff; box-shadow: 0 2px 8px rgba(225,29,72,.3); }
+
+        /* Home uses the full width: the client list has nothing to show there. */
+        body.ams-home-on .ams-sidebar { display: none; }
+        body.ams-home-on .ams-main { margin-left: 0; background: #f4f7fb; }
 
         /* ── MAIN BODY LAYOUT ─────────────────────────────────────── */
         .ams-body { display: flex; flex: 1; padding-top: calc(var(--header-h) + var(--tabbar-h)); min-height: 100vh; }
@@ -736,6 +744,9 @@
         <!-- Section tab bar (below header) -->
         <nav class="ams-tabbar" id="amsTabbar">
             <div class="ams-nav-group" style="position:relative;display:flex;align-items:center;flex-shrink:0;">
+                <button class="ams-tab-btn" id="sidebarNavHome" onclick="amsSidebarNav('home')">
+                    <i data-lucide="home" style="width:15px;height:15px;"></i> Home
+                </button>
                 <button class="ams-tab-btn" id="sidebarNavDashboard" onclick="amsSidebarNav('dashboard')">
                     <i data-lucide="layout-dashboard" style="width:15px;height:15px;"></i> Dashboard
                 </button>
@@ -745,6 +756,9 @@
             </button>
             <button class="ams-tab-btn" id="sidebarNavRenewals" onclick="amsSidebarNav('renewals')">
                 <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i> Renewals
+            </button>
+            <button class="ams-tab-btn" id="sidebarNavHealth" onclick="amsSidebarNav('health')">
+                <i data-lucide="heart-pulse" style="width:15px;height:15px;"></i> Health
             </button>
             <button class="ams-tab-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
                 <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
@@ -775,6 +789,12 @@
                         </select>
                         <select id="amsCarrierFilter" onchange="amsApplyFilters()">
                             <option value="">All Carriers</option>
+                        </select>
+                        <select id="amsTypeFilter" onchange="amsApplyFilters()" title="Clients, prospects or Health Book clients">
+                            <option value="">All Records</option>
+                            <option value="clients">Clients</option>
+                            <option value="prospects">Prospects</option>
+                            <option value="health">Health</option>
                         </select>
                     </div>
                     <label class="related-toggle" title="Also surface clients linked to your matches by a shared phone, email, address, or referral">
@@ -864,6 +884,9 @@
                         <button class="report-tab" onclick="amsShowReport('commission')">💰 Commission Report</button>
                         <button class="report-tab" onclick="amsShowReport('monthly')">📅 Monthly Trend</button>
                         <button class="report-tab" onclick="amsShowReport('paymethod')">💳 Payment Methods</button>
+                        <button class="report-tab" onclick="amsShowReport('prospects')">🎯 Prospects</button>
+                        <button class="report-tab" onclick="amsSidebarNav('health'); healthTab('report');" style="color:#be123c;">❤️ Health Insurance</button>
+                        <button class="report-tab" onclick="amsSidebarNav('health'); healthTab('commissions');" style="color:#be123c;">❤️ Health Commissions</button>
                     </div>
                     <div class="report-body" id="amsReportBody">
                         <div class="rpt-no-data" style="margin-top:60px;">
@@ -1039,6 +1062,18 @@
                             <h3 style="color:var(--gray-500);margin-bottom:8px;">Select an Accounting Report</h3>
                             <p>Choose a section from the tabs above.</p>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Health panel (Health Book clients, reports, carriers, statements — health.js) -->
+                <!-- Home panel (ams-home.js): the signed-in agent's own production -->
+                <div id="amsHomePanel" style="display:none;">
+                    <div id="amsHomeBody"></div>
+                </div>
+
+                <div id="amsHealthPanel" style="display:none;" class="reports-panel">
+                    <div style="flex:1;padding:24px;overflow-y:auto;">
+                        <div id="amsHealthBody"></div>
                     </div>
                 </div>
 
@@ -1443,7 +1478,8 @@
                         <button class="ams-tab"         data-tab="communications" onclick="amsShowTab('communications')"><i data-lucide="history"></i> Activity <span id="commTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="documents" onclick="amsShowTab('documents')"><i data-lucide="folder-open"></i> Documents <span id="docTabBadge" style="display:none;background:var(--blue);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="clientApps" onclick="amsShowTab('clientApps')"><i data-lucide="clipboard-list"></i> Client Apps</button>
-                        <button class="ams-tab"         data-tab="certificates" onclick="amsShowTab('certificates')"><i data-lucide="award"></i> Certificate Master</button>
+                        <button class="ams-tab"         data-tab="certificates" onclick="amsShowTab('certificates')"><i data-lucide="award"></i> Certificate Master <span id="certTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
+                        <button class="ams-tab"         data-tab="interests" onclick="amsShowTab('interests')"><i data-lucide="building-2"></i> Additional Interests <span id="aiTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                     </div>
 
                     <!-- ── TAB: Contact Info ── -->
@@ -1764,21 +1800,35 @@
                         </div>
                     </div><!-- /tabDocuments -->
 
-                    <!-- ── TAB: Forms ── -->
+                    <!-- ── TAB: Certificate Master (certificates-ui.js) ── -->
                     <div id="tabCertificates" style="display:none;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:12px;flex-wrap:wrap;">
                             <h3 style="color:var(--navy);font-size:16px;"><i data-lucide="award" style="width:16px;height:16px;vertical-align:-3px;"></i> Certificate Master</h3>
-                            <div style="display:flex;gap:8px;">
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                 <button onclick="certEditProducer()" style="padding:7px 13px;background:#fff;color:var(--navy);border:1px solid var(--gray-200);border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">Agency details</button>
+                                <button onclick="certSendPicker()" style="padding:7px 13px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">✉ Send Certificate</button>
                                 <button onclick="certNewForClient()" style="padding:7px 14px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">+ New certificate</button>
                             </div>
                         </div>
                         <p style="font-size:11px;color:var(--gray-400);margin-bottom:14px;">
-                            Certificates of Liability Insurance for this client. Each one prints on the official
-                            ACORD 25 (2025/12) form — the agency's own form file is filled directly, so what the
-                            holder receives is the real ACORD document.
+                            Certificates of insurance for this client. Each one prints on the official ACORD form for its
+                            type — the agency's own form file is filled directly, so what the holder receives is the real
+                            ACORD document.
                         </p>
                         <div id="certMasterList"></div>
+                    </div>
+
+                    <!-- ── TAB: Additional Interests (additional-interests.js) ── -->
+                    <div id="tabInterests" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:12px;flex-wrap:wrap;">
+                            <h3 style="color:var(--navy);font-size:16px;"><i data-lucide="building-2" style="width:16px;height:16px;vertical-align:-3px;"></i> Additional Interests</h3>
+                            <button onclick="aiOpenEditor()" style="padding:7px 14px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">+ Add New</button>
+                        </div>
+                        <p style="font-size:11px;color:var(--gray-400);margin-bottom:14px;">
+                            Certificate holders, additional insureds, loss payees, mortgagees and lienholders for this client.
+                            Pick one as the Certificate Holder on a certificate and its name, address and e-mail fill in.
+                        </p>
+                        <div id="aiListBody"></div>
                     </div>
 
                     <div id="tabClientApps" style="display:none;">
@@ -2362,11 +2412,14 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261027b"></script>
+    <script src="ams.js?v=20261030b"></script>
     <script src="acord25-map.js?v=20261027a"></script>
-    <script src="certificates.js?v=20261027a"></script>
-    <script src="certificates-ui.js?v=20261027a"></script>
+    <script src="certificates.js?v=20261030a"></script>
+    <script src="additional-interests.js?v=20261030a"></script>
+    <script src="certificates-ui.js?v=20261030a"></script>
     <script src="agency.js?v=20261028a"></script>
+    <script src="health.js?v=20261029a"></script>
+    <script src="ams-home.js?v=20261030a"></script>
     <script src="supabase.js?v=20261027a"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
@@ -2411,7 +2464,7 @@
         function amsSidebarNav(section) {
             // 'search' has no tab button of its own — it's reached via the header
             // search box (onfocus) — so it's excluded from the active-tab toggle.
-            const sections = ['dashboard','reports','renewals','accounting','commissions','download','realtime','agency'];
+            const sections = ['home','dashboard','reports','renewals','health','accounting','commissions','download','realtime','agency'];
             sections.forEach(s => {
                 const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
                 if (btn) btn.classList.toggle('active', s === section);
@@ -2425,12 +2478,15 @@
             const acctPanel     = document.getElementById('amsAccountingPanel');
             const commPanel     = document.getElementById('amsCommissionsPanel');
             const agencyPanel   = document.getElementById('amsAgencyPanel');
+            const healthPanel   = document.getElementById('amsHealthPanel');
+            const homePanel     = document.getElementById('amsHomePanel');
             const dlPanel       = document.getElementById('amsDownloadPanel');
             const rtPanel       = document.getElementById('amsRealtimePanel');
             const welcome       = document.getElementById('amsWelcome');
             const detail        = document.getElementById('amsClientDetail');
 
             amsMountPanelNav(section);
+            document.body.classList.toggle('ams-home-on', section === 'home');
 
             toolbar.style.display      = 'none';
             clientList.style.display   = 'none';
@@ -2440,6 +2496,8 @@
             acctPanel.style.display    = 'none';
             commPanel.style.display    = 'none';
             if (agencyPanel) agencyPanel.style.display = 'none';
+            if (healthPanel) healthPanel.style.display = 'none';
+            if (homePanel) homePanel.style.display = 'none';
             dlPanel.style.display      = 'none';
             rtPanel.style.display      = 'none';
             welcome.style.display      = 'none';
@@ -2450,6 +2508,9 @@
                 clientList.style.display = '';
                 if (amsActiveKey) { detail.style.display  = 'block'; }
                 else              { welcome.style.display = ''; }
+            } else if (section === 'home') {
+                if (homePanel) homePanel.style.display = 'block';
+                if (typeof amsHomeRender === 'function') amsHomeRender();
             } else if (section === 'dashboard') {
                 dashPanel.style.display = 'block';
                 amsRenderDashboard();
@@ -2464,6 +2525,10 @@
             } else if (section === 'accounting') {
                 acctPanel.style.display = 'flex';
                 if (!_activeAcct) amsShowAccounting('overview');
+            } else if (section === 'health') {
+                if (healthPanel) healthPanel.style.display = 'flex';
+                if (typeof healthRender === 'function') healthRender();
+                lucide.createIcons();
             } else if (section === 'agency') {
                 if (agencyPanel) agencyPanel.style.display = 'block';
                 if (typeof agencyRender === 'function') agencyRender();
@@ -3716,7 +3781,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsShowReport(type) {
             _activeReport = type;
             document.querySelectorAll('.report-tab').forEach(b => b.classList.remove('active'));
-            const tabMap = {expiring:0,production:1,lob:2,carrier:3,newvsrenewal:4,commission:5,monthly:6,paymethod:7};
+            const tabMap = {expiring:0,production:1,lob:2,carrier:3,newvsrenewal:4,commission:5,monthly:6,paymethod:7,prospects:8};
             const tabs   = document.querySelectorAll('.report-tab');
             if (tabs[tabMap[type]]) tabs[tabMap[type]].classList.add('active');
             Object.keys(_rptCharts).forEach(id => _rptDestroyChart(id));
@@ -3728,7 +3793,8 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 newvsrenewal: amsReportNewVsRenewal,
                 commission:   amsReportCommission,
                 monthly:      amsReportMonthly,
-                paymethod:    amsReportPayMethod
+                paymethod:    amsReportPayMethod,
+                prospects:    amsReportProspects
             }[type];
             if (fn) fn();
         }
@@ -5861,6 +5927,114 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 <button class="btn-secondary btn-sm" onclick="window.print()" style="font-size:11px;">🖨 Print</button>
             </div>`;
         }
+
+        // ══════════════════════════════════════════════════════
+        // 9. PROSPECTS — every Prospect / Inactive Prospect record in
+        //    the AMS client database (New Prospects, monday imports,
+        //    and prospects archived as lost).
+        // ══════════════════════════════════════════════════════
+        function _rptProspectDate(c) {
+            if (c.prospectSinceDate) return c.prospectSinceDate;
+            const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(c.prospectSince || '');
+            if (m) return `${m[3]}-${m[1]}-${m[2]}`;
+            return String(c.createdAt || '').slice(0, 10);
+        }
+        function _rptProspectRows() {
+            const contacts = amsGetClientData();
+            const status = document.getElementById('rptProsStatus')?.value || 'open';
+            const agent  = document.getElementById('rptProsAgent')?.value  || '';
+            const source = document.getElementById('rptProsSource')?.value || '';
+            const q      = (document.getElementById('rptProsSearch')?.value || '').trim().toLowerCase();
+            const from   = document.getElementById('rptProsFrom')?.value || '';
+            const to     = document.getElementById('rptProsTo')?.value   || '';
+            const binderKeys = new Set(_rptBinder().map(p => amsClientKey(p.customerName)));
+            const all = Object.keys(contacts).map(key => ({ key, c: contacts[key] || {} }))
+                .filter(({ key, c }) => !c.importUndone && (
+                    (c.prospectStatus && c.prospectStatus !== 'Closed') ||
+                    (/prospect/i.test(c.clientStatus || '') && !binderKeys.has(key))));
+            const lost = c => c.prospectStatus === 'Lost' || (!c.prospectStatus && /inactive/i.test(c.clientStatus || ''));
+            return {
+                all,
+                rows: all.filter(({ c }) => {
+                    if (status === 'open' && lost(c)) return false;
+                    if (status === 'inactive' && !lost(c)) return false;
+                    if (agent && (c.assignedAgent || '') !== agent) return false;
+                    if (source && (c.referralSource || '') !== source) return false;
+                    const d = _rptProspectDate(c);
+                    if (from && d && d < from) return false;
+                    if (to && d && d > to) return false;
+                    if (q) {
+                        const hay = [c.firstName, c.lastName, c.phone1, c.phone2, c.email, c.address, c.city, c.zip,
+                                     c.currentCarrier, c.prospectLob].join(' ').toLowerCase();
+                        if (!hay.includes(q)) return false;
+                    }
+                    return true;
+                })
+            };
+        }
+        function amsReportProspects() {
+            const body = document.getElementById('amsReportBody');
+            const keep = id => document.getElementById(id)?.value;
+            const prev = { status: keep('rptProsStatus') || 'open', agent: keep('rptProsAgent') || '', source: keep('rptProsSource') || '',
+                           q: keep('rptProsSearch') || '', from: keep('rptProsFrom') || '', to: keep('rptProsTo') || '' };
+            const { all, rows } = _rptProspectRows();
+            const agents  = [...new Set(all.map(r => r.c.assignedAgent).filter(Boolean))].sort();
+            const sources = [...new Set(all.map(r => r.c.referralSource).filter(Boolean))].sort();
+            const opt = (list, sel, label) => `<option value="">${label}</option>` +
+                list.map(v => `<option value="${_rptEsc(v)}"${v === sel ? ' selected' : ''}>${_rptEsc(v)}</option>`).join('');
+            const tally = f => { const m = {}; rows.forEach(({ c }) => { const k = f(c) || '—'; m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
+            const byAgent = tally(c => c.assignedAgent), bySource = tally(c => c.referralSource), byLob = tally(c => c.prospectLob);
+            const open = rows.filter(r => !(r.c.prospectStatus === 'Lost' || (!r.c.prospectStatus && /inactive/i.test(r.c.clientStatus || '')))).length;
+            const statusOf = c => c.prospectStatus
+                ? (c.prospectStatus === 'Lost' ? 'Lost' : 'Open') + (/active/i.test(c.clientStatus || '') && !/prospect|inactive/i.test(c.clientStatus || '') ? ' · former client' : '')
+                : (c.clientStatus || '');
+            const name = c => `${c.firstName || ''} ${c.lastName || ''}`.trim();
+            const small = (title, list) => `<div class="rpt-section" style="flex:1;min-width:240px;"><div class="rpt-section-title">${title}</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl"><tbody>${list.slice(0, 12).map(([k, n]) => `<tr><td>${_rptEsc(k)}</td><td style="text-align:right;font-weight:700;">${n}</td></tr>`).join('')}</tbody></table></div></div>`;
+            body.innerHTML = `
+            <div class="rpt-filters">
+                <div class="rpt-filter-group"><label>Status</label>
+                    <select id="rptProsStatus" onchange="amsReportProspects()">
+                        <option value="open"${prev.status === 'open' ? ' selected' : ''}>Open prospects</option>
+                        <option value="inactive"${prev.status === 'inactive' ? ' selected' : ''}>Inactive (lost)</option>
+                        <option value="all"${prev.status === 'all' ? ' selected' : ''}>All prospects</option>
+                    </select></div>
+                <div class="rpt-filter-group"><label>Agent</label><select id="rptProsAgent" onchange="amsReportProspects()">${opt(agents, prev.agent, 'All agents')}</select></div>
+                <div class="rpt-filter-group"><label>Source</label><select id="rptProsSource" onchange="amsReportProspects()">${opt(sources, prev.source, 'All sources')}</select></div>
+                <div class="rpt-filter-group"><label>Added from</label><input type="date" id="rptProsFrom" value="${prev.from}" onchange="amsReportProspects()"></div>
+                <div class="rpt-filter-group"><label>to</label><input type="date" id="rptProsTo" value="${prev.to}" onchange="amsReportProspects()"></div>
+                <div class="rpt-filter-group"><label>Search</label><input type="text" id="rptProsSearch" value="${_rptEsc(prev.q)}" placeholder="name, phone, carrier…" onchange="amsReportProspects()"></div>
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvProspects')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid #6d28d9;"><div class="rk-label">Prospects</div><div class="rk-val">${rows.length}</div><div class="rk-sub">${open} open · ${rows.length - open} inactive</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);"><div class="rk-label">With a phone</div><div class="rk-val">${rows.filter(r => r.c.phone1).length}</div><div class="rk-sub">ready to call</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);"><div class="rk-label">With an email</div><div class="rk-val">${rows.filter(r => r.c.email).length}</div><div class="rk-sub">ready to email</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);"><div class="rk-label">No agent</div><div class="rk-val">${rows.filter(r => !r.c.assignedAgent).length}</div><div class="rk-sub">to assign</div></div>
+            </div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;">${small('By agent', byAgent)}${small('By source', bySource)}${small('By line of business', byLob)}</div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Prospect list (${rows.length})</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>Name</th><th>Status</th><th>Agent</th><th>Phone</th><th>Email</th><th>Address</th><th>Line</th><th>Current carrier</th><th>Source</th><th>Added</th></tr></thead>
+                    <tbody>${rows.slice(0, 500).map(({ key, c }) => `<tr style="cursor:pointer;" onclick="amsSidebarNav('search'); amsLoadClientDetail('${amsEscHtml(amsEsc(key))}')">
+                        <td><strong>${_rptEsc(name(c) || key)}</strong></td><td>${_rptEsc(statusOf(c))}</td><td>${_rptEsc(c.assignedAgent)}</td>
+                        <td>${_rptEsc(c.phone1)}</td><td>${_rptEsc(c.email)}</td>
+                        <td>${_rptEsc([c.address, c.city, [c.state, c.zip].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</td>
+                        <td>${_rptEsc(c.prospectLob)}</td><td>${_rptEsc(c.currentCarrier)}</td><td>${_rptEsc(c.referralSource)}</td>
+                        <td>${_rptEsc(_rptProspectDate(c))}</td></tr>`).join('')}
+                    ${rows.length > 500 ? `<tr><td colspan="10" style="color:var(--gray-500);">Showing 500 of ${rows.length} — export the CSV for the full list.</td></tr>` : ''}</tbody>
+                </table></div>
+            </div>`;
+        }
+        window._csvProspects = function () {
+            const { rows } = _rptProspectRows();
+            _rptExportCSV(['First Name', 'Last Name', 'Status', 'Agent', 'Phone', 'Phone 2', 'Email', 'Address', 'City', 'State', 'ZIP',
+                           'DOB', 'Line of Business', 'Current Carrier', 'Source', 'Added'],
+                rows.map(({ c }) => [c.firstName, c.lastName, c.prospectStatus || c.clientStatus, c.assignedAgent, c.phone1, c.phone2, c.email, c.address,
+                                     c.city, c.state, c.zip, c.dob, c.prospectLob, c.currentCarrier, c.referralSource, _rptProspectDate(c)]),
+                'prospects_report.csv');
+        };
 
         function amsShowAccounting(section) {
             _activeAcct = section;
