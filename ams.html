@@ -5,7 +5,7 @@
     <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20261029a"></script>
-    <script src="uib-binder-sync.js?v=20261030b"></script>
+    <script src="uib-binder-sync.js?v=20261030c"></script>
     <script src="uib-auth.js?v=20261022c"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
@@ -1553,6 +1553,7 @@
                         <button class="ams-tab"         data-tab="clientApps" onclick="amsShowTab('clientApps')"><i data-lucide="clipboard-list"></i> Client Apps</button>
                         <button class="ams-tab"         data-tab="certificates" onclick="amsShowTab('certificates')"><i data-lucide="award"></i> Certificate Master <span id="certTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="interests" onclick="amsShowTab('interests')"><i data-lucide="building-2"></i> Additional Interests <span id="aiTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
+                        <button class="ams-tab"         data-tab="insuredLogin" onclick="amsShowTab('insuredLogin')" style="display:none;"><i data-lucide="key-round"></i> Insured Login <span id="ilTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;">ON</span></button>
                     </div>
 
                     <!-- ── TAB: Contact Info ── -->
@@ -1821,6 +1822,7 @@
                                     <option>Vehicle Documents</option>
                                     <option>Claims</option>
                                     <option>Correspondence</option>
+                                    <option>Client Uploads</option>
                                     <option>Other</option>
                                 </select>
                             </div>
@@ -1863,6 +1865,7 @@
                                     <option>Vehicle Documents</option>
                                     <option>Claims</option>
                                     <option>Correspondence</option>
+                                    <option>Client Uploads</option>
                                 </select>
                             </div>
 
@@ -1878,7 +1881,6 @@
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:12px;flex-wrap:wrap;">
                             <h3 style="color:var(--navy);font-size:16px;"><i data-lucide="award" style="width:16px;height:16px;vertical-align:-3px;"></i> Certificate Master</h3>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                <button onclick="certEditProducer()" style="padding:7px 13px;background:#fff;color:var(--navy);border:1px solid var(--gray-200);border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">Agency details</button>
                                 <button onclick="certSendPicker()" style="padding:7px 13px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">✉ Send Certificate</button>
                                 <button onclick="certNewForClient()" style="padding:7px 14px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">+ New certificate</button>
                             </div>
@@ -1902,6 +1904,16 @@
                             Pick one as the Certificate Holder on a certificate and its name, address and e-mail fill in.
                         </p>
                         <div id="aiListBody"></div>
+                    </div>
+
+                    <!-- ── TAB: Insured Login (insured-login.js) — commercial clients only ── -->
+                    <div id="tabInsuredLogin" style="display:none;">
+                        <h3 style="color:var(--navy);font-size:16px;margin-bottom:4px;"><i data-lucide="key-round" style="width:16px;height:16px;vertical-align:-3px;"></i> Insured Login</h3>
+                        <p style="font-size:11px;color:var(--gray-400);margin-bottom:14px;">
+                            The client's sign-in to the Client Portal and what it lets them see: policies, documents,
+                            file uploads, certificates and certificate holders.
+                        </p>
+                        <div id="ilBody"></div>
                     </div>
 
                     <div id="tabClientApps" style="display:none;">
@@ -2486,12 +2498,13 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261030g"></script>
+    <script src="ams.js?v=20261030h"></script>
     <script src="acord25-map.js?v=20261027a"></script>
-    <script src="certificates.js?v=20261030a"></script>
-    <script src="additional-interests.js?v=20261030a"></script>
-    <script src="certificates-ui.js?v=20261030a"></script>
-    <script src="agency.js?v=20261030b"></script>
+    <script src="certificates.js?v=20261030b"></script>
+    <script src="additional-interests.js?v=20261030b"></script>
+    <script src="certificates-ui.js?v=20261030b"></script>
+    <script src="insured-login.js?v=20261030a"></script>
+    <script src="agency.js?v=20261030c"></script>
     <script src="health.js?v=20261030a"></script>
     <script src="ams-home.js?v=20261030b"></script>
     <script src="ams-books.js?v=20261030c"></script>

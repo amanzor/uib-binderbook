@@ -46,7 +46,7 @@
         'prospectData', 'verificationLogs', 'commissionStatements',
         'underwritingData', 'healthData', 'healthCarrierData', 'amsClientData',
         'certificateData', 'acordSavedForms', 'agencyProfile', 'healthCommissionStatements',
-        'additionalInterestData', 'clientSharedDocs'
+        'additionalInterestData', 'clientSharedDocs', 'insuredPortalAccounts'
     ];
     var TOMBSTONE_KEYS = ['binderDeletedIds', 'verificationLogsDeleted'];
     var TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -230,7 +230,8 @@
     // not a map of them, so a per-field union would let a device that has
     // a field blank beat one that has it filled. It takes the plain-upsert
     // path instead: the whole record is written as a unit.
-    var RECORD_MAP_KEYS = ['amsClientData', 'certificateData', 'acordSavedForms', 'additionalInterestData', 'clientSharedDocs'];
+    var RECORD_MAP_KEYS = ['amsClientData', 'certificateData', 'acordSavedForms', 'additionalInterestData', 'clientSharedDocs',
+                           'insuredPortalAccounts'];
 
     function mergeClientData(localObj, cloudObj) {
         var out = {};
