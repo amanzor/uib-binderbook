@@ -1334,4 +1334,106 @@
         a.locations.splice(i, 1);
         save(a); render();
     };
+
+    // ── The logo card in the left pane ───────────────────────
+    // Agency Management is for the agency's managers (the admin
+    // accounts: Alberto, Randy, Amanda). Every other agent gets Agent
+    // Management: their own profile, which they can keep up to date and
+    // which is the record the Agents section shows.
+    function me() { return (typeof amsCurrentUser !== 'undefined' && amsCurrentUser) ? amsCurrentUser : ''; }
+    function initials(n) { return String(n || '?').split(/\s+/).map(function (w) { return w[0] || ''; }).join('').slice(0, 2).toUpperCase(); }
+
+    function renderLogoSection() {
+        var el = document.getElementById('amsLogoSection');
+        if (!el) return;
+        if (!me()) { el.innerHTML = ''; return; }
+        if (isAdmin()) {
+            var a = load();
+            el.innerHTML =
+                '<button type="button" class="ams-logo-card" onclick="amsSidebarNav(\'agency\')" title="Agency Management">' +
+                  '<img src="icons/uib-192.png" alt="Universal Insurance Brokers logo">' +
+                  '<span><b>Agency Management</b><small>' + esc(a.name || 'Universal Insurance Brokers') + '</small></span>' +
+                '</button>';
+        } else {
+            el.innerHTML =
+                '<button type="button" class="ams-logo-card" onclick="amsOpenMyProfile()" title="Agent Management — your agent profile">' +
+                  '<span class="ams-logo-initials">' + esc(initials(me())) + '</span>' +
+                  '<span><b>Agent Management</b><small>' + esc(me()) + ' · my profile</small></span>' +
+                '</button>';
+        }
+    }
+
+    // ── My agent profile (every agent, for themselves) ───────
+    var MY_FIELDS = [{ k: 'title', label: 'Title / role' }, { k: 'npn', label: 'NPN' }].concat(AGENT_FIELDS.contact);
+
+    function openMyProfile() {
+        var name = me();
+        if (!name) return;
+        var rec = agentRecord(name);
+        var lic = Array.isArray(rec.licenseList) ? rec.licenseList
+                : (Array.isArray(rec.licenses) ? rec.licenses.map(function (t) { return { type: t }; }) : []);
+        var field = function (f) {
+            var v = rec[f.k] == null ? '' : rec[f.k];
+            return '<label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--gray-500);' + (f.wide ? 'grid-column:1/-1;' : '') + '">' +
+                esc(f.label) + '<input id="myp_' + f.k + '" type="' + (f.type || 'text') + '" value="' + esc(v) + '"' + (f.max ? ' maxlength="' + f.max + '"' : '') +
+                ' style="padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;color:var(--navy);"></label>';
+        };
+        var m = document.createElement('div');
+        m.id = 'amsMyProfile';
+        m.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10004;display:flex;align-items:flex-start;justify-content:center;padding:24px 14px;overflow-y:auto;';
+        m.onclick = function (e) { if (e.target === m) m.remove(); };
+        m.innerHTML =
+            '<div style="background:#fff;border-radius:16px;max-width:680px;width:100%;margin:auto;box-shadow:0 30px 70px rgba(15,23,42,.35);overflow:hidden;" onclick="event.stopPropagation()">' +
+              '<div style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;padding:20px 22px;display:flex;gap:14px;align-items:center;">' +
+                '<span style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;">' + esc(initials(name)) + '</span>' +
+                '<div style="flex:1;"><div style="font-size:11px;opacity:.8;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">' + (isAdmin() ? 'My profile' : 'Agent Management') + '</div>' +
+                  '<div style="font-size:19px;font-weight:800;">' + esc(name) + '</div>' +
+                  '<div style="font-size:12px;opacity:.85;">Keep your details current — this is the record the agency sees in its Agents list.</div></div>' +
+                '<button type="button" onclick="document.getElementById(\'amsMyProfile\').remove()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">✕</button>' +
+              '</div>' +
+              '<div style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">' + MY_FIELDS.map(field).join('') + '</div>' +
+              '<div style="padding:0 22px 6px;">' +
+                '<div style="font-size:11px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Licenses</div>' +
+                (lic.length ? lic.map(function (l) {
+                    return '<div style="font-size:12.5px;color:var(--gray-600);padding:3px 0;">📜 ' + esc([l.type, l.number, l.state, l.expires ? 'exp ' + l.expires : ''].filter(Boolean).join(' · ')) + '</div>';
+                }).join('') : '<div style="font-size:12px;color:var(--gray-400);">None on file.</div>') +
+                '<div style="font-size:11px;color:var(--gray-400);margin-top:4px;">Licenses and HR details are kept by the agency managers — ask them to update those.</div>' +
+              '</div>' +
+              '<div style="padding:14px 22px;border-top:1px solid var(--gray-200);margin-top:12px;display:flex;justify-content:flex-end;gap:8px;">' +
+                '<button type="button" class="btn-secondary btn-sm" onclick="document.getElementById(\'amsMyProfile\').remove()">Cancel</button>' +
+                '<button type="button" class="btn-sm" id="mypSave" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;" onclick="amsSaveMyProfile()">💾 Save my profile</button>' +
+              '</div>' +
+            '</div>';
+        document.body.appendChild(m);
+    }
+
+    function saveMyProfile() {
+        var name = me();
+        if (!name) return;
+        var patch = {};
+        MY_FIELDS.forEach(function (f) {
+            var el = document.getElementById('myp_' + f.k);
+            if (el) patch[f.k] = String(el.value || '').trim();
+        });
+        var bad = ['email', 'personalEmail'].filter(function (k) { return patch[k] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patch[k]); });
+        if (bad.length) { alert('That e-mail address does not look right.'); return; }
+        if (patch.state) patch.state = patch.state.toUpperCase();
+        var btn = document.getElementById('mypSave');
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+        saveAgentRecord(name, patch).then(function () {
+            var m = document.getElementById('amsMyProfile');
+            if (m) m.remove();
+            if (typeof amsFlashBanner === 'function') amsFlashBanner('Profile saved ✓');
+            var panel = document.getElementById('amsAgencyPanel');
+            if (panel && panel.style.display !== 'none') render();
+        }).catch(function (e) {
+            if (btn) { btn.disabled = false; btn.textContent = '💾 Save my profile'; }
+            alert('Could not save your profile: ' + (e && e.message ? e.message : e));
+        });
+    }
+
+    window.amsRenderLogoSection = renderLogoSection;
+    window.amsCanManageAgency = isAdmin;
+    window.amsOpenMyProfile = openMyProfile;
+    window.amsSaveMyProfile = saveMyProfile;
 })();
