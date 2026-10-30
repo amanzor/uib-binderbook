@@ -929,6 +929,15 @@ function amsApplyFilters(q) {
         if (carrierFilter && !client.policies.some(p => p.company === carrierFilter)
             && !(client.isHealth && (client.health || []).some(h => h.carrier === carrierFilter))) return false;
         if (typeFilter && amsClientKind(client) !== typeFilter) return false;
+        // The book tab on top: Health shows Health Book clients; Personal and
+        // Commercial show clients with a policy in that book (and prospects,
+        // who have none yet).
+        if (typeof amsBook === 'function') {
+            const book = amsBook();
+            if (book === 'health') { if (!client.isHealth) return false; }
+            else if (client.isHealth) return false;
+            else if (client.policies.length && !client.policies.some(p => amsBookMatch(p))) return false;
+        }
         return true;
     };
 

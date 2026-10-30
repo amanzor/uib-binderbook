@@ -247,6 +247,7 @@
     // ── Render ───────────────────────────────────────────────
     const TABS = [
         { id: 'clients', label: 'Clients' },
+        { id: 'renewals', label: 'Renewals' },
         { id: 'report', label: 'Health Insurance Report' },
         { id: 'commissions', label: 'Health Commissions' },
         { id: 'carriers', label: 'Carriers' },
@@ -284,12 +285,72 @@
         let body = '';
         if (_tab === 'client') body = clientView(cl.get(_openKey));
         else if (_tab === 'report') body = reportView();
+        else if (_tab === 'renewals') body = renewalsView();
         else if (_tab === 'commissions') body = commissionView();
         else if (_tab === 'carriers') body = carriersView();
         else if (_tab === 'statements') body = statementsView();
         else body = clientsView(cl);
         el.innerHTML = head + tabs + body;
         if (window.lucide) lucide.createIcons();
+    }
+
+    // ── Renewals ─────────────────────────────────────────────
+    // Health plans run by calendar year, so every plan active this year
+    // renews on January 1 (open enrollment). A client has re-enrolled
+    // once a record for next year exists.
+    const _n = { agent: '', carrier: '', state: 'due', q: '' };
+    function renewalsView() {
+        const yr = new Date().getFullYear();
+        const next = String(yr + 1);
+        const all = records();
+        const nextYear = new Set(all.filter(r => planYear(r) === next).map(r => clientKey(r.clientName)));
+        const seen = new Set();
+        const rows = all.filter(r => isActive(r) && planYear(r) === String(yr)).filter(r => {
+            const k = clientKey(r.clientName);
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        }).map(r => ({ r, done: nextYear.has(clientKey(r.clientName)) }));
+        const mine = isAdmin() ? rows : rows.filter(x => x.r.agent === me());
+        const q = _n.q.trim().toLowerCase();
+        const shown = mine.filter(x => {
+            if (_n.agent && x.r.agent !== _n.agent) return false;
+            if (_n.carrier && x.r.carrier !== _n.carrier) return false;
+            if (_n.state === 'due' && x.done) return false;
+            if (_n.state === 'done' && !x.done) return false;
+            if (q && (x.r.clientName + ' ' + (x.r.cellPhone || '') + ' ' + (x.r.email || '')).toLowerCase().indexOf(q) === -1) return false;
+            return true;
+        }).sort((a, b) => String(a.r.clientName).localeCompare(String(b.r.clientName)));
+        const done = mine.filter(x => x.done).length;
+        const pct = mine.length ? Math.round(done / mine.length * 100) : 0;
+        const kpi = (label, v, sub, color) => '<div style="flex:1;min-width:150px;background:#fff;border:1px solid var(--gray-200);border-top:4px solid ' + color +
+            ';border-radius:10px;padding:12px 14px;"><div style="font-size:10.5px;font-weight:700;color:var(--gray-500);text-transform:uppercase;">' + label +
+            '</div><div style="font-size:24px;font-weight:800;color:var(--navy);">' + v + '</div><div style="font-size:11px;color:var(--gray-500);">' + sub + '</div></div>';
+        const agents = [...new Set(mine.map(x => x.r.agent).filter(Boolean))].sort();
+        const carriersList = [...new Set(mine.map(x => x.r.carrier).filter(Boolean))].sort();
+        return '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">' +
+              kpi('Plans renewing for ' + next, num(mine.length), 'active ' + yr + ' plans', ROSE) +
+              kpi('Re-enrolled', num(done), pct + '% done', '#16a34a') +
+              kpi('Still to renew', num(mine.length - done), 'open enrollment Nov 1 – Jan 15', '#d97706') +
+            '</div>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+              '<select onchange="healthRenewalFilter(\'state\',this.value)" style="padding:7px 9px;border:1px solid var(--gray-200);border-radius:7px;font-size:12.5px;">' +
+                [['due', 'Still to renew'], ['done', 'Re-enrolled'], ['', 'All']].map(o => '<option value="' + o[0] + '"' + (o[0] === _n.state ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
+              (isAdmin() ? selectHtml('hrnAgent', agents, _n.agent, 'All agents', "healthRenewalFilter('agent',this.value)") : '') +
+              selectHtml('hrnCarrier', carriersList, _n.carrier, 'All carriers', "healthRenewalFilter('carrier',this.value)") +
+              '<input placeholder="Search name, phone, e-mail…" value="' + esc(_n.q) + '" onchange="healthRenewalFilter(\'q\',this.value)" ' +
+                'style="padding:7px 9px;border:1px solid var(--gray-200);border-radius:7px;font-size:12.5px;min-width:220px;">' +
+            '</div>' +
+            (shown.length ? '<div style="overflow-x:auto;"><table class="rpt-tbl" style="width:100%;"><thead><tr><th>Client</th><th>Agent</th><th>Carrier</th>' +
+              '<th>Members</th><th>Premium / mo</th><th>Phone</th><th>Renews</th><th>Status</th></tr></thead><tbody>' +
+              shown.slice(0, 500).map(x => '<tr style="cursor:pointer;" onclick="healthOpenClient(\'' + esc(healthKey(x.r.clientName)).replace(/'/g, "\\'") + '\')">' +
+                '<td><strong>' + esc(x.r.clientName) + '</strong></td><td>' + esc(x.r.agent) + '</td><td>' + esc(x.r.carrier) + '</td>' +
+                '<td>' + esc(x.r.numMembers || '') + '</td><td>' + (x.r.monthlyPremium ? money(x.r.monthlyPremium, true) : '') + '</td>' +
+                '<td>' + esc(x.r.cellPhone || '') + '</td><td>01/01/' + next + '</td>' +
+                '<td>' + (x.done ? '<span style="background:#dcfce7;color:#166534;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;">Re-enrolled</span>'
+                                 : '<span style="background:#fef3c7;color:#92400e;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;">Due</span>') + '</td></tr>').join('') +
+              '</tbody></table></div>'
+            : '<p style="color:var(--gray-400);font-size:13px;padding:20px;text-align:center;">No health plans match.</p>');
     }
 
     function selectHtml(id, list, value, label, onchange) {
@@ -871,6 +932,7 @@
         if (focus) { const el = document.getElementById(focus); if (el) { el.focus(); if (el.setSelectionRange && typeof el.value === 'string') el.setSelectionRange(el.value.length, el.value.length); } }
     };
     window.healthReportFilter = function (k, v) { _r[k] = v; render(); };
+    window.healthRenewalFilter = function (k, v) { _n[k] = v; render(); };
     window.healthEditRecord = editRecord;
     window.healthSaveRecord = saveRecord;
     window.healthDeleteRecord = deleteRecord;
