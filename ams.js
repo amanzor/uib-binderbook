@@ -6026,6 +6026,8 @@ function rnwHandlePdfUpload(event) {
             loaded++;
             return;
         }
+        // Keep a copy before it is read into memory and forgotten.
+        rnwArchiveReport(file);
         const reader = new FileReader();
         reader.onload = e => {
             _rnwPendingPdfs.push({ name: file.name, base64: e.target.result.split(',')[1] });
@@ -6406,4 +6408,133 @@ function amsAgentLink(name, inner, extraCss) {
            ' style="color:inherit;text-decoration:underline;text-underline-offset:2px;' +
            'text-decoration-color:rgba(29,78,216,.45);cursor:pointer;' + (extraCss || '') + '">' +
            shown + '</a>';
+}
+
+
+// ── Renewal reports: keep the PDFs the processor was given ───
+//  They were read into memory and thrown away, so nothing could be traced
+//  back to the report it came from. Each upload is now filed against a
+//  reserved key, foldered by month, and dropped after a year.
+var RNW_REPORT_KEY = '__RENEWAL_REPORTS__';
+var RNW_REPORT_DAYS = 366;          // "one year", with a day's grace
+var _rnwReports = [];
+var _rnwReportsOpen = false;
+
+function _rnwMonthFolder(d) {
+    d = d ? new Date(d) : new Date();
+    if (isNaN(d)) d = new Date();
+    return d.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'long', year: 'numeric' });
+}
+
+// Fire-and-forget: a failure to archive must never block the import the
+// agent actually asked for, but it should say so rather than go quiet.
+async function rnwArchiveReport(file) {
+    if (typeof amsCloudUpload !== 'function') return;
+    try {
+        await amsCloudUpload(file, RNW_REPORT_KEY, _rnwMonthFolder());
+    } catch (e) {
+        if (typeof rnwAddMessage === 'function') {
+            rnwAddMessage('assistant', '⚠️ ' + (file && file.name ? '"' + file.name + '" was read, but ' : '') +
+                'the report could not be filed for later reference. The import itself is unaffected.');
+        }
+    }
+}
+
+function rnwReportExpired(r) {
+    if (!r || !r.uploadedAt) return false;
+    var age = (Date.now() - new Date(r.uploadedAt).getTime()) / 86400000;
+    return age > RNW_REPORT_DAYS;
+}
+
+async function amsRnwLoadReports() {
+    if (typeof amsCloudList !== 'function') return;
+    var card = document.getElementById('amsRnwReportsCard');
+    if (card) card.style.display = amsIsRenewalAdmin() ? '' : 'none';
+    if (!amsIsRenewalAdmin()) return;
+    try { _rnwReports = await amsCloudList(RNW_REPORT_KEY) || []; } catch (e) { _rnwReports = []; }
+
+    // One year means one year: anything past it goes, and the count below
+    // reflects what is actually still held.
+    var stale = _rnwReports.filter(rnwReportExpired);
+    if (stale.length && typeof amsCloudDeleteFile === 'function') {
+        for (var i = 0; i < stale.length; i++) {
+            try { await amsCloudDeleteFile(stale[i].docId, stale[i].storagePath); } catch (e) {}
+        }
+        _rnwReports = _rnwReports.filter(function (r) { return !rnwReportExpired(r); });
+    }
+    amsRnwRenderReports();
+}
+
+function amsRnwToggleReports() {
+    _rnwReportsOpen = !_rnwReportsOpen;
+    var body = document.getElementById('amsRnwReportsBody');
+    var btn  = document.getElementById('amsRnwReportsToggle');
+    if (body) body.style.display = _rnwReportsOpen ? '' : 'none';
+    if (btn)  btn.textContent = _rnwReportsOpen ? 'Hide' : 'Show';
+    if (_rnwReportsOpen) amsRnwRenderReports();
+}
+
+function amsRnwRenderReports() {
+    var countEl = document.getElementById('amsRnwReportsCount');
+    if (countEl) countEl.textContent = _rnwReports.length
+        ? '· ' + _rnwReports.length + ' on file'
+        : '· nothing on file yet';
+    var body = document.getElementById('amsRnwReportsBody');
+    if (!body || !_rnwReportsOpen) return;
+
+    if (!_rnwReports.length) {
+        body.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--gray-400);">' +
+            'Nothing filed yet. Reports attached to the processor above are kept here from now on.</div>';
+        return;
+    }
+    // Newest month first, and newest report within it.
+    var byMonth = {};
+    _rnwReports.forEach(function (r) {
+        var m = r.category || 'Undated';
+        (byMonth[m] = byMonth[m] || []).push(r);
+    });
+    var months = Object.keys(byMonth).sort(function (a, b) {
+        var da = new Date(a), db = new Date(b);
+        if (isNaN(da) || isNaN(db)) return a < b ? 1 : -1;
+        return db - da;
+    });
+    body.innerHTML = months.map(function (m) {
+        var rows = byMonth[m].slice().sort(function (a, b) {
+            return String(b.uploadedAt || '').localeCompare(String(a.uploadedAt || ''));
+        }).map(function (r) {
+            var when = r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString('en-US') : '';
+            return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;' +
+                       'padding:9px 12px;border-top:1px solid var(--gray-200);flex-wrap:wrap;">' +
+                '<div style="min-width:0;">' +
+                  '<div style="font-size:12px;font-weight:600;color:var(--navy);">' + amsEscHtml(r.name) + '</div>' +
+                  '<div style="font-size:10.5px;color:var(--gray-500);margin-top:2px;">' +
+                     (r.uploadedBy ? amsEscHtml(r.uploadedBy) + ' · ' : '') + amsEscHtml(when) + '</div>' +
+                '</div>' +
+                '<div style="display:flex;gap:6px;flex-shrink:0;">' +
+                  '<button onclick="amsCloudDownloadFile(\'' + amsEscHtml(r.docId) + '\',\'' +
+                      amsEscHtml(r.storagePath) + '\',\'' + amsEscHtml(r.name) + '\')" ' +
+                      'style="padding:4px 10px;background:#fff;color:var(--navy);border:1px solid var(--gray-200);' +
+                      'border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Download</button>' +
+                  (amsIsAdminUser()
+                    ? '<button onclick="amsRnwDeleteReport(\'' + amsEscHtml(r.docId) + '\')" ' +
+                      'style="padding:4px 9px;background:#fff;color:#991b1b;border:1px solid var(--gray-200);' +
+                      'border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Delete</button>'
+                    : '') +
+                '</div></div>';
+        }).join('');
+        return '<div style="border:1px solid var(--gray-200);border-radius:9px;overflow:hidden;margin-bottom:10px;">' +
+               '<div style="padding:8px 12px;background:var(--gray-50,#f9fafb);font-size:11.5px;font-weight:800;' +
+                   'color:var(--navy);">' + amsEscHtml(m) + ' <span style="font-weight:600;color:var(--gray-500);">· ' +
+                   byMonth[m].length + '</span></div>' + rows + '</div>';
+    }).join('');
+}
+
+async function amsRnwDeleteReport(docId) {
+    if (!amsIsAdminUser()) return;
+    var r = _rnwReports.filter(function (x) { return String(x.docId) === String(docId); })[0];
+    if (!r) return;
+    if (!confirm('Delete "' + r.name + '"?\n\nThe policies already imported from it are not affected.')) return;
+    try { await amsCloudDeleteFile(r.docId, r.storagePath); } catch (e) {}
+    _rnwReports = _rnwReports.filter(function (x) { return String(x.docId) !== String(docId); });
+    amsRnwRenderReports();
 }
