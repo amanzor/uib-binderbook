@@ -274,6 +274,71 @@
         /* Fade in */
         @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         .fade-up { animation:fadeUp .3s ease forwards; }
+
+        /* ── Business portal additions ───────────────────── */
+        .login-mode { display:flex; background:var(--gray-100); border-radius:var(--radius-sm); padding:4px; margin-bottom:20px; gap:4px; }
+        .login-mode button { flex:1; padding:9px 8px; border:none; border-radius:5px; background:none; font-family:inherit;
+            font-size:13px; font-weight:600; color:var(--gray-500); cursor:pointer; }
+        .login-mode button.active { background:#fff; color:var(--navy); box-shadow:var(--shadow-sm); }
+        .choose-list { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+        .choose-list button { text-align:left; padding:12px 14px; border:1.5px solid var(--gray-200); border-radius:var(--radius-sm);
+            background:#fff; font-family:inherit; font-size:14px; font-weight:600; color:var(--navy); cursor:pointer; }
+        .choose-list button:hover { border-color:var(--blue-light); background:var(--blue-pale); }
+        .portal-tabs { flex-wrap:wrap; }
+        .p-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border:1px solid var(--gray-200); border-radius:var(--radius-sm);
+            background:#fff; color:var(--gray-700); font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
+        .p-btn:hover { border-color:var(--blue-light); color:var(--blue); }
+        .p-btn.primary { background:linear-gradient(135deg,#0d1f3c,#1d4ed8); color:#fff; border:none; }
+        .p-btn.primary:hover { filter:brightness(1.08); color:#fff; }
+        .p-btn:disabled { opacity:.5; cursor:not-allowed; }
+        .p-sub { font-size:11px; color:var(--gray-400); }
+        .p-empty { padding:40px 20px; text-align:center; color:var(--gray-400); font-size:13px; }
+        .pol-detail > td { background:var(--gray-50); padding:14px 18px !important; }
+        .pol-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:10px 18px; font-size:12px; }
+        .pol-grid .k { font-size:10px; font-weight:700; color:var(--gray-400); text-transform:uppercase; letter-spacing:.4px; }
+        .pol-grid .v { color:var(--gray-900); font-weight:600; margin-top:2px; }
+        .pol-list { margin-top:12px; font-size:12px; color:var(--gray-700); }
+        .pol-list h5 { font-size:11px; font-weight:700; color:var(--gray-500); text-transform:uppercase; letter-spacing:.4px; margin:10px 0 6px; }
+        .pol-list table { border-collapse:collapse; width:100%; max-width:640px; }
+        .pol-list td { padding:4px 8px; border-bottom:1px solid var(--gray-100); }
+        .row-toggle { cursor:pointer; }
+        .row-toggle .chev { display:inline-block; transition:transform .15s; color:var(--gray-400); }
+        .row-toggle.open .chev { transform:rotate(90deg); }
+        .upload-drop { margin:20px; border:2px dashed var(--gray-300); border-radius:var(--radius-md); padding:30px 20px; text-align:center;
+            color:var(--gray-500); cursor:pointer; transition:all .15s; }
+        .upload-drop.drag, .upload-drop:hover { border-color:var(--blue-light); background:var(--blue-pale); }
+        .upload-drop .big { font-size:36px; }
+        .upload-status { padding:0 20px 14px; font-size:12px; }
+        .upload-status div { padding:3px 0; }
+        .pm-back { position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center;
+            z-index:500; padding:16px; }
+        .pm-dialog { background:#fff; border-radius:var(--radius-lg); width:100%; max-width:620px; max-height:92vh; display:flex; flex-direction:column;
+            box-shadow:var(--shadow-xl); }
+        .pm-head { padding:18px 22px; border-bottom:1px solid var(--gray-100); display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+        .pm-head h3 { font-size:1.05rem; color:var(--navy); }
+        .pm-body { padding:18px 22px; overflow:auto; }
+        .pm-foot { padding:14px 22px; border-top:1px solid var(--gray-100); display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+        .pm-x { border:none; background:none; font-size:18px; color:var(--gray-400); cursor:pointer; }
+        .f-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 14px; }
+        .f-grid .wide { grid-column:1 / -1; }
+        .f-field span { display:block; font-size:11px; font-weight:700; color:var(--gray-700); text-transform:uppercase; letter-spacing:.4px; margin-bottom:5px; }
+        .f-field input, .f-field select, .f-field textarea { width:100%; padding:9px 11px; border:1.5px solid var(--gray-200); border-radius:var(--radius-sm);
+            font-family:inherit; font-size:13px; color:var(--gray-900); background:#fff; }
+        .f-field textarea { resize:vertical; }
+        .f-field input:focus, .f-field select:focus, .f-field textarea:focus { outline:none; border-color:var(--blue-light); box-shadow:0 0 0 3px rgba(59,130,246,.15); }
+        .f-check { display:flex; gap:8px; align-items:center; font-size:13px; color:var(--gray-700); margin:6px 0; }
+        .f-note { background:var(--blue-pale); border:1px solid #bfdbfe; color:#1e40af; border-radius:var(--radius-sm); padding:9px 12px; font-size:12px; margin-bottom:12px; }
+        .f-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:var(--radius-sm); padding:9px 12px; font-size:12px; margin-bottom:12px; }
+        .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--navy); color:#fff; padding:11px 18px;
+            border-radius:var(--radius-md); font-size:13px; font-weight:600; box-shadow:var(--shadow-lg); z-index:600; }
+        .cert-name { font-weight:700; color:var(--navy); font-size:12px; }
+        .tag { display:inline-block; padding:1px 7px; border-radius:10px; font-size:10px; font-weight:700; background:#ecfdf5; color:#047857; margin-left:4px; }
+        @media (max-width: 640px) {
+            .f-grid { grid-template-columns:1fr; }
+            .portal-tab { padding:10px 12px; font-size:12px; }
+            .portal-header { padding:0 14px; }
+            .portal-greeting { display:none; }
+        }
     </style>
     <link rel="stylesheet" href="uib-theme.css?v=20261003a">
 </head>
@@ -293,25 +358,49 @@
             <p>Universal Insurance Brokers — Secure policyholder access</p>
         </div>
 
-        <div class="login-divider"></div>
-
-        <div class="login-field">
-            <label>Last Name</label>
-            <input type="text" id="loginLastName" placeholder="e.g. Martinez" autocomplete="family-name">
-        </div>
-        <div class="login-field">
-            <label>Policy or Binder Number</label>
-            <input type="text" id="loginPolicyNum" placeholder="e.g. 970306264 or JC-2024-0001" autocomplete="off"
-                onkeydown="if(event.key==='Enter') portalLogin()">
-            <div class="hint">Enter the policy number or binder number from your insurance documents.</div>
+        <div class="login-mode" role="tablist">
+            <button type="button" id="modeBusiness" class="active" onclick="setLoginMode('business')">🏢 Business</button>
+            <button type="button" id="modePersonal" onclick="setLoginMode('personal')">👤 Personal</button>
         </div>
 
-        <button class="login-btn" onclick="portalLogin()">🔐 Sign In to My Portal</button>
+        <!-- Business: e-mail + password -->
+        <div id="loginBusiness">
+            <div class="login-field">
+                <label for="loginEmail">E-mail</label>
+                <input type="email" id="loginEmail" placeholder="you@yourcompany.com" autocomplete="username"
+                    onkeydown="if(event.key==='Enter') document.getElementById('loginPassword').focus()">
+            </div>
+            <div class="login-field">
+                <label for="loginPassword">Password</label>
+                <input type="password" id="loginPassword" placeholder="Your portal password" autocomplete="current-password"
+                    onkeydown="if(event.key==='Enter') businessLogin()">
+                <div class="hint">Your agent sets up your business login. Forgot it? Contact your agent to reset it.</div>
+            </div>
+            <button class="login-btn" id="businessBtn" onclick="businessLogin()">🔐 Sign In</button>
+            <div id="chooseCompany" style="display:none;">
+                <p style="font-size:13px;color:var(--gray-700);margin-top:16px;font-weight:600;">This login opens more than one company. Which one?</p>
+                <div class="choose-list" id="chooseList"></div>
+            </div>
+        </div>
+
+        <!-- Personal: last name + policy number -->
+        <div id="loginPersonal" style="display:none;">
+            <div class="login-field">
+                <label for="loginLastName">Last Name</label>
+                <input type="text" id="loginLastName" placeholder="e.g. Martinez" autocomplete="family-name">
+            </div>
+            <div class="login-field">
+                <label for="loginPolicyNum">Policy or Binder Number</label>
+                <input type="text" id="loginPolicyNum" placeholder="e.g. 970306264 or JC-2024-0001" autocomplete="off"
+                    onkeydown="if(event.key==='Enter') portalLogin()">
+                <div class="hint">Enter the policy number or binder number from your insurance documents.</div>
+            </div>
+            <button class="login-btn" onclick="portalLogin()">🔐 Sign In to My Portal</button>
+        </div>
+
         <div class="login-error" id="loginError"></div>
-
         <div class="login-footer">
-            <p>Can't find your policy number? <a href="mailto:info@universalinsbrokers.com">Contact us</a></p>
-            <p style="margin-top:6px;"><a href="index.html">← Return to Binder Book</a> &nbsp;|&nbsp; <a href="ams.html">AMS System</a></p>
+            <p>Need help signing in? <a href="mailto:info@universalinsbrokers.com">Contact us</a></p>
         </div>
     </div>
 </div>
@@ -320,22 +409,17 @@
      PORTAL APP
 ══════════════════════════════════════════════ -->
 <div id="portalApp">
-
-    <!-- Header -->
     <header class="portal-header">
         <div class="portal-logo">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             UIB Client Portal
-            <span class="badge">POLICYHOLDER</span>
+            <span class="badge" id="headerBadge">POLICYHOLDER</span>
         </div>
         <div class="portal-greeting">Welcome back, <strong id="headerName">—</strong></div>
         <button class="portal-logout" onclick="portalLogout()">Sign Out</button>
     </header>
 
-    <!-- Body -->
     <div class="portal-body">
-
-        <!-- Hero -->
         <div class="portal-hero fade-up">
             <div class="hero-avatar" id="heroAvatar">?</div>
             <div class="hero-info">
@@ -343,68 +427,39 @@
                 <p id="heroMeta">Loading your policy details…</p>
             </div>
             <div class="hero-stats">
-                <div class="hero-stat">
-                    <div class="val" id="statPolicies">0</div>
-                    <div class="lbl">Policies</div>
-                </div>
-                <div class="hero-stat">
-                    <div class="val" id="statActivePolicies">0</div>
-                    <div class="lbl">Active</div>
-                </div>
-                <div class="hero-stat">
-                    <div class="val" id="statCarriers">0</div>
-                    <div class="lbl">Carriers</div>
-                </div>
+                <div class="hero-stat"><div class="val" id="statActivePolicies">0</div><div class="lbl">Active</div></div>
+                <div class="hero-stat"><div class="val" id="statPolicies">0</div><div class="lbl">Policies</div></div>
+                <div class="hero-stat"><div class="val" id="statCarriers">0</div><div class="lbl">Carriers</div></div>
             </div>
         </div>
 
-        <!-- Stat cards -->
         <div class="stat-row fade-up" id="statCards"></div>
 
-        <!-- Tabs -->
-        <div class="portal-tabs fade-up">
-            <button class="portal-tab active" onclick="showPortalTab('policies')" id="ptab_policies">
-                📋 My Policies
-            </button>
-            <button class="portal-tab" onclick="showPortalTab('documents')" id="ptab_documents">
-                📄 My Documents <span class="tab-badge" id="docBadge" style="display:none;">0</span>
-            </button>
-            <button class="portal-tab" onclick="showPortalTab('agent')" id="ptab_agent">
-                👤 My Agent
-            </button>
-        </div>
+        <div class="portal-tabs fade-up" id="portalTabs"></div>
 
         <!-- TAB: Policies -->
-        <div id="tab_policies" class="fade-up">
+        <div id="tab_policies" class="fade-up" style="display:none;">
             <div class="section-card">
                 <div class="section-card-header">
-                    <h3>📋 Policy History</h3>
-                    <span id="policyCount" style="font-size:12px;color:var(--gray-400);"></span>
+                    <h3>📋 <span id="policyTitle">Active Policies</span></h3>
+                    <label class="p-sub" style="display:flex;gap:6px;align-items:center;cursor:pointer;">
+                        <input type="checkbox" id="showPastPolicies" onchange="renderPolicies()"> Show past policies
+                    </label>
                 </div>
                 <div style="overflow-x:auto;">
                     <table class="policy-table">
-                        <thead>
-                            <tr>
-                                <th>Status</th>
-                                <th>Policy #</th>
-                                <th>Carrier</th>
-                                <th>Line of Business</th>
-                                <th>Transaction</th>
-                                <th>Eff. Date</th>
-                                <th>Expiration</th>
-                                <th>Term</th>
-                            </tr>
-                        </thead>
-                        <tbody id="policyTableBody">
-                            <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--gray-400);">Loading…</td></tr>
-                        </tbody>
+                        <thead><tr>
+                            <th></th><th>Status</th><th>Policy #</th><th>Carrier</th><th>Line of Business</th>
+                            <th>Eff. Date</th><th>Expiration</th><th>Term</th>
+                        </tr></thead>
+                        <tbody id="policyTableBody"></tbody>
                     </table>
                 </div>
             </div>
         </div>
 
-        <!-- TAB: Documents -->
-        <div id="tab_documents" style="display:none;" class="fade-up">
+        <!-- TAB: Documents (shared by the agency) -->
+        <div id="tab_documents" class="fade-up" style="display:none;">
             <div class="section-card">
                 <div class="section-card-header">
                     <h3>📄 Policy Documents</h3>
@@ -420,124 +475,208 @@
                         <option>Other</option>
                     </select>
                 </div>
-                <div id="docGridWrap">
-                    <div class="doc-empty">
-                        <div style="font-size:48px;">📂</div>
-                        <p>Loading your documents…</p>
-                    </div>
+                <div id="docGridWrap"></div>
+            </div>
+        </div>
+
+        <!-- TAB: Upload files -->
+        <div id="tab_uploads" class="fade-up" style="display:none;">
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h3>⬆️ Upload Files</h3>
+                    <span class="p-sub">Sent straight to your agent's file for your account</span>
+                </div>
+                <div class="upload-drop" id="uploadDrop" onclick="document.getElementById('uploadInput').click()"
+                    ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')"
+                    ondrop="event.preventDefault();this.classList.remove('drag');uploadFiles(event.dataTransfer.files)">
+                    <div class="big">📤</div>
+                    <p style="margin-top:6px;"><strong>Drag &amp; drop files here</strong> or click to choose</p>
+                    <p class="p-sub" style="margin-top:4px;">PDF, photos, Word, Excel — up to 25 MB each</p>
+                </div>
+                <input type="file" id="uploadInput" multiple style="display:none" onchange="uploadFiles(this.files);this.value=''">
+                <div class="upload-status" id="uploadStatus"></div>
+            </div>
+            <div class="section-card">
+                <div class="section-card-header"><h3>🗂️ Files You Uploaded</h3><span class="p-sub" id="uploadCount"></span></div>
+                <div id="uploadGridWrap"></div>
+            </div>
+        </div>
+
+        <!-- TAB: Certificate Master -->
+        <div id="tab_certificates" class="fade-up" style="display:none;">
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h3>🏅 Certificate Master</h3>
+                    <button class="p-btn primary" id="sendCertTop" onclick="openSend()">✉ Send Certificate</button>
+                </div>
+                <p class="p-sub" style="padding:12px 22px 0;">
+                    Your certificates of insurance on file. Coverage on a certificate is set by your agent; you can view and
+                    download each one, and send it to any of your certificate holders.
+                </p>
+                <div style="overflow-x:auto;padding-top:8px;">
+                    <table class="policy-table">
+                        <thead><tr><th>Certificate</th><th>Holder</th><th>Policies</th><th>Date</th><th>Last sent</th><th></th></tr></thead>
+                        <tbody id="certTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Certificate holders -->
+        <div id="tab_holders" class="fade-up" style="display:none;">
+            <div class="section-card">
+                <div class="section-card-header">
+                    <h3>🏢 Certificate Holders</h3>
+                    <button class="p-btn primary" id="addHolderBtn" onclick="openHolder()">+ Add holder</button>
+                </div>
+                <p class="p-sub" style="padding:12px 22px 0;">
+                    The landlords, general contractors, lenders and other companies that ask you for proof of coverage.
+                    A holder's description prints in "Description of Operations / Locations / Vehicles" on the certificates sent to it.
+                </p>
+                <div style="overflow-x:auto;padding-top:8px;">
+                    <table class="policy-table">
+                        <thead><tr><th>Name</th><th>Type</th><th>Address</th><th>E-mail</th><th>Description</th><th></th></tr></thead>
+                        <tbody id="holderTableBody"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
         <!-- TAB: Agent -->
-        <div id="tab_agent" style="display:none;" class="fade-up">
+        <div id="tab_agent" class="fade-up" style="display:none;">
             <div class="section-card" style="margin-bottom:16px;">
-                <div class="section-card-header">
-                    <h3>👤 Your Assigned Agent</h3>
-                </div>
-                <div class="agent-card" id="agentCard">
-                    <div class="loading-ring"></div>
-                </div>
+                <div class="section-card-header"><h3>👤 Your Assigned Agent</h3></div>
+                <div class="agent-card" id="agentCard"></div>
+                <div id="agentCarriers"></div>
             </div>
             <div class="section-card">
-                <div class="section-card-header">
-                    <h3>🏢 Agency Information</h3>
-                </div>
+                <div class="section-card-header"><h3>🏢 Agency Information</h3></div>
                 <div class="agency-block" style="margin:20px;">
                     <h4>Universal Insurance Brokers (UIB)</h4>
                     <div class="agency-detail">📍 Doral, Florida</div>
                     <div class="agency-detail">📞 For policy questions, contact your assigned agent above</div>
                     <div class="agency-detail">⏰ Monday – Friday: 9:00 AM – 6:00 PM ET</div>
                     <div class="agency-detail" style="margin-top:8px;font-size:12px;color:var(--gray-400);">
-                        This is a read-only portal. To make changes to your policy, please contact your agent directly.
+                        To make changes to your coverage, please contact your agent directly.
                     </div>
                 </div>
             </div>
         </div>
-
-    </div><!-- /portal-body -->
-</div><!-- /portalApp -->
+    </div>
+</div>
 
 <script>
 // ═══════════════════════════════════════════════════
-// DATA ACCESS
+// SERVER
 // ═══════════════════════════════════════════════════
-function getBinderData()  { try { return JSON.parse(localStorage.getItem('binderData'))    || []; } catch(e) { return []; } }
-function getClientData()  { try { return JSON.parse(localStorage.getItem('amsClientData')) || {}; } catch(e) { return {}; } }
+// Everything comes from the insured-portal Supabase function, which
+// decides what this client may see. Business logins (commercial
+// clients) sign in with e-mail + password set by their agent on the
+// AMS "Insured Login" tab; personal clients with last name + policy #.
+const SB_URL   = (window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co';
+const PORTAL_FN = SB_URL + '/functions/v1/insured-portal';
 
-function clientKey(name) {
-    return (name || '').trim().toUpperCase().replace(/\s+/g, ' ');
+async function api(body, opts) {
+    const key = (window.UIB_CONFIG || {}).SUPABASE_ANON || '';
+    let r;
+    try {
+        r = await fetch(PORTAL_FN, { method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': key, 'Authorization': 'Bearer ' + key },
+            body: JSON.stringify(body) });
+    } catch (e) { return { ok: false, error: 'Could not reach the portal. Check your connection and try again.', offline: true }; }
+    if (opts && opts.raw) return r;
+    const out = await r.json().catch(() => null);
+    // Our function always answers {ok:...}; anything else means it is not deployed.
+    if (!out || typeof out.ok !== 'boolean') return { ok: false, error: 'The portal is not available right now.', missing: true };
+    if (out.signedOut && _session && _session.token) { sessionExpired(); }
+    return out;
 }
 
 // ═══════════════════════════════════════════════════
 // SESSION
 // ═══════════════════════════════════════════════════
-let _session = null; // { source, clientKey, displayName, policies, agents, documents }
-
-function saveSession(data) { sessionStorage.setItem('uibInsuredSession', JSON.stringify(data)); }
-function loadSession()     { try { return JSON.parse(sessionStorage.getItem('uibInsuredSession')); } catch(e) { return null; } }
-function clearSession()    { sessionStorage.removeItem('uibInsuredSession'); }
+let _session = null;   // the server's answer + { source, token, lastName, policyNum }
+function saveSession(s) {
+    // Business sessions keep only the token; the data is fetched again.
+    const keep = s.token ? { source: 'business', token: s.token } : s;
+    try { sessionStorage.setItem('uibInsuredSession', JSON.stringify(keep)); } catch (e) {}
+}
+function loadSession()  { try { return JSON.parse(sessionStorage.getItem('uibInsuredSession')); } catch (e) { return null; } }
+function clearSession() { try { sessionStorage.removeItem('uibInsuredSession'); } catch (e) {} }
+function clientKey(name) { return (name || '').trim().toUpperCase().replace(/\s+/g, ' '); }
+const perm = k => !!(_session && _session.perms && _session.perms[k]);
+const isBusiness = () => !!(_session && _session.token);
 
 // ═══════════════════════════════════════════════════
 // LOGIN
 // ═══════════════════════════════════════════════════
-// The portal asks the insured-portal Supabase function, which checks the
-// name and number on the server and returns only what a client may see:
-// policies without premiums or payments, the agent's contact, and the
-// documents an agent marked "Client can see". If that function is not
-// deployed yet, it falls back to this browser's own copy of the book
-// (agency computers) — still showing no money and no unshared files.
-const PORTAL_FN = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co') + '/functions/v1/insured-portal';
+function setLoginMode(mode) {
+    document.getElementById('modeBusiness').classList.toggle('active', mode === 'business');
+    document.getElementById('modePersonal').classList.toggle('active', mode === 'personal');
+    document.getElementById('loginBusiness').style.display = mode === 'business' ? '' : 'none';
+    document.getElementById('loginPersonal').style.display = mode === 'personal' ? '' : 'none';
+    document.getElementById('loginError').style.display = 'none';
+    try { localStorage.setItem('uibPortalMode', mode); } catch (e) {}
+    const first = document.getElementById(mode === 'business' ? (document.getElementById('loginEmail').value ? 'loginPassword' : 'loginEmail') : 'loginLastName');
+    if (first) first.focus();
+}
 
-async function portalLogin() {
-    const lastName  = document.getElementById('loginLastName').value.trim();
-    const policyNum = document.getElementById('loginPolicyNum').value.trim().toUpperCase();
-    const errEl     = document.getElementById('loginError');
-    errEl.style.display = 'none';
-    if (!lastName || !policyNum) { showLoginError('Please enter your last name and policy/binder number.'); return; }
-
-    const server = await serverLookup(lastName, policyNum);
-    if (server && server.ok) {
-        _session = { source: 'server', fetchedAt: Date.now(), lastName, policyNum, clientKey: clientKey(server.displayName), displayName: server.displayName,
-                     policies: server.policies || [], agents: server.agents || [], documents: server.documents || [] };
-        saveSession(_session);
-        showPortal();
+async function businessLogin(clientKeyChoice) {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    document.getElementById('loginError').style.display = 'none';
+    if (!email || !password) { showLoginError('Enter your e-mail and password.'); return; }
+    const btn = document.getElementById('businessBtn');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    const out = await api({ action: 'login', email, password, clientKey: clientKeyChoice || '' });
+    btn.disabled = false; btn.textContent = '🔐 Sign In';
+    if (!out.ok) { showLoginError(out.error); return; }
+    try { localStorage.setItem('uibPortalEmail', email); } catch (e) {}
+    if (out.choose) {
+        document.getElementById('chooseCompany').style.display = '';
+        document.getElementById('chooseList').innerHTML = out.choose.map(c =>
+            `<button type="button" onclick="businessLogin('${escAttr(c.clientKey)}')">🏢 ${escHtml(c.displayName)}</button>`).join('');
         return;
     }
-    if (server && server.ok === false) { showLoginError(server.error || 'No policy found matching that name and number.'); return; }
-
-    // Fallback: this browser's copy of the book.
-    const binder = getBinderData();
-    const lastNameUC = lastName.toUpperCase();
-    const matched = binder.filter(e => {
-        const pNum = (e.policyNumber  || '').toString().toUpperCase();
-        const bNum = (e.binderNumber  || '').toString().toUpperCase();
-        if (pNum !== policyNum && bNum !== policyNum) return false;
-        const parts = (e.customerName || '').trim().toUpperCase().split(/\s+/);
-        return parts.some(p => p === lastNameUC);
-    });
-    if (!matched.length) { showLoginError('No policy found matching that name and number. Please check your details and try again.'); return; }
-    const cKey = clientKey(matched[0].customerName);
-    _session = { source: 'local', lastName, policyNum, clientKey: cKey, displayName: matched[0].customerName,
-                 policies: clientPolicies(binder.filter(e => clientKey(e.customerName) === cKey)), agents: [], documents: [] };
+    document.getElementById('chooseCompany').style.display = 'none';
+    document.getElementById('loginPassword').value = '';
+    _session = Object.assign({ source: 'business' }, out);
     saveSession(_session);
     showPortal();
 }
 
-async function serverLookup(lastName, policyNumber) {
-    const key = (window.UIB_CONFIG || {}).SUPABASE_ANON || '';
-    try {
-        const r = await fetch(PORTAL_FN, { method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'apikey': key, 'Authorization': 'Bearer ' + key },
-            body: JSON.stringify({ lastName, policyNumber }) });
-        const out = await r.json().catch(() => null);
-        // Our function always answers {ok:...}; anything else means it is not deployed.
-        if (out && typeof out.ok === 'boolean') return out;
-        return null;
-    } catch (e) { return null; }
+async function portalLogin() {
+    const lastName  = document.getElementById('loginLastName').value.trim();
+    const policyNum = document.getElementById('loginPolicyNum').value.trim().toUpperCase();
+    document.getElementById('loginError').style.display = 'none';
+    if (!lastName || !policyNum) { showLoginError('Please enter your last name and policy/binder number.'); return; }
+    const out = await api({ lastName, policyNumber: policyNum });
+    if (out.ok) {
+        _session = Object.assign({ source: 'server', fetchedAt: Date.now(), lastName, policyNum }, out);
+        saveSession(_session);
+        showPortal();
+        return;
+    }
+    if (!out.missing && !out.offline) { showLoginError(out.error || 'No policy found matching that name and number.'); return; }
+    // Fallback while the function is not deployed: this browser's own copy
+    // of the book (agency computers only) — still no money, no files.
+    const binder = getBinderData();
+    const lastNameUC = lastName.toUpperCase();
+    const matched = binder.filter(e => {
+        const pNum = String(e.policyNumber || '').toUpperCase(), bNum = String(e.binderNumber || '').toUpperCase();
+        if (pNum !== policyNum && bNum !== policyNum) return false;
+        return (e.customerName || '').trim().toUpperCase().split(/\s+/).some(p => p === lastNameUC);
+    });
+    if (!matched.length) { showLoginError(out.error || 'No policy found matching that name and number. Please check your details and try again.'); return; }
+    const cKey = clientKey(matched[0].customerName);
+    _session = { ok: true, source: 'local', lastName, policyNum, displayName: matched[0].customerName,
+                 perms: { policies: true, documents: true, agent: true },
+                 policies: localPolicies(binder.filter(e => clientKey(e.customerName) === cKey)), agents: [], documents: [] };
+    saveSession(_session);
+    showPortal();
 }
+function getBinderData() { try { return JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) { return []; } }
 
-// The same shape the server returns: no premiums, fees or payments.
 function txnLabel(t) {
     t = String(t || '');
     if (/^new/i.test(t) || /^nbs$/i.test(t)) return 'New';
@@ -548,7 +687,7 @@ function txnLabel(t) {
     if (/^misc/i.test(t)) return 'Miscellaneous';
     return '';
 }
-function clientPolicies(entries) {
+function localPolicies(entries) {
     const today = new Date().toISOString().slice(0, 10);
     const isCancel = e => /^canc/i.test(e.policyType || '') || /^cancell?ed$/i.test(e.policyStatus || '') ||
                           (e.cancellationDate && String(e.cancellationDate).slice(0, 10) <= today);
@@ -571,226 +710,511 @@ function showLoginError(msg) {
     el.style.display = 'block';
 }
 
+function sessionExpired() {
+    clearSession();
+    _session = null;
+    closeModal();
+    document.getElementById('portalApp').classList.remove('visible');
+    document.getElementById('loginScreen').style.display = '';
+    setLoginMode('business');
+    showLoginError('Your session has ended. Please sign in again.');
+}
+
+// Fresh data (and fresh document links) for a business session.
+async function refreshSession() {
+    if (!isBusiness()) return false;
+    const out = await api({ action: 'session', token: _session.token });
+    if (!out.ok) return false;
+    _session = Object.assign({ source: 'business' }, out);
+    saveSession(_session);
+    return true;
+}
+
 // ═══════════════════════════════════════════════════
-// PORTAL INIT
+// PORTAL
 // ═══════════════════════════════════════════════════
-async function showPortal() {
+const TABS = [
+    { id: 'policies',     label: '📋 My Policies',          show: () => perm('policies') },
+    { id: 'certificates', label: '🏅 Certificate Master',   show: () => isBusiness() && perm('certificates') },
+    { id: 'holders',      label: '🏢 Certificate Holders',  show: () => isBusiness() && (perm('holders') || perm('sendCertificates')) },
+    { id: 'uploads',      label: '⬆️ Upload Files',         show: () => isBusiness() && perm('uploads') },
+    { id: 'documents',    label: '📄 My Documents',         show: () => perm('documents') },
+    { id: 'agent',        label: '👤 My Agent',             show: () => perm('agent') }
+];
+let _tab = 'policies';
+
+function showPortal() {
     document.getElementById('loginScreen').style.display = 'none';
-    const app = document.getElementById('portalApp');
-    app.classList.add('visible');
-
-    const policies = _session.policies;
-    const name     = _session.displayName;
-
-    // Header / hero
+    document.getElementById('portalApp').classList.add('visible');
+    const s = _session;
+    const policies = s.policies || [];
+    const name = s.displayName || '';
     document.getElementById('headerName').textContent = name;
-    document.getElementById('heroName').textContent   = name;
+    document.getElementById('headerBadge').textContent = isBusiness() ? 'BUSINESS' : 'POLICYHOLDER';
+    document.getElementById('heroName').textContent = name;
     document.getElementById('heroAvatar').textContent = nameInitials(name);
 
-    // Agent(s) and carriers from the policies.
-    const agents    = [...new Set(policies.map(p => p.agent).filter(Boolean))];
-    const carriers  = [...new Set(policies.map(p => p.carrier).filter(Boolean))];
-    const activePols= policies.filter(p => p.status === 'Active');
-
+    const active   = policies.filter(p => p.status === 'Active' || p.status === 'Pending Cancellation');
+    const carriers = [...new Set(active.map(p => p.carrier).filter(Boolean))];
+    const agents   = (s.agents || []).map(a => a.name);
     document.getElementById('heroMeta').textContent =
-        `${agents.length ? 'Agent: ' + agents.join(', ') : 'UIB Client'} · ${carriers.length} carrier${carriers.length !== 1 ? 's' : ''}`;
+        (agents.length ? 'Agent: ' + agents.join(', ') : 'UIB Client') + (isBusiness() && s.email ? ' · ' + s.email : '');
+    document.getElementById('statActivePolicies').textContent = active.length;
+    document.getElementById('statPolicies').textContent = policies.length;
+    document.getElementById('statCarriers').textContent = carriers.length;
 
-    document.getElementById('statPolicies').textContent      = policies.length;
-    document.getElementById('statActivePolicies').textContent = activePols.length;
-    document.getElementById('statCarriers').textContent      = carriers.length;
-
-    // Stat cards — coverage at a glance, no money.
-    const lobs = [...new Set(policies.map(p => p.lineOfBusiness).filter(Boolean))];
+    // Coverage at a glance — no money.
+    const lobs = [...new Set(active.map(p => p.lineOfBusiness).filter(Boolean))];
     const today = new Date().toISOString().slice(0, 10);
-    const next = activePols.map(p => p.expirationDate).filter(d => d && d >= today).sort()[0];
+    const next = active.map(p => p.expirationDate).filter(d => d && d >= today).sort()[0];
+    const certs = (s.certificates || []).length, holders = (s.holders || []).length;
     document.getElementById('statCards').innerHTML = `
         <div class="stat-card" style="border-left-color:#059669;">
-            <div class="sc-label">Active Policies</div>
-            <div class="sc-value">${activePols.length}</div>
-            <div class="sc-sub">of ${policies.length} total</div>
-        </div>
-        <div class="stat-card" style="border-left-color:#1d4ed8;">
-            <div class="sc-label">Lines of Business</div>
-            <div class="sc-value">${lobs.length}</div>
-            <div class="sc-sub">${escHtml(lobs.slice(0,2).join(', ') || 'N/A')}</div>
+            <div class="sc-label">Active Policies</div><div class="sc-value">${active.length}</div>
+            <div class="sc-sub">${escHtml(lobs.slice(0, 2).join(', ') || 'none in force')}</div>
         </div>
         <div class="stat-card" style="border-left-color:#d97706;">
             <div class="sc-label">Next Renewal</div>
             <div class="sc-value" style="font-size:20px;">${next ? fmtDate(next) : '—'}</div>
             <div class="sc-sub">${next ? 'earliest active policy to renew' : 'no upcoming renewal'}</div>
         </div>
+        ${isBusiness() && perm('certificates') ? `
+        <div class="stat-card" style="border-left-color:#1d4ed8;">
+            <div class="sc-label">Certificates</div><div class="sc-value">${certs}</div>
+            <div class="sc-sub">${holders} certificate holder${holders === 1 ? '' : 's'}</div>
+        </div>` : ''}
         <div class="stat-card" style="border-left-color:#7c3aed;">
-            <div class="sc-label">Insurance Carriers</div>
-            <div class="sc-value">${carriers.length}</div>
-            <div class="sc-sub">${escHtml(carriers.slice(0,2).join(', ') || 'N/A')}</div>
+            <div class="sc-label">Insurance Carriers</div><div class="sc-value">${carriers.length}</div>
+            <div class="sc-sub">${escHtml(carriers.slice(0, 2).join(', ') || 'N/A')}</div>
         </div>`;
 
-    renderPolicies();
-    renderAgentCard();
+    const tabs = TABS.filter(t => t.show());
+    if (!tabs.some(t => t.id === _tab)) _tab = tabs.length ? tabs[0].id : 'agent';
+    document.getElementById('portalTabs').innerHTML = tabs.map(t => {
+        let badge = 0;
+        if (t.id === 'documents') badge = (s.documents || []).length;
+        if (t.id === 'certificates') badge = certs;
+        return `<button class="portal-tab${t.id === _tab ? ' active' : ''}" id="ptab_${t.id}" onclick="showPortalTab('${t.id}')">
+            ${t.label}${badge ? ` <span class="tab-badge">${badge}</span>` : ''}</button>`;
+    }).join('');
 
-    _allDocs = _session.documents || [];
-    const badge = document.getElementById('docBadge');
-    if (_allDocs.length) { badge.textContent = _allDocs.length; badge.style.display = ''; }
+    renderPolicies();
     renderPortalDocs();
+    renderAgentCard();
+    if (isBusiness()) { renderUploads(); renderCertificates(); renderHolders(); }
+    showPortalTab(_tab);
+}
+
+function showPortalTab(tab) {
+    _tab = tab;
+    TABS.forEach(t => {
+        const el = document.getElementById('tab_' + t.id);
+        if (el) el.style.display = t.id === tab ? '' : 'none';
+        const btn = document.getElementById('ptab_' + t.id);
+        if (btn) btn.classList.toggle('active', t.id === tab);
+    });
 }
 
 // ═══════════════════════════════════════════════════
-// POLICIES TAB
+// POLICIES
 // ═══════════════════════════════════════════════════
 function renderPolicies() {
-    const policies = _session.policies;
-    const tbody    = document.getElementById('policyTableBody');
-    document.getElementById('policyCount').textContent = `${policies.length} polic${policies.length !== 1 ? 'ies' : 'y'}`;
-    if (!policies.length) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gray-400);">No policies on file.</td></tr>';
+    const all = _session.policies || [];
+    const past = document.getElementById('showPastPolicies').checked;
+    const live = p => p.status === 'Active' || p.status === 'Pending Cancellation';
+    const list = past ? all : all.filter(live);
+    document.getElementById('policyTitle').textContent = past ? 'All Policies' : 'Active Policies';
+    const tbody = document.getElementById('policyTableBody');
+    if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-empty">${past ? 'No policies on file.' : 'No active policies.' + (all.length ? ' Tick "Show past policies" to see earlier ones.' : '')}</td></tr>`;
         return;
     }
-    tbody.innerHTML = policies.map(p => {
-        const pillCls = { Active:'status-active', Expired:'status-expired', Canceled:'status-cancelled', 'Pending Cancellation':'status-expired' }[p.status] || 'status-active';
-        return `<tr>
+    const detailed = list.some(p => 'limits' in p);
+    tbody.innerHTML = list.map((p, i) => {
+        const pillCls = { Active: 'status-active', Expired: 'status-expired', Canceled: 'status-cancelled', 'Pending Cancellation': 'status-expired' }[p.status] || 'status-active';
+        return `<tr class="${detailed ? 'row-toggle' : ''}" ${detailed ? `onclick="togglePolicy(${i}, this)"` : ''}>
+            <td style="width:24px;">${detailed ? '<span class="chev">▸</span>' : ''}</td>
             <td><span class="status-pill ${pillCls}"><span class="status-dot"></span>${escHtml(p.status)}</span></td>
             <td style="font-family:monospace;font-size:12px;font-weight:600;color:var(--gray-700);">${escHtml(p.policyNumber || '—')}</td>
             <td><span class="carrier-pill">${escHtml(p.carrier || '—')}</span></td>
             <td><span class="lob-pill">${escHtml(p.lineOfBusiness || '—')}</span></td>
-            <td style="font-size:12px;color:var(--gray-600);">${escHtml(p.transaction || '—')}</td>
             <td style="font-size:12px;">${fmtDate(p.effectiveDate)}</td>
             <td style="font-size:12px;">${p.expirationDate ? fmtDate(p.expirationDate) : '—'}</td>
             <td style="font-size:12px;text-align:center;">${p.term ? escHtml(p.term) + ' mo' : '—'}</td>
-        </tr>`;
+        </tr>
+        ${detailed ? `<tr class="pol-detail" id="poldetail_${i}" style="display:none;"><td colspan="8">${policyDetail(p)}</td></tr>` : ''}`;
     }).join('');
 }
-
+function togglePolicy(i, row) {
+    const d = document.getElementById('poldetail_' + i);
+    if (!d) return;
+    const open = d.style.display === 'none';
+    d.style.display = open ? '' : 'none';
+    row.classList.toggle('open', open);
+}
+function policyDetail(p) {
+    const kv = (k, v) => v ? `<div><div class="k">${k}</div><div class="v">${escHtml(v)}</div></div>` : '';
+    let html = `<div class="pol-grid">
+        ${kv('Policy number', p.policyNumber)}${kv('Binder number', p.binderNumber)}
+        ${kv('Insurance carrier', p.carrier)}${kv('Carrier NAIC #', p.naic)}${kv('Placed through', p.mga)}
+        ${kv('Line of business', p.lineOfBusiness)}${kv('Transaction', p.transaction)}
+        ${kv('Effective', p.effectiveDate ? fmtDate(p.effectiveDate) : '')}${kv('Expires', p.expirationDate ? fmtDate(p.expirationDate) : '')}
+        ${kv('Term', p.term ? p.term + ' months' : '')}${kv('Status', p.status)}
+        ${kv('Coverage form', p.occurrenceOrClaimsMade)}${kv('Agent', p.agent)}
+        ${kv('Insured location', p.propertyAddress)}
+    </div>`;
+    if ((p.limits || []).length) {
+        html += `<div class="pol-list"><h5>Limits</h5><table>${p.limits.map(l =>
+            `<tr><td>${escHtml(l.label)}</td><td style="text-align:right;font-weight:600;">${escHtml(fmtLimit(l.value))}</td></tr>`).join('')}</table></div>`;
+    }
+    if ((p.vehicles || []).length) {
+        html += `<div class="pol-list"><h5>Vehicles</h5><table>${p.vehicles.map(v =>
+            `<tr><td>${escHtml([v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle')}</td><td style="font-family:monospace;">${escHtml(v.vin)}</td></tr>`).join('')}</table></div>`;
+    }
+    if ((p.drivers || []).length) {
+        html += `<div class="pol-list"><h5>Drivers</h5>${p.drivers.map(escHtml).join(' · ')}</div>`;
+    }
+    return html;
+}
+function fmtLimit(v) {
+    const n = Number(String(v).replace(/[^0-9.]/g, ''));
+    return (isFinite(n) && n > 0 && /^[\s$\d,.]+$/.test(String(v))) ? '$' + n.toLocaleString('en-US') : v;
+}
 function calcExpiry(effDate, term) {
     if (!effDate || !term) return null;
-    try {
-        const d = new Date(effDate + 'T12:00:00');
-        d.setMonth(d.getMonth() + parseInt(term));
-        return d.toISOString().split('T')[0];
-    } catch(e) { return null; }
+    try { const d = new Date(effDate + 'T12:00:00'); d.setMonth(d.getMonth() + parseInt(term)); return d.toISOString().split('T')[0]; }
+    catch (e) { return null; }
 }
-
 function fmtDate(d) {
     if (!d) return '—';
-    try {
-        const dt = new Date(d + 'T12:00:00');
-        return dt.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-    } catch(e) { return d; }
+    try { return new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+    catch (e) { return d; }
 }
 
 // ═══════════════════════════════════════════════════
-// DOCUMENTS TAB
+// DOCUMENTS
 // ═══════════════════════════════════════════════════
-let _allDocs = [];
-
-function renderPortalDocs() {
-    const cat   = document.getElementById('docCategoryFilter')?.value || '';
-    const files = cat ? _allDocs.filter(f => f.category === cat) : _allDocs;
-    const wrap  = document.getElementById('docGridWrap');
-
-    if (!files.length) {
-        wrap.innerHTML = `<div class="doc-empty">
-            <div style="font-size:48px;">${cat ? '🔍' : '📂'}</div>
-            <p>${cat ? 'No documents in this category.' : 'No documents have been uploaded for your account yet.'}</p>
-            <p style="font-size:12px;color:var(--gray-400);margin-top:6px;">Your agent shares documents here — contact them if you need a copy of something.</p>
-        </div>`;
-        return;
-    }
-
-    wrap.innerHTML = `<div class="doc-grid">${files.map(f => `
-        <div class="doc-card" onclick="portalPreviewDoc('${escHtml(String(f.id))}')" title="${escHtml(f.name)}">
-            <div class="doc-icon">${fileIcon(f.name, f.type)}</div>
+function docGrid(files, emptyHtml) {
+    if (!files.length) return emptyHtml;
+    return `<div class="doc-grid">${files.map(f => `
+        <div class="doc-card" onclick="openDoc('${escAttr(String(f.id))}')" title="${escHtml(f.name)}">
+            <div class="doc-icon">${fileIcon(f.name)}</div>
             <div class="doc-name">${escHtml(f.name)}</div>
-            <div class="doc-meta">${fmtFileSize(f.size)}</div>
+            <div class="doc-meta">${fmtFileSize(f.size)}${f.uploadedAt ? ' · ' + fmtDate(String(f.uploadedAt).slice(0, 10)) : ''}</div>
             <div class="doc-category">${escHtml(f.category || 'Other')}</div>
         </div>`).join('')}</div>`;
 }
-
-async function portalPreviewDoc(id) {
-    const f = _allDocs.find(d => String(d.id) === String(id));
-    if (!f) return;
-    // Links are short-lived; a stale one is renewed by signing in again quietly.
-    if (!f.url || (_session.fetchedAt && Date.now() - _session.fetchedAt > 12 * 60 * 1000)) {
-        const fresh = await serverLookup(_session.lastName, _session.policyNum);
-        if (fresh && fresh.ok) { _session.documents = fresh.documents || []; _session.fetchedAt = Date.now(); _allDocs = _session.documents; saveSession(_session); }
+function renderPortalDocs() {
+    const cat = document.getElementById('docCategoryFilter').value;
+    const all = _session.documents || [];
+    const files = cat ? all.filter(f => f.category === cat) : all;
+    document.getElementById('docGridWrap').innerHTML = docGrid(files, `<div class="doc-empty">
+        <div style="font-size:48px;">${cat ? '🔍' : '📂'}</div>
+        <p>${cat ? 'No documents in this category.' : 'No documents have been shared with your account yet.'}</p>
+        <p style="font-size:12px;color:var(--gray-400);margin-top:6px;">Your agent shares documents here — contact them if you need a copy of something.</p></div>`);
+}
+async function openDoc(id) {
+    const find = () => [...(_session.documents || []), ...(_session.uploads || [])].find(d => String(d.id) === String(id));
+    // Links are short-lived; a stale one is renewed first.
+    const stale = !_session.fetchedAt || Date.now() - _session.fetchedAt > 12 * 60 * 1000;
+    const win = window.open('', '_blank');
+    if (stale) {
+        if (isBusiness()) { if (await refreshSession()) _session.fetchedAt = Date.now(); }
+        else if (_session.source === 'server') {
+            const fresh = await api({ lastName: _session.lastName, policyNumber: _session.policyNum });
+            if (fresh.ok) { _session.documents = fresh.documents || []; _session.fetchedAt = Date.now(); saveSession(_session); }
+        }
     }
-    const cur = _allDocs.find(d => String(d.id) === String(id));
-    if (!cur || !cur.url) { alert('This document is not available right now. Please contact your agent.'); return; }
-    window.open(cur.url, '_blank', 'noopener');
-}
-
-function fileIcon(name, type) {
-    const ext = (name || '').split('.').pop().toLowerCase();
-    if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return '🖼️';
-    if (ext === 'pdf') return '📄';
-    if (['doc','docx'].includes(ext)) return '📝';
-    if (['xls','xlsx'].includes(ext)) return '📊';
-    if (['mp4','mov','avi','mkv'].includes(ext)) return '🎬';
-    if (['mp3','wav','aac'].includes(ext)) return '🎵';
-    if (['zip','rar','7z'].includes(ext)) return '📦';
-    return '📎';
-}
-
-function fmtFileSize(bytes) {
-    if (!bytes) return '';
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
-    return (bytes/1024/1024).toFixed(1) + ' MB';
+    const cur = find();
+    if (!cur || !cur.url) { if (win) win.close(); alert('This document is not available right now. Please contact your agent.'); return; }
+    if (win) win.location = cur.url; else window.open(cur.url, '_blank', 'noopener');
 }
 
 // ═══════════════════════════════════════════════════
-// AGENT TAB
+// UPLOADS (→ the client's Documents, "Client Uploads")
+// ═══════════════════════════════════════════════════
+function renderUploads() {
+    const list = _session.uploads || [];
+    document.getElementById('uploadCount').textContent = list.length ? list.length + ' file' + (list.length === 1 ? '' : 's') : '';
+    document.getElementById('uploadGridWrap').innerHTML = docGrid(list,
+        '<div class="p-empty">Nothing uploaded yet. Files you upload above appear here and in your agent\'s file.</div>');
+}
+async function uploadFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    const status = document.getElementById('uploadStatus');
+    for (const file of files) {
+        const line = document.createElement('div');
+        line.textContent = '⏳ ' + file.name + ' — uploading…';
+        status.prepend(line);
+        try {
+            const slot = await api({ action: 'uploadUrl', token: _session.token, fileName: file.name, size: file.size, mimeType: file.type });
+            if (!slot.ok) throw new Error(slot.error);
+            const put = await fetch(slot.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'false' }, body: file });
+            if (!put.ok) throw new Error('Upload failed (HTTP ' + put.status + ')');
+            const done = await api({ action: 'uploadDone', token: _session.token, path: slot.path, fileName: file.name, size: file.size, mimeType: file.type });
+            if (!done.ok) throw new Error(done.error);
+            _session.uploads = [done.document, ...(_session.uploads || [])];
+            _session.fetchedAt = _session.fetchedAt || Date.now();
+            line.textContent = '✅ ' + file.name + ' — sent to your agent';
+            line.style.color = '#047857';
+        } catch (e) {
+            line.textContent = '⚠️ ' + file.name + ' — ' + (e.message || 'could not upload');
+            line.style.color = '#b91c1c';
+        }
+    }
+    renderUploads();
+}
+
+// ═══════════════════════════════════════════════════
+// CERTIFICATE MASTER
+// ═══════════════════════════════════════════════════
+function renderCertificates() {
+    const body = document.getElementById('certTableBody');
+    if (!body) return;
+    const list = _session.certificates || [];
+    const canSend = perm('sendCertificates');
+    document.getElementById('sendCertTop').style.display = canSend && list.length ? '' : 'none';
+    if (!list.length) {
+        body.innerHTML = '<tr><td colspan="6" class="p-empty">No certificates on file yet. Ask your agent to set up your certificate of insurance — once it is here you can send it to any holder.</td></tr>';
+        return;
+    }
+    body.innerHTML = list.map(c => `<tr>
+        <td><div class="cert-name">${escHtml(c.name)}</div><div class="p-sub">${escHtml(c.certNo)}${c.fromPortal ? '<span class="tag">sent from portal</span>' : ''}</div></td>
+        <td>${c.holdName ? escHtml(c.holdName) + (c.holdAddress ? `<div class="p-sub">${escHtml(c.holdAddress)}</div>` : '') : '<span class="p-sub">—</span>'}</td>
+        <td style="font-family:monospace;font-size:11px;">${(c.policies || []).map(escHtml).join('<br>') || '—'}</td>
+        <td style="font-size:12px;">${fmtDate(c.certDate)}</td>
+        <td style="font-size:12px;">${c.lastSentAt ? fmtDate(String(c.lastSentAt).slice(0, 10)) : '<span class="p-sub">—</span>'}</td>
+        <td style="white-space:nowrap;text-align:right;">
+            ${c.formType === 'acord25' ? `<button class="p-btn" onclick="viewCert('${escAttr(c.id)}')">👁 View PDF</button>` : ''}
+            ${canSend ? `<button class="p-btn primary" onclick="openSend('${escAttr(c.id)}')" ${c.canSend ? '' : `disabled title="${escHtml(c.blocked)}"`}>✉ Send</button>` : ''}
+            ${canSend && !c.canSend ? `<div class="p-sub" style="white-space:normal;max-width:220px;margin-left:auto;margin-top:4px;">${escHtml(c.blocked)}</div>` : ''}
+        </td></tr>`).join('');
+}
+async function viewCert(id) {
+    const win = window.open('', '_blank');
+    const r = await api({ action: 'certPdf', token: _session.token, certId: id }, { raw: true });
+    if (!r || !r.ok || !String(r.headers.get('content-type') || '').includes('pdf')) {
+        if (win) win.close();
+        const out = r && r.json ? await r.json().catch(() => ({})) : {};
+        if (out.signedOut) { sessionExpired(); return; }
+        alert(out.error || 'Could not open the certificate. Please try again.');
+        return;
+    }
+    const url = URL.createObjectURL(await r.blob());
+    if (win) win.location = url; else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+}
+
+// ── Send ──────────────────────────────────────────────
+function openSend(certId, holderId) {
+    const certs = (_session.certificates || []).filter(c => c.canSend);
+    if (!certs.length) { alert('None of your certificates can be sent right now. Please contact your agent.'); return; }
+    const cert = certs.find(c => c.id === certId) || certs[0];
+    const holders = _session.holders || [];
+    const hId = holderId || cert.holderInterestId || (holders[0] && holders[0].id) || '';
+    openModal(`
+        <div class="pm-head"><div><h3>✉ Send Certificate</h3><div class="p-sub">The agency's certificate mailbox is copied on every certificate.</div></div>
+            <button class="pm-x" onclick="closeModal()">✕</button></div>
+        <div class="pm-body">
+            <div class="f-grid">
+                <label class="f-field wide"><span>Certificate</span>
+                    <select id="snCert">${certs.map(c => `<option value="${escHtml(c.id)}"${c.id === cert.id ? ' selected' : ''}>${escHtml(c.certNo)} — ${escHtml(c.holdName || 'no holder')} · ${escHtml((c.policies || []).join(', '))}</option>`).join('')}</select>
+                </label>
+                <label class="f-field wide"><span>Certificate holder</span>
+                    <div style="display:flex;gap:6px;">
+                        <select id="snHolder" style="flex:1;" onchange="sendHolderChanged()">
+                            ${holders.length ? '' : '<option value="">— add a holder first —</option>'}
+                            ${holders.map(h => `<option value="${escHtml(h.id)}"${h.id === hId ? ' selected' : ''}>${escHtml(h.name)}${h.email ? ' — ' + escHtml(h.email) : ''}</option>`).join('')}
+                        </select>
+                        ${perm('holders') ? `<button type="button" class="p-btn" onclick="openHolder('', true)">+ New</button>` : ''}
+                    </div>
+                </label>
+                <div class="wide" id="snHolderInfo"></div>
+                <label class="f-field wide"><span>Description of operations / locations / vehicles (for this holder)</span>
+                    <textarea id="snDesc" rows="4" ${perm('holders') ? '' : 'readonly'} placeholder="e.g. Certificate holder is named as additional insured with respect to general liability for work at 123 Main St."></textarea>
+                    <div class="p-sub" style="margin-top:4px;">${perm('holders') ? 'Saved to this holder and printed on the certificates sent to it. Leave blank to keep the certificate\'s own wording.' : 'Set on the holder by your agent.'}</div>
+                </label>
+                <label class="f-check wide"><input type="checkbox" id="snToHolder" checked> Send to the holder's e-mail</label>
+                <label class="f-field wide"><span>Other recipients (optional, comma separated)</span><input id="snExtra" placeholder="name@company.com"></label>
+                <label class="f-check wide"><input type="checkbox" id="snCopyMe" checked> Send me a copy (${escHtml(_session.email || '')})</label>
+                <label class="f-field wide"><span>Message (optional)</span><textarea id="snMsg" rows="3" placeholder="A short note to go with the certificate"></textarea></label>
+            </div>
+            <div id="snErr" class="f-warn" style="display:none;margin-top:12px;"></div>
+        </div>
+        <div class="pm-foot">
+            <button class="p-btn" onclick="closeModal()">Cancel</button>
+            <button class="p-btn" onclick="previewSendCert()">👁 View certificate</button>
+            <button class="p-btn primary" id="snGo" onclick="sendNow()">✉ Send</button>
+        </div>`);
+    sendHolderChanged();
+}
+function sendHolderChanged() {
+    const h = (_session.holders || []).find(x => x.id === document.getElementById('snHolder').value);
+    const info = document.getElementById('snHolderInfo');
+    document.getElementById('snDesc').value = h ? (h.description || '') : '';
+    if (!h) { info.innerHTML = ''; return; }
+    const addr = [h.addr1, h.addr2, h.city, [h.state, h.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    info.innerHTML = `<div class="f-note">${escHtml(h.name)}${addr ? '<br>' + escHtml(addr) : ''}<br>${h.email ? '✉ ' + escHtml(h.email) : '<b>No e-mail on file</b> — add one to the holder or type an address below.'}</div>`;
+    document.getElementById('snToHolder').checked = !!h.email;
+    document.getElementById('snToHolder').disabled = !h.email;
+}
+function previewSendCert() { viewCert(document.getElementById('snCert').value); }
+async function sendNow() {
+    const err = document.getElementById('snErr');
+    err.style.display = 'none';
+    const holderId = document.getElementById('snHolder').value;
+    if (!holderId) { err.textContent = 'Choose a certificate holder (or add one).'; err.style.display = ''; return; }
+    const extra = document.getElementById('snExtra').value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+    const btn = document.getElementById('snGo');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+        // A changed description is saved on the holder first, so it prints.
+        const h = (_session.holders || []).find(x => x.id === holderId);
+        const desc = document.getElementById('snDesc').value.trim();
+        if (perm('holders') && h && desc !== String(h.description || '').trim()) {
+            const saved = await api({ action: 'saveHolder', token: _session.token, holder: { id: h.id, description: desc } });
+            if (!saved.ok) throw new Error(saved.error);
+            Object.assign(h, saved.holder);
+        }
+        const out = await api({ action: 'sendCertificate', token: _session.token,
+            certId: document.getElementById('snCert').value, holderId,
+            toHolder: document.getElementById('snToHolder').checked, extra,
+            copyMe: document.getElementById('snCopyMe').checked,
+            message: document.getElementById('snMsg').value.trim() });
+        if (!out.ok) throw new Error(out.error);
+        closeModal();
+        toast('Certificate ' + out.certificate.certNo + ' sent to ' + out.to.join(', ') + ' ✓');
+        await refreshSession();
+        showPortal();
+        showPortalTab('certificates');
+    } catch (e) {
+        err.textContent = e.message || 'Could not send the certificate.';
+        err.style.display = '';
+        btn.disabled = false; btn.textContent = '✉ Send';
+    }
+}
+
+// ═══════════════════════════════════════════════════
+// CERTIFICATE HOLDERS (additional interests)
+// ═══════════════════════════════════════════════════
+function renderHolders() {
+    const body = document.getElementById('holderTableBody');
+    if (!body) return;
+    const list = _session.holders || [];
+    const edit = perm('holders');
+    document.getElementById('addHolderBtn').style.display = edit ? '' : 'none';
+    if (!list.length) {
+        body.innerHTML = `<tr><td colspan="6" class="p-empty">No certificate holders yet.${edit ? ' Click <b>+ Add holder</b> to add the companies that ask you for proof of insurance.' : ''}</td></tr>`;
+        return;
+    }
+    body.innerHTML = list.map(h => {
+        const addr = [h.addr1, h.addr2, h.city, [h.state, h.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+        const d = String(h.description || '');
+        return `<tr>
+            <td><strong>${escHtml(h.name)}</strong>${h.contact ? `<div class="p-sub">Attn: ${escHtml(h.contact)}</div>` : ''}</td>
+            <td style="font-size:12px;">${escHtml(h.type || 'Certificate Holder')}</td>
+            <td style="font-size:12px;">${escHtml(addr) || '—'}</td>
+            <td style="font-size:12px;">${h.email ? escHtml(h.email) : '<span class="p-sub">—</span>'}</td>
+            <td style="font-size:12px;max-width:260px;" title="${escHtml(d)}">${d ? escHtml(d.slice(0, 90)) + (d.length > 90 ? '…' : '') : '<span class="p-sub">—</span>'}</td>
+            <td style="white-space:nowrap;text-align:right;">
+                ${edit ? `<button class="p-btn" onclick="openHolder('${escAttr(h.id)}')">✎ Edit</button>` : ''}
+                ${perm('sendCertificates') && (_session.certificates || []).some(c => c.canSend) ? `<button class="p-btn primary" onclick="openSend('', '${escAttr(h.id)}')">✉ Send certificate</button>` : ''}
+            </td></tr>`;
+    }).join('');
+}
+
+const HOLDER_FIELDS = [
+    { k: 'name', label: 'Company / name *', wide: true },
+    { k: 'type', label: 'Type', type: 'select' },
+    { k: 'reference', label: 'Loan / reference #' },
+    { k: 'addr1', label: 'Address', wide: true },
+    { k: 'addr2', label: 'Address line 2', wide: true },
+    { k: 'city', label: 'City' },
+    { k: 'state', label: 'State', max: 2 },
+    { k: 'zip', label: 'ZIP' },
+    { k: 'email', label: 'E-mail (certificates are sent here)', type: 'email', wide: true },
+    { k: 'phone', label: 'Phone', type: 'tel' },
+    { k: 'contact', label: 'Contact person' },
+    { k: 'description', label: 'Certificate description — Description of Operations / Locations / Vehicles', type: 'textarea', wide: true }
+];
+let _holderFromSend = false;
+function openHolder(id, fromSend) {
+    const h = (_session.holders || []).find(x => x.id === id) || { type: 'Certificate Holder' };
+    _holderFromSend = !!fromSend;
+    const types = _session.holderTypes || ['Certificate Holder', 'Additional Insured', 'Loss Payee', 'Mortgagee', 'Lienholder', 'Lender', 'Additional Interest'];
+    const field = f => {
+        const v = h[f.k] == null ? '' : h[f.k];
+        let el;
+        if (f.type === 'select') el = `<select id="hd_${f.k}">${types.map(t => `<option${t === v ? ' selected' : ''}>${escHtml(t)}</option>`).join('')}</select>`;
+        else if (f.type === 'textarea') el = `<textarea id="hd_${f.k}" rows="4" placeholder="e.g. Certificate holder is included as additional insured with respect to general liability as required by written contract.">${escHtml(v)}</textarea>`;
+        else el = `<input id="hd_${f.k}" type="${f.type || 'text'}" value="${escHtml(v)}"${f.max ? ` maxlength="${f.max}"` : ''}>`;
+        return `<label class="f-field${f.wide ? ' wide' : ''}"><span>${escHtml(f.label)}</span>${el}</label>`;
+    };
+    const html = `
+        <div class="pm-head"><div><h3>${id ? 'Edit' : 'Add'} certificate holder</h3><div class="p-sub">Your agent sees every change you make here.</div></div>
+            <button class="pm-x" onclick="${fromSend ? 'openSend()' : 'closeModal()'}">✕</button></div>
+        <div class="pm-body"><div class="f-grid">${HOLDER_FIELDS.map(field).join('')}</div>
+            <div id="hdErr" class="f-warn" style="display:none;margin-top:12px;"></div></div>
+        <div class="pm-foot">
+            <button class="p-btn" onclick="${fromSend ? 'openSend()' : 'closeModal()'}">Cancel</button>
+            <button class="p-btn primary" id="hdGo" onclick="saveHolder('${escAttr(id || '')}')">💾 Save</button>
+        </div>`;
+    // Coming from the send dialog, keep what was picked there.
+    if (fromSend) _sendDraft = { cert: (document.getElementById('snCert') || {}).value };
+    openModal(html);
+    document.getElementById('hd_name').focus();
+}
+let _sendDraft = null;
+async function saveHolder(id) {
+    const err = document.getElementById('hdErr');
+    err.style.display = 'none';
+    const holder = { id };
+    HOLDER_FIELDS.forEach(f => { holder[f.k] = document.getElementById('hd_' + f.k).value.trim(); });
+    if (!holder.name) { err.textContent = 'Enter the holder\'s name.'; err.style.display = ''; return; }
+    if (holder.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(holder.email)) { err.textContent = 'That e-mail address does not look right.'; err.style.display = ''; return; }
+    const btn = document.getElementById('hdGo');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const out = await api({ action: 'saveHolder', token: _session.token, holder });
+    if (!out.ok) { err.textContent = out.error; err.style.display = ''; btn.disabled = false; btn.textContent = '💾 Save'; return; }
+    const list = (_session.holders || []).filter(h => h.id !== out.holder.id);
+    list.push(out.holder);
+    _session.holders = list.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    renderHolders();
+    toast('Certificate holder saved ✓');
+    if (_holderFromSend) { const d = _sendDraft; _sendDraft = null; openSend(d && d.cert, out.holder.id); }
+    else closeModal();
+}
+
+// ═══════════════════════════════════════════════════
+// AGENT
 // ═══════════════════════════════════════════════════
 function renderAgentCard() {
-    const policies = _session.policies;
-    const agents   = [...new Set(policies.map(p => p.agent).filter(Boolean))];
-    const agentName = agents[0] || 'Your UIB Agent';
-    const contact  = getClientData()[_session.clientKey] || {};
-    const reach    = (_session.agents || []).find(a => a.name === agentName) || {};
-
-    const card = document.getElementById('agentCard');
-    card.innerHTML = `
+    const policies = _session.policies || [];
+    const reachList = _session.agents || [];
+    const agentName = (reachList[0] && reachList[0].name) || [...new Set(policies.map(p => p.agent).filter(Boolean))][0] || 'Your UIB Agent';
+    const reach = reachList.find(a => a.name === agentName) || {};
+    const others = reachList.filter(a => a.name !== agentName).map(a => a.name);
+    document.getElementById('agentCard').innerHTML = `
         <div class="agent-avatar">${nameInitials(agentName)}</div>
         <div class="agent-info">
             <h4>${escHtml(agentName)}</h4>
             <div class="role">Licensed Insurance Agent · UIB</div>
             <div class="agent-contacts">
-                ${contact.csrName ? `<div class="agent-contact-row"><span class="icon">👩‍💼</span> CSR: ${escHtml(contact.csrName)}</div>` : ''}
-                ${contact.assignedAgent && contact.assignedAgent !== agentName
-                    ? `<div class="agent-contact-row"><span class="icon">🔀</span>Also assigned: ${escHtml(contact.assignedAgent)}</div>` : ''}
+                ${_session.csrName ? `<div class="agent-contact-row"><span class="icon">👩‍💼</span> CSR: ${escHtml(_session.csrName)}</div>` : ''}
+                ${others.length ? `<div class="agent-contact-row"><span class="icon">🔀</span>Also on your account: ${escHtml(others.join(', '))}</div>` : ''}
                 ${reach.phone ? `<div class="agent-contact-row"><span class="icon">📞</span><a href="tel:${escHtml(reach.phone)}">${escHtml(reach.phone)}</a></div>` : ''}
                 ${reach.email ? `<div class="agent-contact-row"><span class="icon">✉️</span><a href="mailto:${escHtml(reach.email)}">${escHtml(reach.email)}</a></div>` : ''}
                 <div class="agent-contact-row"><span class="icon">🏢</span>Universal Insurance Brokers</div>
-                ${reach.phone || reach.email ? '' : `<div class="agent-contact-row" style="margin-top:6px;font-size:12px;color:var(--gray-400);">
-                    To reach your agent, visit a UIB office or call the main line.
-                </div>`}
+                ${reach.phone || reach.email ? '' : `<div class="agent-contact-row" style="margin-top:6px;font-size:12px;color:var(--gray-400);">To reach your agent, visit a UIB office or call the main line.</div>`}
             </div>
         </div>`;
-
-    // Show all policies by this agent
-    const agentPolicies = policies.filter(p => agents.includes(p.agent));
-    if (agentPolicies.length) {
-        const carriers = [...new Set(agentPolicies.map(p=>p.carrier).filter(Boolean))];
-        card.insertAdjacentHTML('afterend', `
-            <div style="padding:0 22px 20px;">
-                <div style="font-size:12px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">
-                    Policies handled by ${escHtml(agentName)}
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:7px;">
-                    ${carriers.map(c=>`<span class="carrier-pill">${escHtml(c)}</span>`).join('')}
-                </div>
-            </div>`);
-    }
-}
-
-// ═══════════════════════════════════════════════════
-// TAB SWITCHING
-// ═══════════════════════════════════════════════════
-function showPortalTab(tab) {
-    ['policies','documents','agent'].forEach(t => {
-        document.getElementById('tab_'+t).style.display = t === tab ? '' : 'none';
-        const btn = document.getElementById('ptab_'+t);
-        if (btn) btn.classList.toggle('active', t === tab);
-    });
+    const carriers = [...new Set(policies.map(p => p.carrier).filter(Boolean))];
+    document.getElementById('agentCarriers').innerHTML = carriers.length ? `
+        <div style="padding:0 22px 20px;">
+            <div style="font-size:12px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">Your carriers</div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px;">${carriers.map(c => `<span class="carrier-pill">${escHtml(c)}</span>`).join('')}</div>
+        </div>` : '';
 }
 
 // ═══════════════════════════════════════════════════
@@ -799,35 +1223,82 @@ function showPortalTab(tab) {
 function portalLogout() {
     clearSession();
     _session = null;
+    _tab = 'policies';
+    closeModal();
     document.getElementById('portalApp').classList.remove('visible');
     document.getElementById('loginScreen').style.display = '';
-    document.getElementById('loginLastName').value  = '';
+    document.getElementById('loginLastName').value = '';
     document.getElementById('loginPolicyNum').value = '';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('chooseCompany').style.display = 'none';
     document.getElementById('loginError').style.display = 'none';
 }
 
 // ═══════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════
+function openModal(html) {
+    closeModal();
+    const back = document.createElement('div');
+    back.className = 'pm-back';
+    back.id = 'portalModal';
+    back.innerHTML = `<div class="pm-dialog" role="dialog" aria-modal="true">${html}</div>`;
+    back.addEventListener('mousedown', e => { if (e.target === back) closeModal(); });
+    document.body.appendChild(back);
+}
+function closeModal() { const m = document.getElementById('portalModal'); if (m) m.remove(); }
+function toast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4500);
+}
 function nameInitials(name) {
     const parts = (name || '').trim().split(/\s+/);
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     return (name || '?')[0].toUpperCase();
 }
-
 function escHtml(s) {
-    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+// For values inside onclick="fn('…')".
+function escAttr(s) { return escHtml(String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")); }
+function fileIcon(name) {
+    const ext = (name || '').split('.').pop().toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(ext)) return '🖼️';
+    if (ext === 'pdf') return '📄';
+    if (['doc', 'docx'].includes(ext)) return '📝';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
+    if (['mp4', 'mov', 'avi', 'mkv'].includes(ext)) return '🎬';
+    if (['zip', 'rar', '7z'].includes(ext)) return '📦';
+    return '📎';
+}
+function fmtFileSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 }
 
 // ═══════════════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════════════
 (async function boot() {
+    let mode = 'business', email = '';
+    try { mode = localStorage.getItem('uibPortalMode') || 'business'; email = localStorage.getItem('uibPortalEmail') || ''; } catch (e) {}
+    if (email) document.getElementById('loginEmail').value = email;
+    setLoginMode(mode === 'personal' ? 'personal' : 'business');
+
     const saved = loadSession();
-    if (saved && saved.clientKey && saved.policies && saved.source) {
+    if (saved && saved.source === 'business' && saved.token) {
         _session = saved;
         document.getElementById('loginScreen').style.display = 'none';
-        await showPortal();
+        if (await refreshSession()) { _session.fetchedAt = Date.now(); showPortal(); }
+        else if (_session) sessionExpired();
+    } else if (saved && saved.displayName && saved.policies && saved.source) {
+        _session = saved;
+        showPortal();
     }
 })();
 </script>

@@ -83,6 +83,7 @@
         { k: 'phone',    label: 'Phone', type: 'tel' },
         { k: 'fax',      label: 'Fax', type: 'tel' },
         { k: 'email',    label: 'E-mail', type: 'email' },
+        { k: 'certContact', label: 'Certificate contact (prints as the producer contact)' },
         { k: 'website',  label: 'Website' },
         { k: 'npn',      label: 'NPN' },
         { k: 'fein',     label: 'FEIN' },

@@ -168,17 +168,51 @@
         return out;
     }
 
-    // ── Producer (agency) defaults ───────────────────────────
+    // ── Producer (agency) ────────────────────────────────────
+    // The producer block comes from the Agency Profile (Agency
+    // Management ▸ General), so the agency's name, address, phone and
+    // e-mail are kept in one place and every certificate prints them.
+    // Details saved by the old "Agency details" dialog only fill what
+    // the profile leaves blank.
+    var PROD_FIELDS = ['prodName', 'prodAddr1', 'prodAddr2', 'prodCity', 'prodState', 'prodZip',
+                       'prodContact', 'prodPhone', 'prodFax', 'prodEmail'];
+
+    function agencyProfile() {
+        try { var v = JSON.parse(localStorage.getItem('agencyProfile')); return (v && typeof v === 'object') ? v : {}; }
+        catch (e) { return {}; }
+    }
+
+    function fromProfile(prof) {
+        prof = prof || agencyProfile();
+        return {
+            prodName: prof.name || '', prodAddr1: prof.address1 || '', prodAddr2: prof.address2 || '',
+            prodCity: prof.city || '', prodState: prof.state || '', prodZip: prof.zip || '',
+            prodContact: prof.certContact || '', prodPhone: prof.phone || '', prodFax: prof.fax || '', prodEmail: prof.email || ''
+        };
+    }
+
     function producerDefaults() {
-        var d = {};
-        try { d = JSON.parse(localStorage.getItem(PROD_KEY)) || {}; } catch (e) {}
-        return Object.assign({
+        var legacy = {};
+        try { legacy = JSON.parse(localStorage.getItem(PROD_KEY)) || {}; } catch (e) {}
+        var out = Object.assign({
             prodName:    'Universal Insurance Brokers',
             prodAddr1:   '', prodAddr2: '', prodCity: '', prodState: 'FL', prodZip: '',
             prodContact: '', prodPhone: '', prodFax: '', prodEmail: '',
             // Every certificate the agency emails is copied here.
             certCcEmail: AGENCY_CC
-        }, d);
+        }, legacy);
+        var prof = fromProfile();
+        PROD_FIELDS.forEach(function (k) { if (prof[k]) out[k] = prof[k]; });
+        return out;
+    }
+
+    // Puts the agency profile on a certificate. Used when one is made and
+    // whenever one is opened, printed or sent, so a change to the profile
+    // reaches every certificate without anyone retyping it.
+    function applyProducer(cert) {
+        var d = producerDefaults();
+        PROD_FIELDS.forEach(function (k) { cert[k] = d[k] || ''; });
+        return cert;
     }
 
     function saveProducerDefaults(obj) {
@@ -413,6 +447,7 @@
     // certificate record; nothing is derived at print time except
     // formatting (dates to MM/DD/YYYY, amounts with separators).
     function buildPdf(cert) {
+        cert = applyProducer(Object.assign({}, cert));
         var t = formFor(cert);
         if (!isReady(t)) return Promise.reject(new Error(t.code + ' is not set up yet — it needs ' + (t.needs || 'its PDF') + '.'));
         var A = mapFor(cert);
@@ -539,6 +574,7 @@
         formType: formType, formFor: formFor, mapFor: mapFor, isReady: isReady,
         defaultName: defaultName, displayName: displayName, log: log, historyOf: historyOf,
         producerDefaults: producerDefaults, saveProducerDefaults: saveProducerDefaults,
+        applyProducer: applyProducer, agencyProfile: agencyProfile, PROD_FIELDS: PROD_FIELDS,
         buildPdf: buildPdf, download: download, preview: preview, fileName: fileName, send: send,
         mdy: mdy, money: money, esc: esc, today: today, nextCertNumber: nextCertNumber
     };

@@ -481,6 +481,8 @@
         if (!draft) _isNew = false;
         _editing = JSON.parse(JSON.stringify(src));
         if (!_editing.formType) _editing.formType = 'acord25';
+        // The producer is always the agency profile as it stands now.
+        if (!_editing.voided) C().applyProducer(_editing);
         _before = JSON.stringify(fieldValues(_editing));
 
         var t = C().formFor(_editing);
@@ -526,6 +528,7 @@
           '</div>';
         document.body.appendChild(modal);
         if (_editing.voided) modal.querySelectorAll('input,select,textarea').forEach(function (e) { e.disabled = true; });
+        lockProducer();
 
         if (_editing.aiFilled && Object.keys(_editing.aiFilled).length) {
             var n = document.getElementById('certAiNote');
@@ -648,7 +651,6 @@
         var c = _editing;
         var L = A().INSURER_LETTERS;
         var carriers = carrierNames();
-        var prof = agencyChoices();
 
         var top =
           '<div class="acf-top"><div class="acf-logo">ACORD<sup>®</sup></div>' +
@@ -663,9 +665,8 @@
 
         var producer =
           '<div class="acf-two"><div class="acf-stack">' +
-              '<div class="acf-lbl">Producer</div>' +
-              '<select id="cfProducerPick" onchange="certPickProducer(this.value)">' +
-                prof.map(function (p, i) { return '<option value="' + i + '">' + esc(p.label) + '</option>'; }).join('') + '</select>' +
+              '<div class="acf-lbl">Producer <span class="cm-sub" style="text-transform:none;font-weight:500;">— from the Agency Profile' +
+                (window.amsCanManageAgency && window.amsCanManageAgency() ? ' (<a href="#" onclick="certOpenAgencyProfile();return false;">edit</a>)' : '') + '</span></div>' +
               inp('prodName', { ph: 'Agency name' }) + inp('prodAddr1', { ph: 'Address' }) + inp('prodAddr2', { ph: 'Address line 2' }) + csz('prod') +
             '</div><div><div class="acf-kv">' +
               '<span>Contact name</span>' + inp('prodContact') +
@@ -838,25 +839,19 @@
         return out;
     }
 
-    // [Default] is the agency details kept for certificates; the agency
-    // profile and its locations follow when they have an address.
-    function agencyChoices() {
-        var d = C().producerDefaults();
-        var out = [{ label: '[Default]', v: d }];
-        var prof = {};
-        try { prof = JSON.parse(localStorage.getItem('agencyProfile')) || {}; } catch (e) {}
-        if (prof.name && prof.address1) {
-            out.push({ label: 'Agency profile — ' + prof.name, v: {
-                prodName: prof.name, prodAddr1: prof.address1, prodAddr2: prof.address2 || '', prodCity: prof.city || '',
-                prodState: prof.state || '', prodZip: prof.zip || '', prodPhone: prof.phone || '', prodFax: prof.fax || '', prodEmail: prof.email || '' } });
-        }
-        (Array.isArray(prof.locations) ? prof.locations : []).forEach(function (l) {
-            if (!l || !l.address) return;
-            out.push({ label: 'Location — ' + (l.name || l.city || l.address), v: {
-                prodName: prof.name || d.prodName, prodAddr1: l.address, prodAddr2: '', prodCity: l.city || '',
-                prodState: l.state || '', prodZip: l.zip || '', prodPhone: l.phone || '' } });
+    // The producer fields show the agency profile and cannot be typed
+    // over: Agency Management ▸ General is the one place they change.
+    function lockProducer() {
+        C().PROD_FIELDS.forEach(function (k) {
+            var el = document.getElementById('cf_' + k);
+            if (el) { el.readOnly = true; el.title = 'From the Agency Profile (Agency Management ▸ General)'; el.style.background = '#f8fafc'; }
         });
-        return out;
+    }
+
+    function openAgencyProfile() {
+        if (!confirm('Close this certificate and open the Agency Profile?' + (_isNew ? '\n\nThis new certificate has not been saved.' : '\n\nUnsaved changes here will be lost.'))) return;
+        closeEditor();
+        if (typeof window.amsSidebarNav === 'function') window.amsSidebarNav('agency');
     }
 
     // ── Reading the editor back ──────────────────────────────
@@ -894,6 +889,7 @@
     function rerenderForm() {
         var wrap = document.getElementById('certFormWrap');
         if (wrap) wrap.innerHTML = formHtml();
+        lockProducer();
         var gen = document.getElementById('certGeneral');
         if (gen) {
             var nm = document.getElementById('cf_name');
@@ -994,24 +990,17 @@
         _editing.holdState = rec.state || '';
         _editing.holdZip   = rec.zip || '';
         _editing.holdEmail = rec.email || '';
+        // A holder can carry its own wording for the Description of
+        // Operations / Locations / Vehicles (the job, the address, the
+        // "named as additional insured" clause). It replaces the box
+        // when set; a holder without one leaves the box as it was.
+        if (String(rec.description || '').trim()) _editing.description = rec.description;
     }
 
     function manageInterests() {
         if (!confirm('Close this certificate and open the client\'s Additional Interests?' + (_isNew ? '\n\nThis new certificate has not been saved.' : '\n\nUnsaved changes here will be lost.'))) return;
         closeEditor();
         if (window.amsShowTab) window.amsShowTab('interests');
-    }
-
-    function pickProducer(i) {
-        var choice = agencyChoices()[+i];
-        if (!choice) return;
-        collect(_editing);
-        ['prodName', 'prodAddr1', 'prodAddr2', 'prodCity', 'prodState', 'prodZip', 'prodContact', 'prodPhone', 'prodFax', 'prodEmail'].forEach(function (k) {
-            if (choice.v[k] !== undefined) _editing[k] = choice.v[k];
-        });
-        rerenderForm();
-        var sel = document.getElementById('cfProducerPick');
-        if (sel) sel.value = String(i);
     }
 
     function pickInsured(v) {
@@ -1337,54 +1326,8 @@
     }
 
     // ── Agency details ───────────────────────────────────────
-    // The producer block is the same on every certificate the agency
-    // issues, so it is kept once and seeded into each new one.
-    function editProducer() {
-        injectCss();
-        var d = C().producerDefaults();
-        var spec = window.ACORD25.INFO_SECTIONS.filter(function (s) { return s.id === 'producer'; })[0];
-        var fields = spec.fields.concat([{ k: 'certCcEmail', label: 'Copy every e-mailed certificate to', wide: true }]);
-        var modal = document.createElement('div');
-        modal.id = 'certProducerModal';
-        modal.className = 'cm-overlay';
-        modal.style.zIndex = '10002';
-        modal.onclick = function (e) { if (e.target === modal) modal.remove(); };
-        modal.innerHTML =
-          '<div class="cm-dialog" style="max-width:620px;" onclick="event.stopPropagation()">' +
-            '<div class="cm-dialog-head"><div><h2>Agency <span>details</span></h2>' +
-              '<p>The [Default] PRODUCER block on every new certificate.</p></div>' +
-              '<button class="cm-x" onclick="document.getElementById(\'certProducerModal\').remove()">✕</button></div>' +
-            '<div class="cm-dialog-body" style="background:#fff;"><div class="cm-form-grid" style="grid-template-columns:1fr 1fr;">' +
-              fields.map(function (f) {
-                  return '<label class="cm-field' + (f.wide ? ' cm-wide' : '') + '"><span>' + esc(f.label) + '</span>' +
-                         '<input id="cp_' + f.k + '" value="' + esc(d[f.k] || '') + '"' + (f.max ? ' maxlength="' + f.max + '"' : '') + '></label>';
-              }).join('') +
-            '</div></div>' +
-            '<div class="cm-dialog-foot"><span></span><div>' +
-              '<button class="cm-btn" onclick="document.getElementById(\'certProducerModal\').remove()">Cancel</button>' +
-              '<button class="cm-btn cm-btn-primary" onclick="certSaveProducer()">Save</button></div></div>' +
-          '</div>';
-        document.body.appendChild(modal);
-    }
-
-    function saveProducer() {
-        var spec = window.ACORD25.INFO_SECTIONS.filter(function (s) { return s.id === 'producer'; })[0];
-        var out = {};
-        spec.fields.concat([{ k: 'certCcEmail' }]).forEach(function (f) {
-            var el = document.getElementById('cp_' + f.k);
-            if (el) out[f.k] = String(el.value || '').trim();
-        });
-        if (out.certCcEmail && !EMAIL_RE.test(out.certCcEmail)) { alert('The copy-to e-mail address does not look right.'); return; }
-        if (!out.certCcEmail) out.certCcEmail = C().AGENCY_CC;
-        C().saveProducerDefaults(out);
-        var m = document.getElementById('certProducerModal');
-        if (m) m.remove();
-        flash('Agency details saved ✓');
-    }
-
     // ── Exports (onclick handlers live on window) ────────────
-    window.certEditProducer    = editProducer;
-    window.certSaveProducer    = saveProducer;
+    window.certOpenAgencyProfile = openAgencyProfile;
     window.certRenderList      = renderList;
     window.certSearch          = function () { readSearch(); _page = 1; renderList(); };
     window.certSearchClear     = function () { _search = blankSearch(); _page = 1; renderList(); };
@@ -1409,7 +1352,6 @@
     window.certBlanket         = blanket;
     window.certPickHolder      = pickHolder;
     window.certManageInterests = manageInterests;
-    window.certPickProducer    = pickProducer;
     window.certPickInsured     = pickInsured;
     window.certInsurerNaic     = insurerNaic;
     window.certAddInsurer      = addInsurer;

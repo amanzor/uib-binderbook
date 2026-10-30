@@ -33,6 +33,7 @@
         { k: 'phone',     label: 'Phone', type: 'tel' },
         { k: 'fax',       label: 'Fax', type: 'tel' },
         { k: 'contact',   label: 'Contact person', wide: true },
+        { k: 'description', label: 'Certificate description — prints in "Description of Operations / Locations / Vehicles" when this holder is picked', type: 'textarea', wide: true, rows: 4 },
         { k: 'notes',     label: 'Notes', type: 'textarea', wide: true }
     ];
 
@@ -139,7 +140,9 @@
                         '<button class="cm-btn cm-btn-danger" onclick="aiRemove(\'' + esc(r.id) + '\')" title="Remove">✕</button>' +
                       '</td>' +
                       '<td><strong>' + esc(r.name) + '</strong>' + (r.contact ? '<div class="cm-sub">Attn: ' + esc(r.contact) + '</div>' : '') +
-                         (r.reference ? '<div class="cm-sub">Ref: ' + esc(r.reference) + '</div>' : '') + '</td>' +
+                         (r.reference ? '<div class="cm-sub">Ref: ' + esc(r.reference) + '</div>' : '') +
+                         (r.description ? '<div class="cm-sub" title="' + esc(r.description) + '">📝 ' + esc(String(r.description).slice(0, 70)) + (String(r.description).length > 70 ? '…' : '') + '</div>' : '') +
+                         (r.updatedBy === 'Client portal' || r.createdBy === 'Client portal' ? '<div class="cm-sub" style="color:#0891b2;">Added/edited by the client in the portal</div>' : '') + '</td>' +
                       '<td>' + esc(r.type || 'Certificate Holder') + '</td>' +
                       '<td>' + esc(addressLine(r)) + '</td>' +
                       '<td>' + (r.email ? '<a href="mailto:' + esc(r.email) + '">' + esc(r.email) + '</a>' : '<span class="cm-sub">—</span>') + '</td>' +
@@ -182,7 +185,7 @@
                     return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>';
                 }).join('') + '</select>';
             } else if (f.type === 'textarea') {
-                el = '<textarea id="ai_' + f.k + '" rows="2">' + esc(v) + '</textarea>';
+                el = '<textarea id="ai_' + f.k + '" rows="' + (f.rows || 2) + '">' + esc(v) + '</textarea>';
             } else {
                 el = '<input id="ai_' + f.k + '" type="' + (f.type || 'text') + '" value="' + esc(v) + '"' +
                      (f.max ? ' maxlength="' + f.max + '"' : '') +
@@ -228,7 +231,7 @@
         var hit = directory(key).filter(function (r) { return String(r.name).trim().toUpperCase() === String(name).trim().toUpperCase(); })[0];
         if (!hit) return;
         FIELDS.forEach(function (f) {
-            if (f.k === 'name' || f.k === 'notes' || f.k === 'reference') return;
+            if (f.k === 'name' || f.k === 'notes' || f.k === 'reference' || f.k === 'description') return;
             var el = document.getElementById('ai_' + f.k);
             if (el && !el.value && hit[f.k]) el.value = hit[f.k];
         });
