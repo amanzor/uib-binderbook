@@ -101,6 +101,63 @@
         }
         _origNav(section);
         markActive(section);
+        showClientsPanel(section === 'search' && !_opening);
+    }
+
+    // ── Clients: list in the main area, recent clients in the left pane ──
+    var _opening = false;   // true while a client is being opened
+    function showClientsPanel(on) {
+        var panel = document.getElementById('amsClientsPanel');
+        if (!panel) return;
+        panel.style.display = on ? '' : 'none';
+        if (on) {
+            // The list follows the book tab from the first look, not only after a switch.
+            if (typeof amsApplyFilters === 'function') try { amsApplyFilters(); } catch (e) {}
+            var d = document.getElementById('amsClientDetail'), w = document.getElementById('amsWelcome');
+            if (d) d.style.display = 'none';
+            if (w) w.style.display = 'none';
+        }
+    }
+
+    function me() { return (typeof amsCurrentUser !== 'undefined' && amsCurrentUser) ? amsCurrentUser : 'user'; }
+    function recentKey() { return 'amsRecentClients:' + me().toLowerCase().replace(/\s+/g, '_'); }
+    function recent() { try { var r = JSON.parse(localStorage.getItem(recentKey())); return Array.isArray(r) ? r : []; } catch (e) { return []; } }
+    function remember(key) {
+        var r = recent().filter(function (k) { return k !== key; });
+        r.unshift(key);
+        try { localStorage.setItem(recentKey(), JSON.stringify(r.slice(0, 12))); } catch (e) {}
+        renderRecent();
+    }
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+    function renderRecent() {
+        var el = document.getElementById('amsRecentClients');
+        if (!el) return;
+        var idx = (typeof amsClientIndex !== 'undefined') ? amsClientIndex : {};
+        var active = (typeof amsActiveKey !== 'undefined') ? amsActiveKey : null;
+        var rows = recent().filter(function (k) { return idx[k]; }).slice(0, 10);
+        if (!rows.length) { el.innerHTML = '<div class="ams-recent-title">Recent clients</div><div style="font-size:11.5px;color:var(--gray-400);padding:0 6px;">Clients you open show up here.</div>'; return; }
+        el.innerHTML = '<div class="ams-recent-title">Recent clients</div>' + rows.map(function (k) {
+            var c = idx[k];
+            var name = c.displayName || k;
+            var ini = String(name).split(/\s+/).map(function (w) { return w[0] || ''; }).join('').slice(0, 2).toUpperCase();
+            var st = c.isHealth ? 'Health' : (typeof amsClientStatusOf === 'function' ? amsClientStatusOf(c) : '');
+            var n = (c.policies || []).length;
+            return '<button type="button" class="ams-recent-row' + (k === active ? ' active' : '') + '" data-key="' + esc(k) + '" onclick="amsOpenRecent(this.getAttribute(\'data-key\'))">' +
+                '<span class="av"' + (c.isHealth ? ' style="background:linear-gradient(135deg,#e11d48,#be123c);"' : '') + '>' + esc(ini) + '</span>' +
+                '<span style="min-width:0;flex:1;"><b>' + esc(name) + '</b><small>' + esc(st) + (n ? ' · ' + n + ' polic' + (n === 1 ? 'y' : 'ies') : '') + '</small></span></button>';
+        }).join('');
+    }
+    function openRecent(key) {
+        var idx = (typeof amsClientIndex !== 'undefined') ? amsClientIndex : {};
+        var c = idx[key];
+        if (!c) return;
+        // The book tab follows the client, so it opens in its own book.
+        if (c.isHealth && _book !== 'health') { _book = 'health'; try { localStorage.setItem(KEY, _book); } catch (e) {} renderTabs(); }
+        else if (!c.isHealth && _book === 'health') { _book = (c.policies || []).some(function (p) { return bookOf(p) === 'commercial'; }) ? 'commercial' : 'personal'; try { localStorage.setItem(KEY, _book); } catch (e) {} renderTabs(); }
+        if (typeof amsLoadClientDetail === 'function') {
+            if (!c.isHealth) nav('search');
+            amsLoadClientDetail(key);
+        }
     }
 
     // The left pane highlights the section asked for, even when the
@@ -144,6 +201,38 @@
         // 'clients' is the client list (the old 'search' view).
         window.amsSidebarNav = nav;
 
+        // Opening a client: the detail replaces the list, and it joins the
+        // recent clients.
+        if (typeof window.amsLoadClientDetail === 'function') {
+            var origLoad = window.amsLoadClientDetail;
+            window.amsLoadClientDetail = function (key) {
+                _opening = true;
+                try { var r = origLoad.apply(this, arguments); } finally { _opening = false; }
+                if (key) {
+                    showClientsPanel(false);
+                    var d = document.getElementById('amsClientDetail');
+                    if (d && !/^HEALTH::/.test(key)) {
+                        d.style.display = 'block';
+                        if (!document.getElementById('amsBackToClients')) {
+                            var b = document.createElement('button');
+                            b.type = 'button'; b.id = 'amsBackToClients'; b.className = 'ams-back-clients';
+                            b.innerHTML = '← All clients';
+                            b.onclick = function () { nav('search'); };
+                            d.insertBefore(b, d.firstChild);
+                        }
+                    }
+                    remember(key);
+                }
+                return r;
+            };
+        }
+        // Health opens a client through healthOpenClient; remember those too.
+        if (typeof window.healthOpenClient === 'function') {
+            var origHealth = window.healthOpenClient;
+            window.healthOpenClient = function (key) { var r = origHealth.apply(this, arguments); if (key) remember(key); return r; };
+        }
+        renderRecent();
+
         // Reports and Renewals read policies through _rptBinder.
         if (typeof window._rptBinder === 'function') {
             var orig = window._rptBinder;
@@ -159,6 +248,8 @@
     window.amsSetBook = setBook;
     window.amsBooksInstall = install;
     window.amsBookSection = function () { return _section; };
+    window.amsOpenRecent = openRecent;
+    window.amsRenderRecent = renderRecent;
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
     else install();
