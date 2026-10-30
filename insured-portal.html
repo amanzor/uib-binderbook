@@ -389,12 +389,10 @@
                                 <th>Policy #</th>
                                 <th>Carrier</th>
                                 <th>Line of Business</th>
-                                <th>Type</th>
+                                <th>Transaction</th>
                                 <th>Eff. Date</th>
                                 <th>Expiration</th>
                                 <th>Term</th>
-                                <th style="text-align:right;">Premium</th>
-                                <th>Payment</th>
                             </tr>
                         </thead>
                         <tbody id="policyTableBody">
@@ -471,39 +469,10 @@ function clientKey(name) {
     return (name || '').trim().toUpperCase().replace(/\s+/g, ' ');
 }
 
-// ── IndexedDB (same DB as AMS) ──
-let _idb = null;
-function openIDB() {
-    return new Promise(resolve => {
-        const req = indexedDB.open('UIB_AMS_Files', 2);
-        req.onupgradeneeded = e => {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains('files')) {
-                const store = db.createObjectStore('files', { keyPath:'id', autoIncrement:true });
-                store.createIndex('clientKey',  'clientKey',  { unique:false });
-                store.createIndex('uploadedAt', 'uploadedAt', { unique:false });
-                store.createIndex('category',   'category',   { unique:false });
-            }
-        };
-        req.onsuccess   = e => { _idb = e.target.result; resolve(_idb); };
-        req.onerror     = ()  => resolve(null);
-    });
-}
-
-function getFilesForClient(key) {
-    return new Promise(resolve => {
-        if (!_idb) { resolve([]); return; }
-        const idx = _idb.transaction('files','readonly').objectStore('files').index('clientKey');
-        const req = idx.getAll(key);
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror   = () => resolve([]);
-    });
-}
-
 // ═══════════════════════════════════════════════════
 // SESSION
 // ═══════════════════════════════════════════════════
-let _session = null; // { clientKey, displayName, policies }
+let _session = null; // { source, clientKey, displayName, policies, agents, documents }
 
 function saveSession(data) { sessionStorage.setItem('uibInsuredSession', JSON.stringify(data)); }
 function loadSession()     { try { return JSON.parse(sessionStorage.getItem('uibInsuredSession')); } catch(e) { return null; } }
@@ -512,43 +481,88 @@ function clearSession()    { sessionStorage.removeItem('uibInsuredSession'); }
 // ═══════════════════════════════════════════════════
 // LOGIN
 // ═══════════════════════════════════════════════════
-function portalLogin() {
+// The portal asks the insured-portal Supabase function, which checks the
+// name and number on the server and returns only what a client may see:
+// policies without premiums or payments, the agent's contact, and the
+// documents an agent marked "Client can see". If that function is not
+// deployed yet, it falls back to this browser's own copy of the book
+// (agency computers) — still showing no money and no unshared files.
+const PORTAL_FN = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co') + '/functions/v1/insured-portal';
+
+async function portalLogin() {
     const lastName  = document.getElementById('loginLastName').value.trim();
     const policyNum = document.getElementById('loginPolicyNum').value.trim().toUpperCase();
     const errEl     = document.getElementById('loginError');
-
     errEl.style.display = 'none';
+    if (!lastName || !policyNum) { showLoginError('Please enter your last name and policy/binder number.'); return; }
 
-    if (!lastName || !policyNum) {
-        showLoginError('Please enter your last name and policy/binder number.');
+    const server = await serverLookup(lastName, policyNum);
+    if (server && server.ok) {
+        _session = { source: 'server', fetchedAt: Date.now(), lastName, policyNum, clientKey: clientKey(server.displayName), displayName: server.displayName,
+                     policies: server.policies || [], agents: server.agents || [], documents: server.documents || [] };
+        saveSession(_session);
+        showPortal();
         return;
     }
+    if (server && server.ok === false) { showLoginError(server.error || 'No policy found matching that name and number.'); return; }
 
+    // Fallback: this browser's copy of the book.
     const binder = getBinderData();
     const lastNameUC = lastName.toUpperCase();
-
-    // Find matching entries: policy or binder number match + last name match
     const matched = binder.filter(e => {
         const pNum = (e.policyNumber  || '').toString().toUpperCase();
         const bNum = (e.binderNumber  || '').toString().toUpperCase();
         if (pNum !== policyNum && bNum !== policyNum) return false;
-        // Last-name check: customerName must include the last name
         const parts = (e.customerName || '').trim().toUpperCase().split(/\s+/);
         return parts.some(p => p === lastNameUC);
     });
-
-    if (!matched.length) {
-        showLoginError('No policy found matching that name and number. Please check your details and try again.');
-        return;
-    }
-
-    // Find all policies for this customer (by name)
+    if (!matched.length) { showLoginError('No policy found matching that name and number. Please check your details and try again.'); return; }
     const cKey = clientKey(matched[0].customerName);
-    const allPolicies = binder.filter(e => clientKey(e.customerName) === cKey);
-
-    _session = { clientKey: cKey, displayName: matched[0].customerName, policies: allPolicies };
+    _session = { source: 'local', lastName, policyNum, clientKey: cKey, displayName: matched[0].customerName,
+                 policies: clientPolicies(binder.filter(e => clientKey(e.customerName) === cKey)), agents: [], documents: [] };
     saveSession(_session);
     showPortal();
+}
+
+async function serverLookup(lastName, policyNumber) {
+    const key = (window.UIB_CONFIG || {}).SUPABASE_ANON || '';
+    try {
+        const r = await fetch(PORTAL_FN, { method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': key, 'Authorization': 'Bearer ' + key },
+            body: JSON.stringify({ lastName, policyNumber }) });
+        const out = await r.json().catch(() => null);
+        // Our function always answers {ok:...}; anything else means it is not deployed.
+        if (out && typeof out.ok === 'boolean') return out;
+        return null;
+    } catch (e) { return null; }
+}
+
+// The same shape the server returns: no premiums, fees or payments.
+function txnLabel(t) {
+    t = String(t || '');
+    if (/^new/i.test(t) || /^nbs$/i.test(t)) return 'New';
+    if (/renew\s*a\s*-?\s*b/i.test(t)) return 'Renew A-B';
+    if (/^renew/i.test(t)) return 'Renew';
+    if (/^end/i.test(t)) return 'Endorsement';
+    if (/^rewrite/i.test(t)) return 'Rewrite';
+    if (/^misc/i.test(t)) return 'Miscellaneous';
+    return '';
+}
+function clientPolicies(entries) {
+    const today = new Date().toISOString().slice(0, 10);
+    const isCancel = e => /^canc/i.test(e.policyType || '') || /^cancell?ed$/i.test(e.policyStatus || '') ||
+                          (e.cancellationDate && String(e.cancellationDate).slice(0, 10) <= today);
+    const groups = {};
+    entries.forEach((e, i) => { const k = String(e.policyNumber || '').trim().toUpperCase() || '#' + i; (groups[k] = groups[k] || []).push(e); });
+    return Object.values(groups).map(list => {
+        const live = list.filter(e => !isCancel(e));
+        const latest = (live.length ? live : list).slice().sort((a, b) => String(b.expirationDate || b.entryDate || '').localeCompare(String(a.expirationDate || a.entryDate || '')))[0];
+        const exp = latest.expirationDate || calcExpiry(latest.effectiveDate || latest.effDate || latest.entryDate, latest.term) || '';
+        const status = list.some(isCancel) ? 'Canceled' : (exp && exp < today ? 'Expired' : 'Active');
+        return { policyNumber: latest.policyNumber || latest.binderNumber || '', carrier: latest.company || '', lineOfBusiness: latest.lineOfBusiness || '',
+                 transaction: txnLabel(latest.policyType), effectiveDate: latest.effectiveDate || latest.effDate || latest.entryDate || '',
+                 expirationDate: exp, term: latest.term || '', status, agent: latest.agent || '' };
+    }).sort((a, b) => String(b.effectiveDate).localeCompare(String(a.effectiveDate)));
 }
 
 function showLoginError(msg) {
@@ -573,10 +587,10 @@ async function showPortal() {
     document.getElementById('heroName').textContent   = name;
     document.getElementById('heroAvatar').textContent = nameInitials(name);
 
-    // Agent(s) from policies
+    // Agent(s) and carriers from the policies.
     const agents    = [...new Set(policies.map(p => p.agent).filter(Boolean))];
-    const carriers  = [...new Set(policies.map(p => p.company).filter(Boolean))];
-    const activePols= policies.filter(p => policyStatus(p) === 'Active');
+    const carriers  = [...new Set(policies.map(p => p.carrier).filter(Boolean))];
+    const activePols= policies.filter(p => p.status === 'Active');
 
     document.getElementById('heroMeta').textContent =
         `${agents.length ? 'Agent: ' + agents.join(', ') : 'UIB Client'} · ${carriers.length} carrier${carriers.length !== 1 ? 's' : ''}`;
@@ -585,9 +599,10 @@ async function showPortal() {
     document.getElementById('statActivePolicies').textContent = activePols.length;
     document.getElementById('statCarriers').textContent      = carriers.length;
 
-    // Stat cards
-    const totalPrem = policies.reduce((s, p) => s + (parseFloat(p.totalPremium) || 0), 0);
-    const lobs      = [...new Set(policies.map(p => p.lineOfBusiness).filter(Boolean))];
+    // Stat cards — coverage at a glance, no money.
+    const lobs = [...new Set(policies.map(p => p.lineOfBusiness).filter(Boolean))];
+    const today = new Date().toISOString().slice(0, 10);
+    const next = activePols.map(p => p.expirationDate).filter(d => d && d >= today).sort()[0];
     document.getElementById('statCards').innerHTML = `
         <div class="stat-card" style="border-left-color:#059669;">
             <div class="sc-label">Active Policies</div>
@@ -597,28 +612,25 @@ async function showPortal() {
         <div class="stat-card" style="border-left-color:#1d4ed8;">
             <div class="sc-label">Lines of Business</div>
             <div class="sc-value">${lobs.length}</div>
-            <div class="sc-sub">${lobs.slice(0,2).join(', ')|| 'N/A'}</div>
+            <div class="sc-sub">${escHtml(lobs.slice(0,2).join(', ') || 'N/A')}</div>
         </div>
         <div class="stat-card" style="border-left-color:#d97706;">
-            <div class="sc-label">Total Premiums on File</div>
-            <div class="sc-value">$${totalPrem.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-            <div class="sc-sub">across all policies</div>
+            <div class="sc-label">Next Renewal</div>
+            <div class="sc-value" style="font-size:20px;">${next ? fmtDate(next) : '—'}</div>
+            <div class="sc-sub">${next ? 'earliest active policy to renew' : 'no upcoming renewal'}</div>
         </div>
         <div class="stat-card" style="border-left-color:#7c3aed;">
             <div class="sc-label">Insurance Carriers</div>
             <div class="sc-value">${carriers.length}</div>
-            <div class="sc-sub">${carriers.slice(0,2).join(', ') || 'N/A'}</div>
+            <div class="sc-sub">${escHtml(carriers.slice(0,2).join(', ') || 'N/A')}</div>
         </div>`;
 
     renderPolicies();
     renderAgentCard();
 
-    // Load docs asynchronously
-    await openIDB();
-    const files = await getFilesForClient(_session.clientKey);
-    _allDocs = files;
+    _allDocs = _session.documents || [];
     const badge = document.getElementById('docBadge');
-    if (files.length) { badge.textContent = files.length; badge.style.display = ''; }
+    if (_allDocs.length) { badge.textContent = _allDocs.length; badge.style.display = ''; }
     renderPortalDocs();
 }
 
@@ -628,48 +640,24 @@ async function showPortal() {
 function renderPolicies() {
     const policies = _session.policies;
     const tbody    = document.getElementById('policyTableBody');
-    document.getElementById('policyCount').textContent = `${policies.length} record${policies.length !== 1 ? 's' : ''}`;
-
+    document.getElementById('policyCount').textContent = `${policies.length} polic${policies.length !== 1 ? 'ies' : 'y'}`;
     if (!policies.length) {
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--gray-400);">No policies on file.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gray-400);">No policies on file.</td></tr>';
         return;
     }
-
-    // Sort newest first
-    const sorted = [...policies].sort((a,b) => (b.entryDate||'').localeCompare(a.entryDate||''));
-
-    tbody.innerHTML = sorted.map(p => {
-        const status  = policyStatus(p);
-        const pillCls = { Active:'status-active', Renewed:'status-renewed', Expired:'status-expired', Cancelled:'status-cancelled' }[status] || 'status-active';
-        const effDate = p.effDate || p.entryDate || '';
-        const expDate = calcExpiry(effDate, p.term);
-        const prem    = parseFloat(p.totalPremium) || 0;
+    tbody.innerHTML = policies.map(p => {
+        const pillCls = { Active:'status-active', Expired:'status-expired', Canceled:'status-cancelled', 'Pending Cancellation':'status-expired' }[p.status] || 'status-active';
         return `<tr>
-            <td><span class="status-pill ${pillCls}"><span class="status-dot"></span>${status}</span></td>
-            <td style="font-family:monospace;font-size:12px;font-weight:600;color:var(--gray-700);">${p.policyNumber || p.binderNumber || '—'}</td>
-            <td><span class="carrier-pill">${p.company || '—'}</span></td>
-            <td><span class="lob-pill">${p.lineOfBusiness || '—'}</span></td>
-            <td style="font-size:12px;color:var(--gray-600);">${p.policyType || '—'}</td>
-            <td style="font-size:12px;">${fmtDate(effDate)}</td>
-            <td style="font-size:12px;">${expDate ? fmtDate(expDate) : '—'}</td>
-            <td style="font-size:12px;text-align:center;">${p.term ? p.term + ' mo' : '—'}</td>
-            <td style="text-align:right;font-weight:700;color:var(--gray-900);">${prem > 0 ? '$'+prem.toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}</td>
-            <td style="font-size:12px;color:var(--gray-500);">${p.paymentType || p.paymentMethod2 || '—'}</td>
+            <td><span class="status-pill ${pillCls}"><span class="status-dot"></span>${escHtml(p.status)}</span></td>
+            <td style="font-family:monospace;font-size:12px;font-weight:600;color:var(--gray-700);">${escHtml(p.policyNumber || '—')}</td>
+            <td><span class="carrier-pill">${escHtml(p.carrier || '—')}</span></td>
+            <td><span class="lob-pill">${escHtml(p.lineOfBusiness || '—')}</span></td>
+            <td style="font-size:12px;color:var(--gray-600);">${escHtml(p.transaction || '—')}</td>
+            <td style="font-size:12px;">${fmtDate(p.effectiveDate)}</td>
+            <td style="font-size:12px;">${p.expirationDate ? fmtDate(p.expirationDate) : '—'}</td>
+            <td style="font-size:12px;text-align:center;">${p.term ? escHtml(p.term) + ' mo' : '—'}</td>
         </tr>`;
     }).join('');
-}
-
-function policyStatus(p) {
-    const pt = (p.policyType || '').toLowerCase();
-    if (pt.includes('canc') || pt.includes('end')) return 'Cancelled';
-    if (pt.includes('renew')) return 'Renewed';
-    // Check expiry
-    const effDate = p.effDate || p.entryDate;
-    if (effDate && p.term) {
-        const exp = calcExpiry(effDate, p.term);
-        if (exp && new Date(exp) < new Date()) return 'Expired';
-    }
-    return 'Active';
 }
 
 function calcExpiry(effDate, term) {
@@ -703,13 +691,13 @@ function renderPortalDocs() {
         wrap.innerHTML = `<div class="doc-empty">
             <div style="font-size:48px;">${cat ? '🔍' : '📂'}</div>
             <p>${cat ? 'No documents in this category.' : 'No documents have been uploaded for your account yet.'}</p>
-            <p style="font-size:12px;color:var(--gray-400);margin-top:6px;">Contact your agent to upload policy documents.</p>
+            <p style="font-size:12px;color:var(--gray-400);margin-top:6px;">Your agent shares documents here — contact them if you need a copy of something.</p>
         </div>`;
         return;
     }
 
     wrap.innerHTML = `<div class="doc-grid">${files.map(f => `
-        <div class="doc-card" onclick="portalPreviewDoc(${f.id})" title="${escHtml(f.name)}">
+        <div class="doc-card" onclick="portalPreviewDoc('${escHtml(String(f.id))}')" title="${escHtml(f.name)}">
             <div class="doc-icon">${fileIcon(f.name, f.type)}</div>
             <div class="doc-name">${escHtml(f.name)}</div>
             <div class="doc-meta">${fmtFileSize(f.size)}</div>
@@ -718,21 +706,16 @@ function renderPortalDocs() {
 }
 
 async function portalPreviewDoc(id) {
-    if (!_idb) return;
-    const tx  = _idb.transaction('files','readonly');
-    const req = tx.objectStore('files').get(id);
-    req.onsuccess = () => {
-        const rec = req.result;
-        if (!rec || !rec.dataUrl) { alert('File data not available.'); return; }
-        // Open in new tab
-        const w = window.open();
-        if (!w) { alert('Please allow pop-ups to preview documents.'); return; }
-        w.document.write(`<html><head><title>${escHtml(rec.name)}</title></head><body style="margin:0;background:#1e1e1e;display:flex;align-items:center;justify-content:center;min-height:100vh;">
-            ${rec.type && rec.type.startsWith('image/')
-                ? `<img src="${rec.dataUrl}" style="max-width:100%;max-height:100vh;object-fit:contain;">`
-                : `<iframe src="${rec.dataUrl}" style="width:100vw;height:100vh;border:none;"></iframe>`}
-        </body></html>`);
-    };
+    const f = _allDocs.find(d => String(d.id) === String(id));
+    if (!f) return;
+    // Links are short-lived; a stale one is renewed by signing in again quietly.
+    if (!f.url || (_session.fetchedAt && Date.now() - _session.fetchedAt > 12 * 60 * 1000)) {
+        const fresh = await serverLookup(_session.lastName, _session.policyNum);
+        if (fresh && fresh.ok) { _session.documents = fresh.documents || []; _session.fetchedAt = Date.now(); _allDocs = _session.documents; saveSession(_session); }
+    }
+    const cur = _allDocs.find(d => String(d.id) === String(id));
+    if (!cur || !cur.url) { alert('This document is not available right now. Please contact your agent.'); return; }
+    window.open(cur.url, '_blank', 'noopener');
 }
 
 function fileIcon(name, type) {
@@ -762,6 +745,7 @@ function renderAgentCard() {
     const agents   = [...new Set(policies.map(p => p.agent).filter(Boolean))];
     const agentName = agents[0] || 'Your UIB Agent';
     const contact  = getClientData()[_session.clientKey] || {};
+    const reach    = (_session.agents || []).find(a => a.name === agentName) || {};
 
     const card = document.getElementById('agentCard');
     card.innerHTML = `
@@ -773,17 +757,19 @@ function renderAgentCard() {
                 ${contact.csrName ? `<div class="agent-contact-row"><span class="icon">👩‍💼</span> CSR: ${escHtml(contact.csrName)}</div>` : ''}
                 ${contact.assignedAgent && contact.assignedAgent !== agentName
                     ? `<div class="agent-contact-row"><span class="icon">🔀</span>Also assigned: ${escHtml(contact.assignedAgent)}</div>` : ''}
+                ${reach.phone ? `<div class="agent-contact-row"><span class="icon">📞</span><a href="tel:${escHtml(reach.phone)}">${escHtml(reach.phone)}</a></div>` : ''}
+                ${reach.email ? `<div class="agent-contact-row"><span class="icon">✉️</span><a href="mailto:${escHtml(reach.email)}">${escHtml(reach.email)}</a></div>` : ''}
                 <div class="agent-contact-row"><span class="icon">🏢</span>Universal Insurance Brokers</div>
-                <div class="agent-contact-row" style="margin-top:6px;font-size:12px;color:var(--gray-400);">
+                ${reach.phone || reach.email ? '' : `<div class="agent-contact-row" style="margin-top:6px;font-size:12px;color:var(--gray-400);">
                     To reach your agent, visit a UIB office or call the main line.
-                </div>
+                </div>`}
             </div>
         </div>`;
 
     // Show all policies by this agent
     const agentPolicies = policies.filter(p => agents.includes(p.agent));
     if (agentPolicies.length) {
-        const carriers = [...new Set(agentPolicies.map(p=>p.company).filter(Boolean))];
+        const carriers = [...new Set(agentPolicies.map(p=>p.carrier).filter(Boolean))];
         card.insertAdjacentHTML('afterend', `
             <div style="padding:0 22px 20px;">
                 <div style="font-size:12px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">
@@ -838,7 +824,7 @@ function escHtml(s) {
 // ═══════════════════════════════════════════════════
 (async function boot() {
     const saved = loadSession();
-    if (saved && saved.clientKey && saved.policies) {
+    if (saved && saved.clientKey && saved.policies && saved.source) {
         _session = saved;
         document.getElementById('loginScreen').style.display = 'none';
         await showPortal();

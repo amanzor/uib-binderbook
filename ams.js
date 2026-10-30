@@ -2110,11 +2110,36 @@ async function amsRenderFileGrid() {
                 ${canPrev ? `<button class="btn-primary btn-sm" style="font-size:10px;padding:3px 8px;" onclick="event.stopPropagation();amsPreviewFile(${idx})"><i data-lucide="eye" style="width:10px;height:10px;"></i> View</button>` : ''}
                 ${dlBtn}
             </div>
+            ${f.cloud
+                ? (() => { const on = amsDocShared(f.docId); return `<button type="button" class="fc-share${on ? ' on' : ''}" onclick="event.stopPropagation();amsToggleDocShare('${amsEscHtml(f.docId)}')"
+                      title="${on ? 'Shown in the client portal — click to make private' : 'Private — click to show it in the client portal'}">${on ? '👁 Client can see' : '🔒 Private'}</button>`; })()
+                : `<div class="fc-share-note" title="Saved on this computer only, so the client portal cannot reach it">💾 this device only</div>`}
         </div>`;
     }));
 
     grid.innerHTML = cards.join('');
     lucide.createIcons();
+}
+
+// ── Client portal sharing ─────────────────────────────────────
+// A document shows in the client portal only when an agent marks it
+// "Client can see". The marks live in clientSharedDocs ({docId: record}),
+// merged record by record so agents never overwrite each other's choices.
+// Everything uploaded is private until someone shares it.
+function amsSharedDocs() {
+    try { const v = JSON.parse(localStorage.getItem('clientSharedDocs')); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
+    catch (e) { return {}; }
+}
+function amsDocShared(docId) { const r = amsSharedDocs()[String(docId)]; return !!(r && r.shared); }
+function amsToggleDocShare(docId) {
+    if (!amsActiveKey) return;
+    const map = amsSharedDocs();
+    const k = String(docId);
+    const on = !(map[k] && map[k].shared);
+    map[k] = { docId: k, clientKey: amsActiveKey, shared: on, by: amsCurrentUser || '', at: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    amsSave('clientSharedDocs', map);
+    amsRenderFileGrid();
+    if (typeof amsFlashBanner === 'function') amsFlashBanner(on ? 'Shown in the client portal ✓' : 'Hidden from the client portal');
 }
 
 // ── Delete file ───────────────────────────────────────────────
