@@ -155,14 +155,26 @@
             box-shadow: 0 2px 8px rgba(29,78,216,.25);
         }
         .ams-tab-btn svg { flex-shrink: 0; }
-        /* Health takes the Health Book's rose instead of the AMS blue. */
-        #sidebarNavHealth { color: #e11d48; }
-        #sidebarNavHealth:hover { background: #fff1f2; color: #be123c; }
-        #sidebarNavHealth.active { background: linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%); color: #fff; box-shadow: 0 2px 8px rgba(225,29,72,.3); }
 
-        /* Home uses the full width: the client list has nothing to show there. */
-        body.ams-home-on .ams-sidebar { display: none; }
-        body.ams-home-on .ams-main { margin-left: 0; background: #f4f7fb; }
+        /* ── Book tabs (top) and section list (left pane) ─────────── */
+        .ams-tabbar { padding-left: calc(var(--sidebar-w) + 24px); }
+        .ams-book-tabs { display: flex; gap: 4px; height: 100%; align-items: flex-end; }
+        .ams-book-tab {
+            display: flex; align-items: center; gap: 8px; padding: 10px 22px 11px; border: none; background: none;
+            border-bottom: 3px solid transparent; font-family: inherit; font-size: 13.5px; font-weight: 700;
+            color: var(--gray-500); cursor: pointer; border-radius: 8px 8px 0 0; transition: color .12s, background .12s, border-color .12s;
+        }
+        .ams-book-tab:hover { background: var(--blue-pale); color: var(--navy); }
+        .ams-book-tab.active { color: var(--navy); border-bottom-color: var(--blue); background: linear-gradient(to top, rgba(29,78,216,.08), transparent); }
+        .ams-book-sep { width: 1px; height: 24px; background: var(--gray-200); margin: 0 8px 12px; align-self: flex-end; }
+        .ams-book-health { color: #e11d48; }
+        .ams-book-health:hover { background: #fff1f2; color: #be123c; }
+        .ams-book-health.active { color: #be123c; border-bottom-color: #e11d48; background: linear-gradient(to top, rgba(225,29,72,.08), transparent); }
+        .ams-sidenav { display: flex; flex-direction: column; gap: 2px; padding: 12px 10px; border-bottom: 1px solid var(--gray-200); flex-shrink: 0; }
+        .ams-sidenav .ams-tab-btn { width: 100%; justify-content: flex-start; padding: 9px 12px; font-size: 13.5px; }
+        body[data-book="health"] .ams-sidenav .ams-tab-btn.active { background: linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%); box-shadow: 0 2px 8px rgba(225,29,72,.3); }
+
+        body.ams-home-on .ams-main { background: #f4f7fb; }
 
         /* ── MAIN BODY LAYOUT ─────────────────────────────────────── */
         .ams-body { display: flex; flex: 1; padding-top: calc(var(--header-h) + var(--tabbar-h)); min-height: 100vh; }
@@ -741,34 +753,9 @@
             </div>
         </header>
 
-        <!-- Section tab bar (below header) -->
+        <!-- Book tabs (below header): Personal / Commercial / Health — ams-books.js -->
         <nav class="ams-tabbar" id="amsTabbar">
-            <div class="ams-nav-group" style="position:relative;display:flex;align-items:center;flex-shrink:0;">
-                <button class="ams-tab-btn" id="sidebarNavHome" onclick="amsSidebarNav('home')">
-                    <i data-lucide="home" style="width:15px;height:15px;"></i> Home
-                </button>
-                <button class="ams-tab-btn" id="sidebarNavDashboard" onclick="amsSidebarNav('dashboard')">
-                    <i data-lucide="layout-dashboard" style="width:15px;height:15px;"></i> Dashboard
-                </button>
-            </div>
-            <button class="ams-tab-btn" id="sidebarNavReports" onclick="amsSidebarNav('reports')">
-                <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i> Reports
-            </button>
-            <button class="ams-tab-btn" id="sidebarNavRenewals" onclick="amsSidebarNav('renewals')">
-                <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i> Renewals
-            </button>
-            <button class="ams-tab-btn" id="sidebarNavHealth" onclick="amsSidebarNav('health')">
-                <i data-lucide="heart-pulse" style="width:15px;height:15px;"></i> Health
-            </button>
-            <button class="ams-tab-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
-                <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
-            </button>
-            <button class="ams-tab-btn" id="sidebarNavDownload" onclick="amsSidebarNav('download')">
-                <i data-lucide="download" style="width:15px;height:15px;"></i> Download
-            </button>
-            <button class="ams-tab-btn" id="sidebarNavRealtime" onclick="amsSidebarNav('realtime')">
-                <i data-lucide="zap" style="width:15px;height:15px;"></i> Real Time
-            </button>
+            <div class="ams-book-tabs" id="amsBookTabs" role="tablist" aria-label="Book of business"></div>
         </nav>
 
         <!-- Body -->
@@ -776,6 +763,31 @@
 
             <!-- ── LEFT SIDEBAR ── -->
             <aside class="ams-sidebar">
+
+                <!-- Sections: each opens on the right -->
+                <nav class="ams-sidenav" aria-label="Sections">
+                <button class="ams-tab-btn" id="sidebarNavClients" data-section="clients" onclick="amsSidebarNav('clients')">
+                    <i data-lucide="users" style="width:16px;height:16px;"></i> Clients
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavDashboard" data-section="dashboard" onclick="amsSidebarNav('dashboard')">
+                    <i data-lucide="layout-dashboard" style="width:16px;height:16px;"></i> Dashboard
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavReports" data-section="reports" onclick="amsSidebarNav('reports')">
+                    <i data-lucide="bar-chart-2" style="width:16px;height:16px;"></i> Reports
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavRenewals" data-section="renewals" onclick="amsSidebarNav('renewals')">
+                    <i data-lucide="refresh-cw" style="width:16px;height:16px;"></i> Renewals
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavAccounting" data-section="accounting" onclick="amsSidebarNav('accounting')">
+                    <i data-lucide="dollar-sign" style="width:16px;height:16px;"></i> Accounting
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavDownload" data-section="download" onclick="amsSidebarNav('download')">
+                    <i data-lucide="download" style="width:16px;height:16px;"></i> Download
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavRealtime" data-section="realtime" onclick="amsSidebarNav('realtime')">
+                    <i data-lucide="zap" style="width:16px;height:16px;"></i> Real Time
+                </button>
+                </nav>
 
                 <div class="sidebar-toolbar" id="sidebarSearchToolbar">
                     <div class="sidebar-search">
@@ -2412,14 +2424,15 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261030b"></script>
+    <script src="ams.js?v=20261030c"></script>
     <script src="acord25-map.js?v=20261027a"></script>
     <script src="certificates.js?v=20261030a"></script>
     <script src="additional-interests.js?v=20261030a"></script>
     <script src="certificates-ui.js?v=20261030a"></script>
     <script src="agency.js?v=20261028a"></script>
-    <script src="health.js?v=20261029a"></script>
-    <script src="ams-home.js?v=20261030a"></script>
+    <script src="health.js?v=20261030a"></script>
+    <script src="ams-home.js?v=20261030b"></script>
+    <script src="ams-books.js?v=20261030a"></script>
     <script src="supabase.js?v=20261027a"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
@@ -2464,9 +2477,9 @@
         function amsSidebarNav(section) {
             // 'search' has no tab button of its own — it's reached via the header
             // search box (onfocus) — so it's excluded from the active-tab toggle.
-            const sections = ['home','dashboard','reports','renewals','health','accounting','commissions','download','realtime','agency'];
+            const sections = ['search','dashboard','reports','renewals','health','accounting','commissions','download','realtime','agency'];
             sections.forEach(s => {
-                const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
+                const btn = document.getElementById('sidebarNav' + (s === 'search' ? 'Clients' : s.charAt(0).toUpperCase() + s.slice(1)));
                 if (btn) btn.classList.toggle('active', s === section);
             });
 
@@ -3607,6 +3620,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsRenderDashboard() {
             let binder = JSON.parse(localStorage.getItem('binderData') || '[]');
             if (!Array.isArray(binder)) binder = binder.value || Object.values(binder) || [];
+            if (typeof amsBookFilter === 'function') binder = amsBookFilter(binder);
             const today  = new Date();
 
             // ── Active = not a cancellation & (no expDate OR expDate >= today) ──
