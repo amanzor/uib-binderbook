@@ -497,7 +497,8 @@
         const agent = mapAgent((ie.agents || [])[0] || '');
         const e = {
             id: ie.id, importId: ie.importId, importBatch: batch, importedFrom: 'monday', importedAt: nowIso,
-            agent, customerName: ie.customerName, contactName: '', documentationStatus: [],
+            agent, agentOnRecord: ie.agentOnRecord ? mapAgent(ie.agentOnRecord) : '',
+            customerName: ie.customerName, contactName: '', documentationStatus: [],
             source: ie.source || '', referredBy: ie.referredBy || '',
             customerPhone: ie.customerPhone || '', customerEmail: ie.customerEmail || '',
             policyType: ie.policyType || 'New', lineOfBusiness: ie.lineOfBusiness || '',
@@ -636,6 +637,15 @@
                     list.sort((a, b) => String(a.entryDate).localeCompare(String(b.entryDate)));
                     const first = list[0], last = list[list.length - 1];
                     const rec = touch(key, { clientStatus: 'Active' });
+                    // Agent On Record: the file carries the agent on the client's
+                    // first entry by date. The policy keeps its own agent; the
+                    // client record is updated even when it already had one.
+                    const aor = list.map(e => e.agentOnRecord).find(Boolean);
+                    if (aor && rec.csrName !== aor) {
+                        if (rec.csrName && !rec.csrNameLegacy) rec.csrNameLegacy = rec.csrName;
+                        rec.csrName = aor;
+                    }
+                    if (aor) fill(rec, 'assignedAgent', aor);
                     const split = splitCustomerName(first.customerName);
                     fill(rec, 'firstName', split.firstName);
                     fill(rec, 'lastName', split.lastName);
@@ -647,6 +657,22 @@
                     fill(rec, 'dealerLocation', last.location);
                     fill(rec, 'referralSource', first.source);
                     fill(rec, 'clientStatus', 'Active');
+                });
+            }
+            if (doEntries) {
+                (_plan.skippedEntries || []).forEach(s => {
+                    const ie = s && s.ie;
+                    if (!ie || !ie.agentOnRecord) return;
+                    const key = amsClientKeyFromName(ie.customerName);
+                    const rec = key && contacts[key];
+                    if (!rec) return;
+                    const aor = mapAgent(ie.agentOnRecord);
+                    if (aor && rec.csrName !== aor) {
+                        if (rec.csrName && !rec.csrNameLegacy) rec.csrNameLegacy = rec.csrName;
+                        rec.csrName = aor;
+                        rec.updatedAt = now;
+                        filled++;
+                    }
                 });
             }
             if (doProspects) {
