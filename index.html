@@ -2839,6 +2839,15 @@
                     <button class="btn-primary" onclick="openCommissionUploadModal()"><i data-lucide="upload"></i> Upload First Statement</button>
                 </div>
 
+                <!-- Agent cards → months → that agent's statement -->
+                <style>
+                    #csDetail.cs-agent-mode > div:not(#csAgentPanel) { display:none !important; }
+                    #csDetail.cs-agent-mode #csAgentNavList { display:none !important; }
+                    .cs-agent-card { text-align:left;padding:16px;border-radius:12px;border:2px solid var(--gray-200);background:#fff;cursor:pointer;transition:all .15s; }
+                    .cs-agent-card:hover { border-color:#1d4ed8;box-shadow:0 4px 14px rgba(29,78,216,.12); }
+                </style>
+                <div id="csAgentView" style="margin-top:16px;"></div>
+
                 <!-- Detail Area (shown when a month is selected) -->
                 <div id="csDetail" style="display:none;margin-top:16px;">
 
@@ -2879,7 +2888,7 @@
                     </div>
 
                     <!-- Per-Agent Commission Statement — click an agent, see their detail grouped by carrier -->
-                    <div style="margin-bottom:22px;border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;">
+                    <div id="csAgentPanel" style="margin-bottom:22px;border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;">
                         <div style="background:linear-gradient(135deg,var(--navy),#1a365d);color:#fff;padding:12px 16px;">
                             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                                 <div style="display:flex;align-items:center;gap:8px;">
@@ -4097,7 +4106,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261030a"></script>
+    <script src="app.js?v=20261103a"></script>
     <script src="uib-binder-sync.js?v=20261030c"></script>
     <script src="monday-import.js?v=20261102a"></script>
     <script src="supabase.js?v=20261027a"></script>

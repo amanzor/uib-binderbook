@@ -8487,7 +8487,143 @@ function loadCommissionStatementsList() {
         }).join('');
     }
 
-    renderCSMonthDetail(csCurrentMonthKey);
+    // The header month picker is replaced by the agent → month cards.
+    if (monthSel) monthSel.style.display = 'none';
+    csRenderAgentView();
+}
+
+// ── Agent cards → months → statement ─────────────────────────
+// Pick an agent, then a month, and see only that agent's statement for
+// that month. "Agency overview" keeps the full all-agent view.
+const CS_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let csViewAgent = null;      // null = agent cards; '__ALL__' = agency overview; else agent key
+let csViewYear = null;
+let csViewMonth = null;
+
+function _csMoney(n) {
+    return '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// agent key -> { agent, total, count, months: { 'July 2026': { total, count } } }
+function _csAgentsAcrossMonths() {
+    const months = [...new Set(Object.keys(commissionStatements).map(csMonthOf))];
+    const agents = {};
+    const all = { agent: '__ALL__', total: 0, count: 0, months: {} };
+    months.forEach(m => {
+        const stmt = csGetCombined(m);
+        if (!stmt) return;
+        _csGroupByAgent(stmt).forEach(g => {
+            const a = agents[g.agent] || (agents[g.agent] = { agent: g.agent, total: 0, count: 0, months: {} });
+            a.total += g.total; a.count += g.entries.length;
+            a.months[m] = { total: g.total, count: g.entries.length };
+        });
+        all.total += stmt.grossTotal || 0; all.count += stmt.entries.length;
+        all.months[m] = { total: stmt.grossTotal || 0, count: stmt.entries.length };
+    });
+    const list = Object.values(agents).sort((a, b) => {
+        if (a.agent === '__UNASSIGNED__') return 1;
+        if (b.agent === '__UNASSIGNED__') return -1;
+        return a.agent.localeCompare(b.agent);
+    });
+    return { list, all };
+}
+
+function _csYearOf(label) { return parseInt(String(label).split(' ')[1], 10); }
+
+function csRenderAgentView() {
+    const box = document.getElementById('csAgentView');
+    const detail = document.getElementById('csDetail');
+    if (!box) return;
+    const { list, all } = _csAgentsAcrossMonths();
+    const info = csViewAgent === '__ALL__' ? all : list.find(a => a.agent === csViewAgent);
+    if (csViewAgent && !info) { csViewAgent = null; csViewMonth = null; }
+
+    if (!csViewAgent) {
+        detail.style.display = 'none';
+        const card = a => {
+            const unassigned = a.agent === '__UNASSIGNED__', agency = a.agent === '__ALL__';
+            const name = agency ? '🏢 Agency overview' : unassigned ? '⚠️ Unassigned' : a.agent;
+            const nMonths = Object.keys(a.months).length;
+            return `<button class="cs-agent-card" onclick="csOpenAgent('${a.agent.replace(/'/g, "\\'")}')"
+                style="${unassigned ? 'background:#fffbeb;border-color:#fcd34d;' : agency ? 'background:#f8fafc;' : ''}">
+                <div style="font-size:15px;font-weight:800;color:${unassigned ? '#92400e' : 'var(--navy)'};">${_claudeEsc(name)}</div>
+                <div style="font-size:18px;font-weight:800;margin-top:8px;color:${a.total >= 0 ? '#059669' : '#dc2626'};">${_csMoney(a.total)}</div>
+                <div style="font-size:11.5px;color:var(--gray-500);margin-top:2px;">${nMonths} month${nMonths !== 1 ? 's' : ''} · ${a.count} transactions</div>
+            </button>`;
+        };
+        box.innerHTML = `<h4 style="font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px;">Choose an agent</h4>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
+                ${list.map(card).join('')}${card(all)}
+            </div>`;
+        return;
+    }
+
+    const labels = Object.keys(info.months);
+    const years = [...new Set(labels.map(_csYearOf))].sort((a, b) => b - a);
+    if (!csViewYear || !years.includes(csViewYear)) csViewYear = years[0];
+    const name = csViewAgent === '__ALL__' ? '🏢 Agency overview' : _csAgentLabel(csViewAgent);
+
+    const monthBtns = CS_MONTH_NAMES.map(mn => {
+        const label = mn + ' ' + csViewYear;
+        const d = info.months[label];
+        const on = label === csViewMonth;
+        if (!d) return `<div style="padding:14px 10px;border-radius:12px;border:2px dashed var(--gray-200);text-align:center;color:var(--gray-300);font-weight:700;font-size:13.5px;">📅 ${mn}<span style="display:block;margin-top:4px;font-size:11px;font-weight:600;">no statement</span></div>`;
+        return `<button onclick="csOpenAgentMonth('${label}')"
+            style="padding:14px 10px;border-radius:12px;cursor:pointer;text-align:center;border:2px solid ${on ? '#1d4ed8' : 'var(--gray-200)'};
+                   background:${on ? 'linear-gradient(135deg,#0d1f3c,#1d4ed8)' : '#fff'};color:${on ? '#fff' : 'var(--gray-700)'};font-weight:700;font-size:13.5px;">
+            📅 ${mn}
+            <span style="display:block;margin-top:4px;font-size:12px;font-weight:700;color:${on ? '#a7f3d0' : (d.total >= 0 ? '#059669' : '#dc2626')};">${_csMoney(d.total)}</span>
+            <span style="display:block;font-size:10.5px;font-weight:600;color:${on ? 'rgba(255,255,255,.75)' : 'var(--gray-400)'};">${d.count} transactions</span>
+        </button>`;
+    }).join('');
+
+    box.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            <button class="btn-secondary btn-sm" onclick="csOpenAgent(null)">← All agents</button>
+            <strong style="font-size:16px;color:var(--navy);">${_claudeEsc(name)}</strong>
+            <span style="margin-left:auto;display:flex;gap:6px;">${years.map(y => `<button class="btn-sm ${y === csViewYear ? 'btn-primary' : 'btn-secondary'}" onclick="csSetViewYear(${y})">${y}</button>`).join('')}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">${monthBtns}</div>`;
+
+    if (!csViewMonth || !info.months[csViewMonth]) { detail.style.display = 'none'; return; }
+    csCurrentMonthKey = csViewMonth;
+    detail.classList.toggle('cs-agent-mode', csViewAgent !== '__ALL__');
+    if (csViewAgent !== '__ALL__') csSelectedAgentKey = csViewAgent;
+    renderCSMonthDetail(csViewMonth);
+    if (csViewAgent !== '__ALL__') {
+        // Panel header: this agent's numbers, not the whole agency's.
+        const ents = (csGetCombined(csViewMonth).entries || []).filter(e => (e.agentMatch || '__UNASSIGNED__') === csViewAgent);
+        const tot = ents.reduce((t, e) => t + (e.commission || 0), 0);
+        const chip = (l, v, c) => `<span style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:4px 12px;font-size:11.5px;display:inline-flex;gap:6px;align-items:baseline;"><span style="opacity:.75;">${l}</span><strong style="font-size:13px;${c ? 'color:' + c + ';' : ''}">${v}</strong></span>`;
+        const statsEl = document.getElementById('csAgentPanelStats');
+        if (statsEl) statsEl.innerHTML =
+            chip('Commission', _csMoney(tot), tot >= 0 ? '#6ee7b7' : '#fca5a5') +
+            chip('Transactions', ents.length) +
+            chip('Carriers', new Set(ents.map(e => e.carrier).filter(Boolean)).size) +
+            chip('New', ents.filter(e => /^new/i.test((e.transaction || '').trim())).length) +
+            chip('Renewals', ents.filter(e => /renew/i.test(e.transaction || '')).length);
+        const monthEl = document.getElementById('csAgentPanelMonth');
+        if (monthEl) monthEl.textContent = '— ' + _csAgentLabel(csViewAgent) + ' · ' + csViewMonth;
+    }
+}
+
+function csOpenAgent(agent) {
+    csViewAgent = agent; csViewYear = null; csViewMonth = null;
+    csRenderAgentView();
+    refreshIcons();
+}
+
+function csSetViewYear(y) {
+    csViewYear = y; csViewMonth = null;
+    csRenderAgentView();
+}
+
+function csOpenAgentMonth(label) {
+    csViewMonth = label;
+    csRenderAgentView();
+    refreshIcons();
+    const d = document.getElementById('csDetail');
+    if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function csSelectMonth(monthKey) {
