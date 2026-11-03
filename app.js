@@ -8629,10 +8629,12 @@ function csRenderAgentView() {
         const label = mn + ' ' + csViewYear;
         const d = info.months[label];
         const on = label === csViewMonth;
-        const up = `<button onclick="event.stopPropagation();openCommissionUploadModal('${label}')" title="Upload a statement for ${label}"
-            style="margin-top:6px;padding:3px 10px;border-radius:999px;border:1px solid ${on ? 'rgba(255,255,255,.5)' : '#bfdbfe'};background:${on ? 'rgba(255,255,255,.15)' : '#eff6ff'};color:${on ? '#fff' : '#1d4ed8'};font-size:11px;font-weight:700;cursor:pointer;">⬆ Upload</button>`;
-        if (!d) return `<div onclick="openCommissionUploadModal('${label}')" title="Upload a statement for ${label}"
-            style="padding:14px 10px;border-radius:12px;border:2px dashed var(--gray-200);text-align:center;color:var(--gray-400);font-weight:700;font-size:13.5px;cursor:pointer;background:#fff;">
+        const chip = (txt, fn, tip, c) => `<button onclick="event.stopPropagation();${fn}('${label}')" title="${tip}"
+            style="padding:3px 9px;border-radius:999px;border:1px solid ${on ? 'rgba(255,255,255,.5)' : c[0]};background:${on ? 'rgba(255,255,255,.15)' : c[1]};color:${on ? '#fff' : c[2]};font-size:11px;font-weight:700;cursor:pointer;">${txt}</button>`;
+        const up = `<div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin-top:6px;">` +
+            chip('⬆ Upload', 'csTileUpload', 'Store PDFs or spreadsheets in ' + label + ' (no AI)', ['#bfdbfe', '#eff6ff', '#1d4ed8']) +
+            chip('✨ AI', 'openCommissionUploadModal', 'Calculate commissions from a statement for ' + label, ['#fed7aa', '#fff7ed', '#c2410c']) + `</div>`;
+        if (!d) return `<div style="padding:14px 10px;border-radius:12px;border:2px dashed var(--gray-200);text-align:center;color:var(--gray-400);font-weight:700;font-size:13.5px;background:#fff;">
             📅 ${mn}<span style="display:block;margin-top:4px;font-size:11px;font-weight:600;">no statement</span>${up}</div>`;
         return `<div onclick="csOpenAgentMonth('${label}')"
             style="padding:14px 10px;border-radius:12px;cursor:pointer;text-align:center;border:2px solid ${on ? '#1d4ed8' : 'var(--gray-200)'};
@@ -8717,6 +8719,29 @@ async function _csSaveStatementsCloud() {
         let t = ''; try { t = (await res.text()).slice(0, 120); } catch (e) {}
         return { ok: false, why: 'HTTP ' + res.status + (t ? ': ' + t : '') };
     } catch (e) { return { ok: false, why: String(e && e.message || e) }; }
+}
+
+// Plain upload from a month tile: the files are stored in that month of
+// Documents. Nothing is read or calculated (that is the ✨ AI button).
+function csTileUpload(label) {
+    const [mn, yr] = String(label).split(' ');
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.multiple = true;
+    inp.accept = 'application/pdf,.pdf,.xlsx,.xls,.csv';
+    inp.onchange = async () => {
+        const files = [...(inp.files || [])];
+        if (!files.length) return;
+        const toast = (m, t) => (typeof claudeShowToast === 'function' ? claudeShowToast(m, t) : alert(m));
+        let done = 0, failed = 0;
+        for (const f of files) {
+            toast(`☁️ Uploading ${done + failed + 1}/${files.length}: ${f.name}…`, 'info');
+            try { await binderCloudUpload(f, 'MonthlyDocs_' + yr + '_' + mn, 'Monthly'); done++; }
+            catch (e) { failed++; console.warn('Month upload failed:', e); }
+        }
+        toast(failed ? `⚠️ Stored ${done} of ${files.length} in ${label}; ${failed} failed. Try again.`
+                     : `✅ Stored ${done} file${done !== 1 ? 's' : ''} in ${label} (Documents).`, failed ? 'warn' : 'success');
+    };
+    inp.click();
 }
 
 function csOpenAgent(agent) {
@@ -11294,10 +11319,36 @@ Before the JSON, give a brief 2-3 sentence summary of what you found (document t
 // 4096-token response, truncating the extraction JSON mid-output so no
 // "extracted" card ever appears. Callers with even larger outputs (the admin
 // commission processor) pass a higher limit explicitly.
+// Anthropic SSE stream (as text) → the same { text, stopReason } shape the
+// buffered path returns. Mirrors aiParseSSE in ams.js.
+function _claudeParseSSE(raw) {
+    let text = '', stopReason = null, errType = null, errMsg = null;
+    raw.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line.startsWith('data:')) return;
+        const body = line.slice(5).trim();
+        if (!body || body === '[DONE]') return;
+        let evt;
+        try { evt = JSON.parse(body); } catch (e) { return; }
+        if (evt.type === 'content_block_delta' && evt.delta && evt.delta.type === 'text_delta') text += evt.delta.text || '';
+        else if (evt.type === 'message_delta' && evt.delta && evt.delta.stop_reason) stopReason = evt.delta.stop_reason;
+        else if (evt.type === 'error' && evt.error) { errType = evt.error.type || ''; errMsg = evt.error.message || JSON.stringify(evt.error); }
+    });
+    if (errMsg) {
+        if (errType === 'authentication_error') throw new Error('Claude API: invalid API key. Set the ANTHROPIC_API_KEY secret in your Supabase Edge Functions.');
+        throw new Error(`Claude API ${errType}: ${errMsg}`);
+    }
+    if (!text) throw new Error('Empty response from Claude (the stream produced no text).');
+    return { text, stopReason, raw: null };
+}
+
 async function claudeCallAPI(systemPrompt, messages, maxTokens = 8192) {
     const payload = {
         model: CLAUDE_MODEL,
         max_tokens: maxTokens,
+        // Streamed so bytes keep flowing: a buffered call on long PDFs hit
+        // Supabase's 150-second idle timeout (IDLE_TIMEOUT).
+        stream: true,
         system: systemPrompt,
         messages: messages.map(m => ({
             role: m.role,
@@ -11317,6 +11368,7 @@ async function claudeCallAPI(systemPrompt, messages, maxTokens = 8192) {
 
     // Read as text first so we can see exactly what came back
     const raw = await res.text();
+    if (raw.startsWith('event:') || raw.startsWith('data:')) return _claudeParseSSE(raw);
     let data;
     try { data = JSON.parse(raw); }
     catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`); }
