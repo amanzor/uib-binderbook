@@ -8197,6 +8197,37 @@ function handleCSFileSelect(event) {
     reader.readAsArrayBuffer(file);
 }
 
+// ── Drag-and-drop onto the upload box ───────────────────────
+// An Excel statement goes through the normal sheet picker; carrier PDFs
+// are handed to the AI processor on the Documents page.
+function _csDropZoneOn(on) {
+    const z = document.getElementById('csDropZone');
+    if (!z) return;
+    z.style.borderColor = on ? '#1d4ed8' : 'var(--gray-200)';
+    z.style.background = on ? '#eff6ff' : 'var(--gray-50)';
+}
+function csDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; _csDropZoneOn(true); }
+function csDragLeave(e) { e.preventDefault(); _csDropZoneOn(false); }
+function csDrop(e) {
+    e.preventDefault();
+    _csDropZoneOn(false);
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if (!files.length) return;
+    const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+    const sheet = files.find(f => /\.(xlsx|xls)$/i.test(f.name));
+    const pdfs = files.filter(isPdf);
+    if (sheet) { handleCSFileSelect({ target: { files: [sheet] } }); return; }
+    if (pdfs.length) {
+        closeCommissionUploadModal();
+        showMonthlyDocuments();
+        claudeAdminHandlePdfUpload({ target: { files: pdfs } });
+        const box = document.getElementById('claudeAdminSection');
+        if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+    }
+    document.getElementById('csFileStatus').innerHTML = '❌ Drop an Excel file (.xlsx) or carrier PDF statements.';
+}
+
 function csNormalizeSheetName(name) {
     const MONTHS = {
         jan:'January', feb:'February', mar:'March', marz:'March',
@@ -9154,7 +9185,8 @@ async function clearAllCommissionStatements() {
     if (!keys.length) { alert('There are no commission statements to clear.'); return; }
     const months = [...new Set(keys.map(csMonthOf))];
     if (!confirm(`Clear ALL ${keys.length} commission statements (${months.length} months) from this page?\n\nA copy is downloaded to this computer first. The PDFs in Documents are not touched.`)) return;
-    if (prompt('Type CLEAR to confirm.') !== 'CLEAR') return;
+    const typed = prompt('Type CLEAR to confirm.');
+    if (String(typed || '').trim().toUpperCase() !== 'CLEAR') { alert('Nothing was cleared (CLEAR was not typed).'); return; }
     try {
         const blob = new Blob([JSON.stringify(commissionStatements, null, 1)], { type: 'application/json' });
         const a = document.createElement('a');
