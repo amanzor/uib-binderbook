@@ -8612,6 +8612,7 @@ function csRenderAgentView() {
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
             <button class="btn-secondary btn-sm" onclick="csOpenAgent(null)">← All agents</button>
             <strong style="font-size:16px;color:var(--navy);">${_claudeEsc(name)}</strong>
+            ${csViewMonth && csViewAgent !== '__ALL__' && info.months[csViewMonth] ? `<button class="btn-danger btn-sm" onclick="csClearAgentMonth()" title="Remove only this agent's calculated commissions for this month (PDFs in Documents stay)">🗑 Clear ${_claudeEsc(csViewMonth)} for this agent</button>` : ''}
             <span style="margin-left:auto;display:flex;gap:6px;">${years.map(y => `<button class="btn-sm ${y === csViewYear ? 'btn-primary' : 'btn-secondary'}" onclick="csSetViewYear(${y})">${y}</button>`).join('')}</span>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">${monthBtns}</div>`;
@@ -8636,6 +8637,51 @@ function csRenderAgentView() {
         const monthEl = document.getElementById('csAgentPanelMonth');
         if (monthEl) monthEl.textContent = '— ' + _csAgentLabel(csViewAgent) + ' · ' + csViewMonth;
     }
+}
+
+// Remove one agent's calculated commissions for one month, across every
+// carrier statement of that month. Uploaded PDFs are not touched.
+async function csClearAgentMonth() {
+    if (!isAgentAdmin()) { alert('Only administrators can clear commissions.'); return; }
+    const agent = csViewAgent, month = csViewMonth;
+    if (!agent || agent === '__ALL__' || !month) return;
+    const keyOf = e => e.agentMatch || '__UNASSIGNED__';
+    const keys = csKeysForMonth(month);
+    const n = keys.reduce((t, k) => t + ((commissionStatements[k].entries || []).filter(e => keyOf(e) === agent).length), 0);
+    if (!n) { alert('Nothing to clear.'); return; }
+    if (!confirm(`Clear ${n} commission transaction${n !== 1 ? 's' : ''} for ${_csAgentLabel(agent)} in ${month}?\n\nOnly the calculated numbers are removed. The PDFs in Documents stay.`)) return;
+    keys.forEach(k => {
+        const st = commissionStatements[k];
+        st.entries = (st.entries || []).filter(e => keyOf(e) !== agent);
+        if (!st.entries.length) { delete commissionStatements[k]; return; }
+        const ct = {};
+        st.entries.forEach(e => { if (e.carrier) ct[e.carrier] = parseFloat(((ct[e.carrier] || 0) + (e.commission || 0)).toFixed(2)); });
+        st.carrierTotals = ct;
+        st.grossTotal = parseFloat(st.entries.reduce((t, e) => t + (e.commission || 0), 0).toFixed(2));
+        st.entryCount = st.entries.length;
+        if (st.agentTotals) delete st.agentTotals[agent];
+    });
+    localStorage.setItem('commissionStatements', JSON.stringify(commissionStatements));
+    const res = await _csSaveStatementsCloud();
+    if (window.UIBAudit) UIBAudit.log('commission_agent_month_cleared', agent, { month, transactions: n });
+    csViewMonth = null;
+    loadCommissionStatementsList();
+    alert(res.ok ? `Cleared ${n} transaction${n !== 1 ? 's' : ''} for ${_csAgentLabel(agent)} in ${month}. Every device will see it after its next sync.`
+                 : `Cleared on this device, but the cloud refused the change (${res.why}). Other devices still show the old numbers, and this device will get them back on its next sync. Send Claude this message.`);
+}
+
+// Saves statements to Supabase and says why when it fails.
+async function _csSaveStatementsCloud() {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+            method: 'POST',
+            headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+            body: JSON.stringify([{ key: 'commissionStatements', value: commissionStatements, updated_at: new Date().toISOString() }])
+        });
+        if (res.ok) return { ok: true };
+        let t = ''; try { t = (await res.text()).slice(0, 120); } catch (e) {}
+        return { ok: false, why: 'HTTP ' + res.status + (t ? ': ' + t : '') };
+    } catch (e) { return { ok: false, why: String(e && e.message || e) }; }
 }
 
 function csOpenAgent(agent) {
@@ -9197,12 +9243,12 @@ async function clearAllCommissionStatements() {
     } catch (e) { if (!confirm('Could not download the backup copy. Clear anyway?')) return; }
     commissionStatements = {};
     localStorage.setItem('commissionStatements', '{}');
-    const ok = await claudeAdminSaveStatementsToSupabase();
+    const saved = await _csSaveStatementsCloud(), ok = saved.ok;
     if (window.UIBAudit) UIBAudit.log('commission_statements_cleared', 'all', { statements: keys.length, months });
     csCurrentMonthKey = null; csViewAgent = null; csViewMonth = null;
     loadCommissionStatementsList();
     alert(ok ? 'All commission statements were cleared. Upload them again with "Upload Statement" or the AI processor.'
-             : 'Cleared on this device, but the cloud could not be reached. Stay on this page and try again when you are online, or other devices will still show the old statements.');
+             : 'Cleared on this device, but the cloud refused the change (' + saved.why + '). Other devices still show the old statements. Send Claude this message.');
 }
 
 function deleteCSStatement(monthKey) {
