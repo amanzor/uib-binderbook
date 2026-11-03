@@ -8551,6 +8551,10 @@ function _csAgentsAcrossMonths() {
         all.total += stmt.grossTotal || 0; all.count += stmt.entries.length;
         all.months[m] = { total: stmt.grossTotal || 0, count: stmt.entries.length };
     });
+    // Every agent on the roster gets a card, even with no commissions yet.
+    (typeof getAllAgents === 'function' ? getAllAgents() : []).forEach(name => {
+        if (name && !agents[name]) agents[name] = { agent: name, total: 0, count: 0, months: {} };
+    });
     const list = Object.values(agents).sort((a, b) => {
         if (a.agent === '__UNASSIGNED__') return 1;
         if (b.agent === '__UNASSIGNED__') return -1;
@@ -8591,6 +8595,7 @@ function csRenderAgentView() {
 
     const labels = Object.keys(info.months);
     const years = [...new Set(labels.map(_csYearOf))].sort((a, b) => b - a);
+    if (!years.length) years.push(new Date().getFullYear());
     if (!csViewYear || !years.includes(csViewYear)) csViewYear = years[0];
     const name = csViewAgent === '__ALL__' ? '🏢 Agency overview' : _csAgentLabel(csViewAgent);
 
