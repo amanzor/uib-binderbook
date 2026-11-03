@@ -2826,7 +2826,7 @@
                     <div style="display:flex;gap:8px;align-items:center;">
                         <select id="csMonthSelect" onchange="csSelectMonth(this.value)"
                             style="padding:7px 14px;border:1px solid var(--gray-200);border-radius:8px;font-size:13.5px;font-weight:700;color:var(--gray-700);cursor:pointer;"></select>
-                        <button class="btn-primary btn-sm" style="background:linear-gradient(135deg,#b45309,#f59e0b);" onclick="showMonthlyDocuments()" title="Monthly document storage + carrier commission dashboard"><i data-lucide="folder-open"></i> Documents</button>
+                        <button class="btn-primary btn-sm" style="background:linear-gradient(135deg,#b45309,#f59e0b);" onclick="csUploadTargetMonth = null; showMonthlyDocuments()" title="Monthly document storage + carrier commission dashboard"><i data-lucide="folder-open"></i> Documents</button>
                         <button class="btn-primary btn-sm" onclick="openCommissionUploadModal()"><i data-lucide="upload"></i> Upload Statement</button>
                         <button class="btn-danger btn-sm" onclick="clearAllCommissionStatements()" title="Remove every commission statement from this page (the uploaded PDFs in Documents stay)"><i data-lucide="trash-2"></i> Clear all statements</button>
                     </div>
@@ -4059,6 +4059,7 @@
                 <h3 style="margin:0;"><i data-lucide="upload"></i> Upload Commission Statement</h3>
                 <button class="btn-danger btn-sm" onclick="closeCommissionUploadModal()">✕ Close</button>
             </div>
+            <div id="csUploadTarget" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:12px;"></div>
 
             <!-- Step 1: File Selection -->
             <div id="csStep1">
@@ -4070,6 +4071,10 @@
                         <i data-lucide="file-spreadsheet"></i> Browse File
                     </label>
                     <input type="file" id="csFileInput" accept=".xlsx,.xls" onchange="handleCSFileSelect(event)" style="display:none;">
+                    <label for="csPdfInput" class="btn-secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px;padding:10px 22px;margin-left:8px;">
+                        <i data-lucide="file-text"></i> Choose PDFs
+                    </label>
+                    <input type="file" id="csPdfInput" accept="application/pdf" multiple onchange="csPickPdfs(this)" style="display:none;">
                 </div>
                 <p id="csFileStatus" style="font-size:13px;color:var(--gray-500);text-align:center;min-height:18px;"></p>
             </div>
@@ -4108,7 +4113,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261103f"></script>
+    <script src="app.js?v=20261103g"></script>
     <script src="uib-binder-sync.js?v=20261030c"></script>
     <script src="monday-import.js?v=20261102a"></script>
     <script src="supabase.js?v=20261027a"></script>
