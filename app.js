@@ -8120,6 +8120,7 @@ function saveCommissionStatements() {
 
 // ── Navigation ────────────────────────────────────────────────
 function showCommissionStatements() {
+    csUploadTargetMonth = null;   // back on the page: a month tile sets it again
     // Re-read from localStorage every time the section opens — the in-memory
     // copy is only set once at page load, before the background cloud sync
     // finishes, so without this a fresh statement synced from Supabase would
@@ -8132,8 +8133,19 @@ function showCommissionStatements() {
 }
 
 // ── Upload Modal ──────────────────────────────────────────────
-function openCommissionUploadModal() {
+// Month a statement is being uploaded to, when opened from a month tile
+// ("July 2026"); null when opened from the header button (the sheet name or
+// the PDF decides the month, as before).
+let csUploadTargetMonth = null;
+
+function openCommissionUploadModal(targetMonth) {
+    csUploadTargetMonth = typeof targetMonth === 'string' ? targetMonth : null;
     csResetUpload();
+    const tgt = document.getElementById('csUploadTarget');
+    if (tgt) {
+        tgt.style.display = csUploadTargetMonth ? 'block' : 'none';
+        tgt.innerHTML = csUploadTargetMonth ? `📅 Uploading to <strong>${_claudeEsc(csUploadTargetMonth)}</strong>. Whatever you upload here is filed under this month.` : '';
+    }
     const m = document.getElementById('commissionUploadModal');
     m.classList.add('active');
     if (window.UIBMotion) UIBMotion.animateModalOpen(m);
@@ -8217,15 +8229,24 @@ function csDrop(e) {
     const sheet = files.find(f => /\.(xlsx|xls)$/i.test(f.name));
     const pdfs = files.filter(isPdf);
     if (sheet) { handleCSFileSelect({ target: { files: [sheet] } }); return; }
-    if (pdfs.length) {
-        closeCommissionUploadModal();
-        showMonthlyDocuments();
-        claudeAdminHandlePdfUpload({ target: { files: pdfs } });
-        const box = document.getElementById('claudeAdminSection');
-        if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        return;
-    }
+    if (pdfs.length) { csSendPdfsToAi(pdfs); return; }
     document.getElementById('csFileStatus').innerHTML = '❌ Drop an Excel file (.xlsx) or carrier PDF statements.';
+}
+
+function csPickPdfs(input) {
+    const pdfs = Array.from(input.files || []);
+    input.value = '';
+    if (pdfs.length) csSendPdfsToAi(pdfs);
+}
+
+function csSendPdfsToAi(pdfs) {
+    closeCommissionUploadModal();
+    showMonthlyDocuments();
+    claudeAdminHandlePdfUpload({ target: { files: pdfs } });
+    const box = document.getElementById('claudeAdminSection');
+    if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (csUploadTargetMonth && typeof claudeShowToast === 'function')
+        claudeShowToast('📅 These PDFs will be filed under ' + csUploadTargetMonth + ' — press Process.', 'info');
 }
 
 function csNormalizeSheetName(name) {
@@ -8309,7 +8330,10 @@ function importSelectedSheet() {
     if (!csParsedPreview) { alert('Please select a month sheet first.'); return; }
 
     const { sheetName, entries, carrierTotals, grossTotal } = csParsedPreview;
-    const monthLabel = csNormalizeSheetName(sheetName);
+    const monthLabel = csUploadTargetMonth || csNormalizeSheetName(sheetName);
+    // From a month tile, add alongside that month's other statements
+    // instead of replacing them.
+    const stmtKey = csUploadTargetMonth ? `${monthLabel} — ${sheetName} (Excel)` : monthLabel;
 
     // Cross-reference with binder book to find agent matches
     const binder = JSON.parse(localStorage.getItem('binderData')) || [];
@@ -8323,7 +8347,7 @@ function importSelectedSheet() {
         if (hit) entry.agentMatch = hit.agent || null;
     });
 
-    commissionStatements[monthLabel] = {
+    commissionStatements[stmtKey] = {
         month: monthLabel,
         sheetName,
         uploadedAt: new Date().toISOString(),
@@ -8336,6 +8360,8 @@ function importSelectedSheet() {
     saveCommissionStatements();
     closeCommissionUploadModal();
     csCurrentMonthKey = monthLabel;
+    if (csUploadTargetMonth && csViewAgent) csViewMonth = monthLabel;
+    csUploadTargetMonth = null;
     loadCommissionStatementsList();
 }
 
@@ -8603,14 +8629,18 @@ function csRenderAgentView() {
         const label = mn + ' ' + csViewYear;
         const d = info.months[label];
         const on = label === csViewMonth;
-        if (!d) return `<div style="padding:14px 10px;border-radius:12px;border:2px dashed var(--gray-200);text-align:center;color:var(--gray-300);font-weight:700;font-size:13.5px;">📅 ${mn}<span style="display:block;margin-top:4px;font-size:11px;font-weight:600;">no statement</span></div>`;
-        return `<button onclick="csOpenAgentMonth('${label}')"
+        const up = `<button onclick="event.stopPropagation();openCommissionUploadModal('${label}')" title="Upload a statement for ${label}"
+            style="margin-top:6px;padding:3px 10px;border-radius:999px;border:1px solid ${on ? 'rgba(255,255,255,.5)' : '#bfdbfe'};background:${on ? 'rgba(255,255,255,.15)' : '#eff6ff'};color:${on ? '#fff' : '#1d4ed8'};font-size:11px;font-weight:700;cursor:pointer;">⬆ Upload</button>`;
+        if (!d) return `<div onclick="openCommissionUploadModal('${label}')" title="Upload a statement for ${label}"
+            style="padding:14px 10px;border-radius:12px;border:2px dashed var(--gray-200);text-align:center;color:var(--gray-400);font-weight:700;font-size:13.5px;cursor:pointer;background:#fff;">
+            📅 ${mn}<span style="display:block;margin-top:4px;font-size:11px;font-weight:600;">no statement</span>${up}</div>`;
+        return `<div onclick="csOpenAgentMonth('${label}')"
             style="padding:14px 10px;border-radius:12px;cursor:pointer;text-align:center;border:2px solid ${on ? '#1d4ed8' : 'var(--gray-200)'};
                    background:${on ? 'linear-gradient(135deg,#0d1f3c,#1d4ed8)' : '#fff'};color:${on ? '#fff' : 'var(--gray-700)'};font-weight:700;font-size:13.5px;">
             📅 ${mn}
             <span style="display:block;margin-top:4px;font-size:12px;font-weight:700;color:${on ? '#a7f3d0' : (d.total >= 0 ? '#059669' : '#dc2626')};">${_csMoney(d.total)}</span>
-            <span style="display:block;font-size:10.5px;font-weight:600;color:${on ? 'rgba(255,255,255,.75)' : 'var(--gray-400)'};">${d.count} transactions</span>
-        </button>`;
+            <span style="display:block;font-size:10.5px;font-weight:600;color:${on ? 'rgba(255,255,255,.75)' : 'var(--gray-400)'};">${d.count} transactions</span>${up}
+        </div>`;
     }).join('');
 
     box.innerHTML = `
@@ -12364,7 +12394,7 @@ async function claudeAdminApplyStatement(stmt) {
         return;
     }
 
-    const monthLabel = stmt.statementMonth || stmt.statementDate || `Statement ${new Date().toISOString().slice(0, 10)}`;
+    const monthLabel = csUploadTargetMonth || stmt.statementMonth || stmt.statementDate || `Statement ${new Date().toISOString().slice(0, 10)}`;
     const carrier = stmt.carrier || 'Unknown';
     const key = `${monthLabel} — ${carrier} (AI)`;
 
