@@ -8120,7 +8120,7 @@ function saveCommissionStatements() {
 
 // ── Navigation ────────────────────────────────────────────────
 function showCommissionStatements() {
-    csUploadTargetMonth = null;   // back on the page: a month tile sets it again
+    csUploadTargetMonth = null; csUploadTargetAgent = null;   // back on the page: a month tile sets it again
     // Re-read from localStorage every time the section opens — the in-memory
     // copy is only set once at page load, before the background cloud sync
     // finishes, so without this a fresh statement synced from Supabase would
@@ -8137,9 +8137,12 @@ function showCommissionStatements() {
 // ("July 2026"); null when opened from the header button (the sheet name or
 // the PDF decides the month, as before).
 let csUploadTargetMonth = null;
+let csUploadTargetAgent = null;   // agent whose month folder keeps the original files
+let csUploadSourceFile = null;    // the Excel file being imported, to keep a copy
 
 function openCommissionUploadModal(targetMonth) {
     csUploadTargetMonth = typeof targetMonth === 'string' ? targetMonth : null;
+    csUploadTargetAgent = csUploadTargetMonth && csViewAgent && csViewAgent !== '__ALL__' ? csViewAgent : null;
     csResetUpload();
     const tgt = document.getElementById('csUploadTarget');
     if (tgt) {
@@ -8171,6 +8174,7 @@ function csResetUpload() {
 function handleCSFileSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
+    csUploadSourceFile = file;
 
     const statusEl = document.getElementById('csFileStatus');
     statusEl.innerHTML = '⏳ Parsing file…';
@@ -8361,7 +8365,14 @@ function importSelectedSheet() {
     closeCommissionUploadModal();
     csCurrentMonthKey = monthLabel;
     if (csUploadTargetMonth && csViewAgent) csViewMonth = monthLabel;
-    csUploadTargetMonth = null;
+    // Keep the original spreadsheet in that agent's month folder.
+    if (csUploadTargetAgent && csUploadSourceFile) {
+        const [mn, yr] = monthLabel.split(' ');
+        binderCloudUpload(csUploadSourceFile, 'AgentStmt_' + csUploadTargetAgent + '_' + yr + '_' + mn, 'Commission Statement')
+            .then(() => { csLoadAgentFileCounts(); csLoadAgentFileList(); })
+            .catch(e => console.warn('Could not keep the spreadsheet copy:', e));
+    }
+    csUploadTargetMonth = null; csUploadTargetAgent = null; csUploadSourceFile = null;
     loadCommissionStatementsList();
 }
 
@@ -8629,19 +8640,17 @@ function csRenderAgentView() {
         const label = mn + ' ' + csViewYear;
         const d = info.months[label];
         const on = label === csViewMonth;
-        const chip = (txt, fn, tip, c) => `<button onclick="event.stopPropagation();${fn}('${label}')" title="${tip}"
-            style="padding:3px 9px;border-radius:999px;border:1px solid ${on ? 'rgba(255,255,255,.5)' : c[0]};background:${on ? 'rgba(255,255,255,.15)' : c[1]};color:${on ? '#fff' : c[2]};font-size:11px;font-weight:700;cursor:pointer;">${txt}</button>`;
-        const up = `<div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin-top:6px;">` +
-            chip('⬆ Upload', 'csTileUpload', 'Store PDFs or spreadsheets in ' + label + ' (no AI)', ['#bfdbfe', '#eff6ff', '#1d4ed8']) +
-            chip('✨ AI', 'openCommissionUploadModal', 'Calculate commissions from a statement for ' + label, ['#fed7aa', '#fff7ed', '#c2410c']) + `</div>`;
-        if (!d) return `<div style="padding:14px 10px;border-radius:12px;border:2px dashed var(--gray-200);text-align:center;color:var(--gray-400);font-weight:700;font-size:13.5px;background:#fff;">
-            📅 ${mn}<span style="display:block;margin-top:4px;font-size:11px;font-weight:600;">no statement</span>${up}</div>`;
-        return `<div onclick="csOpenAgentMonth('${label}')"
-            style="padding:14px 10px;border-radius:12px;cursor:pointer;text-align:center;border:2px solid ${on ? '#1d4ed8' : 'var(--gray-200)'};
-                   background:${on ? 'linear-gradient(135deg,#0d1f3c,#1d4ed8)' : '#fff'};color:${on ? '#fff' : 'var(--gray-700)'};font-weight:700;font-size:13.5px;">
+        const ai = `<div style="margin-top:6px;"><button onclick="event.stopPropagation();openCommissionUploadModal('${label}')" title="Calculate commissions from a statement for ${label}"
+            style="padding:3px 9px;border-radius:999px;border:1px solid ${on ? 'rgba(255,255,255,.5)' : '#fed7aa'};background:${on ? 'rgba(255,255,255,.15)' : '#fff7ed'};color:${on ? '#fff' : '#c2410c'};font-size:11px;font-weight:700;cursor:pointer;">✨ AI</button></div>`;
+        const files = `<span id="csFileCount_${mn}" style="display:block;font-size:10.5px;font-weight:600;color:${on ? 'rgba(255,255,255,.85)' : '#1d4ed8'};min-height:13px;"></span>`;
+        return `<div onclick="csOpenAgentMonth('${label}')" title="Open ${label}: statement files and commissions"
+            style="padding:14px 10px;border-radius:12px;cursor:pointer;text-align:center;border:2px ${d || on ? 'solid' : 'dashed'} ${on ? '#1d4ed8' : 'var(--gray-200)'};
+                   background:${on ? 'linear-gradient(135deg,#0d1f3c,#1d4ed8)' : '#fff'};color:${on ? '#fff' : (d ? 'var(--gray-700)' : 'var(--gray-400)')};font-weight:700;font-size:13.5px;">
             📅 ${mn}
-            <span style="display:block;margin-top:4px;font-size:12px;font-weight:700;color:${on ? '#a7f3d0' : (d.total >= 0 ? '#059669' : '#dc2626')};">${_csMoney(d.total)}</span>
-            <span style="display:block;font-size:10.5px;font-weight:600;color:${on ? 'rgba(255,255,255,.75)' : 'var(--gray-400)'};">${d.count} transactions</span>${up}
+            ${d ? `<span style="display:block;margin-top:4px;font-size:12px;font-weight:700;color:${on ? '#a7f3d0' : (d.total >= 0 ? '#059669' : '#dc2626')};">${_csMoney(d.total)}</span>
+            <span style="display:block;font-size:10.5px;font-weight:600;color:${on ? 'rgba(255,255,255,.75)' : 'var(--gray-400)'};">${d.count} transactions</span>`
+               : `<span style="display:block;margin-top:4px;font-size:11px;font-weight:600;">no commissions</span>`}
+            ${files}${ai}
         </div>`;
     }).join('');
 
@@ -8649,10 +8658,27 @@ function csRenderAgentView() {
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
             <button class="btn-secondary btn-sm" onclick="csOpenAgent(null)">← All agents</button>
             <strong style="font-size:16px;color:var(--navy);">${_claudeEsc(name)}</strong>
-            ${csViewMonth && csViewAgent !== '__ALL__' && info.months[csViewMonth] ? `<button class="btn-danger btn-sm" onclick="csClearAgentMonth()" title="Remove only this agent's calculated commissions for this month (PDFs in Documents stay)">🗑 Clear ${_claudeEsc(csViewMonth)} for this agent</button>` : ''}
+            ${csViewMonth && csViewAgent !== '__ALL__' && info.months[csViewMonth] ? `<button class="btn-danger btn-sm" onclick="csClearAgentMonth()" title="Remove only this agent's calculated commissions for this month (statement files stay)">🗑 Clear ${_claudeEsc(csViewMonth)} commissions</button>` : ''}
             <span style="margin-left:auto;display:flex;gap:6px;">${years.map(y => `<button class="btn-sm ${y === csViewYear ? 'btn-primary' : 'btn-secondary'}" onclick="csSetViewYear(${y})">${y}</button>`).join('')}</span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">${monthBtns}</div>`;
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">${monthBtns}</div>
+        ${csViewMonth ? `
+        <div id="csAgentFilesPanel" style="margin-top:16px;border:1px solid var(--gray-200);border-radius:12px;padding:14px 16px;background:#fff;">
+            <h4 style="margin:0 0 10px;font-size:14px;color:var(--navy);">📁 ${_claudeEsc(name)} · ${_claudeEsc(csViewMonth)} — statement files</h4>
+            <div ondragover="event.preventDefault();this.style.borderColor='#1d4ed8';this.style.background='#eff6ff';"
+                 ondragleave="this.style.borderColor='var(--gray-200)';this.style.background='#fafbfc';"
+                 ondrop="event.preventDefault();this.style.borderColor='var(--gray-200)';this.style.background='#fafbfc';csAgentFilesUpload(event.dataTransfer.files)"
+                 style="border:2px dashed var(--gray-200);border-radius:12px;padding:18px;text-align:center;margin-bottom:12px;background:#fafbfc;">
+                <div style="font-size:28px;">📎</div>
+                <p style="font-size:13px;color:var(--gray-500);margin:6px 0 10px;">Drop commission statements here (PDF or spreadsheet). They are kept only for ${_claudeEsc(name)} in ${_claudeEsc(csViewMonth)}.</p>
+                <input type="file" id="csAgentFileInput" multiple accept="application/pdf,.pdf,.xlsx,.xls,.csv" style="display:none;" onchange="csAgentFilesUpload(this.files);this.value='';">
+                <button class="btn-primary btn-sm" onclick="document.getElementById('csAgentFileInput').click()">⬆ Choose Files</button>
+                <span id="csAgentFileStatus" style="display:block;margin-top:8px;font-size:12.5px;color:var(--gray-500);"></span>
+            </div>
+            <div id="csAgentFileList"></div>
+        </div>` : ''}`;
+    csLoadAgentFileCounts();
+    if (csViewMonth) csLoadAgentFileList();
 
     if (!csViewMonth || !info.months[csViewMonth]) { detail.style.display = 'none'; return; }
     csCurrentMonthKey = csViewMonth;
@@ -8721,27 +8747,76 @@ async function _csSaveStatementsCloud() {
     } catch (e) { return { ok: false, why: String(e && e.message || e) }; }
 }
 
-// Plain upload from a month tile: the files are stored in that month of
-// Documents. Nothing is read or calculated (that is the ✨ AI button).
-function csTileUpload(label) {
-    const [mn, yr] = String(label).split(' ');
-    const inp = document.createElement('input');
-    inp.type = 'file'; inp.multiple = true;
-    inp.accept = 'application/pdf,.pdf,.xlsx,.xls,.csv';
-    inp.onchange = async () => {
-        const files = [...(inp.files || [])];
-        if (!files.length) return;
-        const toast = (m, t) => (typeof claudeShowToast === 'function' ? claudeShowToast(m, t) : alert(m));
-        let done = 0, failed = 0;
-        for (const f of files) {
-            toast(`☁️ Uploading ${done + failed + 1}/${files.length}: ${f.name}…`, 'info');
-            try { await binderCloudUpload(f, 'MonthlyDocs_' + yr + '_' + mn, 'Monthly'); done++; }
-            catch (e) { failed++; console.warn('Month upload failed:', e); }
-        }
-        toast(failed ? `⚠️ Stored ${done} of ${files.length} in ${label}; ${failed} failed. Try again.`
-                     : `✅ Stored ${done} file${done !== 1 ? 's' : ''} in ${label} (Documents).`, failed ? 'warn' : 'success');
-    };
-    inp.click();
+// ── Statement files, per agent and month ─────────────────────
+// Stored under their own key (AgentStmt_<agent>_<year>_<Month>), apart from
+// the Documents page: what is uploaded on an agent's month stays there.
+function _csAgentFileKey(label) {
+    const [mn, yr] = String(label || csViewMonth).split(' ');
+    return 'AgentStmt_' + (csViewAgent || '') + '_' + yr + '_' + mn;
+}
+
+async function csAgentFilesUpload(fileList) {
+    const files = [...(fileList || [])];
+    if (!files.length || !csViewMonth) return;
+    const status = document.getElementById('csAgentFileStatus');
+    const key = _csAgentFileKey(), label = csViewMonth;
+    let done = 0, failed = 0;
+    for (const f of files) {
+        if (status) status.textContent = `☁️ Uploading ${done + failed + 1}/${files.length}: ${f.name}…`;
+        try { await binderCloudUpload(f, key, 'Commission Statement'); done++; }
+        catch (e) { failed++; console.warn('Agent statement upload failed:', e); }
+    }
+    if (status) status.textContent = failed
+        ? `⚠️ Uploaded ${done} of ${files.length}; ${failed} failed. Check your connection and try again.`
+        : `✅ Uploaded ${done} file${done !== 1 ? 's' : ''} to ${label}.`;
+    if (csViewMonth === label) csLoadAgentFileList();
+    csLoadAgentFileCounts();
+}
+
+async function csLoadAgentFileList() {
+    const box = document.getElementById('csAgentFileList');
+    if (!box) return;
+    const key = _csAgentFileKey();
+    box.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:10px;">Loading files…</div>';
+    const files = await binderCloudList(key);
+    if (_csAgentFileKey() !== key || !document.getElementById('csAgentFileList')) return;
+    if (!files.length) { box.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:10px;">No statement files for this month yet.</div>'; return; }
+    files.forEach(f => { _binderCloudFiles[f.id] = { path: f.storage_path, name: f.file_name }; });
+    box.innerHTML = files.map(f => `
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 8px;border-bottom:1px solid #e5e7eb;font-size:13px;">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.file_name)}">📄 ${escHtml(f.file_name)}</span>
+            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${f.size_bytes ? (f.size_bytes / 1024 / 1024).toFixed(2) + ' MB' : ''}</span>
+            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploaded_at).toLocaleDateString()}</span>
+            <button class="btn-secondary btn-sm" onclick="binderCloudPreview('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Preview in the browser">👁️</button>
+            <button class="btn-primary btn-sm" onclick="binderCloudDownload('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Download">⬇️</button>
+            <button class="btn-danger btn-sm" onclick="csAgentFileDelete('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Delete">🗑️</button>
+        </div>`).join('');
+}
+
+async function csAgentFileDelete(docId) {
+    const f = _binderCloudFiles[docId];
+    if (!f) return;
+    if (!confirm('Delete "' + f.name + '"? This cannot be undone.')) return;
+    await fetch(_binderStorageUrl(f.path), { method: 'DELETE', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } });
+    await fetch(`${SUPABASE_URL}/rest/v1/documents?id=eq.${encodeURIComponent(docId)}`, { method: 'DELETE', headers: _SB_HEADERS });
+    csLoadAgentFileList();
+    csLoadAgentFileCounts();
+}
+
+// File-count badges on the month tiles (cosmetic; silent when offline).
+async function csLoadAgentFileCounts() {
+    if (!csViewAgent || !csViewYear) return;
+    const prefix = 'AgentStmt_' + csViewAgent + '_' + csViewYear + '_';
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?select=client_key&client_key=like.${encodeURIComponent(prefix)}*`, { headers: _SB_HEADERS });
+        if (!res.ok) return;
+        const counts = {};
+        (await res.json()).forEach(r => { const m = String(r.client_key || '').slice(prefix.length); counts[m] = (counts[m] || 0) + 1; });
+        CS_MONTH_NAMES.forEach(m => {
+            const el = document.getElementById('csFileCount_' + m);
+            if (el) el.textContent = counts[m] ? '📄 ' + counts[m] + ' file' + (counts[m] > 1 ? 's' : '') : '';
+        });
+    } catch (e) {}
 }
 
 function csOpenAgent(agent) {
@@ -12514,7 +12589,9 @@ async function claudeAdminApplyStatement(stmt) {
     const cloudOk = await claudeAdminSaveStatementsToSupabase();
 
     const docNote = documents.length
-        ? `\n✓ ${documents.length} original PDF${documents.length > 1 ? 's' : ''} filed under ${(documents[0].monthKey || '').replace('MonthlyDocs_', '').split('_').reverse().join(' ')} in the Documents section.`
+        ? (/^AgentStmt_/.test(documents[0].monthKey || '')
+            ? `\n✓ ${documents.length} original PDF${documents.length > 1 ? 's' : ''} kept in ${csUploadTargetAgent}'s ${csUploadTargetMonth} statement files.`
+            : `\n✓ ${documents.length} original PDF${documents.length > 1 ? 's' : ''} filed under ${(documents[0].monthKey || '').replace('MonthlyDocs_', '').split('_').reverse().join(' ')} in the Documents section.`)
         : (_claudeAdminLastPdfs.length ? '\n⚠️ Could not upload the original PDF(s) to cloud storage.' : '');
 
     if (cloudOk) {
@@ -12548,7 +12625,13 @@ function _mdocKeyForMonthLabel(label) {
 // return their metadata for the statement record.
 async function claudeAdminUploadStatementDocs(monthLabel) {
     const docs = [];
-    const mdocKey = _mdocKeyForMonthLabel(monthLabel);
+    // From an agent's month tile the originals stay in that agent's month
+    // folder; otherwise they go to Documents as before.
+    let mdocKey = _mdocKeyForMonthLabel(monthLabel);
+    if (csUploadTargetMonth && csUploadTargetAgent) {
+        const [mn, yr] = csUploadTargetMonth.split(' ');
+        mdocKey = 'AgentStmt_' + csUploadTargetAgent + '_' + yr + '_' + mn;
+    }
     for (const pdf of _claudeAdminLastPdfs) {
         try {
             const safeName = String(pdf.name).replace(/[^\w.\- ()]/g, '_');
