@@ -9145,6 +9145,34 @@ function resetCSFilters() {
     filterCSEntries();
 }
 
+// Start over: removes every statement on the Commission Statements page.
+// The uploaded PDFs in Documents are kept, a copy is downloaded first, and
+// the daily Cloud Backups still hold the old statements for a week.
+async function clearAllCommissionStatements() {
+    if (!isAgentAdmin()) { alert('Only administrators can clear commission statements.'); return; }
+    const keys = Object.keys(commissionStatements || {});
+    if (!keys.length) { alert('There are no commission statements to clear.'); return; }
+    const months = [...new Set(keys.map(csMonthOf))];
+    if (!confirm(`Clear ALL ${keys.length} commission statements (${months.length} months) from this page?\n\nA copy is downloaded to this computer first. The PDFs in Documents are not touched.`)) return;
+    if (prompt('Type CLEAR to confirm.') !== 'CLEAR') return;
+    try {
+        const blob = new Blob([JSON.stringify(commissionStatements, null, 1)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'commission_statements_backup_' + new Date().toISOString().slice(0, 10) + '.json';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (e) { if (!confirm('Could not download the backup copy. Clear anyway?')) return; }
+    commissionStatements = {};
+    localStorage.setItem('commissionStatements', '{}');
+    const ok = await claudeAdminSaveStatementsToSupabase();
+    if (window.UIBAudit) UIBAudit.log('commission_statements_cleared', 'all', { statements: keys.length, months });
+    csCurrentMonthKey = null; csViewAgent = null; csViewMonth = null;
+    loadCommissionStatementsList();
+    alert(ok ? 'All commission statements were cleared. Upload them again with "Upload Statement" or the AI processor.'
+             : 'Cleared on this device, but the cloud could not be reached. Stay on this page and try again when you are online, or other devices will still show the old statements.');
+}
+
 function deleteCSStatement(monthKey) {
     if (!monthKey) return;
     // A month tab combines every carrier's statement for that month.
