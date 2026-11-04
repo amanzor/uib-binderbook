@@ -146,6 +146,7 @@
         var a = load();
 
         var head =
+            '<button onclick="agencyGoBack()" style="margin-bottom:10px;padding:6px 14px;border:1px solid var(--gray-200);border-radius:8px;background:#fff;color:var(--navy);font-size:13px;font-weight:700;cursor:pointer;">← Back</button>' +
             '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:6px;">' +
               '<div>' +
                 '<h2 style="color:var(--navy);font-size:20px;margin:0;">' +
@@ -1008,6 +1009,21 @@
     };
 
     // ── Agent profile actions ────────────────────────────────
+    // Back: return to the section the Agency Profile was opened from.
+    var _curSection = 'home', _prevSection = 'home';
+    window.addEventListener('load', function () {
+        var nav = window.amsSidebarNav;
+        if (typeof nav !== 'function') return;
+        window.amsSidebarNav = function (section) {
+            if (section !== _curSection) { _prevSection = _curSection; _curSection = section; }
+            return nav.apply(this, arguments);
+        };
+    });
+    window.agencyGoBack = function () {
+        var to = _prevSection && _prevSection !== 'agency' ? _prevSection : 'home';
+        if (typeof amsSidebarNav === 'function') amsSidebarNav(to);
+    };
+
     window.agencyOpenAgent = function (name) {
         _agentOpen = name;
         _agentTab  = 'details';
