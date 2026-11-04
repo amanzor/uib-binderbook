@@ -8752,7 +8752,8 @@ async function _csSaveStatementsCloud() {
 // ── Month dashboard (glass cards) ─────────────────────────────
 // Shown under an agent's month files: what the statements for that month
 // say, at a glance. Reads the same calculated entries as the table below.
-const CS_DASH_COLORS = ['#60a5fa', '#a78bfa', '#34d399', '#f472b6', '#fbbf24', '#22d3ee', '#fb7185', '#818cf8'];
+// Binder Book palette: blues from the header, with green/amber accents.
+const CS_DASH_COLORS = ['#60a5fa', '#38bdf8', '#34d399', '#fbbf24', '#93c5fd', '#2dd4bf', '#f59e0b', '#a5b4fc'];
 
 function csRenderAgentDash(month) {
     const box = document.getElementById('csAgentDash');
@@ -8807,10 +8808,10 @@ function csRenderAgentDash(month) {
     box.innerHTML = `
     <style>
         .cs-dash { margin-top:16px; padding:22px; border-radius:20px; position:relative; overflow:hidden;
-            background: radial-gradient(1200px 400px at 0% 0%, #6d28d9 0%, transparent 55%),
-                        radial-gradient(900px 400px at 100% 0%, #0ea5e9 0%, transparent 55%),
-                        radial-gradient(900px 500px at 50% 120%, #ec4899 0%, transparent 60%),
-                        linear-gradient(135deg, #0b1023, #111a3a 60%, #0b1023); color:#e5e7eb; }
+            background: radial-gradient(1000px 380px at 0% 0%, rgba(29,78,216,.55) 0%, transparent 60%),
+                        radial-gradient(900px 420px at 100% 100%, rgba(56,189,248,.28) 0%, transparent 60%),
+                        linear-gradient(135deg, #0d1f3c 0%, #12336e 60%, #1d4ed8 140%); color:#e5e7eb;
+            box-shadow: 0 10px 30px rgba(13,31,60,.25); }
         .cs-dash h4 { margin:0; font-size:15px; font-weight:800; color:#fff; letter-spacing:.2px; }
         .cs-glass { background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:16px;
             backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
