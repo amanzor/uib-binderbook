@@ -8680,7 +8680,7 @@ function csRenderAgentView() {
         <div id="csAgentDash"></div>` : ''}`;
     csLoadAgentFileCounts();
     if (csViewMonth) csLoadAgentFileList();
-    if (csViewMonth) csRenderAgentDash(info.months[csViewMonth] ? csViewMonth : null);
+    if (csViewMonth) csRenderAgentDash(csViewMonth);
 
     if (!csViewMonth || !info.months[csViewMonth]) { detail.style.display = 'none'; return; }
     csCurrentMonthKey = csViewMonth;
@@ -8762,7 +8762,16 @@ function csRenderAgentDash(month) {
     const stmt = csGetCombined(month);
     const all = (stmt && stmt.entries) || [];
     const ents = csViewAgent === '__ALL__' ? all : all.filter(e => (e.agentMatch || '__UNASSIGNED__') === csViewAgent);
-    if (!ents.length) { box.innerHTML = ''; return; }
+    if (!ents.length) {
+        // Nothing calculated yet: say so, and how to fill it.
+        box.innerHTML = `<div style="margin-top:16px;padding:22px;border-radius:20px;border:1px solid #e5e7eb;text-align:center;
+                background: radial-gradient(900px 360px at 0% 0%, rgba(29,78,216,.10) 0%, transparent 60%), radial-gradient(800px 380px at 100% 100%, rgba(56,189,248,.10) 0%, transparent 60%), #fff;">
+            <div style="font-size:15px;font-weight:800;color:#0d1f3c;">✨ ${_claudeEsc(csViewAgent === '__ALL__' ? 'Agency' : _csAgentLabel(csViewAgent))} · ${_claudeEsc(month)} dashboard</div>
+            <p style="font-size:13px;color:#64748b;margin:10px 0 14px;">No commissions have been calculated for this month yet. Uploaded files are stored, but the dashboard is built from calculated commissions.</p>
+            <button class="btn-primary btn-sm" onclick="openCommissionUploadModal('${month}')">✨ Calculate with AI</button>
+        </div>`;
+        return;
+    }
     const esc = _claudeEsc, money = n => (n < 0 ? '-' : '') + _csMoney(Math.abs(n));
     const amt = e => Number(e.commission) || 0;
     const total = ents.reduce((t, e) => t + amt(e), 0);
