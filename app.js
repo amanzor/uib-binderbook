@@ -8372,7 +8372,24 @@ After a brief 2-3 sentence summary, output ONE \`\`\`json block PER CARRIER (as 
   ],
   "agentTotals": { "${a}": { "transactionCount": number, "totalCommission": number } }
 }
-\`\`\``;
+\`\`\`
+
+5. If any PDF carries the statement SUMMARY (gross commissions, royalty, operating expenses such as rent / systems / MVRs, "Cash Payments Owed" detail, net amount), ALSO output exactly one extra \`\`\`json block with that summary — amounts exactly as printed, deductions as NEGATIVE numbers:
+
+\`\`\`json
+{
+  "type": "agentStatementSummary",
+  "statementMonth": "${m}",
+  "grossCommissions": number,
+  "royalty": number,
+  "expenses": [ { "label": "string (e.g. 220 License Rent, Systems, MVRs)", "amount": number } ],
+  "cashPaymentsOwed": [ { "client": "string", "policy": "string", "carrier": "string", "description": "string", "swept": "string (date)", "amount": number } ],
+  "netToAgent": number,
+  "disbursements": [ { "amount": number, "date": "YYYY-MM-DD", "method": "string (check / deposit / Zelle...)", "reference": "string" } ]
+}
+\`\`\`
+
+"disbursements" are payments the statement shows as already PAID OUT to ${a} (a disbursement, payout, draw or payment-to-agent line). Use [] when the statement shows none — do not invent one, and do not count expenses or cash sweeps as disbursements.`;
 }
 
 async function agentAiProcess() {
@@ -8391,6 +8408,17 @@ async function agentAiProcess() {
         const reply = await claudeCallAPI(agentAiBuildSystemPrompt(), [{ role: 'user', content }], 16000);
         const text = reply.text || '';
         const statements = claudeAdminParseAllStatements(text);
+        // The statement-summary block (expenses, cash owed, net, disbursements)
+        // has no transactions, so the statement parser above skips it.
+        _agentAi.summaryBlock = null;
+        const sre = /```json\s*([\s\S]*?)(?:```|$)/g;
+        let sm;
+        while ((sm = sre.exec(text)) !== null) {
+            try {
+                const obj = JSON.parse(sm[1].trim());
+                if (obj && obj.type === 'agentStatementSummary') { _agentAi.summaryBlock = obj; break; }
+            } catch (e) { /* not this block */ }
+        }
         // Belt and braces: every transaction is this agent's, whatever came back.
         statements.forEach(stmt => {
             (stmt.transactions || []).forEach(t => { t.matchedAgent = _agentAi.agent; t.matchConfidence = 'high'; });
@@ -8414,11 +8442,34 @@ function agentAiRenderResults(replyText, truncated) {
     const res = document.getElementById('agentAiResults');
     if (!res) return;
     const stmts = _agentAi.statements;
+    let summaryHtml = '';
+    const sb = _agentAi.summaryBlock;
+    if (sb) {
+        const money = n => (Number(n) < 0 ? '-$' : '$') + Math.abs(Number(n) || 0).toFixed(2);
+        const nDisb = (sb.disbursements || []).length;
+        summaryHtml = `<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                <div>
+                    <div style="font-weight:700;color:#15803d;font-size:14px;">📋 Statement summary — expenses & net</div>
+                    <div style="font-size:12px;color:#374151;margin-top:4px;">
+                        Gross ${money(sb.grossCommissions)} · Royalty ${money(sb.royalty)} ·
+                        ${(sb.expenses || []).map(e => `${_claudeEsc(e.label)} ${money(e.amount)}`).join(' · ')}
+                        ${(sb.cashPaymentsOwed || []).length ? ` · Cash owed (${(sb.cashPaymentsOwed || []).length} items)` : ''}
+                        · <strong>Net to ${_claudeEsc(_agentAi.agent)}: ${money(sb.netToAgent)}</strong></div>
+                    <div style="font-size:12px;color:${nDisb ? '#15803d' : '#6b7280'};margin-top:2px;">${nDisb
+                        ? '💸 ' + nDisb + ' disbursement' + (nDisb > 1 ? 's' : '') + ' shown on the statement — saving will record ' + (nDisb > 1 ? 'them' : 'it') + ' with date in the disbursement log.'
+                        : 'No disbursement shown on the statement — record one from the month dashboard when it is paid.'}</div>
+                </div>
+                <button id="agentAiSaveSummaryBtn" onclick="agentAiSaveSummary()"
+                    style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">💾 Save summary${nDisb ? ' + disbursements' : ''}</button>
+            </div>
+        </div>`;
+    }
     if (!stmts.length) {
-        res.innerHTML = `<div style="font-size:13px;color:var(--gray-600);">${claudeRenderMarkdown(replyText || 'No statements were recognized in those PDFs.')}</div>`;
+        res.innerHTML = summaryHtml + `<div style="font-size:13px;color:var(--gray-600);">${claudeRenderMarkdown(replyText || 'No statements were recognized in those PDFs.')}</div>`;
         return;
     }
-    let html = '';
+    let html = summaryHtml;
     stmts.forEach((stmt, idx) => {
         const n = (stmt.transactions || []).length;
         const gross = stmt.totalGrossCommission || (stmt.agentTotals[_agentAi.agent] || {}).totalCommission || 0;
@@ -8465,6 +8516,93 @@ async function agentAiApply(idx) {
         if (btn) { btn.disabled = false; btn.textContent = '💾 Retry save'; }
         alert('Save failed: ' + e.message);
     }
+}
+
+// ── Agent Ledger: statement summary (expenses) + disbursements ─
+// Per agent + month: the statement's own summary numbers (gross, royalty,
+// expenses, cash payments owed, net) and a log of disbursements paid to the
+// agent, each with date & time. Filled by the Agent Statement AI when the
+// PDFs show them, and by hand with the Record Disbursement button.
+(function ensureAgentLedgerSynced() {
+    if (typeof SYNC_KEYS !== 'undefined' && !SYNC_KEYS.includes('agentLedger')) SYNC_KEYS.push('agentLedger');
+})();
+function _alStore() { try { return JSON.parse(localStorage.getItem('agentLedger')) || {}; } catch (e) { return {}; } }
+function _alKey(agent, month) { return agent + '|' + month; }
+function alGet(agent, month) {
+    const r = _alStore()[_alKey(agent, month)];
+    return { summary: (r && r.summary) || null, disbursements: (r && r.disbursements) || [] };
+}
+function alSave(agent, month, rec) {
+    const s = _alStore();
+    s[_alKey(agent, month)] = rec;
+    localStorage.setItem('agentLedger', JSON.stringify(s));   // wrapped setItem mirrors to the cloud
+}
+
+function agentAiSaveSummary() {
+    const sm = _agentAi.summaryBlock;
+    if (!sm) return;
+    const agent = _agentAi.agent, month = _agentAi.month;
+    const rec = alGet(agent, month);
+    rec.summary = {
+        grossCommissions: Number(sm.grossCommissions) || 0,
+        royalty: Number(sm.royalty) || 0,
+        expenses: (sm.expenses || []).map(e => ({ label: String(e.label || ''), amount: Number(e.amount) || 0 })),
+        cashPaymentsOwed: (sm.cashPaymentsOwed || []).map(c => ({
+            client: String(c.client || ''), policy: String(c.policy || ''), carrier: String(c.carrier || ''),
+            description: String(c.description || ''), swept: String(c.swept || ''), amount: Number(c.amount) || 0
+        })),
+        netToAgent: Number(sm.netToAgent) || 0,
+        source: 'ai', updatedAt: new Date().toISOString()
+    };
+    // Disbursements the statement itself shows (October onward) — prefill the
+    // log, skipping ones already recorded with the same amount and date.
+    (sm.disbursements || []).forEach(d => {
+        const amount = Number(d.amount) || 0;
+        if (!amount) return;
+        const at = d.date ? d.date + 'T12:00:00' : new Date().toISOString();
+        const dup = rec.disbursements.some(x => Math.abs((Number(x.amount) || 0) - amount) < 0.005 && String(x.at).slice(0, 10) === String(at).slice(0, 10));
+        if (!dup) rec.disbursements.push({ amount, at, method: String(d.method || 'Per statement'), note: String(d.reference || ''), source: 'ai', recordedAt: new Date().toISOString() });
+    });
+    alSave(agent, month, rec);
+    const btn = document.getElementById('agentAiSaveSummaryBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '✓ Saved'; btn.style.background = '#6b7280'; }
+    if (typeof csViewMonth !== 'undefined' && csViewMonth === month) csRenderAgentDash(month);
+}
+
+// ── Record Disbursement (manual) ──────────────────────────────
+function openCsDisbModal() {
+    if (!csViewAgent || csViewAgent === '__ALL__' || !csViewMonth) return;
+    const t = document.getElementById('csDisbTitle');
+    if (t) t.textContent = _csAgentLabel(csViewAgent) + ' · ' + csViewMonth;
+    const dt = document.getElementById('csDisbWhen');
+    if (dt) { const n = new Date(); n.setMinutes(n.getMinutes() - n.getTimezoneOffset()); dt.value = n.toISOString().slice(0, 16); }
+    const a = document.getElementById('csDisbAmount'); if (a) a.value = '';
+    const nt = document.getElementById('csDisbNote'); if (nt) nt.value = '';
+    document.getElementById('csDisbModal').classList.add('active');
+}
+function closeCsDisbModal() { document.getElementById('csDisbModal').classList.remove('active'); }
+function csDisbSave() {
+    const amount = parseFloat(document.getElementById('csDisbAmount').value);
+    if (!amount || isNaN(amount)) { alert('Enter the disbursed amount.'); return; }
+    const when = document.getElementById('csDisbWhen').value;
+    const at = when ? new Date(when).toISOString() : new Date().toISOString();
+    const method = document.getElementById('csDisbMethod').value;
+    const note = (document.getElementById('csDisbNote').value || '').trim();
+    const rec = alGet(csViewAgent, csViewMonth);
+    rec.disbursements.push({ amount, at, method, note, source: 'manual', recordedAt: new Date().toISOString() });
+    alSave(csViewAgent, csViewMonth, rec);
+    if (window.UIBAudit) UIBAudit.log('agent_disbursement_recorded', csViewAgent, { month: csViewMonth, amount, method });
+    closeCsDisbModal();
+    csRenderAgentDash(csViewMonth);
+}
+function csDisbDelete(i) {
+    const rec = alGet(csViewAgent, csViewMonth);
+    const d = rec.disbursements[i];
+    if (!d) return;
+    if (!confirm(`Delete the ${_csMoney(Number(d.amount) || 0)} disbursement of ${new Date(d.at).toLocaleString()}?`)) return;
+    rec.disbursements.splice(i, 1);
+    alSave(csViewAgent, csViewMonth, rec);
+    csRenderAgentDash(csViewMonth);
 }
 
 function csNormalizeSheetName(name) {
@@ -8969,6 +9107,55 @@ async function _csSaveStatementsCloud() {
 // Binder Book palette: blues from the header, with green/amber accents.
 const CS_DASH_COLORS = ['#1d4ed8', '#0ea5e9', '#10b981', '#f59e0b', '#3b82f6', '#14b8a6', '#d97706', '#6366f1'];
 
+// Statement-summary + disbursements panels for one agent's month, from the
+// agent ledger. Inline styles only, so they render with or without the
+// dashboard's stylesheet.
+function _csLedgerPanelsHtml(month) {
+    if (!csViewAgent || csViewAgent === '__ALL__' || !month) return '';
+    const led = alGet(csViewAgent, month);
+    const esc = _claudeEsc;
+    const money = n => (Number(n) < 0 ? '-' : '') + _csMoney(Math.abs(Number(n) || 0));
+    const P = 'background:rgba(255,255,255,.72);border:1px solid rgba(29,78,216,.14);border-radius:16px;box-shadow:0 6px 20px rgba(13,31,60,.07), inset 0 1px 0 #fff;padding:16px;margin-top:12px;';
+    const T = 'font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:#1d4ed8;font-weight:800;margin-bottom:12px;';
+    const row = (l, v, opts) => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eef2f7;font-size:12.5px;${(opts || {}).bold ? 'font-weight:800;font-size:13.5px;border-bottom:none;border-top:2px solid #0d1f3c;margin-top:2px;' : ''}">
+        <span>${l}</span><strong style="color:${(opts || {}).color || (Number((opts || {}).raw) < 0 ? '#dc2626' : '#0d1f3c')};">${v}</strong></div>`;
+    let html = '';
+    const sm = led.summary;
+    if (sm) {
+        const cash = sm.cashPaymentsOwed || [];
+        const cashTot = cash.reduce((t, c) => t + (Number(c.amount) || 0), 0);
+        html += `<div style="${P}">
+            <div style="${T}">Statement summary — expenses &amp; net ${sm.source === 'ai' ? '<span style="font-size:10px;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 8px;margin-left:6px;">✨ from statement</span>' : ''}</div>
+            ${row('Gross commissions', money(sm.grossCommissions), { raw: sm.grossCommissions, color: '#059669' })}
+            ${row('Royalty', money(sm.royalty), { raw: sm.royalty })}
+            ${(sm.expenses || []).map(e => row(esc(e.label), money(e.amount), { raw: e.amount })).join('')}
+            ${cash.length ? `<details style="border-bottom:1px solid #eef2f7;"><summary style="display:flex;justify-content:space-between;padding:7px 0;font-size:12.5px;cursor:pointer;list-style:none;">
+                <span>Cash payments owed <span style="color:#94a3b8;">(${cash.length} items — click for detail)</span></span><strong style="color:#dc2626;">${money(-Math.abs(cashTot))}</strong></summary>
+                ${cash.map(c => `<div style="display:flex;justify-content:space-between;padding:4px 0 4px 16px;font-size:11.5px;color:#475569;">
+                    <span>${esc(c.client)}${c.carrier ? ' · ' + esc(c.carrier) : ''}${c.swept ? ' · swept ' + esc(c.swept) : ''}</span><span>${money(c.amount)}</span></div>`).join('')}</details>` : ''}
+            ${row('Net to ' + esc(_csAgentLabel(csViewAgent)), money(sm.netToAgent), { bold: true, color: Number(sm.netToAgent) >= 0 ? '#059669' : '#dc2626' })}
+        </div>`;
+    }
+    const disb = led.disbursements || [];
+    const dTot = disb.reduce((t, d) => t + (Number(d.amount) || 0), 0);
+    const remaining = sm ? (Number(sm.netToAgent) || 0) - dTot : null;
+    html += `<div style="${P}">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+            <div style="${T}margin-bottom:0;">Disbursements</div>
+            <button class="btn-primary btn-sm" onclick="openCsDisbModal()">💸 Record disbursement</button>
+        </div>
+        ${disb.length ? disb.map((d, i) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #eef2f7;font-size:12.5px;">
+                <span>💸 <strong>${money(d.amount)}</strong> · ${new Date(d.at).toLocaleString()} · ${esc(d.method || '')}${d.note ? ' · ' + esc(d.note) : ''}
+                    ${d.source === 'ai' ? '<span style="font-size:10px;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:1px 7px;margin-left:4px;">✨ from statement</span>' : ''}</span>
+                <button onclick="csDisbDelete(${i})" title="Delete" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:13px;">🗑️</button>
+            </div>`).join('')
+        : '<div style="font-size:12.5px;color:#94a3b8;padding:4px 0;">No disbursements recorded for this month yet.</div>'}
+        ${disb.length ? row('Total disbursed', money(dTot), { color: '#1d4ed8' }) : ''}
+        ${remaining !== null ? row('Balance owed to ' + esc(_csAgentLabel(csViewAgent)), money(remaining), { bold: true, color: remaining > 0.004 ? '#d97706' : '#059669' }) : ''}
+    </div>`;
+    return html;
+}
+
 function csRenderAgentDash(month) {
     const box = document.getElementById('csAgentDash');
     if (!box) return;
@@ -8983,7 +9170,7 @@ function csRenderAgentDash(month) {
             <div style="font-size:15px;font-weight:800;color:#0d1f3c;">✨ ${_claudeEsc(csViewAgent === '__ALL__' ? 'Agency' : _csAgentLabel(csViewAgent))} · ${_claudeEsc(month)} dashboard</div>
             <p style="font-size:13px;color:#64748b;margin:10px 0 14px;">No commissions have been calculated for this month yet. Uploaded files are stored, but the dashboard is built from calculated commissions.</p>
             <button class="btn-primary btn-sm" onclick="openCommissionUploadModal('${month}')">✨ Calculate with AI</button>
-        </div>`;
+        </div>` + _csLedgerPanelsHtml(month);
         return;
     }
     const esc = _claudeEsc, money = n => (n < 0 ? '-' : '') + _csMoney(Math.abs(n));
@@ -9093,6 +9280,7 @@ function csRenderAgentDash(month) {
             <div class="cs-panel-title">Top clients this month</div>
             ${clients.map(c => `<div class="cs-client"><span>${esc(c.k)} <span style="color:#94a3b8;">· ${c.n} transaction${c.n !== 1 ? 's' : ''}</span></span><strong style="color:${c.total >= 0 ? '#059669' : '#dc2626'};">${money(c.total)}</strong></div>`).join('')}
         </div>
+        ${_csLedgerPanelsHtml(month)}
     </div>`;
 }
 
