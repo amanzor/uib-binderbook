@@ -1095,6 +1095,10 @@
                             title="Policies whose expiration has already passed, and what happened to each"
                             style="padding:6px 16px;border-radius:999px;border:1px solid var(--gray-200);background:#fff;
                                    font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">Past</button>
+                        <button type="button" id="amsRnwScopeRenewed" onclick="amsRnwSetScope('renewed')"
+                            title="Every renewal transaction, filed under the month it renewed (its effective date)"
+                            style="padding:6px 16px;border-radius:999px;border:1px solid var(--gray-200);background:#fff;
+                                   font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">Renewed</button>
                     </div>
 
                     <!-- Month view buttons -->
@@ -2255,8 +2259,9 @@
                 <textarea id="amsRnwRenewMemo" placeholder="What the insured was told, quoted premium, anything the agent should know…"></textarea>
             </div>
             <div style="margin-top:12px;font-size:12px;color:var(--gray-500);">
-                Files a <strong>Renewal</strong> in the assigned agent's Binder Book for the new term, adds it to the
-                client's profile, and leaves a memo on the expiring policy.
+                Files a <strong>Renewal</strong> for the new term under the assigned agent (it shows in
+                Renewals &rarr; Renewed, under the month it renews), adds it to the client's profile, and
+                leaves a memo on the expiring policy.
             </div>
             <div class="modal-actions">
                 <button class="btn-secondary" onclick="amsRnwCloseRenew()">Close</button>
@@ -3984,10 +3989,19 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // expiration has already gone by -- they are still in the book, the
         // list simply stops at today -- so you can see what happened to them.
         let _amsRnwPast = false;
-        function amsRnwSetScope(past) {
-            past = !!past;
-            if (past === _amsRnwPast) return;
+        // Renewed: the renewal transactions themselves (policy type
+        // "Renewal" -- swept out of the Binder Book), filed under the month
+        // each one renewed rather than the month it next expires.
+        let _amsRnwRenewed = false;
+        function _amsRnwRenewedOn(p) {
+            return String(p.effectiveDate || p.effDate || p.entryDate || '').slice(0, 10);
+        }
+        function amsRnwSetScope(mode) {
+            const past    = mode === true || mode === 'past';
+            const renewed = mode === 'renewed';
+            if (past === _amsRnwPast && renewed === _amsRnwRenewed) return;
             _amsRnwPast       = past;
+            _amsRnwRenewed    = renewed;
             _amsRnwActiveMonth = '';     // months differ between the two views
             _amsRnwOpenYears   = null;   // let the accordion re-seed
             amsRenewalsRender();
@@ -4112,7 +4126,10 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
 
             // Every non-cancelled upcoming renewal — the pool the dropdowns and
             // both views draw from, before the middle filter bar is applied.
-            const pool = binder.filter(p => {
+            const pool = _amsRnwRenewed
+                ? binder.filter(p => String(p.policyType || '').trim().toLowerCase() === 'renewal' &&
+                                     /^\d{4}-\d{2}/.test(_amsRnwRenewedOn(p)))
+                : binder.filter(p => {
                 if (!p.expirationDate || (p.policyType || '').toLowerCase() === 'cancellation') return false;
                 // Past keeps cancelled policies: what happened to them is
                 // exactly what this view is for.
@@ -4156,7 +4173,11 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             // highlighted. No "All" button — clearing the month (or the active
             // month toggled off) falls back to the expiring-within-window view.
             // Paint the active scope and retitle the column it changes.
-            [['amsRnwScopeUpcoming', !_amsRnwPast], ['amsRnwScopePast', _amsRnwPast]].forEach(([id, on]) => {
+            // The month a row files under, and whether the list reads newest-first.
+            const rnwKey   = p => (_amsRnwRenewed ? _amsRnwRenewedOn(p) : p.expirationDate).slice(0, 7);
+            const lookBack = _amsRnwPast || _amsRnwRenewed;
+            [['amsRnwScopeUpcoming', !_amsRnwPast && !_amsRnwRenewed], ['amsRnwScopePast', _amsRnwPast],
+             ['amsRnwScopeRenewed', _amsRnwRenewed]].forEach(([id, on]) => {
                 const el = document.getElementById(id);
                 if (!el) return;
                 el.style.background  = on ? 'var(--navy)' : '#fff';
@@ -4164,15 +4185,15 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 el.style.borderColor = on ? 'var(--navy)' : 'var(--gray-200)';
             });
             const thTime = document.getElementById('amsRnwThTime');
-            if (thTime) thTime.textContent = _amsRnwPast ? 'Outcome' : 'Time Left';
+            if (thTime) thTime.textContent = _amsRnwRenewed ? 'Renewed' : _amsRnwPast ? 'Outcome' : 'Time Left';
             // The forward window means nothing looking back, and a live-looking
             // control that changes nothing is worse than a disabled one.
             const winSel = document.getElementById('amsRnwWindow');
             if (winSel) {
-                winSel.disabled = _amsRnwPast;
-                winSel.style.opacity = _amsRnwPast ? '0.45' : '';
-                winSel.title = _amsRnwPast
-                    ? 'Not used in Past — pick a month on the left to narrow the history'
+                winSel.disabled = lookBack;
+                winSel.style.opacity = lookBack ? '0.45' : '';
+                winSel.title = lookBack
+                    ? `Not used in ${_amsRnwRenewed ? 'Renewed' : 'Past'} — pick a month on the left to narrow the list`
                     : '';
             }
 
@@ -4186,14 +4207,14 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             if (tabsEl) {
                 const byYear = {};
                 upcoming.forEach(p => {
-                    const key = p.expirationDate.slice(0, 7);       // YYYY-MM
+                    const key = rnwKey(p);                          // YYYY-MM
                     const yr  = key.slice(0, 4);
                     (byYear[yr] = byYear[yr] || {});
                     byYear[yr][key] = (byYear[yr][key] || 0) + 1;
                 });
                 // Looking back, the most recent year and month come first.
                 const years = Object.keys(byYear).sort();
-                if (_amsRnwPast) years.reverse();
+                if (lookBack) years.reverse();
 
                 // Drop an active month that no longer exists under the filters.
                 if (_amsRnwActiveMonth && !years.some(y => byYear[y][_amsRnwActiveMonth])) _amsRnwActiveMonth = '';
@@ -4223,7 +4244,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     </button>`;
                     if (!open) return `<div style="margin-bottom:6px;">${header}</div>`;
                     const monthKeys = Object.keys(byYear[yr]).sort();
-                    if (_amsRnwPast) monthKeys.reverse();
+                    if (lookBack) monthKeys.reverse();
                     const months = monthKeys.map(key => {
                         const active = _amsRnwActiveMonth === key;
                         return `<button onclick="amsRnwToggleMonth('${key}')"
@@ -4235,26 +4256,32 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     }).join('');
                     return `<div style="margin-bottom:6px;">${header}
                         <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">${months}</div></div>`;
-                }).join('') || `<div style="padding:12px;color:var(--gray-400);font-size:12.5px;font-style:italic;">No upcoming renewals match these filters.</div>`;
+                }).join('') || `<div style="padding:12px;color:var(--gray-400);font-size:12.5px;font-style:italic;">No ${_amsRnwRenewed ? 'renewal transactions' : _amsRnwPast ? 'past renewals' : 'upcoming renewals'} match these filters.</div>`;
             }
 
             const monthLabel = _amsRnwActiveMonth
                 ? new Date(_amsRnwActiveMonth + '-01T12:00:00').toLocaleString('en-US', { month: 'long', year: 'numeric' })
                 : '';
             const allRows = upcoming.filter(p => _amsRnwActiveMonth
-                ? p.expirationDate.slice(0, 7) === _amsRnwActiveMonth
-                : (_amsRnwPast ? true : p.expirationDate <= cutoffStr)
-            ).sort((a, b) => _amsRnwPast
+                ? rnwKey(p) === _amsRnwActiveMonth
+                : (lookBack ? true : p.expirationDate <= cutoffStr)
+            ).sort((a, b) => _amsRnwRenewed
+                ? _amsRnwRenewedOn(b).localeCompare(_amsRnwRenewedOn(a)) // most recent renewal first
+                : _amsRnwPast
                 ? b.expirationDate.localeCompare(a.expirationDate)   // newest first looking back
                 : a.expirationDate.localeCompare(b.expirationDate));
             // A whole book's history is far more than anyone reads at once;
             // pick a month from the list to see the rest.
             const PAST_CAP = 500;
-            const capped = _amsRnwPast && !_amsRnwActiveMonth && allRows.length > PAST_CAP;
+            const capped = lookBack && !_amsRnwActiveMonth && allRows.length > PAST_CAP;
             const rows = capped ? allRows.slice(0, PAST_CAP) : allRows;
 
             const badge = document.getElementById('amsRnwBadge');
-            if (badge) badge.textContent = _amsRnwPast
+            if (badge) badge.textContent = _amsRnwRenewed
+                ? (_amsRnwActiveMonth
+                    ? `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} renewed in ${monthLabel}`
+                    : `${capped ? 'showing ' + rows.length + ' of ' + allRows.length : allRows.length} renewal${allRows.length === 1 ? '' : 's'} on record`)
+                : _amsRnwPast
                 ? (_amsRnwActiveMonth
                     ? `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expired in ${monthLabel}`
                     : `${capped ? 'showing ' + rows.length + ' of ' + allRows.length : allRows.length} past ${allRows.length === 1 ? 'policy' : 'policies'}`)
@@ -4263,7 +4290,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     : `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring within ${days} days`);
 
             if (!rows.length) {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">${_amsRnwPast
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">${_amsRnwRenewed
+                    ? (_amsRnwActiveMonth ? `No renewals recorded in ${monthLabel}.` : 'No renewal transactions on record.')
+                    : _amsRnwPast
                     ? (_amsRnwActiveMonth ? `Nothing expired in ${monthLabel}.` : 'No past renewals on record.')
                     : (_amsRnwActiveMonth
                         ? `No renewals due in ${monthLabel}.`
@@ -4290,9 +4319,11 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 const actBtn = (label, title, onclick, bg) => `
                         <button class="btn-sm" onclick="${onclick}" title="${title}"
                         style="background:${bg};color:#fff;border:none;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">${label}</button>`;
-                const renewBtn  = isAdmin ? actBtn('🔄 Renew', "Send this renewal to the assigned agent's Binder Book",
+                // A renewal transaction has just been renewed: Renew / Renew A-B
+                // belong to it once it comes up again under Upcoming.
+                const renewBtn  = isAdmin && !_amsRnwRenewed ? actBtn('🔄 Renew', 'Renew this policy for the assigned agent',
                                         `amsRnwRenew(${idx}, this)`, 'linear-gradient(135deg,#047857,#059669)') : '';
-                const abBtn     = isAdmin ? actBtn('🔀 Renew A-B', 'Rewrite this policy with a different carrier (A → B)',
+                const abBtn     = isAdmin && !_amsRnwRenewed ? actBtn('🔀 Renew A-B', 'Rewrite this policy with a different carrier (A → B)',
                                         `amsRnwOpenAB(${idx})`, 'linear-gradient(135deg,#1d4ed8,#3b82f6)') : '';
                 const cancelBtn = isAdmin ? actBtn(p.cancellationDate ? '🚫 Cancellation ✎' : '🚫 Cancel',
                                         p.cancellationDate ? `Cancellation set for ${p.cancellationDate} — edit or undo` : 'Cancel this policy and record the cancellation date',
@@ -4314,8 +4345,10 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <td>${_rptEsc(p.company || '—')}</td>
                     <td style="font-family:monospace;font-size:11px;">${_rptEsc(p.policyNumber || '—')}</td>
                     <td>${_rptFmt$(p.totalPremium)}</td>
-                    <td><strong>${p.expirationDate}</strong></td>
-                    <td>${_amsRnwPast
+                    <td><strong>${_rptEsc(p.expirationDate || '—')}</strong></td>
+                    <td>${_amsRnwRenewed
+                        ? `<span style="background:#ffedd5;color:#9a3412;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${_rptEsc(_amsRnwRenewedOn(p))}</span>${p.renewalOfPolicy ? `<div style="margin-top:3px;font-size:10.5px;color:var(--gray-500);">renews ${_rptEsc(p.renewalOfPolicy)}</div>` : ''}`
+                        : _amsRnwPast
                         ? `<span style="background:${outcome.bg};color:${outcome.fg};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;" title="${_rptEsc(outcome.note || '').replace(/"/g, '&quot;')}">${outcome.label}</span>${outcome.note ? `<div style="margin-top:3px;font-size:10.5px;color:var(--gray-500);">${_rptEsc(outcome.note)}</div>` : ''}`
                         : `<span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span>`}</td>
                     <td>${amsAgentLink(p.agent, _rptEsc(p.agent || '—'))}</td>
@@ -4552,7 +4585,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🔄 Send Renewal'; }
 
             _amsRnwRefreshViews();
-            if (ok) amsFlashBanner(`Renewal sent to ${src.agent}'s Binder Book \u2713`);
+            if (ok) amsFlashBanner(`Renewal filed for ${src.agent} \u2014 see Renewals \u2192 Renewed \u2713`);
             else alert(`Saved locally, but the cloud sync to ${src.agent}'s Binder Book FAILED — check your connection and click Renew again.`);
         }
 

@@ -4495,7 +4495,7 @@ function showSuccess() {
 // the most recent month that has entries for the logged-in agent, or
 // the current calendar month if they have none yet.
 function _agentDefaultMonth() {
-    const entries = allData.filter(d => d.agent === currentUser && d.entryDate);
+    const entries = _binderBookEntries().filter(d => d.agent === currentUser && d.entryDate);
     if (!entries.length) {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -4513,8 +4513,21 @@ const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano'];
 function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser) || !!(window.UIBAuth && UIBAuth.isAdmin()); }
 
 // The entries the current user is allowed to SEE (before UI filters).
+// Renewal transactions live in the AMS (Renewals → Renewed, filed under the
+// month each one renewed), not in the Binder Book. The entries stay in the
+// shared book — the AMS reads them from there and commissions still count
+// them — the Binder Book's tables, stats and exports just leave them out.
+// "Renew A-B" is a rewrite with a new carrier and stays in the Binder Book.
+function isAmsRenewalEntry(d) {
+    return String((d && d.policyType) || '').trim().toLowerCase() === 'renewal';
+}
+function _binderBookEntries() {
+    return allData.filter(d => !isAmsRenewalEntry(d));
+}
+
 function _agentVisibleEntries() {
-    return isAgentAdmin() ? allData.slice() : allData.filter(d => d.agent === currentUser);
+    const book = _binderBookEntries();
+    return isAgentAdmin() ? book : book.filter(d => d.agent === currentUser);
 }
 
 function loadAgentData() {
@@ -4615,7 +4628,10 @@ function renderNavMonthStats() {
     const { month, year } = _currentMonthYearET();
     const monthLabel = `${month} ${year}`;
     const mine = allData.filter(d => d.agent === currentUser).filter(d => _entryMonth(d) === monthLabel);
-    const premium = mine.reduce((sum, d) => sum + (parseFloat(d.totalPremium) || 0), 0);
+    // Policies / Premium Sold count Binder Book sales only; renewals are in
+    // the AMS. The commission cards still include them — that money is real.
+    const sold = mine.filter(d => !isAmsRenewalEntry(d));
+    const premium = sold.reduce((sum, d) => sum + (parseFloat(d.totalPremium) || 0), 0);
     const agencyFees = mine.reduce((sum, d) => sum + (parseFloat(d.agencyFee) || 0), 0);
     const agencyComm = mine.reduce((sum, d) => sum + (parseFloat(d.agencyCommission) || 0), 0);
     const special = _specialCommissionRows(currentUser, monthLabel);
@@ -4639,7 +4655,7 @@ function renderNavMonthStats() {
     const $m = v => '$' + (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     host.innerHTML = `
         <div class="nav-stats-title"><i data-lucide="calendar-days"></i> ${monthLabel}</div>
-        <div class="nav-stat-card"><h4>Policies</h4><div class="number">${mine.length}</div></div>
+        <div class="nav-stat-card"><h4>Policies</h4><div class="number">${sold.length}</div></div>
         <div class="nav-stat-card"><h4>Premium Sold</h4><div class="number">${$m(premium)}</div></div>
         <div class="nav-stat-card"><h4>Agency Fees</h4><div class="number">${$m(agencyFees)}</div></div>
         <div class="nav-stat-card"><h4>Agency Commission</h4><div class="number">${$m(agencyComm)}</div></div>
@@ -5011,7 +5027,7 @@ function getFilteredData() {
     const sortBy  = document.getElementById('adminSortBy')?.value  || 'entryDate';
     const sortDir = document.getElementById('adminSortDir')?.value || 'desc';
 
-    let filtered = allData;
+    let filtered = _binderBookEntries();
 
     if (agent) filtered = filtered.filter(d => d.agent === agent);
 
@@ -5232,11 +5248,12 @@ function deleteEntry(id) {
 function exportAgentData() {
     if (isAgentAdmin()) {
         const pick = document.getElementById('agentAgentFilter')?.value || '';
-        const entries = pick ? allData.filter(d => d.agent === pick) : allData.slice();
+        const book = _binderBookEntries();
+        const entries = pick ? book.filter(d => d.agent === pick) : book;
         exportToCSV(entries, `${pick || 'all_agents'}_sales.csv`);
         return;
     }
-    const entries = allData.filter(d => d.agent === currentUser);
+    const entries = _binderBookEntries().filter(d => d.agent === currentUser);
     exportToCSV(entries, `${currentUser}_sales.csv`);
 }
 
