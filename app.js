@@ -10271,7 +10271,7 @@ function prodGetFilteredData() {
     const dateFrom = document.getElementById('prodDateFrom')?.value || '';
     const dateTo   = document.getElementById('prodDateTo')?.value   || '';
 
-    return allData.filter(d => {
+    return _binderBookEntries().filter(d => {
         const date = (d.entryDate || '').slice(0, 10);
         if (_prodPeriod === 'today'  && date !== today)                return false;
         if (_prodPeriod === 'month'  && !date.startsWith(month))       return false;
@@ -10724,7 +10724,7 @@ function apdGetFilteredData() {
     const dFrom  = document.getElementById('apd_dateFrom')?.value || '';
     const dTo    = document.getElementById('apd_dateTo')?.value   || '';
 
-    return allData.filter(d => {
+    return _binderBookEntries().filter(d => {
         const date = (d.entryDate || '').slice(0, 10);
         if (_apdPeriod === 'today'  && date !== today)            return false;
         if (_apdPeriod === 'month'  && !date.startsWith(month))   return false;
