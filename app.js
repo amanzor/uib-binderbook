@@ -1871,6 +1871,7 @@ async function saveEntry() {
         contactName: toTitleCase(gid('contactName').value),
         source: gid('source').value,
         referredBy: toTitleCase(gid('referredBy').value),
+        giftCard: !!(gid('giftCard') && gid('giftCard').checked),
         customerPhone: gid('customerPhone')?.value || '',
         customerEmail: gid('customerEmail')?.value || '',
         policyType: gid('policyType').value,
