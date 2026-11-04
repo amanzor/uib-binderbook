@@ -9221,6 +9221,105 @@ function _csLedgerPanelsHtml(month) {
     return html;
 }
 
+const CS_DASH_CSS = `
+    <style>
+        .cs-dash { margin-top:16px; padding:22px; border-radius:20px; position:relative; overflow:hidden;
+            background: radial-gradient(900px 360px at 0% 0%, rgba(29,78,216,.10) 0%, transparent 60%),
+                        radial-gradient(800px 380px at 100% 100%, rgba(56,189,248,.10) 0%, transparent 60%), #ffffff;
+            color:#0d1f3c; border:1px solid #e5e7eb; box-shadow: 0 10px 30px rgba(13,31,60,.08); }
+        .cs-dash h4 { margin:0; font-size:15px; font-weight:800; color:#0d1f3c; letter-spacing:.2px; }
+        .cs-glass { background: rgba(255,255,255,.72); border:1px solid rgba(29,78,216,.14); border-radius:16px;
+            backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+            box-shadow: 0 6px 20px rgba(13,31,60,.07), inset 0 1px 0 #fff; }
+        .cs-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:14px 0; }
+        .cs-kpi { padding:14px 16px; }
+        .cs-kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:#64748b; font-weight:700; }
+        .cs-kpi-value { font-size:24px; font-weight:800; color:#0d1f3c; margin-top:4px; }
+        .cs-kpi-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+        .cs-dash-row { display:grid; grid-template-columns: 1.3fr 1fr; gap:12px; }
+        @media (max-width: 900px) { .cs-dash-row { grid-template-columns: 1fr; } }
+        .cs-panel { padding:16px; }
+        .cs-panel-title { font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:#1d4ed8; font-weight:800; margin-bottom:12px; }
+        .cs-bar { display:grid; grid-template-columns: 150px 1fr 90px; gap:10px; align-items:center; font-size:12.5px; margin:8px 0; }
+        .cs-bar-track { height:10px; border-radius:999px; background:#e8eefb; overflow:hidden; }
+        .cs-bar-fill { height:100%; border-radius:999px; }
+        .cs-legend { display:flex; flex-direction:column; gap:7px; font-size:12.5px; }
+        .cs-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:8px; }
+        .cs-client { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eef2f7; font-size:12.5px; }
+        .cs-client:last-child { border-bottom:none; }
+    </style>`;
+
+// Dashboard from the statement summary alone (agent ledger), for months
+// where only the summary was saved: gross, deductions, net, disbursed,
+// balance, and where the money went.
+function _csSummaryDashHtml(month) {
+    if (!csViewAgent || csViewAgent === '__ALL__') return '';
+    const led = alGet(csViewAgent, month), sm = led.summary;
+    if (!sm) return '';
+    const esc = _claudeEsc, num = v => Number(v) || 0;
+    const DC = ['#1d4ed8', '#0ea5e9', '#f59e0b', '#6366f1', '#3b82f6', '#d97706', '#64748b'];   // never the net's green
+    const money = n => (n < 0 ? '-' : '') + _csMoney(Math.abs(n));
+    const gross = num(sm.grossCommissions), net = num(sm.netToAgent);
+    const ded = [];
+    if (num(sm.royalty)) ded.push({ k: 'Royalty', v: num(sm.royalty) });
+    (sm.expenses || []).forEach(e => { if (num(e.amount)) ded.push({ k: e.label || 'Expense', v: num(e.amount) }); });
+    const cash = (sm.cashPaymentsOwed || []).reduce((t, c) => t + num(c.amount), 0);
+    if (cash) ded.push({ k: 'Cash payments owed', v: cash });
+    ded.forEach(d => { d.abs = Math.abs(d.v); });
+    ded.sort((x, y) => y.abs - x.abs);
+    const dedTotal = ded.reduce((t, d) => t + d.abs, 0);
+    const disbursed = (led.disbursements || []).reduce((t, d) => t + num(d.amount), 0);
+    const balance = net - disbursed;
+    const kpi = (label, value, sub, color) => `<div class="cs-glass cs-kpi"><div class="cs-kpi-label">${label}</div>
+        <div class="cs-kpi-value" style="${color ? 'color:' + color : ''}">${value}</div>${sub ? `<div class="cs-kpi-sub">${sub}</div>` : ''}</div>`;
+    const maxD = Math.max(...ded.map(d => d.abs), 1);
+    // donut: net vs each deduction, share of gross
+    const parts = [{ k: 'Net to agent', v: Math.max(net, 0) }].concat(ded.map(d => ({ k: d.k, v: d.abs })));
+    const sum = parts.reduce((t, x) => t + x.v, 0) || 1, R = 54, C = 2 * Math.PI * R;
+    let acc = 0;
+    const arcs = parts.map((x, i) => { const len = x.v / sum * C;
+        const seg = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${i === 0 ? '#10b981' : DC[(i - 1) % DC.length]}" stroke-width="18"
+            stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}" transform="rotate(-90 70 70)"><title>${esc(x.k)}: ${money(x.v)}</title></circle>`;
+        acc += len; return seg; }).join('');
+    const keep = gross ? (net / gross * 100) : 0;
+    return `${CS_DASH_CSS}
+    <div class="cs-dash">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <h4>✨ ${esc(_csAgentLabel(csViewAgent))} · ${esc(month)} dashboard</h4>
+            <span class="cs-glass" style="padding:5px 12px;font-size:12px;font-weight:700;color:#6d28d9;">✨ from the statement summary</span>
+        </div>
+        <div class="cs-kpis">
+            ${kpi('Gross commissions', money(gross), 'before deductions', '#1d4ed8')}
+            ${kpi('Deductions', money(-dedTotal), ded.length + ' item' + (ded.length !== 1 ? 's' : ''), dedTotal ? '#dc2626' : '')}
+            ${kpi('Net to agent', money(net), keep.toFixed(1) + '% of gross', net >= 0 ? '#059669' : '#dc2626')}
+            ${kpi('Disbursed', money(disbursed), (led.disbursements || []).length + ' payment' + ((led.disbursements || []).length !== 1 ? 's' : ''), '')}
+            ${kpi('Balance owed', money(balance), balance > 0 ? 'still to pay' : 'paid in full', balance > 0 ? '#d97706' : '#059669')}
+        </div>
+        <div class="cs-dash-row">
+            <div class="cs-glass cs-panel">
+                <div class="cs-panel-title">Where the deductions went</div>
+                ${ded.length ? ded.map((d, i) => `<div class="cs-bar">
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(d.k)}">${esc(d.k)}</span>
+                    <div class="cs-bar-track"><div class="cs-bar-fill" style="width:${(d.abs / maxD * 100).toFixed(1)}%;background:linear-gradient(90deg, ${DC[i % DC.length]}, rgba(255,255,255,.35));"></div></div>
+                    <span style="text-align:right;font-weight:700;color:#dc2626;">${money(-d.abs)}</span></div>`).join('') : '<p style="color:#94a3b8;font-size:12.5px;">No deductions on this statement.</p>'}
+            </div>
+            <div class="cs-glass cs-panel" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+                <div>
+                    <div class="cs-panel-title">Gross split</div>
+                    <svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Gross split">
+                        <circle r="${R}" cx="70" cy="70" fill="none" stroke="#e8eefb" stroke-width="18"></circle>${arcs}
+                        <text x="70" y="66" text-anchor="middle" fill="#0d1f3c" font-size="18" font-weight="800">${keep.toFixed(0)}%</text>
+                        <text x="70" y="84" text-anchor="middle" fill="#64748b" font-size="10">kept</text>
+                    </svg>
+                </div>
+                <div class="cs-legend" style="flex:1;min-width:150px;">
+                    ${parts.map((x, i) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span><span class="cs-dot" style="background:${i === 0 ? '#10b981' : DC[(i - 1) % DC.length]};"></span>${esc(x.k)}</span><strong>${money(i === 0 ? x.v : -x.v)}</strong></div>`).join('')}
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
 function csRenderAgentDash(month, boxId) {
     const box = document.getElementById(boxId || 'csAgentDash');
     if (!box) return;
@@ -9228,6 +9327,10 @@ function csRenderAgentDash(month, boxId) {
     const stmt = csGetCombined(month);
     const all = (stmt && stmt.entries) || [];
     const ents = csViewAgent === '__ALL__' ? all : all.filter(e => (e.agentMatch || '__UNASSIGNED__') === csViewAgent);
+    if (!ents.length && _csSummaryDashHtml(month)) {
+        box.innerHTML = _csSummaryDashHtml(month) + _csLedgerPanelsHtml(month);
+        return;
+    }
     if (!ents.length) {
         // Nothing calculated yet: say so, and how to fill it.
         box.innerHTML = `<div style="margin-top:16px;padding:22px;border-radius:20px;border:1px solid #e5e7eb;text-align:center;
@@ -9281,32 +9384,7 @@ function csRenderAgentDash(month, boxId) {
         ${sub ? `<div class="cs-kpi-sub">${sub}</div>` : ''}</div>`;
 
     box.innerHTML = `
-    <style>
-        .cs-dash { margin-top:16px; padding:22px; border-radius:20px; position:relative; overflow:hidden;
-            background: radial-gradient(900px 360px at 0% 0%, rgba(29,78,216,.10) 0%, transparent 60%),
-                        radial-gradient(800px 380px at 100% 100%, rgba(56,189,248,.10) 0%, transparent 60%), #ffffff;
-            color:#0d1f3c; border:1px solid #e5e7eb; box-shadow: 0 10px 30px rgba(13,31,60,.08); }
-        .cs-dash h4 { margin:0; font-size:15px; font-weight:800; color:#0d1f3c; letter-spacing:.2px; }
-        .cs-glass { background: rgba(255,255,255,.72); border:1px solid rgba(29,78,216,.14); border-radius:16px;
-            backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
-            box-shadow: 0 6px 20px rgba(13,31,60,.07), inset 0 1px 0 #fff; }
-        .cs-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:14px 0; }
-        .cs-kpi { padding:14px 16px; }
-        .cs-kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:#64748b; font-weight:700; }
-        .cs-kpi-value { font-size:24px; font-weight:800; color:#0d1f3c; margin-top:4px; }
-        .cs-kpi-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
-        .cs-dash-row { display:grid; grid-template-columns: 1.3fr 1fr; gap:12px; }
-        @media (max-width: 900px) { .cs-dash-row { grid-template-columns: 1fr; } }
-        .cs-panel { padding:16px; }
-        .cs-panel-title { font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:#1d4ed8; font-weight:800; margin-bottom:12px; }
-        .cs-bar { display:grid; grid-template-columns: 150px 1fr 90px; gap:10px; align-items:center; font-size:12.5px; margin:8px 0; }
-        .cs-bar-track { height:10px; border-radius:999px; background:#e8eefb; overflow:hidden; }
-        .cs-bar-fill { height:100%; border-radius:999px; }
-        .cs-legend { display:flex; flex-direction:column; gap:7px; font-size:12.5px; }
-        .cs-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:8px; }
-        .cs-client { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eef2f7; font-size:12.5px; }
-        .cs-client:last-child { border-bottom:none; }
-    </style>
+    ${CS_DASH_CSS}
     <div class="cs-dash">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
             <h4>✨ ${esc(csViewAgent === '__ALL__' ? 'Agency' : _csAgentLabel(csViewAgent))} · ${esc(month)} dashboard</h4>
