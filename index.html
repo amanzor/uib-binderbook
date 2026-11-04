@@ -4050,7 +4050,7 @@
     </div>
 
     <!-- Commission Upload Modal -->
-    <div id="commissionUploadModal" class="modal">
+    <div id="commissionUploadModal" class="modal" ondragover="csDragOver(event)" ondragleave="csDragLeave(event)" ondrop="csDrop(event)">
         <div class="modal-content" style="max-width:600px;max-height:90vh;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                 <h3 style="margin:0;"><i data-lucide="upload"></i> Upload Commission Statement</h3>
@@ -4060,7 +4060,7 @@
 
             <!-- Step 1: File Selection -->
             <div id="csStep1">
-                <div id="csDropZone" ondragover="csDragOver(event)" ondragleave="csDragLeave(event)" ondrop="csDrop(event)"
+                <div id="csDropZone"
                     style="border:2px dashed var(--gray-200);border-radius:var(--radius-md);padding:40px 24px;text-align:center;background:var(--gray-50);margin-bottom:14px;transition:all .15s;">
                     <div style="font-size:44px;margin-bottom:12px;">📂</div>
                     <p style="color:var(--gray-500);margin-bottom:18px;font-size:14px;"><strong>Drop the statement here</strong>: an Excel file <strong>(.xlsx)</strong>, or carrier PDFs for the AI processor<br>or</p>
@@ -4110,12 +4110,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261104f"></script>
+    <script src="app.js?v=20261104g"></script>
     <script src="uib-binder-sync.js?v=20261030c"></script>
     <script src="monday-import.js?v=20261104a"></script>
     <script src="supabase.js?v=20261027a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){var s=(r.active||r.waiting||r.installing||{}).scriptURL||'';if(/rater-sw\.js/.test(s)||/\/rater\/?$/.test(r.scope))r.unregister();});}).catch(function(){});navigator.serviceWorker.register('/sw.js');}</script>
-<script src="uib-drop.js?v=20261103a"></script>
+<script src="uib-drop.js?v=20261104a"></script>
 </body>
 </html>

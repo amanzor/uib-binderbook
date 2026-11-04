@@ -8223,7 +8223,13 @@ function _csDropZoneOn(on) {
     z.style.background = on ? '#eff6ff' : 'var(--gray-50)';
 }
 function csDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; _csDropZoneOn(true); }
-function csDragLeave(e) { e.preventDefault(); _csDropZoneOn(false); }
+function csDragLeave(e) {
+    e.preventDefault();
+    // Only unlight when the drag actually leaves the listening surface, not
+    // when it moves between its children (the modal is one big drop surface).
+    if (e.currentTarget && e.currentTarget.contains && e.currentTarget.contains(e.relatedTarget)) return;
+    _csDropZoneOn(false);
+}
 function csDrop(e) {
     e.preventDefault();
     _csDropZoneOn(false);
