@@ -8810,33 +8810,27 @@ function csRenderAgentDash(month) {
         .cs-dash { margin-top:16px; padding:22px; border-radius:20px; position:relative; overflow:hidden;
             background: radial-gradient(1000px 380px at 0% 0%, rgba(29,78,216,.55) 0%, transparent 60%),
                         radial-gradient(900px 420px at 100% 100%, rgba(56,189,248,.28) 0%, transparent 60%),
-                        linear-gradient(135deg, #0d1f3c 0%, #12336e 60%, #1d4ed8 140%); color:#f1f5f9;
+                        linear-gradient(135deg, #0d1f3c 0%, #12336e 60%, #1d4ed8 140%); color:#e5e7eb;
             box-shadow: 0 10px 30px rgba(13,31,60,.25); }
         .cs-dash h4 { margin:0; font-size:15px; font-weight:800; color:#fff; letter-spacing:.2px; }
-        .cs-glass { position:relative; border-radius:16px;
-            background: linear-gradient(160deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.10) 45%, rgba(255,255,255,.06) 100%);
-            border:1px solid rgba(255,255,255,.34);
-            backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%);
-            box-shadow: 0 10px 30px rgba(3,10,30,.35), inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(255,255,255,.08); }
-        .cs-glass::before { content:''; position:absolute; inset:0 0 auto 0; height:45%; border-radius:16px 16px 40% 40% / 16px 16px 18px 18px;
-            background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0)); pointer-events:none; }
-        .cs-glass > * { position:relative; }
+        .cs-glass { background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:16px;
+            backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+            box-shadow: 0 8px 32px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.12); }
         .cs-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:14px 0; }
         .cs-kpi { padding:14px 16px; }
-        .cs-kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:rgba(255,255,255,.88); font-weight:800; }
-        .cs-kpi-value { font-size:25px; font-weight:800; color:#fff; margin-top:4px; text-shadow:0 1px 2px rgba(0,0,0,.25); }
-        .cs-kpi-sub { font-size:11.5px; color:rgba(255,255,255,.78); margin-top:2px; }
+        .cs-kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:rgba(255,255,255,.65); font-weight:700; }
+        .cs-kpi-value { font-size:24px; font-weight:800; color:#fff; margin-top:4px; }
+        .cs-kpi-sub { font-size:11.5px; color:rgba(255,255,255,.6); margin-top:2px; }
         .cs-dash-row { display:grid; grid-template-columns: 1.3fr 1fr; gap:12px; }
         @media (max-width: 900px) { .cs-dash-row { grid-template-columns: 1fr; } }
         .cs-panel { padding:16px; }
-        .cs-panel-title { font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:#fff; font-weight:800; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,.22); }
+        .cs-panel-title { font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:rgba(255,255,255,.7); font-weight:800; margin-bottom:12px; }
         .cs-bar { display:grid; grid-template-columns: 150px 1fr 90px; gap:10px; align-items:center; font-size:12.5px; margin:8px 0; }
-        .cs-bar-track { height:10px; border-radius:999px; background:rgba(255,255,255,.18); box-shadow: inset 0 1px 2px rgba(0,0,0,.2); overflow:hidden; }
+        .cs-bar-track { height:10px; border-radius:999px; background:rgba(255,255,255,.1); overflow:hidden; }
         .cs-bar-fill { height:100%; border-radius:999px; }
         .cs-legend { display:flex; flex-direction:column; gap:7px; font-size:12.5px; }
         .cs-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:8px; }
-        .cs-client { display:flex; justify-content:space-between; padding:9px 10px; margin:0 -10px; border-radius:10px; border-bottom:1px solid rgba(255,255,255,.14); font-size:13px; color:#fff; }
-        .cs-client:nth-child(even) { background: rgba(255,255,255,.07); }
+        .cs-client { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:12.5px; }
         .cs-client:last-child { border-bottom:none; }
     </style>
     <div class="cs-dash">
@@ -8855,7 +8849,7 @@ function csRenderAgentDash(month) {
             <div class="cs-glass cs-panel">
                 <div class="cs-panel-title">Commission by carrier</div>
                 ${carriers.map((c, i) => `<div class="cs-bar">
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff;font-weight:600;" title="${esc(c.k)}">${esc(c.k)}</span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(c.k)}">${esc(c.k)}</span>
                     <div class="cs-bar-track"><div class="cs-bar-fill" style="width:${(Math.abs(c.total) / maxCarrier * 100).toFixed(1)}%;background:linear-gradient(90deg, ${CS_DASH_COLORS[i % CS_DASH_COLORS.length]}, rgba(255,255,255,.55));"></div></div>
                     <span style="text-align:right;font-weight:700;color:${c.total >= 0 ? '#fff' : '#fca5a5'};">${money(c.total)}</span></div>`).join('')}
             </div>
@@ -8863,7 +8857,7 @@ function csRenderAgentDash(month) {
                 <div>
                     <div class="cs-panel-title">Transaction mix</div>
                     <svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Transaction mix">
-                        <circle r="${R}" cx="70" cy="70" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="18"></circle><circle r="40" cx="70" cy="70" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.35)" stroke-width="1"></circle>${arcs}
+                        <circle r="${R}" cx="70" cy="70" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="18"></circle>${arcs}
                         <text x="70" y="66" text-anchor="middle" fill="#fff" font-size="20" font-weight="800">${ents.length}</text>
                         <text x="70" y="84" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="10">transactions</text>
                     </svg>
