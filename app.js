@@ -7380,13 +7380,78 @@ function addSelectedUICEntries() {
 }
 
 // Agent Commission Functions
+// ── My Commissions: the month dashboard for one agent ─────────
+// Agents see only themselves; administrators pick any agent. Same
+// dashboard as Commission Statements (calculated statements + the
+// statement summary / disbursements ledger), read-only here.
+let _myComm = { agent: null, year: null, month: null, prevAgent: undefined };
+
 function showAgentCommissions() {
     document.getElementById('agentCommissionModal').classList.add('active');
-    loadAgentCommissionData();
+    if (typeof initializeCommissionStatements === 'function') initializeCommissionStatements();
+    const admin = typeof isAgentAdmin === 'function' && isAgentAdmin();
+    _myComm.prevAgent = csViewAgent;
+    if (!_myComm.agent || !admin) _myComm.agent = admin ? (getAllAgents()[0] || currentUser) : currentUser;
+    _myComm.month = null;
+    renderMyCommissions();
 }
 
 function closeAgentCommissions() {
     document.getElementById('agentCommissionModal').classList.remove('active');
+    if (_myComm.prevAgent !== undefined) csViewAgent = _myComm.prevAgent;
+    window._csDashReadOnly = false;
+}
+
+function _myCommMonths(agent) {
+    const out = {};
+    const { list } = _csAgentsAcrossMonths();
+    const a = list.find(x => x.agent === agent);
+    if (a) Object.keys(a.months).forEach(m => { out[m] = { total: a.months[m].total, count: a.months[m].count }; });
+    const led = (function () { try { return JSON.parse(localStorage.getItem('agentLedger')) || {}; } catch (e) { return {}; } })();
+    Object.keys(led).forEach(k => {
+        const i = k.indexOf('|'); if (i < 0 || k.slice(0, i) !== agent) return;
+        const m = k.slice(i + 1), sm = led[k] && led[k].summary;
+        if (!out[m]) out[m] = { total: sm ? Number(sm.netToAgent) || 0 : 0, count: 0, net: true };
+    });
+    return out;
+}
+
+function renderMyCommissions() {
+    const box = document.getElementById('myCommView');
+    if (!box) return;
+    const admin = typeof isAgentAdmin === 'function' && isAgentAdmin();
+    const agent = _myComm.agent;
+    const months = _myCommMonths(agent);
+    const years = [...new Set(Object.keys(months).map(_csYearOf).filter(Boolean))].sort((a, b) => b - a);
+    if (!years.length) years.push(new Date().getFullYear());
+    if (!_myComm.year || !years.includes(_myComm.year)) _myComm.year = years[0];
+    const esc = _claudeEsc;
+    const agentSel = admin
+        ? `<select onchange="_myComm.agent=this.value;_myComm.month=null;renderMyCommissions()" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;font-weight:700;color:#0d1f3c;">
+            ${getAllAgents().map(n => `<option value="${esc(n)}" ${n === agent ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`
+        : `<strong style="font-size:16px;color:#0d1f3c;">${esc(agent || '')}</strong>`;
+    const tiles = CS_MONTH_NAMES.map(mn => {
+        const label = mn + ' ' + _myComm.year, d = months[label], on = label === _myComm.month;
+        return `<div onclick="_myComm.month='${label}';renderMyCommissions()" style="padding:14px 10px;border-radius:12px;cursor:pointer;text-align:center;
+                border:2px ${d || on ? 'solid' : 'dashed'} ${on ? '#1d4ed8' : '#e2e8f0'};background:${on ? 'linear-gradient(135deg,#0d1f3c,#1d4ed8)' : '#fff'};
+                color:${on ? '#fff' : (d ? '#0d1f3c' : '#94a3b8')};font-weight:700;font-size:13.5px;">📅 ${mn}
+            ${d ? `<span style="display:block;margin-top:4px;font-size:12px;font-weight:700;color:${on ? '#a7f3d0' : (d.total >= 0 ? '#059669' : '#dc2626')};">${_csMoney(Math.abs(d.total))}${d.total < 0 ? ' cr' : ''}</span>
+                   <span style="display:block;font-size:10.5px;color:${on ? 'rgba(255,255,255,.75)' : '#94a3b8'};">${d.net ? 'net from statement' : d.count + ' transactions'}</span>`
+                : `<span style="display:block;margin-top:4px;font-size:11px;font-weight:600;">no statement</span>`}</div>`;
+    }).join('');
+    box.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+            ${agentSel}
+            <span style="margin-left:auto;display:flex;gap:6px;">${years.map(y => `<button class="btn-sm ${y === _myComm.year ? 'btn-primary' : 'btn-secondary'}" onclick="_myComm.year=${y};_myComm.month=null;renderMyCommissions()">${y}</button>`).join('')}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">${tiles}</div>
+        ${_myComm.month ? '<div id="myCommDash"></div>' : '<p style="text-align:center;color:#94a3b8;margin-top:24px;font-size:13px;">Pick a month to see its dashboard.</p>'}`;
+    if (_myComm.month) {
+        csViewAgent = agent;
+        window._csDashReadOnly = true;
+        csRenderAgentDash(_myComm.month, 'myCommDash');
+        if (!admin) box.querySelectorAll('#myCommDash button').forEach(b => { if (/disbursement|🗑|Delete/i.test(b.textContent + b.title)) b.remove(); });
+    }
 }
 
 function getAgentCommissionShares(agentName) {
@@ -9156,8 +9221,8 @@ function _csLedgerPanelsHtml(month) {
     return html;
 }
 
-function csRenderAgentDash(month) {
-    const box = document.getElementById('csAgentDash');
+function csRenderAgentDash(month, boxId) {
+    const box = document.getElementById(boxId || 'csAgentDash');
     if (!box) return;
     if (!month) { box.innerHTML = ''; return; }
     const stmt = csGetCombined(month);
@@ -9169,7 +9234,7 @@ function csRenderAgentDash(month) {
                 background: radial-gradient(900px 360px at 0% 0%, rgba(29,78,216,.10) 0%, transparent 60%), radial-gradient(800px 380px at 100% 100%, rgba(56,189,248,.10) 0%, transparent 60%), #fff;">
             <div style="font-size:15px;font-weight:800;color:#0d1f3c;">✨ ${_claudeEsc(csViewAgent === '__ALL__' ? 'Agency' : _csAgentLabel(csViewAgent))} · ${_claudeEsc(month)} dashboard</div>
             <p style="font-size:13px;color:#64748b;margin:10px 0 14px;">No commissions have been calculated for this month yet. Uploaded files are stored, but the dashboard is built from calculated commissions.</p>
-            <button class="btn-primary btn-sm" onclick="openCommissionUploadModal('${month}')">✨ Calculate with AI</button>
+            ${window._csDashReadOnly ? '' : `<button class="btn-primary btn-sm" onclick="openCommissionUploadModal('${month}')">✨ Calculate with AI</button>`}
         </div>` + _csLedgerPanelsHtml(month);
         return;
     }
