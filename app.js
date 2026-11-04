@@ -9252,6 +9252,100 @@ const CS_DASH_CSS = `
 // Dashboard from the statement summary alone (agent ledger), for months
 // where only the summary was saved: gross, deductions, net, disbursed,
 // balance, and where the money went.
+// ── Detailed statement: every transaction for one agent & month ─
+// Insured, policy #, carrier, transaction and commission (negatives in
+// red), filterable by company and searchable. Read-only; works for agents
+// (their own month) and admins (whichever agent the dashboard shows).
+let _csDetail = { month: null, agent: null, carrier: '', q: '', sign: '' };
+
+function csOpenDetailStatement(month) {
+    _csDetail = { month, agent: csViewAgent, carrier: '', q: '', sign: '' };
+    let m = document.getElementById('csDetailModal');
+    if (!m) {
+        m = document.createElement('div');
+        m.id = 'csDetailModal';
+        m.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(13,31,60,.45);display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;overflow-y:auto;';
+        m.onclick = e => { if (e.target === m) m.remove(); };
+        document.body.appendChild(m);
+    }
+    _csRenderDetail();
+}
+
+function _csDetailEntries() {
+    const stmt = csGetCombined(_csDetail.month);
+    return ((stmt && stmt.entries) || []).filter(e => _csDetail.agent === '__ALL__' || (e.agentMatch || '__UNASSIGNED__') === _csDetail.agent);
+}
+
+function _csRenderDetail() {
+    const m = document.getElementById('csDetailModal');
+    if (!m) return;
+    const esc = _claudeEsc, money = n => (n < 0 ? '-' : '') + _csMoney(Math.abs(n));
+    const all = _csDetailEntries();
+    const f = _csDetail;
+    const carriers = [...new Set(all.map(e => e.carrier).filter(Boolean))].sort();
+    const rows = all.filter(e =>
+        (!f.carrier || e.carrier === f.carrier) &&
+        (!f.sign || (f.sign === 'neg' ? (Number(e.commission) || 0) < 0 : (Number(e.commission) || 0) >= 0)) &&
+        (!f.q || (String(_csClientName(e)) + ' ' + (e.policyNumber || '')).toLowerCase().includes(f.q.toLowerCase())))
+        .sort((a, b) => String(_csClientName(a)).localeCompare(String(_csClientName(b))));
+    const tot = rows.reduce((t, e) => t + (Number(e.commission) || 0), 0);
+    const neg = rows.filter(e => (Number(e.commission) || 0) < 0).reduce((t, e) => t + (Number(e.commission) || 0), 0);
+    const name = f.agent === '__ALL__' ? 'Agency' : _csAgentLabel(f.agent);
+    const sel = 'padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;';
+    m.innerHTML = `<div style="background:#fff;border-radius:16px;width:min(1000px,100%);box-shadow:0 20px 60px rgba(13,31,60,.35);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;">
+            <strong style="font-size:15px;">📄 ${esc(name)} · ${esc(f.month)} — detailed statement</strong>
+            <button onclick="document.getElementById('csDetailModal').remove()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:5px 12px;cursor:pointer;font-weight:700;">✕ Close</button>
+        </div>
+        <div style="padding:16px 18px;">
+        ${all.length ? `
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                <input id="csDetQ" placeholder="🔍 Search insured or policy #" value="${esc(f.q)}" oninput="_csDetail.q=this.value;_csRenderDetailRows()" style="${sel}flex:1;min-width:200px;">
+                <select onchange="_csDetail.carrier=this.value;_csRenderDetail()" style="${sel}"><option value="">All companies</option>${carriers.map(c => `<option ${c === f.carrier ? 'selected' : ''} value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
+                <select onchange="_csDetail.sign=this.value;_csRenderDetail()" style="${sel}">
+                    <option value="">Positive & negative</option><option value="pos" ${f.sign === 'pos' ? 'selected' : ''}>Positive only</option><option value="neg" ${f.sign === 'neg' ? 'selected' : ''}>Negative only</option></select>
+            </div>
+            <div id="csDetRows">${_csDetailRowsHtml(rows, tot, neg)}</div>`
+        : `<p style="color:#64748b;font-size:13.5px;margin:6px 0;">No individual transactions are saved for ${esc(f.month)} yet — only the statement summary. When the statement is processed, save its transactions too and they will be listed here with the insured, policy number, company and commission.</p>`}
+        </div></div>`;
+    if (f.q) { const q = document.getElementById('csDetQ'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
+}
+
+function _csRenderDetailRows() {
+    // Search only re-renders the table, so the search box keeps focus.
+    const box = document.getElementById('csDetRows');
+    if (!box) return;
+    const f = _csDetail;
+    const rows = _csDetailEntries().filter(e =>
+        (!f.carrier || e.carrier === f.carrier) &&
+        (!f.sign || (f.sign === 'neg' ? (Number(e.commission) || 0) < 0 : (Number(e.commission) || 0) >= 0)) &&
+        (!f.q || (String(_csClientName(e)) + ' ' + (e.policyNumber || '')).toLowerCase().includes(f.q.toLowerCase())))
+        .sort((a, b) => String(_csClientName(a)).localeCompare(String(_csClientName(b))));
+    const tot = rows.reduce((t, e) => t + (Number(e.commission) || 0), 0);
+    const neg = rows.filter(e => (Number(e.commission) || 0) < 0).reduce((t, e) => t + (Number(e.commission) || 0), 0);
+    box.innerHTML = _csDetailRowsHtml(rows, tot, neg);
+}
+
+function _csDetailRowsHtml(rows, tot, neg) {
+    const esc = _claudeEsc, money = n => (n < 0 ? '-' : '') + _csMoney(Math.abs(n));
+    const th = 'padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#fff;background:#0d1f3c;';
+    return `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr><th style="${th}">Insured</th><th style="${th}">Policy #</th><th style="${th}">Company</th><th style="${th}">Transaction</th><th style="${th}text-align:right;">Commission</th></tr></thead>
+        <tbody>${rows.length ? rows.map((e, i) => { const c = Number(e.commission) || 0;
+            return `<tr style="background:${i % 2 ? '#f8fafc' : '#fff'};${c < 0 ? 'background:#fef2f2;' : ''}">
+                <td style="padding:8px 10px;border-bottom:1px solid #eef2f7;">${esc(_csClientName(e) || '—')}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #eef2f7;font-family:monospace;color:#475569;">${esc(e.policyNumber || '—')}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #eef2f7;color:#1d4ed8;font-weight:600;">${esc(e.carrier || '—')}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #eef2f7;color:#64748b;">${esc(e.transaction || '—')}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #eef2f7;text-align:right;font-weight:700;color:${c < 0 ? '#dc2626' : '#059669'};">${money(c)}</td></tr>`; }).join('')
+            : '<tr><td colspan="5" style="padding:18px;text-align:center;color:#94a3b8;">No transactions match these filters.</td></tr>'}</tbody></table></div>
+        <div style="display:flex;justify-content:flex-end;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:13px;">
+            <span>${rows.length} transaction${rows.length !== 1 ? 's' : ''}</span>
+            <span>Negatives: <strong style="color:#dc2626;">${money(neg)}</strong></span>
+            <span>Total: <strong style="color:${tot < 0 ? '#dc2626' : '#0d1f3c'};font-size:14px;">${money(tot)}</strong></span>
+        </div>`;
+}
+
 function _csSummaryDashHtml(month) {
     if (!csViewAgent || csViewAgent === '__ALL__') return '';
     const led = alGet(csViewAgent, month), sm = led.summary;
@@ -9263,8 +9357,10 @@ function _csSummaryDashHtml(month) {
     const ded = [];
     if (num(sm.royalty)) ded.push({ k: 'Royalty', v: num(sm.royalty) });
     (sm.expenses || []).forEach(e => { if (num(e.amount)) ded.push({ k: e.label || 'Expense', v: num(e.amount) }); });
+    // The statement may already list cash payments owed as an expense line;
+    // only add the itemized total when it does not.
     const cash = (sm.cashPaymentsOwed || []).reduce((t, c) => t + num(c.amount), 0);
-    if (cash) ded.push({ k: 'Cash payments owed', v: cash });
+    if (cash && !ded.some(d => /cash\s*payment/i.test(d.k))) ded.push({ k: 'Cash payments owed', v: cash });
     ded.forEach(d => { d.abs = Math.abs(d.v); });
     ded.sort((x, y) => y.abs - x.abs);
     const dedTotal = ded.reduce((t, d) => t + d.abs, 0);
@@ -9286,7 +9382,8 @@ function _csSummaryDashHtml(month) {
     <div class="cs-dash">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
             <h4>✨ ${esc(_csAgentLabel(csViewAgent))} · ${esc(month)} dashboard</h4>
-            <span class="cs-glass" style="padding:5px 12px;font-size:12px;font-weight:700;color:#6d28d9;">✨ from the statement summary</span>
+            <span style="display:flex;gap:8px;align-items:center;"><button class="btn-primary btn-sm" onclick="csOpenDetailStatement('${month}')">📄 Detailed statement</button>
+            <span class="cs-glass" style="padding:5px 12px;font-size:12px;font-weight:700;color:#6d28d9;">✨ from the statement summary</span></span>
         </div>
         <div class="cs-kpis">
             ${kpi('Gross commissions', money(gross), 'before deductions', '#1d4ed8')}
@@ -9388,6 +9485,7 @@ function csRenderAgentDash(month, boxId) {
     <div class="cs-dash">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
             <h4>✨ ${esc(csViewAgent === '__ALL__' ? 'Agency' : _csAgentLabel(csViewAgent))} · ${esc(month)} dashboard</h4>
+            <button class="btn-primary btn-sm" onclick="csOpenDetailStatement('${month}')" style="margin-left:auto;">📄 Detailed statement</button>
             ${delta === null ? '' : `<span class="cs-glass" style="padding:5px 12px;font-size:12px;font-weight:700;color:${delta >= 0 ? '#059669' : '#dc2626'};">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}% vs ${esc(prevLabel)}</span>`}
         </div>
         <div class="cs-kpis">
