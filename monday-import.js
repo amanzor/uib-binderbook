@@ -161,6 +161,134 @@
         return m ? `monday import of ${m[1]} at ${m[2]}:${m[3]} UTC` : b;
     }
 
+    // ── Insureds contacts import (AMS client records ONLY) ──────
+    //  Fills missing contact info on existing clients and creates a
+    //  client record for insureds the AMS does not have. Never writes
+    //  to the Binder Book entries, prospects, renewals or health.
+    let _contacts = null;   // the parsed insureds file
+    let _cPlan = null;
+
+    function fuzzyNameKey(s) {
+        return String(s || '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/)
+            .filter(t => t && ['LLC', 'INC', 'CORP', 'CO', 'THE'].indexOf(t) === -1).sort().join(' ');
+    }
+    function stateCode(s) {
+        s = String(s || '').trim();
+        if (/^[A-Za-z]{2}$/.test(s)) return s.toUpperCase();
+        const m = { FLORIDA: 'FL', GEORGIA: 'GA', TEXAS: 'TX', 'NEW YORK': 'NY', CALIFORNIA: 'CA' };
+        return m[s.toUpperCase()] || '';
+    }
+
+    function analyzeContacts() {
+        const contacts = readLocal('amsClientData', {}) || {};
+        const exact = {};   // fuzzy key -> exact AMS client key
+        Object.keys(contacts).forEach(k => { const f = fuzzyNameKey(k); if (f && !exact[f]) exact[f] = k; });
+        book().forEach(e => {
+            if (!e || !e.customerName) return;
+            const k = amsClientKeyFromName(e.customerName);
+            const f = fuzzyNameKey(k);
+            if (f && !exact[f]) exact[f] = k;
+        });
+        const plan = { fills: [], creates: [], complete: 0, blankRows: 0 };
+        const seen = new Set();
+        (_contacts.insureds || []).forEach(ins => {
+            const name = String(ins.name || '').trim();
+            if (!name) { plan.blankRows++; return; }
+            const f = fuzzyNameKey(name);
+            if (!f || seen.has(f)) return;   // one row per client
+            seen.add(f);
+            const email = String(ins.email || '').trim();
+            const phone = String(ins.phone || '').trim();
+            const st = stateCode(ins.state);
+            const target = exact[f];
+            if (target) {
+                const rec = contacts[target] || {};
+                const set = {};
+                if (email && !rec.email) set.email = email;
+                if (phone && !rec.phone1) set.phone1 = phone;
+                else if (phone && rec.phone1 && rec.phone1.replace(/\D/g, '') !== phone.replace(/\D/g, '') && !rec.phone2) set.phone2 = phone;
+                if (st && !rec.state) set.state = st;
+                if (Object.keys(set).length) plan.fills.push({ key: target, name, set, hadRecord: !!contacts[target] });
+                else plan.complete++;
+            } else {
+                plan.creates.push({ key: amsClientKeyFromName(name), name, email, phone, state: st });
+            }
+        });
+        _cPlan = plan;
+    }
+
+    function renderContactsPlan() {
+        const body = $('miBody');
+        if (!body || !_cPlan) return;
+        const p = _cPlan;
+        const fieldCounts = { email: 0, phone1: 0, phone2: 0, state: 0 };
+        p.fills.forEach(x => Object.keys(x.set).forEach(k => fieldCounts[k]++));
+        body.innerHTML =
+            '<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px 14px;margin-bottom:14px;">' +
+              '<strong>Insureds contacts file</strong> — ' + esc(_contacts.source || '') + '<br>' +
+              'This updates <strong>AMS client records only</strong>. Nothing is added to the Binder Book, prospects or renewals.</div>' +
+            '<ul style="margin:0 0 12px 18px;">' +
+              '<li><strong>' + num(p.fills.length) + '</strong> existing clients get missing contact info filled in ' +
+                  '(' + num(fieldCounts.email) + ' emails, ' + num(fieldCounts.phone1 + fieldCounts.phone2) + ' phones, ' + num(fieldCounts.state) + ' states). Existing values are never replaced.</li>' +
+              '<li><strong>' + num(p.creates.length) + '</strong> insureds are not in the AMS — a client record is created for each (status Active, no policies).</li>' +
+              '<li><strong>' + num(p.complete) + '</strong> matched clients already have this contact info — untouched.</li>' +
+            '</ul>' +
+            '<details style="margin-bottom:10px;"><summary style="cursor:pointer;">New client records (first ' + PREVIEW_ROWS + ')</summary>' +
+              '<div style="max-height:260px;overflow:auto;margin-top:6px;font-size:12px;">' +
+              p.creates.slice(0, PREVIEW_ROWS).map(c => '<div>' + esc(c.name) + ' — ' + esc(c.email || 'no email') + ' · ' + esc(c.phone || 'no phone') + '</div>').join('') +
+              '</div></details>' +
+            '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+              '<button class="btn-primary" id="miGo" style="background:linear-gradient(135deg,#065f46,#10b981);" onclick="mondayImportRunContacts()">📇 Update client records</button>' +
+              '<button class="btn-secondary" onclick="mondayImportBack()">← Back</button>' +
+            '</div><div id="miLog" style="margin-top:10px;font-size:12.5px;line-height:1.7;"></div>';
+    }
+
+    async function runContacts() {
+        if (!_cPlan) return;
+        const go = $('miGo');
+        if (go) { go.disabled = true; go.textContent = 'Updating…'; }
+        const batch = 'insureds-' + new Date().toISOString().replace(/[:.]/g, '-');
+        const now = new Date().toISOString();
+        try {
+            logLine('⏳ Saving a snapshot of the current data to the cloud…');
+            await preImportSnapshot(batch);
+            logLine('⏳ Updating AMS client records…');
+            let filled = 0, created = 0;
+            await mergeAndWriteMap('amsClientData', contacts => {
+                _cPlan.fills.forEach(x => {
+                    const rec = contacts[x.key] || (contacts[x.key] = { notes: [], createdAt: now, createdBy: 'NowCerts insureds import', createdByImport: batch, clientStatus: 'Active' });
+                    let touched = false;
+                    Object.keys(x.set).forEach(fld => { if (!rec[fld]) { rec[fld] = x.set[fld]; touched = true; } });
+                    if (touched) { rec.updatedAt = now; filled++; }
+                });
+                _cPlan.creates.forEach(c => {
+                    if (contacts[c.key]) {   // appeared since the preview
+                        const rec = contacts[c.key];
+                        if (c.email && !rec.email) rec.email = c.email;
+                        if (c.phone && !rec.phone1) rec.phone1 = c.phone;
+                        if (c.state && !rec.state) rec.state = c.state;
+                        rec.updatedAt = now;
+                        return;
+                    }
+                    const split = splitCustomerName(c.name);
+                    contacts[c.key] = { notes: [], createdAt: now, createdBy: 'NowCerts insureds import', createdByImport: batch,
+                        firstName: split.firstName, lastName: split.lastName,
+                        email: c.email || '', phone1: c.phone || '', state: c.state || '',
+                        clientStatus: 'Active', updatedAt: now };
+                    created++;
+                });
+                return contacts;
+            });
+            logLine('<strong style="color:#047857;">✅ Done.</strong> ' + num(filled) + ' client records filled in, ' + num(created) + ' created. Batch: <code>' + esc(batch) + '</code>');
+            if (window.UIBAudit) try { UIBAudit.log('import', 'nowcerts insureds', { batch, filled, created }); } catch (e) {}
+        } catch (e) {
+            logLine('<strong style="color:#b91c1c;">❌ Stopped: ' + esc(e.message || e) + '</strong>');
+        } finally {
+            if (go) go.textContent = 'Updated';
+            refreshViews();
+        }
+    }
+
     // ── Modal ────────────────────────────────────────────────────
     function showMondayImport() {
         if (typeof currentRole !== 'undefined' && currentRole !== 'admin') {
@@ -225,8 +353,20 @@
         const status = $('miStatus');
         let data;
         try { data = JSON.parse(await f.text()); } catch (e) { status.textContent = '❌ That file is not valid JSON.'; return; }
+        if (data && data.format === 'uib-insureds-import') {
+            _contacts = data;
+            status.textContent = '⏳ Loading the latest client records from the cloud so the check is against current data…';
+            try {
+                if (typeof syncFromDrive === 'function') await syncFromDrive();
+                const fresh = readLocal('binderData', null);
+                if (Array.isArray(fresh) && fresh.length >= book().length) allData = fresh;
+            } catch (e) { /* offline */ }
+            analyzeContacts();
+            renderContactsPlan();
+            return;
+        }
         if (!data || data.format !== 'uib-monday-import') {
-            status.textContent = '❌ That is not a monday.com import file.';
+            status.textContent = '❌ That is not a monday.com import file (or an insureds contacts file).';
             return;
         }
         _file = data;
@@ -839,5 +979,6 @@
     window.mondayImportDownloadReview = downloadReview;
     window.mondayImportRun = run;
     window.mondayImportUndo = undo;
-    window.mondayImportBack = function () { _plan = null; renderStart(); };
+    window.mondayImportRunContacts = runContacts;
+    window.mondayImportBack = function () { _plan = null; _cPlan = null; _contacts = null; renderStart(); };
 })();
