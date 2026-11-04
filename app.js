@@ -8251,12 +8251,220 @@ function csPickPdfs(input) {
 
 function csSendPdfsToAi(pdfs) {
     closeCommissionUploadModal();
+    // From an agent's month tile the PDFs are that AGENT's statements: they go
+    // to the Agent Statement AI, which credits every transaction to that agent.
+    // The agency statement processor (Documents section) is only for the
+    // agency-wide carrier statements and is NOT used for agent months.
+    if (csUploadTargetAgent) {
+        openAgentAiModal(csUploadTargetAgent, csUploadTargetMonth, pdfs);
+        return;
+    }
     showMonthlyDocuments();
     claudeAdminHandlePdfUpload({ target: { files: pdfs } });
     const box = document.getElementById('claudeAdminSection');
     if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (csUploadTargetMonth && typeof claudeShowToast === 'function')
         claudeShowToast('📅 These PDFs will be filed under ' + csUploadTargetMonth + ' — press Process.', 'info');
+}
+
+// ── Agent Statement AI ────────────────────────────────────────
+// Processes statements that belong to ONE agent (opened from that agent's
+// month tile). Every transaction is credited to that agent — no BinderBook
+// agent matching — and it is completely separate from the agency statement
+// AI processor in the Documents section.
+let _agentAi = { agent: null, month: null, pdfs: [], statements: [], busy: false, uploaded: false };
+
+function openAgentAiModal(agent, month, files) {
+    _agentAi = { agent, month, pdfs: [], statements: [], busy: false, uploaded: false };
+    const title = document.getElementById('agentAiTitle');
+    if (title) title.textContent = `${agent} — ${month}`;
+    const note = document.getElementById('agentAiNote');
+    if (note) note.innerHTML = `These are <strong>${_claudeEsc(agent)}</strong>'s own statements for <strong>${_claudeEsc(month)}</strong>. ` +
+        `Every transaction found will be credited to ${_claudeEsc(agent)} and saved under ${_claudeEsc(month)}.`;
+    const res = document.getElementById('agentAiResults');
+    if (res) res.innerHTML = '';
+    agentAiRenderFiles();
+    const m = document.getElementById('agentAiModal');
+    m.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    if (files && files.length) _agentAiAddFiles(files);
+    refreshIcons();
+}
+
+function closeAgentAiModal() {
+    document.getElementById('agentAiModal').classList.remove('active');
+}
+
+function _agentAiAddFiles(fileList) {
+    const pdfs = Array.from(fileList || []).filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+    if (!pdfs.length) { alert('Please add PDF files only.'); return; }
+    pdfs.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            _agentAi.pdfs.push({ name: file.name, base64: e.target.result.split(',')[1] });
+            agentAiRenderFiles();
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function agentAiPickPdfs(input) {
+    _agentAiAddFiles(input.files);
+    input.value = '';
+}
+
+function agentAiDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
+function agentAiDrop(e) {
+    e.preventDefault();
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if (files.length) _agentAiAddFiles(files);
+}
+
+function agentAiRemovePdf(idx) {
+    _agentAi.pdfs.splice(idx, 1);
+    agentAiRenderFiles();
+}
+
+function agentAiRenderFiles() {
+    const box = document.getElementById('agentAiFiles');
+    if (!box) return;
+    if (!_agentAi.pdfs.length) { box.innerHTML = '<span style="color:var(--gray-400);font-size:13px;">No PDFs attached yet.</span>'; }
+    else box.innerHTML = _agentAi.pdfs.map((p, i) =>
+        `<span style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:999px;padding:4px 10px;font-size:12px;margin:2px 4px 2px 0;">📄 ${_claudeEsc(p.name)}
+         <button onclick="agentAiRemovePdf(${i})" style="border:none;background:none;color:#dc2626;cursor:pointer;font-weight:700;">✕</button></span>`).join('');
+    const btn = document.getElementById('agentAiProcessBtn');
+    if (btn) btn.disabled = _agentAi.busy || !_agentAi.pdfs.length;
+}
+
+function agentAiBuildSystemPrompt() {
+    const a = _agentAi.agent, m = _agentAi.month;
+    return `You are the AI commission processor for UIB BinderBook (Universal Insurance Brokers).
+
+AGENT STATEMENT MODE:
+The admin uploaded commission statement PDF(s) that belong ENTIRELY to one agent: ${a}, for the period ${m}. These are that agent's own statements, not agency-wide statements. EVERY transaction on them belongs to ${a} — never assign a transaction to any other agent, and do not try to match agents from other data.
+
+Your job:
+1. Identify each carrier covered and the statement period.
+2. Extract EVERY transaction line item (don't skip any). Every line item MUST include the insured/client name; never leave customerName empty. Use the policy number, transaction type and commission amount printed on the statement.
+3. A "Monthly Commission Statement" PDF is a summary (carrier totals, royalty, expenses) — use it only to verify your totals. Extract the line items from the "Detail by Carrier" statement. Do not output transactions from a summary page that would duplicate the detail lines.
+4. Verify: your transactions per carrier should add up to that carrier's printed total.
+
+After a brief 2-3 sentence summary, output ONE \`\`\`json block PER CARRIER (as the last thing in your response), in this exact shape:
+
+\`\`\`json
+{
+  "carrier": "string (carrier name)",
+  "statementMonth": "${m}",
+  "statementDate": "YYYY-MM-DD",
+  "totalGrossCommission": number,
+  "transactions": [
+    {
+      "customerName": "string (REQUIRED, never empty)",
+      "policyNumber": "string",
+      "transactionType": "string (New Business | Renewal | Endorsement | Cancellation | Payment | Adjustment | Other)",
+      "premium": number,
+      "commissionAmount": number,
+      "matchedEntryId": null,
+      "matchedAgent": "${a}",
+      "matchConfidence": "high",
+      "notes": ""
+    }
+  ],
+  "agentTotals": { "${a}": { "transactionCount": number, "totalCommission": number } }
+}
+\`\`\``;
+}
+
+async function agentAiProcess() {
+    if (_agentAi.busy || !_agentAi.pdfs.length) return;
+    _agentAi.busy = true;
+    const btn = document.getElementById('agentAiProcessBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '✨ Reading statements…'; }
+    const res = document.getElementById('agentAiResults');
+    if (res) res.innerHTML = `<p style="font-size:13px;color:var(--gray-500);">✨ Reading ${_agentAi.pdfs.length} statement PDF${_agentAi.pdfs.length > 1 ? 's' : ''} for ${_claudeEsc(_agentAi.agent)}…</p>`;
+    try {
+        const content = _agentAi.pdfs.map(pdf => ({
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: pdf.base64 }
+        }));
+        content.push({ type: 'text', text: `Process these commission statements for ${_agentAi.agent} (${_agentAi.month}). Extract every transaction per carrier.` });
+        const reply = await claudeCallAPI(agentAiBuildSystemPrompt(), [{ role: 'user', content }], 16000);
+        const text = reply.text || '';
+        const statements = claudeAdminParseAllStatements(text);
+        // Belt and braces: every transaction is this agent's, whatever came back.
+        statements.forEach(stmt => {
+            (stmt.transactions || []).forEach(t => { t.matchedAgent = _agentAi.agent; t.matchConfidence = 'high'; });
+            stmt.agentTotals = {};
+            stmt.agentTotals[_agentAi.agent] = {
+                transactionCount: (stmt.transactions || []).length,
+                totalCommission: parseFloat(((stmt.transactions || []).reduce((s, t) => s + (parseFloat(t.commissionAmount) || 0), 0)).toFixed(2))
+            };
+        });
+        _agentAi.statements = statements;
+        agentAiRenderResults(text, reply.stopReason === 'max_tokens');
+    } catch (err) {
+        if (res) res.innerHTML = `<p style="color:#dc2626;font-size:13px;">❌ ${_claudeEsc(err.message)}</p>`;
+    } finally {
+        _agentAi.busy = false;
+        if (btn) { btn.disabled = !_agentAi.pdfs.length; btn.textContent = '✨ Process'; }
+    }
+}
+
+function agentAiRenderResults(replyText, truncated) {
+    const res = document.getElementById('agentAiResults');
+    if (!res) return;
+    const stmts = _agentAi.statements;
+    if (!stmts.length) {
+        res.innerHTML = `<div style="font-size:13px;color:var(--gray-600);">${claudeRenderMarkdown(replyText || 'No statements were recognized in those PDFs.')}</div>`;
+        return;
+    }
+    let html = '';
+    stmts.forEach((stmt, idx) => {
+        const n = (stmt.transactions || []).length;
+        const gross = stmt.totalGrossCommission || (stmt.agentTotals[_agentAi.agent] || {}).totalCommission || 0;
+        html += `<div style="background:#fff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+                <div>
+                    <div style="font-weight:700;color:#1d4ed8;font-size:14px;">${_claudeEsc(stmt.carrier || 'Unknown carrier')} — ${_claudeEsc(stmt.statementMonth || _agentAi.month)}</div>
+                    <div style="font-size:12px;color:#6b7280;">${n} transactions · all credited to ${_claudeEsc(_agentAi.agent)} · Gross: $${(gross || 0).toFixed(2)}</div>
+                    ${stmt._truncated || truncated ? '<div style="font-size:12px;color:#b45309;font-weight:700;">⚠️ The response was cut off — verify against the PDF before saving.</div>' : ''}
+                </div>
+                <button id="agentAiSave_${idx}" onclick="agentAiApply(${idx})"
+                    style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">💾 Save ${_claudeEsc(stmt.carrier || '')}</button>
+            </div>
+            <div style="overflow:auto;max-height:220px;border:1px solid var(--gray-200);border-radius:8px;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <tr style="background:#f9fafb;"><th style="padding:5px 8px;text-align:left;">Client</th><th style="padding:5px 8px;text-align:left;">Policy #</th><th style="padding:5px 8px;text-align:left;">Type</th><th style="padding:5px 8px;text-align:right;">Commission</th></tr>
+                ${(stmt.transactions || []).map(t => `<tr style="border-top:1px solid #f3f4f6;">
+                    <td style="padding:4px 8px;">${_claudeEsc(t.customerName || '—')}</td>
+                    <td style="padding:4px 8px;font-family:monospace;">${_claudeEsc(t.policyNumber || '—')}</td>
+                    <td style="padding:4px 8px;">${_claudeEsc(t.transactionType || '')}</td>
+                    <td style="padding:4px 8px;text-align:right;color:${(t.commissionAmount || 0) < 0 ? '#dc2626' : '#15803d'};font-weight:600;">$${(t.commissionAmount || 0).toFixed(2)}</td>
+                </tr>`).join('')}
+            </table></div>
+        </div>`;
+    });
+    res.innerHTML = html;
+}
+
+async function agentAiApply(idx) {
+    const stmt = _agentAi.statements[idx];
+    if (!stmt) return;
+    const btn = document.getElementById('agentAiSave_' + idx);
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    // claudeAdminApplyStatement reads these to pick the month and to file the
+    // original PDFs into the agent's month folder (AgentStmt_<agent>_<y>_<m>).
+    csUploadTargetMonth = _agentAi.month;
+    csUploadTargetAgent = _agentAi.agent;
+    _claudeAdminLastPdfs = _agentAi.uploaded ? [] : _agentAi.pdfs.slice();   // upload the originals once, not per carrier
+    try {
+        await claudeAdminApplyStatement(stmt);
+        _agentAi.uploaded = true;
+        if (btn) { btn.textContent = '✓ Saved'; btn.style.background = '#6b7280'; }
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = '💾 Retry save'; }
+        alert('Save failed: ' + e.message);
+    }
 }
 
 function csNormalizeSheetName(name) {
