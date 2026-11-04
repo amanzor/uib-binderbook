@@ -59,6 +59,7 @@
 
     document.addEventListener('dragover', function (e) {
         if (!hasFiles(e)) return;
+        if (e.defaultPrevented) { unlight(); return; }   // an area with its own drag handling took it — keep its dropEffect
         e.preventDefault();                       // never let the browser navigate to the file
         const hit = areaFor(e.target);
         light(hit && hit.area);

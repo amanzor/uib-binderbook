@@ -8223,7 +8223,13 @@ function _csDropZoneOn(on) {
     z.style.background = on ? '#eff6ff' : 'var(--gray-50)';
 }
 function csDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; _csDropZoneOn(true); }
-function csDragLeave(e) { e.preventDefault(); _csDropZoneOn(false); }
+function csDragLeave(e) {
+    e.preventDefault();
+    // Only unlight when the drag actually leaves the listening surface, not
+    // when it moves between its children (the modal is one big drop surface).
+    if (e.currentTarget && e.currentTarget.contains && e.currentTarget.contains(e.relatedTarget)) return;
+    _csDropZoneOn(false);
+}
 function csDrop(e) {
     e.preventDefault();
     _csDropZoneOn(false);
@@ -8245,12 +8251,358 @@ function csPickPdfs(input) {
 
 function csSendPdfsToAi(pdfs) {
     closeCommissionUploadModal();
+    // From an agent's month tile the PDFs are that AGENT's statements: they go
+    // to the Agent Statement AI, which credits every transaction to that agent.
+    // The agency statement processor (Documents section) is only for the
+    // agency-wide carrier statements and is NOT used for agent months.
+    if (csUploadTargetAgent) {
+        openAgentAiModal(csUploadTargetAgent, csUploadTargetMonth, pdfs);
+        return;
+    }
     showMonthlyDocuments();
     claudeAdminHandlePdfUpload({ target: { files: pdfs } });
     const box = document.getElementById('claudeAdminSection');
     if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (csUploadTargetMonth && typeof claudeShowToast === 'function')
         claudeShowToast('📅 These PDFs will be filed under ' + csUploadTargetMonth + ' — press Process.', 'info');
+}
+
+// ── Agent Statement AI ────────────────────────────────────────
+// Processes statements that belong to ONE agent (opened from that agent's
+// month tile). Every transaction is credited to that agent — no BinderBook
+// agent matching — and it is completely separate from the agency statement
+// AI processor in the Documents section.
+let _agentAi = { agent: null, month: null, pdfs: [], statements: [], busy: false, uploaded: false };
+
+function openAgentAiModal(agent, month, files) {
+    _agentAi = { agent, month, pdfs: [], statements: [], busy: false, uploaded: false };
+    const title = document.getElementById('agentAiTitle');
+    if (title) title.textContent = `${agent} — ${month}`;
+    const note = document.getElementById('agentAiNote');
+    if (note) note.innerHTML = `These are <strong>${_claudeEsc(agent)}</strong>'s own statements for <strong>${_claudeEsc(month)}</strong>. ` +
+        `Every transaction found will be credited to ${_claudeEsc(agent)} and saved under ${_claudeEsc(month)}.`;
+    const res = document.getElementById('agentAiResults');
+    if (res) res.innerHTML = '';
+    agentAiRenderFiles();
+    const m = document.getElementById('agentAiModal');
+    m.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    if (files && files.length) _agentAiAddFiles(files);
+    refreshIcons();
+}
+
+function closeAgentAiModal() {
+    document.getElementById('agentAiModal').classList.remove('active');
+}
+
+function _agentAiAddFiles(fileList) {
+    const pdfs = Array.from(fileList || []).filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+    if (!pdfs.length) { alert('Please add PDF files only.'); return; }
+    pdfs.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            _agentAi.pdfs.push({ name: file.name, base64: e.target.result.split(',')[1] });
+            agentAiRenderFiles();
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function agentAiPickPdfs(input) {
+    _agentAiAddFiles(input.files);
+    input.value = '';
+}
+
+function agentAiDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
+function agentAiDrop(e) {
+    e.preventDefault();
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if (files.length) _agentAiAddFiles(files);
+}
+
+function agentAiRemovePdf(idx) {
+    _agentAi.pdfs.splice(idx, 1);
+    agentAiRenderFiles();
+}
+
+function agentAiRenderFiles() {
+    const box = document.getElementById('agentAiFiles');
+    if (!box) return;
+    if (!_agentAi.pdfs.length) { box.innerHTML = '<span style="color:var(--gray-400);font-size:13px;">No PDFs attached yet.</span>'; }
+    else box.innerHTML = _agentAi.pdfs.map((p, i) =>
+        `<span style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:999px;padding:4px 10px;font-size:12px;margin:2px 4px 2px 0;">📄 ${_claudeEsc(p.name)}
+         <button onclick="agentAiRemovePdf(${i})" style="border:none;background:none;color:#dc2626;cursor:pointer;font-weight:700;">✕</button></span>`).join('');
+    const btn = document.getElementById('agentAiProcessBtn');
+    if (btn) btn.disabled = _agentAi.busy || !_agentAi.pdfs.length;
+}
+
+function agentAiBuildSystemPrompt() {
+    const a = _agentAi.agent, m = _agentAi.month;
+    return `You are the AI commission processor for UIB BinderBook (Universal Insurance Brokers).
+
+AGENT STATEMENT MODE:
+The admin uploaded commission statement PDF(s) that belong ENTIRELY to one agent: ${a}, for the period ${m}. These are that agent's own statements, not agency-wide statements. EVERY transaction on them belongs to ${a} — never assign a transaction to any other agent, and do not try to match agents from other data.
+
+Your job:
+1. Identify each carrier covered and the statement period.
+2. Extract EVERY transaction line item (don't skip any). Every line item MUST include the insured/client name; never leave customerName empty. Use the policy number, transaction type and commission amount printed on the statement.
+3. A "Monthly Commission Statement" PDF is a summary (carrier totals, royalty, expenses) — use it only to verify your totals. Extract the line items from the "Detail by Carrier" statement. Do not output transactions from a summary page that would duplicate the detail lines.
+4. Verify: your transactions per carrier should add up to that carrier's printed total.
+
+After a brief 2-3 sentence summary, output ONE \`\`\`json block PER CARRIER (as the last thing in your response), in this exact shape:
+
+\`\`\`json
+{
+  "carrier": "string (carrier name)",
+  "statementMonth": "${m}",
+  "statementDate": "YYYY-MM-DD",
+  "totalGrossCommission": number,
+  "transactions": [
+    {
+      "customerName": "string (REQUIRED, never empty)",
+      "policyNumber": "string",
+      "transactionType": "string (New Business | Renewal | Endorsement | Cancellation | Payment | Adjustment | Other)",
+      "premium": number,
+      "commissionAmount": number,
+      "matchedEntryId": null,
+      "matchedAgent": "${a}",
+      "matchConfidence": "high",
+      "notes": ""
+    }
+  ],
+  "agentTotals": { "${a}": { "transactionCount": number, "totalCommission": number } }
+}
+\`\`\`
+
+5. If any PDF carries the statement SUMMARY (gross commissions, royalty, operating expenses such as rent / systems / MVRs, "Cash Payments Owed" detail, net amount), ALSO output exactly one extra \`\`\`json block with that summary — amounts exactly as printed, deductions as NEGATIVE numbers:
+
+\`\`\`json
+{
+  "type": "agentStatementSummary",
+  "statementMonth": "${m}",
+  "grossCommissions": number,
+  "royalty": number,
+  "expenses": [ { "label": "string (e.g. 220 License Rent, Systems, MVRs)", "amount": number } ],
+  "cashPaymentsOwed": [ { "client": "string", "policy": "string", "carrier": "string", "description": "string", "swept": "string (date)", "amount": number } ],
+  "netToAgent": number,
+  "disbursements": [ { "amount": number, "date": "YYYY-MM-DD", "method": "string (check / deposit / Zelle...)", "reference": "string" } ]
+}
+\`\`\`
+
+"disbursements" are payments the statement shows as already PAID OUT to ${a} (a disbursement, payout, draw or payment-to-agent line). Use [] when the statement shows none — do not invent one, and do not count expenses or cash sweeps as disbursements.`;
+}
+
+async function agentAiProcess() {
+    if (_agentAi.busy || !_agentAi.pdfs.length) return;
+    _agentAi.busy = true;
+    const btn = document.getElementById('agentAiProcessBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '✨ Reading statements…'; }
+    const res = document.getElementById('agentAiResults');
+    if (res) res.innerHTML = `<p style="font-size:13px;color:var(--gray-500);">✨ Reading ${_agentAi.pdfs.length} statement PDF${_agentAi.pdfs.length > 1 ? 's' : ''} for ${_claudeEsc(_agentAi.agent)}…</p>`;
+    try {
+        const content = _agentAi.pdfs.map(pdf => ({
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: pdf.base64 }
+        }));
+        content.push({ type: 'text', text: `Process these commission statements for ${_agentAi.agent} (${_agentAi.month}). Extract every transaction per carrier.` });
+        const reply = await claudeCallAPI(agentAiBuildSystemPrompt(), [{ role: 'user', content }], 16000);
+        const text = reply.text || '';
+        const statements = claudeAdminParseAllStatements(text);
+        // The statement-summary block (expenses, cash owed, net, disbursements)
+        // has no transactions, so the statement parser above skips it.
+        _agentAi.summaryBlock = null;
+        const sre = /```json\s*([\s\S]*?)(?:```|$)/g;
+        let sm;
+        while ((sm = sre.exec(text)) !== null) {
+            try {
+                const obj = JSON.parse(sm[1].trim());
+                if (obj && obj.type === 'agentStatementSummary') { _agentAi.summaryBlock = obj; break; }
+            } catch (e) { /* not this block */ }
+        }
+        // Belt and braces: every transaction is this agent's, whatever came back.
+        statements.forEach(stmt => {
+            (stmt.transactions || []).forEach(t => { t.matchedAgent = _agentAi.agent; t.matchConfidence = 'high'; });
+            stmt.agentTotals = {};
+            stmt.agentTotals[_agentAi.agent] = {
+                transactionCount: (stmt.transactions || []).length,
+                totalCommission: parseFloat(((stmt.transactions || []).reduce((s, t) => s + (parseFloat(t.commissionAmount) || 0), 0)).toFixed(2))
+            };
+        });
+        _agentAi.statements = statements;
+        agentAiRenderResults(text, reply.stopReason === 'max_tokens');
+    } catch (err) {
+        if (res) res.innerHTML = `<p style="color:#dc2626;font-size:13px;">❌ ${_claudeEsc(err.message)}</p>`;
+    } finally {
+        _agentAi.busy = false;
+        if (btn) { btn.disabled = !_agentAi.pdfs.length; btn.textContent = '✨ Process'; }
+    }
+}
+
+function agentAiRenderResults(replyText, truncated) {
+    const res = document.getElementById('agentAiResults');
+    if (!res) return;
+    const stmts = _agentAi.statements;
+    let summaryHtml = '';
+    const sb = _agentAi.summaryBlock;
+    if (sb) {
+        const money = n => (Number(n) < 0 ? '-$' : '$') + Math.abs(Number(n) || 0).toFixed(2);
+        const nDisb = (sb.disbursements || []).length;
+        summaryHtml = `<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                <div>
+                    <div style="font-weight:700;color:#15803d;font-size:14px;">📋 Statement summary — expenses & net</div>
+                    <div style="font-size:12px;color:#374151;margin-top:4px;">
+                        Gross ${money(sb.grossCommissions)} · Royalty ${money(sb.royalty)} ·
+                        ${(sb.expenses || []).map(e => `${_claudeEsc(e.label)} ${money(e.amount)}`).join(' · ')}
+                        ${(sb.cashPaymentsOwed || []).length ? ` · Cash owed (${(sb.cashPaymentsOwed || []).length} items)` : ''}
+                        · <strong>Net to ${_claudeEsc(_agentAi.agent)}: ${money(sb.netToAgent)}</strong></div>
+                    <div style="font-size:12px;color:${nDisb ? '#15803d' : '#6b7280'};margin-top:2px;">${nDisb
+                        ? '💸 ' + nDisb + ' disbursement' + (nDisb > 1 ? 's' : '') + ' shown on the statement — saving will record ' + (nDisb > 1 ? 'them' : 'it') + ' with date in the disbursement log.'
+                        : 'No disbursement shown on the statement — record one from the month dashboard when it is paid.'}</div>
+                </div>
+                <button id="agentAiSaveSummaryBtn" onclick="agentAiSaveSummary()"
+                    style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">💾 Save summary${nDisb ? ' + disbursements' : ''}</button>
+            </div>
+        </div>`;
+    }
+    if (!stmts.length) {
+        res.innerHTML = summaryHtml + `<div style="font-size:13px;color:var(--gray-600);">${claudeRenderMarkdown(replyText || 'No statements were recognized in those PDFs.')}</div>`;
+        return;
+    }
+    let html = summaryHtml;
+    stmts.forEach((stmt, idx) => {
+        const n = (stmt.transactions || []).length;
+        const gross = stmt.totalGrossCommission || (stmt.agentTotals[_agentAi.agent] || {}).totalCommission || 0;
+        html += `<div style="background:#fff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+                <div>
+                    <div style="font-weight:700;color:#1d4ed8;font-size:14px;">${_claudeEsc(stmt.carrier || 'Unknown carrier')} — ${_claudeEsc(stmt.statementMonth || _agentAi.month)}</div>
+                    <div style="font-size:12px;color:#6b7280;">${n} transactions · all credited to ${_claudeEsc(_agentAi.agent)} · Gross: $${(gross || 0).toFixed(2)}</div>
+                    ${stmt._truncated || truncated ? '<div style="font-size:12px;color:#b45309;font-weight:700;">⚠️ The response was cut off — verify against the PDF before saving.</div>' : ''}
+                </div>
+                <button id="agentAiSave_${idx}" onclick="agentAiApply(${idx})"
+                    style="background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">💾 Save ${_claudeEsc(stmt.carrier || '')}</button>
+            </div>
+            <div style="overflow:auto;max-height:220px;border:1px solid var(--gray-200);border-radius:8px;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <tr style="background:#f9fafb;"><th style="padding:5px 8px;text-align:left;">Client</th><th style="padding:5px 8px;text-align:left;">Policy #</th><th style="padding:5px 8px;text-align:left;">Type</th><th style="padding:5px 8px;text-align:right;">Commission</th></tr>
+                ${(stmt.transactions || []).map(t => `<tr style="border-top:1px solid #f3f4f6;">
+                    <td style="padding:4px 8px;">${_claudeEsc(t.customerName || '—')}</td>
+                    <td style="padding:4px 8px;font-family:monospace;">${_claudeEsc(t.policyNumber || '—')}</td>
+                    <td style="padding:4px 8px;">${_claudeEsc(t.transactionType || '')}</td>
+                    <td style="padding:4px 8px;text-align:right;color:${(t.commissionAmount || 0) < 0 ? '#dc2626' : '#15803d'};font-weight:600;">$${(t.commissionAmount || 0).toFixed(2)}</td>
+                </tr>`).join('')}
+            </table></div>
+        </div>`;
+    });
+    res.innerHTML = html;
+}
+
+async function agentAiApply(idx) {
+    const stmt = _agentAi.statements[idx];
+    if (!stmt) return;
+    const btn = document.getElementById('agentAiSave_' + idx);
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    // claudeAdminApplyStatement reads these to pick the month and to file the
+    // original PDFs into the agent's month folder (AgentStmt_<agent>_<y>_<m>).
+    csUploadTargetMonth = _agentAi.month;
+    csUploadTargetAgent = _agentAi.agent;
+    _claudeAdminLastPdfs = _agentAi.uploaded ? [] : _agentAi.pdfs.slice();   // upload the originals once, not per carrier
+    try {
+        await claudeAdminApplyStatement(stmt);
+        _agentAi.uploaded = true;
+        if (btn) { btn.textContent = '✓ Saved'; btn.style.background = '#6b7280'; }
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = '💾 Retry save'; }
+        alert('Save failed: ' + e.message);
+    }
+}
+
+// ── Agent Ledger: statement summary (expenses) + disbursements ─
+// Per agent + month: the statement's own summary numbers (gross, royalty,
+// expenses, cash payments owed, net) and a log of disbursements paid to the
+// agent, each with date & time. Filled by the Agent Statement AI when the
+// PDFs show them, and by hand with the Record Disbursement button.
+(function ensureAgentLedgerSynced() {
+    if (typeof SYNC_KEYS !== 'undefined' && !SYNC_KEYS.includes('agentLedger')) SYNC_KEYS.push('agentLedger');
+})();
+function _alStore() { try { return JSON.parse(localStorage.getItem('agentLedger')) || {}; } catch (e) { return {}; } }
+function _alKey(agent, month) { return agent + '|' + month; }
+function alGet(agent, month) {
+    const r = _alStore()[_alKey(agent, month)];
+    return { summary: (r && r.summary) || null, disbursements: (r && r.disbursements) || [] };
+}
+function alSave(agent, month, rec) {
+    const s = _alStore();
+    s[_alKey(agent, month)] = rec;
+    localStorage.setItem('agentLedger', JSON.stringify(s));   // wrapped setItem mirrors to the cloud
+}
+
+function agentAiSaveSummary() {
+    const sm = _agentAi.summaryBlock;
+    if (!sm) return;
+    const agent = _agentAi.agent, month = _agentAi.month;
+    const rec = alGet(agent, month);
+    rec.summary = {
+        grossCommissions: Number(sm.grossCommissions) || 0,
+        royalty: Number(sm.royalty) || 0,
+        expenses: (sm.expenses || []).map(e => ({ label: String(e.label || ''), amount: Number(e.amount) || 0 })),
+        cashPaymentsOwed: (sm.cashPaymentsOwed || []).map(c => ({
+            client: String(c.client || ''), policy: String(c.policy || ''), carrier: String(c.carrier || ''),
+            description: String(c.description || ''), swept: String(c.swept || ''), amount: Number(c.amount) || 0
+        })),
+        netToAgent: Number(sm.netToAgent) || 0,
+        source: 'ai', updatedAt: new Date().toISOString()
+    };
+    // Disbursements the statement itself shows (October onward) — prefill the
+    // log, skipping ones already recorded with the same amount and date.
+    (sm.disbursements || []).forEach(d => {
+        const amount = Number(d.amount) || 0;
+        if (!amount) return;
+        const at = d.date ? d.date + 'T12:00:00' : new Date().toISOString();
+        const dup = rec.disbursements.some(x => Math.abs((Number(x.amount) || 0) - amount) < 0.005 && String(x.at).slice(0, 10) === String(at).slice(0, 10));
+        if (!dup) rec.disbursements.push({ amount, at, method: String(d.method || 'Per statement'), note: String(d.reference || ''), source: 'ai', recordedAt: new Date().toISOString() });
+    });
+    alSave(agent, month, rec);
+    const btn = document.getElementById('agentAiSaveSummaryBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '✓ Saved'; btn.style.background = '#6b7280'; }
+    if (typeof csViewMonth !== 'undefined' && csViewMonth === month) csRenderAgentDash(month);
+}
+
+// ── Record Disbursement (manual) ──────────────────────────────
+function openCsDisbModal() {
+    if (!csViewAgent || csViewAgent === '__ALL__' || !csViewMonth) return;
+    const t = document.getElementById('csDisbTitle');
+    if (t) t.textContent = _csAgentLabel(csViewAgent) + ' · ' + csViewMonth;
+    const dt = document.getElementById('csDisbWhen');
+    if (dt) { const n = new Date(); n.setMinutes(n.getMinutes() - n.getTimezoneOffset()); dt.value = n.toISOString().slice(0, 16); }
+    const a = document.getElementById('csDisbAmount'); if (a) a.value = '';
+    const nt = document.getElementById('csDisbNote'); if (nt) nt.value = '';
+    document.getElementById('csDisbModal').classList.add('active');
+}
+function closeCsDisbModal() { document.getElementById('csDisbModal').classList.remove('active'); }
+function csDisbSave() {
+    const amount = parseFloat(document.getElementById('csDisbAmount').value);
+    if (!amount || isNaN(amount)) { alert('Enter the disbursed amount.'); return; }
+    const when = document.getElementById('csDisbWhen').value;
+    const at = when ? new Date(when).toISOString() : new Date().toISOString();
+    const method = document.getElementById('csDisbMethod').value;
+    const note = (document.getElementById('csDisbNote').value || '').trim();
+    const rec = alGet(csViewAgent, csViewMonth);
+    rec.disbursements.push({ amount, at, method, note, source: 'manual', recordedAt: new Date().toISOString() });
+    alSave(csViewAgent, csViewMonth, rec);
+    if (window.UIBAudit) UIBAudit.log('agent_disbursement_recorded', csViewAgent, { month: csViewMonth, amount, method });
+    closeCsDisbModal();
+    csRenderAgentDash(csViewMonth);
+}
+function csDisbDelete(i) {
+    const rec = alGet(csViewAgent, csViewMonth);
+    const d = rec.disbursements[i];
+    if (!d) return;
+    if (!confirm(`Delete the ${_csMoney(Number(d.amount) || 0)} disbursement of ${new Date(d.at).toLocaleString()}?`)) return;
+    rec.disbursements.splice(i, 1);
+    alSave(csViewAgent, csViewMonth, rec);
+    csRenderAgentDash(csViewMonth);
 }
 
 function csNormalizeSheetName(name) {
@@ -8755,6 +9107,55 @@ async function _csSaveStatementsCloud() {
 // Binder Book palette: blues from the header, with green/amber accents.
 const CS_DASH_COLORS = ['#1d4ed8', '#0ea5e9', '#10b981', '#f59e0b', '#3b82f6', '#14b8a6', '#d97706', '#6366f1'];
 
+// Statement-summary + disbursements panels for one agent's month, from the
+// agent ledger. Inline styles only, so they render with or without the
+// dashboard's stylesheet.
+function _csLedgerPanelsHtml(month) {
+    if (!csViewAgent || csViewAgent === '__ALL__' || !month) return '';
+    const led = alGet(csViewAgent, month);
+    const esc = _claudeEsc;
+    const money = n => (Number(n) < 0 ? '-' : '') + _csMoney(Math.abs(Number(n) || 0));
+    const P = 'background:rgba(255,255,255,.72);border:1px solid rgba(29,78,216,.14);border-radius:16px;box-shadow:0 6px 20px rgba(13,31,60,.07), inset 0 1px 0 #fff;padding:16px;margin-top:12px;';
+    const T = 'font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:#1d4ed8;font-weight:800;margin-bottom:12px;';
+    const row = (l, v, opts) => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eef2f7;font-size:12.5px;${(opts || {}).bold ? 'font-weight:800;font-size:13.5px;border-bottom:none;border-top:2px solid #0d1f3c;margin-top:2px;' : ''}">
+        <span>${l}</span><strong style="color:${(opts || {}).color || (Number((opts || {}).raw) < 0 ? '#dc2626' : '#0d1f3c')};">${v}</strong></div>`;
+    let html = '';
+    const sm = led.summary;
+    if (sm) {
+        const cash = sm.cashPaymentsOwed || [];
+        const cashTot = cash.reduce((t, c) => t + (Number(c.amount) || 0), 0);
+        html += `<div style="${P}">
+            <div style="${T}">Statement summary — expenses &amp; net ${sm.source === 'ai' ? '<span style="font-size:10px;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 8px;margin-left:6px;">✨ from statement</span>' : ''}</div>
+            ${row('Gross commissions', money(sm.grossCommissions), { raw: sm.grossCommissions, color: '#059669' })}
+            ${row('Royalty', money(sm.royalty), { raw: sm.royalty })}
+            ${(sm.expenses || []).map(e => row(esc(e.label), money(e.amount), { raw: e.amount })).join('')}
+            ${cash.length ? `<details style="border-bottom:1px solid #eef2f7;"><summary style="display:flex;justify-content:space-between;padding:7px 0;font-size:12.5px;cursor:pointer;list-style:none;">
+                <span>Cash payments owed <span style="color:#94a3b8;">(${cash.length} items — click for detail)</span></span><strong style="color:#dc2626;">${money(-Math.abs(cashTot))}</strong></summary>
+                ${cash.map(c => `<div style="display:flex;justify-content:space-between;padding:4px 0 4px 16px;font-size:11.5px;color:#475569;">
+                    <span>${esc(c.client)}${c.carrier ? ' · ' + esc(c.carrier) : ''}${c.swept ? ' · swept ' + esc(c.swept) : ''}</span><span>${money(c.amount)}</span></div>`).join('')}</details>` : ''}
+            ${row('Net to ' + esc(_csAgentLabel(csViewAgent)), money(sm.netToAgent), { bold: true, color: Number(sm.netToAgent) >= 0 ? '#059669' : '#dc2626' })}
+        </div>`;
+    }
+    const disb = led.disbursements || [];
+    const dTot = disb.reduce((t, d) => t + (Number(d.amount) || 0), 0);
+    const remaining = sm ? (Number(sm.netToAgent) || 0) - dTot : null;
+    html += `<div style="${P}">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+            <div style="${T}margin-bottom:0;">Disbursements</div>
+            <button class="btn-primary btn-sm" onclick="openCsDisbModal()">💸 Record disbursement</button>
+        </div>
+        ${disb.length ? disb.map((d, i) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #eef2f7;font-size:12.5px;">
+                <span>💸 <strong>${money(d.amount)}</strong> · ${new Date(d.at).toLocaleString()} · ${esc(d.method || '')}${d.note ? ' · ' + esc(d.note) : ''}
+                    ${d.source === 'ai' ? '<span style="font-size:10px;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:1px 7px;margin-left:4px;">✨ from statement</span>' : ''}</span>
+                <button onclick="csDisbDelete(${i})" title="Delete" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:13px;">🗑️</button>
+            </div>`).join('')
+        : '<div style="font-size:12.5px;color:#94a3b8;padding:4px 0;">No disbursements recorded for this month yet.</div>'}
+        ${disb.length ? row('Total disbursed', money(dTot), { color: '#1d4ed8' }) : ''}
+        ${remaining !== null ? row('Balance owed to ' + esc(_csAgentLabel(csViewAgent)), money(remaining), { bold: true, color: remaining > 0.004 ? '#d97706' : '#059669' }) : ''}
+    </div>`;
+    return html;
+}
+
 function csRenderAgentDash(month) {
     const box = document.getElementById('csAgentDash');
     if (!box) return;
@@ -8769,7 +9170,7 @@ function csRenderAgentDash(month) {
             <div style="font-size:15px;font-weight:800;color:#0d1f3c;">✨ ${_claudeEsc(csViewAgent === '__ALL__' ? 'Agency' : _csAgentLabel(csViewAgent))} · ${_claudeEsc(month)} dashboard</div>
             <p style="font-size:13px;color:#64748b;margin:10px 0 14px;">No commissions have been calculated for this month yet. Uploaded files are stored, but the dashboard is built from calculated commissions.</p>
             <button class="btn-primary btn-sm" onclick="openCommissionUploadModal('${month}')">✨ Calculate with AI</button>
-        </div>`;
+        </div>` + _csLedgerPanelsHtml(month);
         return;
     }
     const esc = _claudeEsc, money = n => (n < 0 ? '-' : '') + _csMoney(Math.abs(n));
@@ -8879,6 +9280,7 @@ function csRenderAgentDash(month) {
             <div class="cs-panel-title">Top clients this month</div>
             ${clients.map(c => `<div class="cs-client"><span>${esc(c.k)} <span style="color:#94a3b8;">· ${c.n} transaction${c.n !== 1 ? 's' : ''}</span></span><strong style="color:${c.total >= 0 ? '#059669' : '#dc2626'};">${money(c.total)}</strong></div>`).join('')}
         </div>
+        ${_csLedgerPanelsHtml(month)}
     </div>`;
 }
 

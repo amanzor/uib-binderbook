@@ -4050,7 +4050,7 @@
     </div>
 
     <!-- Commission Upload Modal -->
-    <div id="commissionUploadModal" class="modal">
+    <div id="commissionUploadModal" class="modal" ondragover="csDragOver(event)" ondragleave="csDragLeave(event)" ondrop="csDrop(event)">
         <div class="modal-content" style="max-width:600px;max-height:90vh;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                 <h3 style="margin:0;"><i data-lucide="upload"></i> Upload Commission Statement</h3>
@@ -4060,7 +4060,7 @@
 
             <!-- Step 1: File Selection -->
             <div id="csStep1">
-                <div id="csDropZone" ondragover="csDragOver(event)" ondragleave="csDragLeave(event)" ondrop="csDrop(event)"
+                <div id="csDropZone"
                     style="border:2px dashed var(--gray-200);border-radius:var(--radius-md);padding:40px 24px;text-align:center;background:var(--gray-50);margin-bottom:14px;transition:all .15s;">
                     <div style="font-size:44px;margin-bottom:12px;">📂</div>
                     <p style="color:var(--gray-500);margin-bottom:18px;font-size:14px;"><strong>Drop the statement here</strong>: an Excel file <strong>(.xlsx)</strong>, or carrier PDFs for the AI processor<br>or</p>
@@ -4104,18 +4104,70 @@
         </div>
     </div>
 
+    <!-- Agent Statement AI: processes ONE agent's statements for one month.
+         Separate from the agency statement AI processor in Documents. -->
+    <div id="agentAiModal" class="modal" ondragover="agentAiDragOver(event)" ondrop="agentAiDrop(event)">
+        <div class="modal-content" style="max-width:760px;max-height:92vh;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <h3 style="margin:0;">✨ Agent Statement AI — <span id="agentAiTitle"></span></h3>
+                <button class="btn-danger btn-sm" onclick="closeAgentAiModal()">✕ Close</button>
+            </div>
+            <div id="agentAiNote" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:12px;"></div>
+            <div style="border:2px dashed var(--gray-200);border-radius:var(--radius-md);padding:14px;background:var(--gray-50);margin-bottom:10px;">
+                <div id="agentAiFiles" style="margin-bottom:8px;"></div>
+                <label for="agentAiInput" class="btn-secondary btn-sm" style="cursor:pointer;">📄 Add PDFs</label>
+                <input type="file" id="agentAiInput" accept="application/pdf" multiple onchange="agentAiPickPdfs(this)" style="display:none;">
+                <button id="agentAiProcessBtn" class="btn-primary btn-sm" onclick="agentAiProcess()" disabled style="margin-left:8px;">✨ Process</button>
+                <span style="font-size:12px;color:var(--gray-400);margin-left:8px;">or drop PDFs anywhere on this window</span>
+            </div>
+            <div id="agentAiResults"></div>
+        </div>
+    </div>
+
+    <!-- Record a disbursement paid to an agent (date & time logged) -->
+    <div id="csDisbModal" class="modal">
+        <div class="modal-content" style="max-width:420px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <h3 style="margin:0;">💸 Record disbursement</h3>
+                <button class="btn-danger btn-sm" onclick="closeCsDisbModal()">✕ Close</button>
+            </div>
+            <div style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:12px;">
+                <span id="csDisbTitle"></span>
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+                <label style="font-size:12px;font-weight:700;color:var(--gray-600);display:block;margin-bottom:4px;">Amount paid ($)</label>
+                <input type="number" id="csDisbAmount" step="0.01" min="0" placeholder="0.00" style="width:100%;padding:9px 11px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+                <label style="font-size:12px;font-weight:700;color:var(--gray-600);display:block;margin-bottom:4px;">Date &amp; time</label>
+                <input type="datetime-local" id="csDisbWhen" style="width:100%;padding:9px 11px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+                <label style="font-size:12px;font-weight:700;color:var(--gray-600);display:block;margin-bottom:4px;">Method</label>
+                <select id="csDisbMethod" style="width:100%;padding:9px 11px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;">
+                    <option>Check</option><option>Direct deposit</option><option>Zelle</option><option>Cash</option><option>Other</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:14px;">
+                <label style="font-size:12px;font-weight:700;color:var(--gray-600);display:block;margin-bottom:4px;">Note (optional)</label>
+                <input type="text" id="csDisbNote" placeholder="Check #, reference…" style="width:100%;padding:9px 11px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;">
+            </div>
+            <button class="btn-success" onclick="csDisbSave()" style="width:100%;">💾 Save disbursement</button>
+        </div>
+    </div>
+
     <!-- Claude AI chat now lives inline as a section in the agent portal -->
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261104f"></script>
+    <script src="app.js?v=20261104i"></script>
     <script src="uib-binder-sync.js?v=20261030c"></script>
     <script src="monday-import.js?v=20261104a"></script>
     <script src="supabase.js?v=20261027a"></script>
 <script src="uib-motion.js?v=20261002a"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){var s=(r.active||r.waiting||r.installing||{}).scriptURL||'';if(/rater-sw\.js/.test(s)||/\/rater\/?$/.test(r.scope))r.unregister();});}).catch(function(){});navigator.serviceWorker.register('/sw.js');}</script>
-<script src="uib-drop.js?v=20261103a"></script>
+<script src="uib-drop.js?v=20261104a"></script>
 </body>
 </html>
