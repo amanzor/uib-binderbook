@@ -1,17 +1,134 @@
 // ============================================================
 // SUPABASE CLOUD SYNC  (primary data store — replaced Google Drive)
 // ============================================================
-const SUPABASE_URL = "https://jgjmobktucyimupelfxd.supabase.co";
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
-// Old Apps Script URL — kept ONLY for email notifications (sendEmail action).
-const DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
-const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'agentCredentials', 'prospectData', 'verificationLogs', 'commissionStatements'];
+const SUPABASE_URL = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co');
+const SUPABASE_ANON_KEY = (window.UIB_CONFIG || {}).SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
+const SYNC_KEYS = ['binderData', 'agentMasterData', 'commissionData', 'carrierMasterData', 'prospectData', 'verificationLogs', 'commissionStatements', 'underwritingData', 'healthData', 'healthCarrierData'];
 
 const _SB_HEADERS = {
     'apikey': SUPABASE_ANON_KEY,
     'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
     'Content-Type': 'application/json'
 };
+
+// ============================================================
+//  APP VERSION GUARD  — stop a stale device from wiping data
+//  ------------------------------------------------------------
+//  A tab left open from before a deploy keeps running the OLD app.js
+//  in memory. Older builds pushed the whole binderData array over the
+//  cloud instead of merging — so that stale tab silently deleted
+//  entries other PCs had just saved ("this is how transactions kept
+//  vanishing"). This guard makes such a tab notice a newer build in
+//  the cloud, REFUSE to write until it updates, and reload itself to
+//  pick up the current code.
+//
+//  DEPLOY RULE: bump APP_BUILD *and* the `?v=` on <script src="app.js">
+//  in every HTML page together, so a forced reload actually fetches
+//  the new file. APP_BUILD must be a monotonically increasing integer
+//  (yyyymmdd, plus a trailing digit if you ship twice in a day).
+// ============================================================
+const APP_BUILD = 202610301;
+
+let _appOutdated = false;
+// Check for a newer published build as soon as any page opens, so a phone
+// holding an old copy updates itself even before anyone signs in.
+setTimeout(() => { try { enforceAppVersion(); } catch (e) {} }, 1500);          // true once we KNOW the cloud has a newer build
+let _versionEnforcing = false;     // guards against overlapping checks
+
+// Read the latest build the fleet has advertised.
+//   { ok:false }            → cloud unreachable (never gate writes on this)
+//   { ok:true, build:null } → reached, but no build advertised yet
+//   { ok:true, build:<n> }  → the fleet's latest advertised build
+async function _cloudAppBuild() {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=value&key=eq.appBuild`, { headers: _SB_HEADERS });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const rows = await res.json();
+        if (!rows.length || rows[0].value == null) return { ok: true, build: null };
+        const n = parseInt(rows[0].value, 10);
+        return { ok: true, build: Number.isFinite(n) ? n : null };
+    } catch (e) {
+        return { ok: false, build: null }; // offline / not ready — "unknown", not "outdated"
+    }
+}
+
+// Advertise this build as the fleet's latest (only ever raises the number).
+async function _publishAppBuild() {
+    // Only the live site may advertise its build: preview deployments of
+    // unmerged branches share this database and would mark everyone outdated.
+    if (typeof location !== 'undefined' && /^https?:$/.test(location.protocol) &&
+        location.hostname !== 'uib-binderbook.vercel.app') return;
+    try {
+        await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+            method: 'POST',
+            headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+            body: JSON.stringify([{ key: 'appBuild', value: APP_BUILD, updated_at: new Date().toISOString() }])
+        });
+    } catch (e) { /* best effort */ }
+}
+
+// Called at load and on every sync tick. When the cloud build is newer than
+// ours, gate all cloud writes and force a one-time cache-busting reload so
+// this device picks up the current code instead of clobbering the fleet.
+async function enforceAppVersion() {
+    if (_versionEnforcing) return;
+    _versionEnforcing = true;
+    try {
+        const { ok, build: cloudBuild } = await _cloudAppBuild();
+        if (!ok) return;                           // cloud unreachable — leave state as-is
+        if (cloudBuild != null && cloudBuild > APP_BUILD) {
+            _appOutdated = true;                    // stop writes immediately
+            _showOutdatedBanner();
+            // Reload once per target build so we never loop if the cache is
+            // stubborn (bad proxy, offline). If a reload didn't lift us to the
+            // required build, we keep writes gated and leave the banner up.
+            const already = sessionStorage.getItem('uibReloadedForBuild');
+            if (already === null || parseInt(already, 10) < cloudBuild) {
+                sessionStorage.setItem('uibReloadedForBuild', String(cloudBuild));
+                // A plain reload re-uses the cached page: GitHub Pages serves
+                // index.html and app.js with max-age=600, so the "updated"
+                // page still pointed at the old app.js and this device stayed
+                // gated for up to 10 minutes after every deploy. Changing the
+                // page URL's query string forces the CDN and the browser to
+                // fetch the current index.html, whose ?v= tag then pulls the
+                // current app.js.
+                setTimeout(() => {
+                    try {
+                        const u = new URL(location.href);
+                        u.searchParams.set('build', String(cloudBuild));
+                        location.replace(u.toString());
+                    } catch (e) { try { location.reload(); } catch (e2) {} }
+                }, 1500);
+            }
+            return;
+        }
+        // We're current (or ahead). Clear any prior gating and make sure the
+        // fleet's advertised build is at least ours (also seeds it the first
+        // time, when no build has been advertised yet).
+        _appOutdated = false;
+        _hideOutdatedBanner();
+        if (cloudBuild == null || cloudBuild < APP_BUILD) await _publishAppBuild();
+    } finally {
+        _versionEnforcing = false;
+    }
+}
+
+function _showOutdatedBanner() {
+    if (document.getElementById('uibOutdatedBanner')) return;
+    const el = document.createElement('div');
+    el.id = 'uibOutdatedBanner';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
+        'background:#b91c1c;color:#fff;padding:12px 16px;text-align:center;' +
+        'font:600 14px system-ui,Arial,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.3);';
+    el.textContent = 'A newer version of the Binder Book is available. Updating this device… ' +
+        'If this message stays, press Ctrl+Shift+R (Cmd+Shift+R on Mac) to refresh.';
+    (document.body || document.documentElement).appendChild(el);
+}
+
+function _hideOutdatedBanner() {
+    const el = document.getElementById('uibOutdatedBanner');
+    if (el) el.remove();
+}
 
 // Cloud freshness stamps — the updated_at we last saw for each key. A sync
 // cycle asks for stamps alone first (a few hundred bytes for every key) and
@@ -54,8 +171,18 @@ async function driveGetResult(key) {
         return { ok: true, value: rows.length && rows[0].value !== null ? rows[0].value : null };
     } catch (e) {
         console.warn(`Cloud read failed for ${key}:`, e);
+        _noteCloudAuthFailure(e);
         return { ok: false, value: null };
     }
+}
+// After the database lockdown a request without a valid sign-in is refused
+// (401/403). Say so once, so an agent knows the entry is waiting on this
+// device rather than assuming it reached the book.
+let _cloudAuthWarned = false;
+function _noteCloudAuthFailure(e) {
+    if (_cloudAuthWarned || !/HTTP 40[13]/.test(String(e && e.message))) return;
+    _cloudAuthWarned = true;
+    try { alert('Your sign-in has ended, so this device cannot reach the cloud book right now.\n\nYour work is kept on this device and uploads automatically the next time you sign in here.'); } catch (err) {}
 }
 
 async function driveGet(key) {
@@ -68,6 +195,19 @@ async function driveGet(key) {
 // and syncFromDrive() PUSHES the local copy instead of pulling the stale
 // cloud copy over it — which used to delete just-saved entries.
 let _driveSeq = 0;
+// When a device has no room to store the whole book (iPhone Safari allows
+// each site far less than the book needs), the current book is kept here
+// and handed to every reader of localStorage 'binderData' instead of the
+// stale or empty copy on the device.
+let _binderMemStr = null;
+{
+    const _origGetItem = localStorage.getItem.bind(localStorage);
+    localStorage.getItem = function (key) {
+        if (key === 'binderData' && _binderMemStr !== null) return _binderMemStr;
+        return _origGetItem(key);
+    };
+}
+let _binderLocalOk = true;   // false when this device had no room to store the book
 function _dirtyKey(key) { return 'uibDirty_' + key; }
 
 // ── Merge-based sync for binder entries ──────────────────────────────
@@ -108,6 +248,52 @@ function binderMarkDeleted(ids) {
     const pruned = list.filter(t => now - (t.ts || 0) < TOMBSTONE_RETENTION_MS);
     _origSetItem('binderDeletedIds', JSON.stringify(pruned));
     driveSet('binderDeletedIds', pruned);
+}
+
+// Best-effort local write for cloud-merged keys: a full device must not
+// stop the cloud write, so quota errors are swallowed here (and only here).
+function _lsMirror(key, str) {
+    try { _origSetItem(key, str); if (key === 'binderData') _binderMemStr = null; return true; }
+    catch (e) {
+        if (typeof _isQuotaError === 'function' && _isQuotaError(e)) {
+            console.warn(`localStorage full — ${key} kept in cloud only`);
+            if (key === 'binderData') _binderMemStr = str;   // every reader still sees the current book
+            return false;
+        }
+        throw e;
+    }
+}
+
+// ── Verification-log merge + tombstones (same idea as binder entries) ──
+function _vlTombstones() {
+    try { return JSON.parse(localStorage.getItem('verificationLogsDeleted')) || []; }
+    catch (e) { return []; }
+}
+async function _vlSyncTombstones() {
+    const local = _vlTombstones();
+    try {
+        const cloud = await driveGet('verificationLogsDeleted');
+        const merged = _mergeTombstones(local, Array.isArray(cloud) ? cloud : []);
+        _lsMirror('verificationLogsDeleted', JSON.stringify(merged));
+        return merged;
+    } catch (e) { return local; }
+}
+// Cloud entries first, then local ones overlay by id (local edits win);
+// tombstoned ids are dropped.
+function _mergeVerificationLogs(local, cloud, tombs) {
+    const dead = new Set((tombs || []).map(t => t.id));
+    const byId = new Map();
+    (cloud || []).forEach(l => { if (l && l.id != null && !dead.has(l.id)) byId.set(l.id, l); });
+    (local || []).forEach(l => { if (l && l.id != null && !dead.has(l.id)) byId.set(l.id, l); });
+    return [...byId.values()];
+}
+function vlMarkDeleted(id) {
+    const now = Date.now();
+    const list = _vlTombstones();
+    if (id != null && !list.some(t => t.id === id)) list.push({ id, ts: now });
+    const pruned = list.filter(t => now - (t.ts || 0) < TOMBSTONE_RETENTION_MS);
+    _lsMirror('verificationLogsDeleted', JSON.stringify(pruned));
+    driveSet('verificationLogsDeleted', pruned);
 }
 
 // Entries always get id = Date.now() at save; very old imports may lack
@@ -178,6 +364,16 @@ async function _syncTombstones(stamps) {
 }
 
 async function driveSet(key, value) {
+    // This device is running stale code that the cloud has superseded. Refuse
+    // to publish anything — an old build merges/writes destructively and would
+    // clobber entries newer builds saved. The dirty flag below stays set, so
+    // the write is retried automatically after the forced reload lands us on
+    // the current code.
+    if (_appOutdated) {
+        try { _origSetItem(_dirtyKey(key), (++_driveSeq) + '.' + Date.now()); } catch (e) {}
+        console.warn(`Skipping cloud write for ${key} — this device is running an outdated version.`);
+        return false;
+    }
     const seq = (++_driveSeq) + '.' + Date.now();
     try { _origSetItem(_dirtyKey(key), seq); } catch (e) {}
     try {
@@ -221,13 +417,31 @@ async function driveSet(key, value) {
                 }
                 return false;
             }
-            _origSetItem('binderData', JSON.stringify(value));
+            // The local mirror is best-effort: on a device whose storage is
+            // full this throws, and the cloud write below must still happen —
+            // it is the whole point of the quota fallback in saveEntry().
+            _lsMirror('binderData', JSON.stringify(value));
             if (typeof allData !== 'undefined' && Array.isArray(allData)) allData = value;
         } else if (key === 'binderDeletedIds') {
             const cloudRes = await driveGetResult('binderDeletedIds');
             if (!cloudRes.ok) return false; // same reasoning — retry later
             value = _mergeTombstones(Array.isArray(value) ? value : [], Array.isArray(cloudRes.value) ? cloudRes.value : []);
-            _origSetItem('binderDeletedIds', JSON.stringify(value));
+            _lsMirror('binderDeletedIds', JSON.stringify(value));
+        } else if (key === 'verificationLogs') {
+            // Signed compliance logs must never be lost to last-writer-wins:
+            // two locations saving at the same time, or a device whose full
+            // storage could only push its new log to the cloud. Merge by id;
+            // deletions travel as tombstones so they don't resurrect.
+            const cloudRes = await driveGetResult('verificationLogs');
+            if (!cloudRes.ok) return false;
+            const dead = await _vlSyncTombstones();
+            value = _mergeVerificationLogs(Array.isArray(value) ? value : [], Array.isArray(cloudRes.value) ? cloudRes.value : [], dead);
+            _lsMirror('verificationLogs', JSON.stringify(value));
+        } else if (key === 'verificationLogsDeleted') {
+            const cloudRes = await driveGetResult('verificationLogsDeleted');
+            if (!cloudRes.ok) return false;
+            value = _mergeTombstones(Array.isArray(value) ? value : [], Array.isArray(cloudRes.value) ? cloudRes.value : []);
+            _lsMirror('verificationLogsDeleted', JSON.stringify(value));
         }
         const wroteAt = new Date().toISOString();
         const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
@@ -245,6 +459,7 @@ async function driveSet(key, value) {
         return true;
     } catch (e) {
         console.warn(`Cloud write failed for ${key}:`, e);
+        _noteCloudAuthFailure(e);
         return false;
     }
 }
@@ -253,6 +468,10 @@ async function driveSet(key, value) {
 const DRIVE_PULL_SKIP = new Set([]);
 
 async function syncFromDrive() {
+    // Version gate first: if a newer build exists, this stops writes and
+    // triggers a reload. Never sync (and risk a destructive push) while stale.
+    await enforceAppVersion();
+    if (_appOutdated) return;
     const banner = document.getElementById('syncBanner');
     if (banner) banner.style.display = 'flex';
     // One tiny stamp query decides which keys actually need downloading.
@@ -293,7 +512,8 @@ async function syncFromDrive() {
             let local = [];
             try { local = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
             const merged = mergeBinderData(local, cloud, tombs);
-            _origSetItem('binderData', JSON.stringify(merged));
+            _binderLocalOk = _lsMirror('binderData', JSON.stringify(merged));
+            if (typeof allData !== 'undefined') allData = merged;
             const cloudStr = JSON.stringify(Array.isArray(cloud) ? cloud : []);
             if (localStorage.getItem(_dirtyKey('binderData')) !== null || cloudStr !== JSON.stringify(merged)) {
                 await driveSet('binderData', merged);
@@ -318,7 +538,16 @@ async function syncFromDrive() {
 
         const data = await driveGet(key);
         if (data !== null) {
-            _origSetItem(key, JSON.stringify(data)); // bypass override to avoid write-back loop
+            // The agent roster must never be erased by an empty cloud copy: a
+            // device that knows the agents publishes them instead. (An empty
+            // cloud roster is how sign-in matching broke for every other device.)
+            if (key === 'agentMasterData' && data && typeof data === 'object' && !Object.keys(data).length) {
+                let local = {}; try { local = JSON.parse(localStorage.getItem(key)) || {}; } catch (e) {}
+                if (Object.keys(local).length) { await driveSet(key, local); continue; }
+            }
+            // bypass override to avoid write-back loop; a full device must not
+            // abort the rest of the sync
+            _lsMirror(key, JSON.stringify(data));
         }
     }
     if (banner) banner.style.display = 'none';
@@ -331,6 +560,12 @@ async function syncToDrive(key, value) {
 // Wrap localStorage.setItem to auto-sync to Drive
 const _origSetItem = localStorage.setItem.bind(localStorage);
 localStorage.setItem = function(key, value) {
+    if (key === 'binderData') {
+        try { _origSetItem(key, value); _binderMemStr = null; }
+        catch (e) { if (typeof _isQuotaError === 'function' && _isQuotaError(e)) { _binderMemStr = value; try { driveSet(key, JSON.parse(value)); } catch (err) {} } throw e; }
+        try { driveSet(key, JSON.parse(value)); } catch (e) {}
+        return;
+    }
     _origSetItem(key, value);
     if (SYNC_KEYS.includes(key)) {
         try { driveSet(key, JSON.parse(value)); } catch(e) {}
@@ -361,17 +596,19 @@ function startAutoSync() {
             _lastSyncAt = Date.now();
 
             // Reload allData and carrierMasterData from localStorage after sync
-            const freshData = JSON.parse(localStorage.getItem('binderData'));
+            // Only take the book from device storage when it fits there; on a
+            // full device the in-memory copy from the sync is the current one.
+            const freshData = _binderLocalOk ? JSON.parse(localStorage.getItem('binderData')) : null;
             const freshCarriers = JSON.parse(localStorage.getItem('carrierMasterData'));
             if (freshData) allData = freshData;
             if (freshCarriers) { carrierMasterData = freshCarriers; refreshAllCarrierDropdowns(); }
             initializeCommissionStatements(); // keep the in-memory copy current too
 
-            // Refresh whichever view is currently active
-            if (currentRole === 'admin') {
-                loadAdminDashboard();
-            } else if (currentRole === 'agent') {
-                loadAgentData();
+            // Refresh whichever view is currently active. The dashboard tables
+            // exist only on index.html; the standalone entry pages have none.
+            if (document.getElementById('agentTable')) {
+                if (currentRole === 'admin') loadAdminDashboard();
+                else if (currentRole === 'agent') loadAgentData();
             }
             if (document.getElementById('commissionStatementsSection')?.classList.contains('active')) {
                 loadCommissionStatementsList();
@@ -584,8 +821,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdgftX1s0VD0UqEpt0oKASpEeob_B4J6nwkYpVmNPn54kxYT910ly7NI9ab5RRW1o-tQ/exec';
-
 const SHEET_HEADERS = [
     'id','agent','customerName','source','policyType','lineOfBusiness','company','mga',
     'down','agencyFee','basePremium','agencyCommission','agentCommissionShare',
@@ -606,7 +841,9 @@ async function loadFromSheet() {
         try { local = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
         const merged = mergeBinderData(local, cloud, tombs);
         allData = merged;
-        _origSetItem('binderData', JSON.stringify(merged));
+        // A phone without room for the whole book (iPhone Safari's storage is
+        // small) must still show it: keep the merged copy in memory either way.
+        _binderLocalOk = _lsMirror('binderData', JSON.stringify(merged));
         const cloudStr = JSON.stringify(Array.isArray(cloud) ? cloud : []);
         if (localStorage.getItem(_dirtyKey('binderData')) !== null || cloudStr !== JSON.stringify(merged)) {
             await driveSet('binderData', merged);
@@ -653,9 +890,14 @@ function migrateLocationNames() {
 }
 
 function getAllAgents() {
-    const fromCreds  = Object.keys(JSON.parse(localStorage.getItem('agentCredentials') || '{}'));
-    const fromMaster = Object.keys(JSON.parse(localStorage.getItem('agentMasterData')  || '{}'));
-    return [...new Set([...AGENTS, ...fromCreds, ...fromMaster])].sort();
+    // The canonical roster = the Agent Management list. Agent dropdowns
+    // everywhere use this, so they only show registered agents (not names
+    // scraped from old binder entries or leftover login credentials). Falls
+    // back to the built-in list only if no managed agents exist yet.
+    let master = {};
+    try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    const names = Object.keys(master);
+    return (names.length ? [...new Set(names)] : AGENTS.slice()).sort();
 }
 
 // Initialize credentials — structure: { "Agent Name": { email, password } }
@@ -678,13 +920,10 @@ function initializeCredentials() {
         }
     });
 
-    // Add a default entry ONLY for agents that have no entry at all yet
-    // — never overwrites an existing entry, so saved emails are never lost
-    AGENTS.forEach(agent => {
-        if (!credentials[agent]) {
-            credentials[agent] = { email: '', password: agent.split(' ')[0].toLowerCase() };
-            changed = true;
-        }
+    // Logins live in Supabase Auth now. Any password still stored here
+    // from the old scheme is wiped so it cannot be read on this device.
+    Object.keys(credentials).forEach(agent => {
+        if (credentials[agent] && credentials[agent].password) { credentials[agent].password = ''; changed = true; }
     });
 
     // Persist only if something actually changed; use _origSetItem to bypass
@@ -697,10 +936,40 @@ function initializeCredentials() {
 }
 
 // ── Agent Email Login ──────────────────────────────────────────
+// Remembered sign-in email. Saved in a cookie as well as localStorage:
+// on an iPhone whose site storage is full (the book is large) the
+// localStorage write fails, and Safari also clears localStorage for sites
+// not visited in 7 days. A failed save must never stop the sign-in.
+function _rememberEmail(key, email) {
+    try { if (email) localStorage.setItem(key, email); else localStorage.removeItem(key); } catch (e) {}
+    try {
+        document.cookie = email
+            ? key + '=' + encodeURIComponent(email) + '; max-age=' + (400 * 24 * 3600) + '; path=/; SameSite=Lax; Secure'
+            : key + '=; max-age=0; path=/; SameSite=Lax; Secure';
+    } catch (e) {}
+}
+function _recalledEmail(key) {
+    let v = '';
+    try { v = localStorage.getItem(key) || ''; } catch (e) {}
+    if (!v) { const m = document.cookie.match(new RegExp('(?:^|; )' + key + '=([^;]*)')); if (m) { try { v = decodeURIComponent(m[1]); } catch (e) {} } }
+    return v;
+}
+// Put the remembered email back in the sign-in box (page load and logout).
+function prefillRememberedEmail() {
+    const saved = _recalledEmail('rememberedAgentEmail');
+    const emailField = document.getElementById('agentLoginEmail');
+    const rememberBox = document.getElementById('rememberAgentEmail');
+    if (!emailField) return;
+    if (saved && !emailField.value) emailField.value = saved;
+    if (rememberBox) rememberBox.checked = !!saved;
+}
+document.addEventListener('DOMContentLoaded', () => setTimeout(prefillRememberedEmail, 0));
+window.addEventListener('pageshow', () => setTimeout(prefillRememberedEmail, 0));
+
 function openAgentEmailLogin() {
     // Login form is now inline on loginSection — just ensure it's visible and focused
     showSection('loginSection');
-    const saved = localStorage.getItem('rememberedAgentEmail') || '';
+    const saved = _recalledEmail('rememberedAgentEmail');
     const emailField = document.getElementById('agentLoginEmail');
     const passField  = document.getElementById('agentLoginPassword');
     const errEl      = document.getElementById('agentLoginError');
@@ -731,42 +1000,73 @@ function submitAgentEmailLogin(e) {
     e.preventDefault();
     const email    = document.getElementById('agentLoginEmail').value.trim().toLowerCase();
     const password = document.getElementById('agentLoginPassword').value;
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const errEl = document.getElementById('agentLoginError');
-
-    // Match by email + password only — same logic as AMS login
-    let matched = null;
-    Object.entries(credentials).forEach(([name, data]) => {
-        const storedEmail = (typeof data === 'object' ? data.email : '') || '';
-        const storedPass  = (typeof data === 'object' ? data.password : data) || '';
-        if (storedEmail.toLowerCase() === email && storedPass === password) matched = name;
-    });
-
-    const match = matched ? [matched, credentials[matched]] : null;
-
-    if (!match) {
-        errEl.textContent = 'Incorrect email or password. Please try again.';
-        errEl.style.display = 'block';
-        return;
-    }
-
-    const agentName = match[0];
+    const errEl    = document.getElementById('agentLoginError');
+    const btn      = document.getElementById('loginSignInBtn');
+    const showErr  = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+    if (!window.UIBAuth || !window.UIBMfa) { showErr('Sign-in is unavailable: the sign-in scripts did not load.'); return; }
     errEl.style.display = 'none';
+    if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.textContent = 'Signing in…'; }
 
-    const remember = document.getElementById('rememberAgentEmail')?.checked;
-    if (remember) {
-        localStorage.setItem('rememberedAgentEmail', email);
-    } else {
-        localStorage.removeItem('rememberedAgentEmail');
-    }
-
-    closeAgentEmailLogin();
-    showAgentSection(agentName);
-    loadFromSheet().then(() => {
-        loadAgentData();
-        populateAgentFilter();
-        generateBinderNumber();
+    UIBMfa.signIn(email, password, document.getElementById('agentEmailLoginForm')).then((user) => {
+        const remember = document.getElementById('rememberAgentEmail')?.checked;
+        _rememberEmail('rememberedAgentEmail', remember ? email : '');
+        document.getElementById('agentLoginPassword').value = '';
+        // An administrator whose email is on an agent record lands on their own
+        // agent dashboard (with admin visibility); the Admin Access button is
+        // the way into the admin console.
+        if (user.role === 'admin' && (!user.name || user.name === 'Admin')) { enterAdmin(); return; }
+        // The name on the account must be a real agent in Agent Management;
+        // otherwise entries would be filed under a name nobody can see.
+        // Never lock an agent out over the name: use the roster / built-in
+        // email match when there is one, otherwise continue as they are.
+        if (!getAllAgents().includes(user.name)) {
+            const byEmail = _agentNameForEmail(user.email);
+            if (byEmail) { user.name = byEmail; UIBAuth.adoptName(byEmail); }
+        }
+        showAgentSection(user.name);
+        loadFromSheet().then(() => {
+            loadAgentData();
+            populateAgentFilter();
+            generateBinderNumber();
+        });
+    }).catch((err) => {
+        const m = String(err && err.message || '');
+        showErr(/invalid login credentials/i.test(m) ? 'Incorrect email or password. Please try again.' : m || 'Sign-in failed. Please try again.');
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.orig || 'Sign In'; refreshIcons(); }
     });
+}
+
+// Forgot password: Supabase emails a reset link to the address on the account.
+function sendPasswordReset() {
+    const email = (document.getElementById('agentLoginEmail')?.value || '').trim().toLowerCase();
+    const errEl = document.getElementById('agentLoginError');
+    if (!email) { errEl.textContent = 'Type your email address first, then press Forgot password.'; errEl.style.display = 'block'; return; }
+    UIBAuth.resetPasswordEmail(email).then(() => {
+        errEl.style.background = '#ecfdf5'; errEl.style.color = '#065f46'; errEl.style.borderColor = '#6ee7b7';
+        errEl.textContent = 'If that address has an account, a reset link is on its way.'; errEl.style.display = 'block';
+    }).catch((err) => { errEl.textContent = err.message || 'Could not send the reset email.'; errEl.style.display = 'block'; });
+}
+
+// Signed-in user changes their own password (user menu).
+async function changeMyPassword() {
+    if (!window.UIBAuth || !UIBAuth.isSignedIn()) { alert('Sign in first.'); return; }
+    const p1 = prompt('New password (at least 10 characters):');
+    if (p1 == null) return;
+    if (p1.length < 10) { alert('Use at least 10 characters.'); return; }
+    const p2 = prompt('Type the new password again:');
+    if (p1 !== p2) { alert('The passwords do not match.'); return; }
+    try { await UIBAuth.changePassword(p1); alert('Password changed.'); }
+    catch (e) { alert('Could not change password: ' + (e.message || e)); }
+}
+
+function enterAdmin() {
+    currentUser = 'Admin';
+    currentRole = 'admin';
+    try { sessionStorage.setItem('uibCurrentUser', 'Admin'); } catch (e) {}
+    closeAdminLoginModal();
+    showSection('adminSection');
+    loadFromSheet().then(() => loadAdminDashboard());
 }
 
 // ── Credential Manager (Admin) ─────────────────────────────────
@@ -788,76 +1088,102 @@ function closeCredentialManager() {
 }
 
 function renderCredentialList() {
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const container   = document.getElementById('credentialList');
-
-    container.innerHTML = AGENTS.map(agent => {
-        const cred = credentials[agent] || { email: '', password: '' };
-        return `
-        <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:12px;">
-            <div style="font-weight:700;color:var(--navy);margin-bottom:10px;font-size:14px;"><i data-lucide="user"></i> ${agent}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Email (username)</label>
-                    <input type="email" id="cred_email_${agent.replace(/\s+/g,'_')}"
-                        value="${cred.email || ''}" placeholder="agent@email.com"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Password</label>
-                    <input type="text" id="cred_pass_${agent.replace(/\s+/g,'_')}"
-                        value="${cred.password || ''}" placeholder="Enter password"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-            </div>
-            <button class="btn-primary btn-sm" onclick="saveAgentCredential('${agent}')"><i data-lucide="save"></i> Save</button>
-        </div>`;
-    }).join('');
-    refreshIcons();
+    const container = document.getElementById('credentialList');
+    if (!container) return;
+    container.innerHTML = `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px 18px;color:#3730a3;font-size:14px;line-height:1.5;">
+        <b>Logins are managed in Supabase Auth.</b> Agent accounts, passwords and admin rights are created and reset in the
+        Supabase dashboard (Authentication ▸ Users) or with <code>scripts/create_auth_users.mjs</code>. Passwords are never stored in the app.
+        Each agent can change their own password from the user menu.</div>`;
 }
 
-function renderCredentialListPage() {
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const container   = document.getElementById('credentialListPage');
-    if (!container) return;
-
-    // Get all agents — include extras added via "Add Agent Credential"
-    const allAgents = Array.from(new Set([...AGENTS, ...Object.keys(credentials)]));
-
-    container.innerHTML = allAgents.map(agent => {
-        const cred = credentials[agent] || { email: '', password: '' };
-        const key  = agent.replace(/\s+/g, '_');
-        return `
-        <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <span style="font-weight:700;color:var(--navy);font-size:14px;"><i data-lucide="user"></i> ${agent}</span>
-                <span id="cred_status_${key}" style="font-size:12px;color:var(--success);font-weight:600;opacity:0;transition:opacity .3s;">✓ Saved</span>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Email (username)</label>
-                    <input type="email" id="page_cred_email_${key}"
-                        value="${cred.email || ''}" placeholder="agent@email.com"
-                        oninput="autoSaveCredential('${agent}')"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-                <div>
-                    <label style="font-size:12px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px;">Password</label>
-                    <input type="text" id="page_cred_pass_${key}"
-                        value="${cred.password || ''}" placeholder="Enter password"
-                        oninput="autoSaveCredential('${agent}')"
-                        style="width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;">
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-    refreshIcons();
-
-    // Always push current credentials to Drive when the page opens —
-    // ensures Drive stays in sync even if no field is changed.
-    if (Object.keys(credentials).length > 0) {
-        driveSet('agentCredentials', credentials);
+// ── Login accounts (Supabase Auth), managed through the admin-users function ──
+const ADMIN_USERS_FN = SUPABASE_URL + '/functions/v1/admin-users';
+const ADMIN_USERS_MISSING = 'The admin-users function is not deployed yet. In Supabase ▸ Edge Functions, deploy supabase/functions/admin-users/index.ts as "admin-users".';
+async function _adminUsers(action, extra) {
+    // A function that is not deployed fails the browser's CORS preflight
+    // (Supabase answers it with a 404), so it surfaces as a network error,
+    // not as a readable 404 response.
+    let res;
+    try {
+        res = await fetch(ADMIN_USERS_FN, {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ action }, extra || {}))
+        });
+    } catch (e) {
+        throw new Error(navigator.onLine === false ? 'You are offline.' : 'Could not reach the admin-users function. ' + ADMIN_USERS_MISSING);
     }
+    let data = null; try { data = await res.json(); } catch (e) {}
+    if (res.status === 404) throw new Error(ADMIN_USERS_MISSING);
+    if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || ('HTTP ' + res.status));
+    return data;
+}
+const _esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function renderCredentialListPage() {
+    const container = document.getElementById('credentialListPage');
+    if (!container) return;
+    container.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading accounts…</div>';
+    let users = [];
+    try { users = (await _adminUsers('list')).users || []; }
+    catch (e) {
+        container.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 18px;color:#991b1b;font-size:14px;line-height:1.5;"><b>Could not load accounts.</b> ${_esc(e.message || e)}</div>`;
+        return;
+    }
+    const agents = getAllAgents();
+    const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
+    const byEmail = {}; Object.keys(master).forEach((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); if (em) byEmail[em] = n; });
+    const missing = agents.filter((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); return !users.some((u) => String(u.email).toLowerCase() === em || u.agent_name === n); });
+    const fmt = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
+    const rows = users.map((u) => {
+        const linked = u.agent_name || byEmail[String(u.email).toLowerCase()] || '';
+        const opts = ['<option value="">— not linked —</option>'].concat(agents.map((n) => `<option value="${_esc(n)}"${n === linked ? ' selected' : ''}>${_esc(n)}</option>`)).join('');
+        return `<tr>
+            <td style="font-weight:600;">${_esc(u.email)}${u.confirmed ? '' : ' <span style="font-size:11px;color:#b45309;font-weight:700;">(unconfirmed)</span>'}</td>
+            <td><select onchange="credSetName('${_esc(u.id)}', this.value)" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;">${opts}</select></td>
+            <td><select onchange="credSetRole('${_esc(u.id)}', this.value)" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;"><option value="agent"${u.role === 'agent' ? ' selected' : ''}>Agent</option><option value="admin"${u.role === 'admin' ? ' selected' : ''}>Admin</option></select></td>
+            <td style="font-size:12px;color:var(--gray-500);">${fmt(u.last_sign_in_at)}</td>
+            <td style="font-size:12px;">${u.mfa ? '<span style="color:#166534;font-weight:700;">✓ on</span>' : '<span style="color:#b45309;">not set up</span>'}</td>
+            <td style="white-space:nowrap;">
+                <button class="btn-primary btn-xs btn-sm" onclick="credSetPassword('${_esc(u.id)}','${_esc(u.email)}')">Reset password</button>
+                ${u.mfa ? `<button class="btn-secondary btn-sm" onclick="credClearMfa('${_esc(u.id)}','${_esc(u.email)}')">Clear 2-step</button>` : ''}
+                <button class="btn-danger btn-sm" onclick="credDelete('${_esc(u.id)}','${_esc(u.email)}')">Delete</button>
+            </td></tr>`;
+    }).join('');
+    let mfaOn = false; try { mfaOn = await UIBAuth.getMfaRequired(); } catch (e) {}
+    container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:${mfaOn ? '#ecfdf5' : '#f3f4f6'};border:1px solid ${mfaOn ? '#6ee7b7' : '#d1d5db'};border-radius:12px;padding:12px 16px;margin-bottom:14px;">
+            <div style="font-size:13px;"><b>2-step verification: ${mfaOn ? 'ON' : 'OFF'}</b><div style="color:var(--gray-500);margin-top:2px;">${mfaOn ? 'Every sign-in needs a 6-digit code from an authenticator app. Accounts without one set it up at their next sign-in.' : 'Sign-in is email + password only. Turn on when everyone is ready; agents set up an authenticator app at their next sign-in.'}</div></div>
+            <button class="${mfaOn ? 'btn-danger' : 'btn-success'} btn-sm" onclick="credToggleMfa(${mfaOn ? 'false' : 'true'})">${mfaOn ? 'Turn off' : 'Turn on'}</button>
+        </div>
+        ${missing.length ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;color:#92400e;font-size:13px;margin-bottom:14px;"><b>No login yet:</b> ${missing.map(_esc).join(', ')}. Press <b>Add Agent Credential</b> to create one.</div>` : ''}
+        <div class="table-container"><table style="width:100%;">
+            <thead><tr><th>Email (login)</th><th>Agent</th><th>Role</th><th>Last sign-in</th><th>2-step</th><th>Actions</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6" class="no-data">No accounts yet. Press Add Agent Credential.</td></tr>'}</tbody>
+        </table></div>
+        <p style="font-size:12px;color:var(--gray-500);margin-top:12px;">Passwords are never shown or stored in the app. Give the agent the password you set, and ask them to change it with the Password button once they are in.</p>`;
+    refreshIcons();
+}
+async function credSetName(id, name) { try { await _adminUsers('setName', { id, agent_name: name }); } catch (e) { alert(e.message || e); } }
+async function credToggleMfa(on) {
+    if (!confirm(on ? 'Turn ON 2-step verification for every account? From the next sign-in, each person scans a QR code with an authenticator app and enters a 6-digit code.' : 'Turn OFF 2-step verification? Sign-in goes back to email + password only.')) return;
+    try { await UIBAuth.setMfaRequired(on); if (window.UIBAudit) UIBAudit.log('mfa_setting', on ? 'on' : 'off'); renderCredentialListPage(); }
+    catch (e) { alert(e.message || e); }
+}
+async function credSetRole(id, role) { try { await _adminUsers('setRole', { id, role }); if (window.UIBAudit) UIBAudit.log('cred_set_role', role, { id }); } catch (e) { alert(e.message || e); renderCredentialListPage(); } }
+async function credSetPassword(id, email) {
+    const p1 = prompt('New password for ' + email + ' (at least 10 characters):'); if (p1 == null) return;
+    if (p1.length < 10) { alert('Use at least 10 characters.'); return; }
+    try { await _adminUsers('setPassword', { id, password: p1 }); if (window.UIBAudit) UIBAudit.log('cred_reset_password', email); alert('Password set. Give it to the agent; they can change it after signing in.'); }
+    catch (e) { alert(e.message || e); }
+}
+async function credClearMfa(id, email) {
+    if (!confirm('Clear 2-step verification for ' + email + '? They will set up a new authenticator on their next sign-in.')) return;
+    try { await _adminUsers('clearMfa', { id }); renderCredentialListPage(); } catch (e) { alert(e.message || e); }
+}
+async function credDelete(id, email) {
+    if (!confirm('Delete the login for ' + email + '? Their entries stay in the book; only the sign-in is removed.')) return;
+    try { await _adminUsers('delete', { id }); if (window.UIBAudit) UIBAudit.log('cred_delete', email); renderCredentialListPage(); } catch (e) { alert(e.message || e); }
 }
 
 function autoSaveCredential(agent) {
@@ -882,7 +1208,11 @@ function autoSaveCredential(agent) {
 function openAddCredentialModal() {
     const m = document.getElementById('addCredentialModal');
     m.classList.add('active');
-    document.getElementById('newCredAgent').value = '';
+    // Agent picker from the roster; email prefills from the agent's record.
+    const sel = document.getElementById('newCredAgent');
+    const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
+    sel.innerHTML = '<option value="">— Select agent —</option>' + getAllAgents().map((n) => `<option value="${_esc(n)}" data-email="${_esc((master[n] && master[n].email) || '')}">${_esc(n)}</option>`).join('');
+    sel.onchange = () => { const o = sel.options[sel.selectedIndex]; const em = o && o.dataset.email; if (em) document.getElementById('newCredEmail').value = em; };
     document.getElementById('newCredEmail').value = '';
     document.getElementById('newCredPassword').value = '';
     if (window.UIBMotion) UIBMotion.animateModalOpen(m);
@@ -893,25 +1223,25 @@ function closeAddCredentialModal() {
     document.getElementById('addCredentialModal').classList.remove('active');
 }
 
-function submitAddCredential(e) {
+async function submitAddCredential(e) {
     e.preventDefault();
     const agent = document.getElementById('newCredAgent').value.trim();
-    const email = document.getElementById('newCredEmail').value.trim();
-    const pass  = document.getElementById('newCredPassword').value.trim();
-
-    if (!agent || !email || !pass) {
-        alert('Please fill in all fields.');
-        return;
-    }
-
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    credentials[agent] = { email, password: pass };
-    localStorage.setItem('agentCredentials', JSON.stringify(credentials));
-    driveSet('agentCredentials', credentials);
-
-    closeAddCredentialModal();
-    renderCredentialListPage();
-    refreshIcons();
+    const email = document.getElementById('newCredEmail').value.trim().toLowerCase();
+    const pass  = document.getElementById('newCredPassword').value;
+    const role  = document.getElementById('newCredRole') ? document.getElementById('newCredRole').value : 'agent';
+    if (!agent || !email || !pass) { alert('Pick the agent and fill in the email and password.'); return; }
+    if (pass.length < 10) { alert('Use a password of at least 10 characters.'); return; }
+    const btn = e.target.querySelector('button[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+    try {
+        await _adminUsers('create', { email, password: pass, agent_name: agent, role });
+        if (window.UIBAudit) UIBAudit.log('cred_create', email, { agent, role });
+        // Keep the roster's email in step so the match works everywhere.
+        try { const master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; if (master[agent] && master[agent].email !== email) { master[agent].email = email; localStorage.setItem('agentMasterData', JSON.stringify(master)); } } catch (err) {}
+        closeAddCredentialModal();
+        renderCredentialListPage();
+        alert('Login created for ' + agent + '. Give them the email and password; they can change the password after signing in.');
+    } catch (err) { alert(err.message || err); }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="save"></i> Save'; refreshIcons(); } }
 }
 
 function saveAgentCredential(agent) {
@@ -945,6 +1275,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeAgentData();
     initializeCommissionStatements();
     setTodayDate();
+
+    // Storage meter. The book is saved plain first and compressed in the
+    // background a few seconds later (storage-codec.js), so a reading taken
+    // at page load can say 100%+ for a browser that is really ~10% full.
+    // Measure once the compression has had time to run, re-measure whenever
+    // it finishes or every minute, and take the warning down when it clears.
+    let _compactedLogs = false;
+    function _updateStorageWarning() {
+        try {
+            // Measure what is actually on disk: storage-codec.js keeps the big
+            // keys compressed, so getItem() lengths would overstate usage.
+            let chars = 0;
+            if (window.uibStorageCodec) chars = window.uibStorageCodec.usageChars();
+            else for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); chars += k.length + (localStorage.getItem(k) || '').length; }
+            if (window.uibStorageCodec && window.uibStorageCodec.busy()) return;   // a compression is still running; it re-checks when done
+            if (chars > 4200000 && !_compactedLogs && typeof compactVerificationLogs === 'function') {
+                _compactedLogs = true;
+                compactVerificationLogs().then(did => { if (did) console.info('Compacted verification-log signatures to free browser storage.'); });
+            }
+            // Never let a full browser fail silently again: past 80% of Chrome's
+            // 5M-character cap, say so on screen until it is back under.
+            let el = document.getElementById('uibStorageWarn');
+            if (chars > 4000000) {
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = 'uibStorageWarn';
+                    el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483646;background:#b45309;color:#fff;padding:10px 16px;text-align:center;font:600 13px system-ui,Arial,sans-serif;box-shadow:0 -2px 10px rgba(0,0,0,.3);';
+                    (document.body || document.documentElement).appendChild(el);
+                }
+                el.textContent = `⚠️ This browser's storage for the Binder Book is ${Math.round(chars / 50000)}% full (${(chars / 1e6).toFixed(2)}M of 5M). Saves will start failing at 100% — please tell your admin.`;
+            } else if (el) {
+                el.remove();
+            }
+        } catch (e) {}
+    }
+    window.addEventListener('uibstoragesettled', _updateStorageWarning);
+    setTimeout(_updateStorageWarning, 8000);
+    setInterval(_updateStorageWarning, 60000);
 
     // Agency Commission = Carrier Rate % × Base Premium (auto, readonly)
     // Agent Commission  = (Agency Fee + Agency Commission) × 50% (auto, readonly)
@@ -983,21 +1351,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btnOrigHTML = loginBtn ? loginBtn.innerHTML : '';
         if (loginBtn) { loginBtn.disabled = true; loginBtn.innerHTML = 'Loading…'; }
 
-        try {
-            const timeout  = new Promise(res => setTimeout(() => res(null), 4000));
-            const driveData = await Promise.race([driveGet('agentCredentials'), timeout]);
-            if (driveData && typeof driveData === 'object' && Object.keys(driveData).length > 0) {
-                _origSetItem('agentCredentials', JSON.stringify(driveData));
-                initializeCredentials(); // re-run so any new agents are added
-                initializeAgentButtons();
-            }
-        } catch(e) { /* Drive unavailable — use whatever is already local */ }
+        // Logins are checked by Supabase Auth; nothing to download first.
 
         if (loginBtn) { loginBtn.disabled = false; loginBtn.innerHTML = btnOrigHTML; refreshIcons(); }
 
         // Continue syncing all other data in background
         syncFromDrive().then(() => { migrateLocationNames(); refreshIcons(); runDailyCloudBackup(); });
         startAutoSync();
+        // Anything saved to this browser only (cloud was unreachable at the
+        // time) goes up now, so it is visible on every device.
+        if (document.getElementById('agentTable')) {
+            setTimeout(() => { binderPushLocalFilesToCloud().catch(() => {}); }, 8000);
+        }
     })();
 });
 
@@ -1033,10 +1398,7 @@ function calculateAgentCommission(suffix = '') {
 function populate2ndAgentDropdown(selectId, selectedValue) {
     const sel = document.getElementById(selectId);
     if (!sel) return;
-    const agentMasterData = JSON.parse(localStorage.getItem('agentMasterData')) || {};
-    const masterAgents = Object.keys(agentMasterData);
-    const entryAgents  = [...new Set((JSON.parse(localStorage.getItem('binderData')) || []).map(d => d.agent).filter(Boolean))];
-    const agents = [...new Set([...masterAgents, ...entryAgents])].sort();
+    const agents = getAllAgents();
     sel.innerHTML = '<option value="">— None —</option>' +
         agents.map(a => `<option value="${a}"${a === selectedValue ? ' selected' : ''}>${a}</option>`).join('');
 }
@@ -1126,32 +1488,22 @@ function closeAgentLoginModal() {
 }
 
 document.getElementById('agentLoginForm')?.addEventListener('submit', (e) => {
+    // Legacy modal: logins now go through the email form on the login screen.
     e.preventDefault();
-    const agent = document.getElementById('selectedAgent').value;
-    const password = document.getElementById('agentPassword').value;
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials'));
-
-    const storedPass = typeof credentials[agent] === 'object' ? credentials[agent]?.password : credentials[agent];
-    if (storedPass === password) {
-        closeAgentLoginModal();
-        showAgentSection(agent);
-        loadFromSheet().then(() => {
-            loadAgentData();
-            populateAgentFilter();
-            generateBinderNumber();
-        });
-    } else {
-        alert('Incorrect password');
-        document.getElementById('agentPassword').value = '';
-        document.getElementById('agentPassword').focus();
-    }
+    closeAgentLoginModal();
+    showSection('loginSection');
+    document.getElementById('agentLoginEmail')?.focus();
 });
 
 function showAgentSection(agent) {
     currentUser = agent;
     currentRole = 'agent';
+    // Per-tab marker only; the real session is the Supabase Auth token in
+    // sessionStorage (see uib-auth.js). Nothing about the login persists on
+    // the device after the tab closes or 30 idle minutes pass.
+    try { sessionStorage.setItem('uibCurrentUser', agent); localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('agentSection');
-    document.getElementById('userDisplay').textContent = `👤 Agent: ${agent}`;
+    document.getElementById('userDisplay').innerHTML = `👤 Agent: <span style="text-decoration:underline;text-underline-offset:3px;">${String(agent).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</span> <span style="font-size:.8em;opacity:.7;">›</span>`;
     document.getElementById('agentForm').reset();
     populate2ndAgentDropdown('secondAgent', '');
     setTodayDate();
@@ -1289,27 +1641,34 @@ function closeAdminLoginModal() {
 
 document.getElementById('adminLoginForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
+    const email    = (document.getElementById('adminEmail')?.value || '').trim().toLowerCase();
     const password = document.getElementById('adminPassword').value;
-    if (password === 'admin123') {
-        currentUser = 'Admin';
-        currentRole = 'admin';
-        closeAdminLoginModal();
-        showSection('adminSection');
-        loadFromSheet().then(() => loadAdminDashboard());
-    } else {
-        alert('Incorrect password');
+    if (!window.UIBAuth) { alert('Sign-in is unavailable: uib-auth.js did not load.'); return; }
+    UIBMfa.signIn(email, password, document.getElementById('adminLoginForm')).then((user) => {
+        document.getElementById('adminPassword').value = '';
+        if (user.role !== 'admin') {
+            UIBAuth.signOut();
+            alert('This account is not an administrator.');
+            return;
+        }
+        enterAdmin();
+    }).catch((err) => {
+        alert(/invalid login credentials/i.test(String(err.message)) ? 'Incorrect email or password' : (err.message || 'Sign-in failed'));
         document.getElementById('adminPassword').value = '';
         document.getElementById('adminPassword').focus();
-    }
+    });
 });
 
 function logout() {
     currentUser = null;
     currentRole = null;
-    // Clear the session marker so we don't auto-restore straight back in.
+    if (window.UIBAuth) UIBAuth.signOut();
+    // Clear the session markers so we don't auto-restore straight back in.
     try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {}
+    try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('loginSection');
     initializeAgentButtons();
+    prefillRememberedEmail();
 }
 
 // When the agent returns to the main app after saving on the standalone entry
@@ -1333,9 +1692,15 @@ function restoreSessionFromStorage() {
     // real dashboard element (#agentTable) that only exists on index.html.
     if (!document.getElementById('loginSection') || !document.getElementById('agentTable')) return false;
 
-    let savedUser = null;
-    try { savedUser = sessionStorage.getItem('uibCurrentUser'); } catch (e) { return false; }
-    if (!savedUser) return false;
+    // Only a live Supabase Auth session counts. The old localStorage marker
+    // is ignored (and cleared) so a shared device never opens signed in.
+    try { localStorage.removeItem('uibCurrentUser'); } catch (e) {}
+    const authUser = (window.UIBAuth && UIBAuth.user()) || null;
+    if (!authUser) { try { sessionStorage.removeItem('uibCurrentUser'); } catch (e) {} return false; }
+    // Keep whichever view this tab was in (agent dashboard or admin console).
+    let savedUser = null; try { savedUser = sessionStorage.getItem('uibCurrentUser'); } catch (e) {}
+    if (!savedUser) savedUser = (authUser.role === 'admin' && (!authUser.name || authUser.name === 'Admin')) ? 'Admin' : authUser.name;
+    try { sessionStorage.setItem('uibCurrentUser', savedUser); } catch (e) {}
 
     if (savedUser === 'Admin') {
         currentUser = 'Admin';
@@ -1349,9 +1714,13 @@ function restoreSessionFromStorage() {
         return true;
     }
 
-    // Only restore a recognized agent.
+    // Only restore a recognized agent; a login linked to an unknown name is
+    // ended so it cannot reach the entry pages either.
     const agents = (typeof getAllAgents === 'function') ? getAllAgents() : (typeof AGENTS !== 'undefined' ? AGENTS : []);
-    if (!agents.includes(savedUser)) return false;
+    if (!agents.includes(savedUser)) {
+        const byEmail = _agentNameForEmail(authUser.email);
+        if (byEmail) { savedUser = byEmail; UIBAuth.adoptName(byEmail); } else if (!savedUser) return false;
+    }
 
     showAgentSection(savedUser);
     if (typeof loadFromSheet === 'function') {
@@ -1370,10 +1739,13 @@ function restoreSessionFromStorage() {
 }
 
 // UI Navigation
+let _ackChecked = false;
 function showSection(sectionId) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     const el = document.getElementById(sectionId);
     el.classList.add('active');
+    // Yearly confidentiality & security acknowledgment (GLBA training record).
+    if (sectionId !== 'loginSection' && !_ackChecked && window.UIBAudit && window.UIBAuth && UIBAuth.isSignedIn()) { _ackChecked = true; UIBAudit.requireAck(); }
     if (window.UIBMotion) {
         UIBMotion.animateSection(el);
         UIBMotion.animateUserInfoBar(el);
@@ -1435,17 +1807,67 @@ function toTitleCase(str) {
     return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function saveEntry() {
+// Clears the required-highlight on the Documentation Status section as soon
+// as the agent checks at least one box.
+function docStatusUpdate() {
+    ['docStatusSection', 'docStatusSectionCom'].forEach(id => {
+        const section = document.getElementById(id);
+        if (!section) return;
+        const anyChecked = section.querySelectorAll('.doc-status-cb:checked').length > 0;
+        const box = section.firstElementChild;
+        if (box && anyChecked) box.style.boxShadow = '';
+    });
+}
+
+async function saveEntry() {
     // Personal Lines and Commercial Lines are two fully independent sets of
     // fields (Commercial's ids all carry a "Com" suffix) — read from
     // whichever one is currently selected/visible.
     const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : '';
     const gid = id => document.getElementById(id + sfx);
 
+    // Documentation Status — required on the daily-sales entry form. Personal
+    // and Commercial each have their own section (Commercial adds a free-text
+    // "Other"). Enforced only when the active section is present and visible;
+    // forms without it (e.g. the main binder-book entry form) skip it.
+    let documentationStatus = [];
+    const _docSection = document.getElementById('docStatusSection' + sfx);
+    if (_docSection && _docSection.offsetParent !== null) {
+        const _checked = [..._docSection.querySelectorAll('.doc-status-cb:checked')].map(cb => cb.value);
+        const _otherEl = _docSection.querySelector('.doc-status-other');
+        const _warn = msg => {
+            if (typeof claudeShowToast === 'function') claudeShowToast('⚠ ' + msg, 'warn');
+            else alert(msg);
+        };
+        const _flash = el => {
+            if (!el) return;
+            _docSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.transition = 'box-shadow .3s, border-color .3s';
+            el.style.boxShadow = '0 0 0 3px rgba(220,38,38,.28)';
+            setTimeout(() => { el.style.boxShadow = ''; }, 4000);
+        };
+        documentationStatus = _checked.filter(v => v !== 'Other');
+        if (_checked.includes('Other')) {
+            const _otherText = _otherEl ? _otherEl.value.trim() : '';
+            if (!_otherText) {
+                _warn('Please describe the "Other" documentation item.');
+                _flash(_otherEl || _docSection.firstElementChild);
+                return;
+            }
+            documentationStatus.push('Other: ' + _otherText);
+        }
+        if (documentationStatus.length === 0) {
+            _warn('Please select at least one item under Documentation Status.');
+            _flash(_docSection.firstElementChild);
+            return;
+        }
+    }
+
     const entry = {
         id: Date.now(),
         agent: currentUser,
         customerName: toTitleCase(gid('customerName').value),
+        documentationStatus,
         contactName: toTitleCase(gid('contactName').value),
         source: gid('source').value,
         referredBy: toTitleCase(gid('referredBy').value),
@@ -1518,7 +1940,28 @@ function saveEntry() {
     }
 
     allData.push(entry);
-    localStorage.setItem('binderData', JSON.stringify(allData));
+    // The wrapped setItem stores locally THEN pushes to the cloud. When this
+    // browser is out of room the local write throws and the push never ran —
+    // the entry was simply lost and the Save button looked broken. Free room
+    // and retry; failing that, push to the cloud directly and say so.
+    let storedLocally = _lsSetSafe('binderData', JSON.stringify(allData));
+    if (!storedLocally) {
+        await compactVerificationLogs();
+        // The auto-sync may have reloaded allData from storage during that
+        // await — make sure the new entry is still in it before retrying.
+        if (!allData.some(d => d.id === entry.id)) allData.push(entry);
+        storedLocally = _lsSetSafe('binderData', JSON.stringify(allData));
+    }
+    if (!storedLocally) {
+        let cloudOk = false;
+        try { cloudOk = await driveSet('binderData', allData); } catch (err) { cloudOk = false; }
+        if (!cloudOk) {
+            allData = allData.filter(d => d.id !== entry.id);
+            alert('❌ Entry NOT saved: this browser\'s storage is full and the cloud could not be reached.\n\nPlease tell your admin right away — browser storage for the Binder Book is at its limit.');
+            return;
+        }
+        alert('⚠️ Saved to the cloud, but this browser\'s storage is full so the entry may not appear on this device until storage is freed.\n\nPlease tell your admin: browser storage for the Binder Book is at its limit.');
+    }
 
     // Auto-sync this entry's contact info to AMS (drivers, vehicles, agent, etc.)
     syncEntryToAMS(entry);
@@ -1575,8 +2018,11 @@ function saveEntry() {
             };
         }
 
-        // Save updated commission data
-        localStorage.setItem('commissionData', JSON.stringify(commData));
+        // Save updated commission data (non-fatal if this browser is out of
+        // room — the entry itself is what matters; commissions recompute).
+        if (!_lsSetSafe('commissionData', JSON.stringify(commData))) {
+            try { driveSet('commissionData', commData); } catch (e) {}
+        }
         commissionData = commData;
     }
 
@@ -1648,7 +2094,9 @@ function saveEntry() {
         const persistAll = Promise.all([
             pendingFilesSave.catch(e => console.warn('Attachment save failed:', e)),
             driveSet('binderData', allData),
-            driveSet('commissionData', JSON.parse(localStorage.getItem('commissionData') || '{}'))
+            // In-memory copy: if the local write above failed on a full device,
+            // localStorage still holds the OLD commissions.
+            driveSet('commissionData', (typeof commissionData !== 'undefined' && commissionData) ? commissionData : JSON.parse(localStorage.getItem('commissionData') || '{}'))
         ]);
         // Cap the wait so a slow network can't strand the agent here. With
         // attachments we allow longer, because navigating away aborts an
@@ -1674,6 +2122,64 @@ function saveEntry() {
 const _vlSigPads = {};
 
 let _vlSelectedDealer = '';
+
+// localStorage on this origin sits at Chrome's per-origin cap (the binder
+// book alone is ~7.6 MB). A plain setItem then throws QuotaExceededError,
+// which used to abort saveVerificationLog/saveEntry silently — the button
+// "did nothing". Write through this instead and let callers react.
+function _isQuotaError(e) {
+    return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
+}
+function _lsSetSafe(key, value) {
+    try { localStorage.setItem(key, value); return true; }
+    catch (e) { if (_isQuotaError(e)) { console.warn(`localStorage full — could not store ${key}`); return false; } throw e; }
+}
+
+// Signatures were stored as PNG (~19 KB each); WebP at q0.8 is ~8.5 KB and
+// looks identical on the printed form. Browsers that can't encode WebP
+// (older Safari) return a PNG from toDataURL, which is still fine.
+function _sigDataUrl(canvas) {
+    try { const w = canvas.toDataURL('image/webp', 0.8); if (w.startsWith('data:image/webp')) return w; } catch (e) {}
+    return canvas.toDataURL('image/png');
+}
+
+// One-time re-encode of existing PNG signatures to WebP. Frees ~60% of the
+// verificationLogs key — the only large key that can actually be shrunk.
+async function compactVerificationLogs() {
+    let logs;
+    try { logs = JSON.parse(localStorage.getItem('verificationLogs')) || []; } catch (e) { return false; }
+    const reencode = src => new Promise(res => {
+        if (!src || !src.startsWith('data:image/png')) return res(src);
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const c = document.createElement('canvas');
+                c.width = img.width; c.height = img.height;
+                c.getContext('2d').drawImage(img, 0, 0);
+                const out = _sigDataUrl(c);
+                res(out.length < src.length ? out : src);
+            } catch (e) { res(src); }
+        };
+        img.onerror = () => res(src);
+        img.src = src;
+    });
+    const smaller = new Map(); // id -> {customerSig, agentSig}
+    for (const l of logs) {
+        const c = await reencode(l.customerSig), a = await reencode(l.agentSig);
+        if (c !== l.customerSig || a !== l.agentSig) smaller.set(l.id, { customerSig: c, agentSig: a });
+    }
+    if (!smaller.size) return false;
+    // Re-read right before writing: the image decodes above take a moment,
+    // and a log saved/deleted meanwhile must not be reverted by a stale copy.
+    let fresh;
+    try { fresh = JSON.parse(localStorage.getItem('verificationLogs')) || []; } catch (e) { return false; }
+    fresh.forEach(l => { const s = smaller.get(l.id); if (s) { l.customerSig = s.customerSig; l.agentSig = s.agentSig; } });
+    // _origSetItem: the wrapped setItem would push the whole key to the cloud
+    // on every device that runs this; the content is the same signatures, so
+    // let the next real save carry it up.
+    try { _origSetItem('verificationLogs', JSON.stringify(fresh)); } catch (e) { return false; }
+    return true;
+}
 
 function openDailyVerificationModal() {
     const m = document.getElementById('dealerSelectModal');
@@ -1720,12 +2226,19 @@ function selectDealerAndOpenLog(dealerName) {
     };
 }
 
+function _vlUnlock() {
+    window._vlSaving = false;
+    const b = document.querySelector('#verificationForm button[type="submit"]');
+    if (b) b.disabled = false;
+}
+
 function closeDailyVerificationModal() {
     document.getElementById('dailyVerificationModal').classList.remove('active');
     resetVerificationForm();
 }
 
 function resetVerificationForm() {
+    _vlUnlock();
     document.getElementById('verificationForm').reset();
     clearSignaturePad('vl_customerSigCanvas');
     clearSignaturePad('vl_agentSigCanvas');
@@ -1797,7 +2310,7 @@ function isCanvasBlank(canvasId) {
     return !data.some(v => v !== 0);
 }
 
-function saveVerificationLog(e) {
+async function saveVerificationLog(e) {
     e.preventDefault();
 
     if (isCanvasBlank('vl_customerSigCanvas')) {
@@ -1809,14 +2322,25 @@ function saveVerificationLog(e) {
         return;
     }
 
+    // Everything below awaits (compaction, network) — block a second click
+    // from saving and downloading the same log twice.
+    // Stays locked after a SUCCESSFUL save too (the modal closes itself 2.5s
+    // later) — the happy path is synchronous, so a flag released at the end
+    // of this function would not stop a second click from saving twice.
+    if (window._vlSaving) return;
+    window._vlSaving = true;
+    const vlSubmitBtn = document.querySelector('#verificationForm button[type="submit"]');
+    if (vlSubmitBtn) vlSubmitBtn.disabled = true;
+    const vlDone = _vlUnlock;
+
     const date          = document.getElementById('vl_date').value;
     const agent         = document.getElementById('vl_agent').value;
     const customerName  = document.getElementById('vl_customerName').value.trim();
     const ack           = document.querySelector('input[name="vl_ack"]:checked')?.value;
     const permission    = document.querySelector('input[name="vl_permission"]:checked')?.value;
     const agentConfirm  = document.querySelector('input[name="vl_agentConfirm"]:checked')?.value;
-    const customerSig   = document.getElementById('vl_customerSigCanvas').toDataURL('image/png');
-    const agentSig      = document.getElementById('vl_agentSigCanvas').toDataURL('image/png');
+    const customerSig   = _sigDataUrl(document.getElementById('vl_customerSigCanvas'));
+    const agentSig      = _sigDataUrl(document.getElementById('vl_agentSigCanvas'));
 
     const entry = {
         id:            'VL-' + Date.now(),
@@ -1832,12 +2356,35 @@ function saveVerificationLog(e) {
         timestamp:     getEasternTimestamp()
     };
 
-    const logs = JSON.parse(localStorage.getItem('verificationLogs')) || [];
-    logs.push(entry);
-    localStorage.setItem('verificationLogs', JSON.stringify(logs));
-
-    // Generate and download the completed form
+    // Hand the agent the signed form FIRST — it must never depend on whether
+    // this browser still has room to store the log.
     downloadVerificationForm(entry);
+
+    const readLogs = () => { try { return JSON.parse(localStorage.getItem('verificationLogs')) || []; } catch (e) { return []; } };
+    let logs = readLogs();
+    logs.push(entry);
+    let stored = _lsSetSafe('verificationLogs', JSON.stringify(logs));
+    if (!stored) {
+        // Storage full: shrink the existing PNG signatures to WebP and retry.
+        await compactVerificationLogs();
+        logs = readLogs();
+        if (!logs.some(l => l.id === entry.id)) logs.push(entry);
+        stored = _lsSetSafe('verificationLogs', JSON.stringify(logs));
+    }
+    if (!stored) {
+        // Still no room locally — send it straight to the cloud (the shared
+        // source of truth the admin dashboard reads) and say so plainly.
+        let cloudOk = false;
+        try { cloudOk = await driveSet('verificationLogs', logs); } catch (err) { cloudOk = false; }
+        // driveSet remembers its own stamp so the next sync skips a
+        // re-download. This device does NOT hold the log, so forget the
+        // stamp: once storage frees up, the next sync pulls it back down.
+        if (cloudOk) { try { localStorage.removeItem(_stampKey('verificationLogs')); } catch (err) {} }
+        alert(cloudOk
+            ? '⚠️ This browser\'s storage is full, so the log could not be kept on this device — but it WAS saved to the cloud and the form was downloaded.\n\nPlease tell your admin: browser storage for the Binder Book is at its limit.'
+            : '❌ Could not save the verification log: this browser\'s storage is full and the cloud could not be reached.\n\nThe signed form was downloaded — keep that file. Please tell your admin right away.');
+        if (!cloudOk) { vlDone(); return; }
+    }
 
     document.getElementById('verificationSuccessMsg').style.display = 'block';
     setTimeout(() => {
@@ -1935,9 +2482,12 @@ function downloadVerificationForm(entry) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `VerificationLog-${entry.customerName.replace(/\s+/g,'-')}-${entry.date}.html`;
+    a.download = `VerificationLog-${String(entry.customerName || 'Customer').replace(/[^\w.-]+/g, '-')}-${entry.date}.html`;
+    a.style.display = 'none';
+    // Firefox/Safari ignore click() on an anchor that isn't in the document.
+    document.body.appendChild(a);
     a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 5000);
 }
 
 // ── New Prospect ──────────────────────────────────────────────
@@ -1975,7 +2525,19 @@ function openNewProspectModal() {
     document.getElementById('prospectAgentSelectAll').checked = false;
     prospectAgentUpdateDisplay();
 
-    document.getElementById('prospectSuccessMsg').style.display = 'none';
+    _prospectResetNotice();
+}
+
+// Clear the banner back to its default green "saved" look, so an amber
+// mail-failure notice from a previous save doesn't linger on reopen.
+function _prospectResetNotice() {
+    const msg = document.getElementById('prospectSuccessMsg');
+    if (!msg) return;
+    clearTimeout(_prospectNoticeTimer);
+    msg.style.display = 'none';
+    msg.style.background = '#d1fae5';
+    msg.style.color = '#065f46';
+    msg.textContent = '✓ Prospect saved successfully!';
 }
 
 function closeNewProspectModal() {
@@ -1987,11 +2549,63 @@ function closeNewProspectModal() {
     document.querySelectorAll('.prospect-agent-cb').forEach(cb => cb.checked = false);
     document.getElementById('prospectAgentSelectAll').checked = false;
     prospectAgentUpdateDisplay();
-    document.getElementById('prospectSuccessMsg').style.display = 'none';
+    _prospectResetNotice();
 }
+
+// ── New-prospect agent notification ──────────────────────────────
+// Saving a prospect emails the form details to the agent(s) assigned on
+// it. The browser sends assigned agent NAMES only; the Edge Function
+// looks the addresses up in the agent roster itself, so this endpoint
+// can never be used to mail an address that is not a registered agent.
+// Deploy supabase/functions/prospect-notify/index.ts as "prospect-notify".
+const PROSPECT_NOTIFY_FN = SUPABASE_URL + '/functions/v1/prospect-notify';
+
+async function notifyProspectAgents(prospect, agents) {
+    if (!agents || !agents.length) {
+        return { ok: false, text: '✓ Prospect saved. No agent was assigned, so no email was sent.' };
+    }
+    try {
+        // An undeployed function fails the CORS preflight, so it shows up as a network error.
+        const res = await fetch(PROSPECT_NOTIFY_FN, {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prospect: prospect, agents: agents, submittedBy: currentUser || '' })
+        }).catch(() => {
+            throw new Error(navigator.onLine === false ? 'you are offline' : 'could not reach the prospect-notify function (it is likely not deployed in Supabase yet)');
+        });
+        let data = null; try { data = await res.json(); } catch (err) {}
+        if (res.status === 404) throw new Error('the prospect-notify function is not deployed in Supabase yet');
+        if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || ('HTTP ' + res.status));
+        const who = (data.notified && data.notified.length) ? data.notified.join(', ') : (data.to || []).join(', ');
+        let text = '✓ Prospect saved and emailed to ' + who + '.';
+        if (data.missing && data.missing.length) {
+            text += ' No email address on file for ' + data.missing.join(', ') + '.';
+        }
+        return { ok: true, text: text };
+    } catch (err) {
+        return { ok: false, text: '✓ Prospect saved — but the agent email did not send: ' + (err.message || err) };
+    }
+}
+
+// Show the outcome in the modal's banner: green when the mail went out,
+// amber when it did not. The prospect itself is already saved either way.
+function _prospectShowNotice(note) {
+    const msg = document.getElementById('prospectSuccessMsg');
+    if (!msg) return;
+    msg.textContent = note.text;
+    msg.style.background = note.ok ? '#d1fae5' : '#fef3c7';
+    msg.style.color      = note.ok ? '#065f46' : '#92400e';
+    msg.style.display    = 'block';
+    clearTimeout(_prospectNoticeTimer);
+    _prospectNoticeTimer = setTimeout(() => { msg.style.display = 'none'; }, note.ok ? 5000 : 10000);
+}
+let _prospectNoticeTimer = null;
 
 function saveProspect(e) {
     e.preventDefault();
+    // Captured before the form is reset below — the email needs these names.
+    const assignedAgents = prospectAgentGetSelected();
+    const pv = id => (document.getElementById(id)?.value || '').trim();
     const prospect = {
         id:          'PROS-' + Date.now(),
         firstName:   document.getElementById('prospectFirstName').value.trim(),
@@ -2001,25 +2615,40 @@ function saveProspect(e) {
         lob:         document.getElementById('prospectLOB').value,
         source:      document.getElementById('prospectSource').value,
         referredBy:  document.getElementById('prospectReferredBy').value.trim(),
-        agent:       prospectAgentGetSelected().join(', '),
+        agent:       assignedAgents.join(', '),
         followUpDate:document.getElementById('prospectFollowUpDate').value,
         dateAdded:   getEasternDateTimeDisplay(),
         notes:       document.getElementById('prospectNotes').value.trim(),
-        status:      'Open'
+        status:      'Open',
+        phone2:      pv('prospectPhone2'),
+        dob:         pv('prospectDob'),
+        businessName:pv('prospectBusinessName'),
+        address:     pv('prospectAddress'),
+        city:        pv('prospectCity'),
+        state:       pv('prospectState').toUpperCase(),
+        zip:         pv('prospectZip'),
+        currentCarrier:      pv('prospectCurrentCarrier'),
+        currentPolicyNumber: pv('prospectCurrentPolicy'),
+        currentPremium:      parseFloat(pv('prospectCurrentPremium')) || 0,
+        policyExpiration:    pv('prospectPolicyExpiration'),
+        quotedPremium:       parseFloat(pv('prospectQuotedPremium')) || 0,
+        leadGenerator:       pv('prospectLeadGenerator')
     };
 
     const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
     prospects.push(prospect);
     localStorage.setItem('prospectData', JSON.stringify(prospects));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
 
     document.getElementById('prospectForm').reset();
     document.getElementById('prospectDateAdded').value = getEasternDateTimeDisplay();
     document.querySelectorAll('.prospect-agent-cb').forEach(cb => cb.checked = false);
     document.getElementById('prospectAgentSelectAll').checked = false;
     prospectAgentUpdateDisplay();
-    const msg = document.getElementById('prospectSuccessMsg');
-    msg.style.display = 'block';
-    setTimeout(() => { msg.style.display = 'none'; }, 3000);
+    _prospectShowNotice({ ok: true, text: assignedAgents.length ? '✓ Prospect saved — emailing ' + assignedAgents.join(', ') + '…' : '✓ Prospect saved successfully!' });
+
+    // Never block the save on the mail: report the outcome when it lands.
+    notifyProspectAgents(prospect, assignedAgents).then(_prospectShowNotice);
 
     // Refresh list if prospects section is open
     if (document.getElementById('prospectsSection')?.classList.contains('active')) {
@@ -2031,10 +2660,552 @@ function saveProspect(e) {
 // ── Prospects List Section ─────────────────────────────────────
 function showProspectsSection() {
     showSection('prospectsSection');
+    // Everything on show counts as read — clears the red bubble on the card.
+    _seenMark('Prospects', _openProspectsForUser().map(pr => pr.id));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
     renderProspectsDashboard();
     renderProspectsTable();
     refreshIcons();
     if (window.UIBMotion) UIBMotion.animateSection(document.getElementById('prospectsSection'));
+}
+
+// ── Underwriting queue ───────────────────────────────────────
+// Every reported client (binder entry) whose Documentation Status has any
+// pending item (anything other than "Clean") flows into this queue
+// automatically. Agents log each contact attempt and mark each pending item
+// satisfied; once all are satisfied the client shows as CLEAR. The per-item
+// "satisfied" flags and the contact log live in `underwritingData` (synced),
+// keyed by entry id, so the derived list always tracks the live binder book.
+const UW_STORE_KEY = 'underwritingData';
+let _uwFilter = 'open';
+let _uwLine = 'all';                // 'all' | 'personal' | 'commercial'
+const _uwJustCleared = new Set();   // ids satisfied this view — kept visible (green) in Open until tab switch/reopen
+
+function uwGetStore() {
+    try { return JSON.parse(localStorage.getItem(UW_STORE_KEY)) || {}; }
+    catch (e) { return {}; }
+}
+// Undo history for this page: a snapshot of the store before each change,
+// kept in memory for this visit (up to 25 steps).
+const _uwUndoStack = [];
+function uwSaveStore(store, label) {
+    const before = localStorage.getItem(UW_STORE_KEY) || '{}';
+    _uwUndoStack.push({ label: label || 'last change', before });
+    if (_uwUndoStack.length > 25) _uwUndoStack.shift();
+    // The wrapped setItem mirrors this to the cloud (key is in SYNC_KEYS).
+    localStorage.setItem(UW_STORE_KEY, JSON.stringify(store));
+    uwUpdateUndoButton();
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
+}
+function uwUpdateUndoButton() {
+    const btn = document.getElementById('uwUndoBtn');
+    if (!btn) return;
+    const last = _uwUndoStack[_uwUndoStack.length - 1];
+    btn.disabled = !last;
+    btn.title = last ? 'Undo: ' + last.label : 'Nothing to undo';
+    const lbl = document.getElementById('uwUndoLabel');
+    if (lbl) lbl.textContent = last ? 'Undo ' + last.label : 'Undo';
+}
+function uwUndo() {
+    const last = _uwUndoStack.pop();
+    if (!last) return;
+    localStorage.setItem(UW_STORE_KEY, last.before);
+    _uwJustCleared.clear();
+    uwUpdateUndoButton();
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
+    renderUnderwriting();
+}
+function uwEsc(s) {
+    return (typeof _claudeEsc === 'function') ? _claudeEsc(s) : String(s == null ? '' : s);
+}
+function uwFmtWhen(ts) {
+    if (!ts) return '';
+    try {
+        const d = new Date(ts);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+               ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } catch (e) { return String(ts); }
+}
+
+// Pending items on an entry = its Documentation Status minus the "Clean" flag.
+function uwPendingItems(entry) {
+    const ds = Array.isArray(entry && entry.documentationStatus) ? entry.documentationStatus : [];
+    return ds.filter(x => x && x !== 'Clean');
+}
+
+// Build the working list from the live binder book + the resolution store.
+function uwBuildList() {
+    const data = JSON.parse(localStorage.getItem('binderData')) || [];
+    const store = uwGetStore();
+    const list = [];
+    data.forEach(entry => {
+        const pending = uwPendingItems(entry);
+        if (!pending.length) return;
+        const rec = store[entry.id] || {};
+        const satis = rec.items || {};
+        const outstanding = pending.filter(i => !(satis[i] && satis[i].satisfied));
+        list.push({
+            entry, pending, outstanding,
+            cleared: outstanding.length === 0,
+            contacts: rec.contacts || [],
+            items: satis,
+            clearedBy: rec.clearedBy || '',
+            clearedAt: rec.clearedAt || null
+        });
+    });
+    return list;
+}
+
+// Who/when cleared a client. Prefers the explicitly recorded clearedBy/At,
+// falling back to the most recently satisfied item (covers older records).
+function uwClearedBy(r) {
+    if (r.clearedBy) return r.clearedBy;
+    let best = '', at = -1;
+    Object.values(r.items || {}).forEach(v => {
+        if (v && v.satisfied && (v.at || 0) > at) { at = v.at || 0; best = v.by || ''; }
+    });
+    return best;
+}
+function uwClearedAt(r) {
+    if (r.clearedAt) return r.clearedAt;
+    let at = null;
+    Object.values(r.items || {}).forEach(v => {
+        if (v && v.satisfied && (v.at || 0) > (at || 0)) at = v.at;
+    });
+    return at;
+}
+
+function showUnderwritingSection() {
+    uwUpdateUndoButton();
+    showSection('underwritingSection');
+    // Everything on show counts as read — clears the red bubble on the card.
+    _seenMark('UW', _openUnderwritingForUser().map(r => r.entry.id));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
+    _uwJustCleared.clear();
+    const data = JSON.parse(localStorage.getItem('binderData')) || [];
+    const agents = getAllAgents();
+    const sel = document.getElementById('uwAgentFilter');
+    if (sel) {
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">All Agents</option>' +
+            agents.map(a => `<option value="${uwEsc(a)}"${a === cur ? ' selected' : ''}>${uwEsc(a)}</option>`).join('');
+    }
+    renderUnderwriting();
+    refreshIcons();
+    if (window.UIBMotion) UIBMotion.animateSection(document.getElementById('underwritingSection'));
+}
+
+function uwSetFilter(f) {
+    _uwFilter = f;
+    _uwJustCleared.clear();
+    ['open', 'cleared', 'all'].forEach(x => {
+        const t = document.getElementById('uwTab_' + x);
+        if (t) t.className = 'uw-tab' + (x === f ? ' uw-tab-active' : '');
+    });
+    renderUnderwriting();
+}
+
+function uwSetLine(line) {
+    _uwLine = line;
+    ['all', 'personal', 'commercial'].forEach(x => {
+        const t = document.getElementById('uwLine_' + x);
+        if (t) t.className = 'uw-line-tab' + (x === line ? ' uw-line-tab-active' : '');
+    });
+    renderUnderwriting();
+}
+
+function uwStatCard(label, val, color) {
+    return `<div style="background:#fff;border:1px solid var(--gray-200);border-radius:10px;padding:12px 14px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;">${label}</div>
+        <div style="font-size:22px;font-weight:800;color:${color};margin-top:2px;">${val}</div>
+    </div>`;
+}
+
+// Build the currently-shown Underwriting list, honoring the Line toggle,
+// status tab, agent filter and search. Returns { scoped, list }.
+function uwFilteredList() {
+    const all = uwBuildList();
+    const scoped = (_uwLine === 'all') ? all : all.filter(r =>
+        ((r.entry.lineType || 'personal') === 'commercial') === (_uwLine === 'commercial'));
+
+    let list = scoped.slice();
+    if (_uwFilter === 'open')    list = list.filter(r => !r.cleared || _uwJustCleared.has(r.entry.id));
+    if (_uwFilter === 'cleared') list = list.filter(r => r.cleared);
+
+    const agentF = document.getElementById('uwAgentFilter')?.value || '';
+    if (agentF) list = list.filter(r => r.entry.agent === agentF);
+
+    const q = (document.getElementById('uwSearch')?.value || '').trim().toLowerCase();
+    if (q) list = list.filter(r => {
+        const e = r.entry;
+        return [e.customerName, e.company, e.policyNumber, e.binderNumber, e.agent, e.lineOfBusiness]
+            .some(v => (v || '').toString().toLowerCase().includes(q));
+    });
+
+    list.sort((a, b) =>
+        (b.outstanding.length - a.outstanding.length) ||
+        ((b.entry.entryDate || '').localeCompare(a.entry.entryDate || '')));
+
+    return { scoped, list };
+}
+
+function renderUnderwriting() {
+    const container = document.getElementById('underwritingList');
+    if (!container) return;
+
+    const { scoped, list } = uwFilteredList();
+
+    // Stats reflect the selected line, but not the status filter/search.
+    const openCount      = scoped.filter(r => !r.cleared).length;
+    const clearedCount   = scoped.filter(r => r.cleared).length;
+    const outstandingCnt = scoped.reduce((s, r) => s + r.outstanding.length, 0);
+    const statsRow = document.getElementById('uw_statsRow');
+    if (statsRow) statsRow.innerHTML =
+        uwStatCard('Clients Pending', openCount, '#dc2626') +
+        uwStatCard('Outstanding Items', outstandingCnt, '#ea580c') +
+        uwStatCard('Cleared', clearedCount, '#16a34a') +
+        uwStatCard('Total Reported', scoped.length, '#1d4ed8');
+
+    const countEl = document.getElementById('uwCount');
+    if (!list.length) {
+        container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray-400);border:1px dashed var(--gray-200);border-radius:12px;">${_uwFilter === 'cleared' ? 'No cleared clients yet.' : 'No pending documentation right now. 🎉'}</div>`;
+        if (countEl) countEl.textContent = '';
+        refreshIcons();
+        return;
+    }
+
+    container.innerHTML = list.map(uwCardHtml).join('');
+    if (countEl) countEl.textContent = `${list.length} client${list.length !== 1 ? 's' : ''} shown`;
+    refreshIcons();
+}
+
+// Open the printable "Cleared Report" — only clients that have been cleared,
+// with the agent who cleared each, and an interactive filter section.
+function uwGenerateReport() {
+    const esc = uwEsc;
+    const cleared = uwBuildList().filter(r => r.cleared);
+
+    const isoDay = (ts) => {
+        if (!ts) return '';
+        const d = new Date(ts);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    // Agent options = distinct "cleared by" values.
+    const agents = [...new Set(cleared.map(r => uwClearedBy(r)).filter(Boolean))].sort();
+    const agentOptions = agents.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+
+    const clientsHtml = cleared.length ? cleared.map(r => {
+        const e = r.entry;
+        const by = uwClearedBy(r);
+        const at = uwClearedAt(r);
+        const line = (e.lineType === 'commercial') ? 'Commercial' : 'Personal';
+        const items = r.pending.map(item => {
+            const info = r.items[item];
+            const meta = info && info.at
+                ? ` <span class="muted">(${esc(uwFmtWhen(info.at))}${info.by ? ' by ' + esc(info.by) : ''})</span>` : '';
+            return `<li class="done">☑ ${esc(item)}${meta}</li>`;
+        }).join('') || '<li class="muted">No documentation items.</li>';
+        const contacts = (r.contacts && r.contacts.length)
+            ? r.contacts.slice().reverse().map(c =>
+                `<li>${uwTypeLabel(c.type)} — ${esc(uwFmtWhen(c.at))}${c.by ? ' · ' + esc(c.by) : ''}${c.note ? ' — ' + esc(c.note) : ''}</li>`).join('')
+            : '<li class="muted">No contact logged.</li>';
+        return `<div class="client" data-name="${esc((e.customerName || '').toLowerCase())}" data-agent="${esc(by)}" data-line="${line}" data-cleared="${isoDay(at)}" data-fee="10">
+            <div class="chead"><span class="cname">${esc(e.customerName || '—')}</span>
+                <span class="badge clear">✓ CLEAR</span></div>
+            <div class="clearedby">✓ Cleared by ${esc(by || '—')}${at ? ' · ' + esc(uwFmtWhen(at)) : ''}</div>
+            <div class="fee">💵 Clearance fee: $10.00 to ${esc(by || '—')}</div>
+            <div class="cmeta">${esc(e.agent || '—')} · ${line} · ${esc(e.lineOfBusiness || '—')} · ${esc(e.company || '—')}${e.policyNumber ? ' · Policy ' + esc(e.policyNumber) : ''}${e.entryDate ? ' · ' + esc(formatDate(e.entryDate)) : ''}</div>
+            <div class="sec"><div class="sec-t">Documentation Status</div><ul>${items}</ul></div>
+            <div class="sec"><div class="sec-t">Contact Log</div><ul>${contacts}</ul></div>
+        </div>`;
+    }).join('') : '<p class="muted">No cleared clients yet.</p>';
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Cleared Report</title><style>
+        :root{--blue:#1d4ed8;--navy:#0d1f3c;--green:#16a34a;--gray-200:#e2e8f0;}
+        *{box-sizing:border-box;}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#0f172a;margin:0;background:#f1f5f9;padding:20px;}
+        .wrap{max-width:1000px;margin:0 auto;}
+        .toolbar{display:flex;gap:8px;margin:0 0 14px;}
+        .btn{border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;}
+        .btn.back{background:linear-gradient(to right,#c8d5e3,#dde6f0,#f1f5f9);color:#334155;border:1px solid var(--gray-200);}
+        .btn.print{background:linear-gradient(to right,#0f2a78,#1d4ed8,#2563eb);color:#fff;}
+        .banner{background:linear-gradient(135deg,#166534 0%,#16a34a 100%);color:#fff;padding:16px 22px;border-radius:12px 12px 0 0;box-shadow:0 4px 14px rgba(22,163,74,.22);display:flex;align-items:center;gap:12px;}
+        .banner .btitle{font-size:18px;font-weight:800;letter-spacing:-.3px;margin:0;}
+        .banner .bsub{font-size:12px;opacity:.9;margin:2px 0 0;}
+        .panel{border:1px solid var(--gray-200);border-top:none;border-radius:0 0 12px 12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06);margin:0 0 16px;overflow:hidden;}
+        .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:14px 18px;background:#fff;border-bottom:1px solid var(--gray-200);}
+        .filters .fld{display:flex;flex-direction:column;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.4px;}
+        .filters input,.filters select{margin-top:3px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;text-transform:none;font-weight:400;color:#0f172a;background:#fff;}
+        .filters .clr{align-self:flex-end;background:#e2e8f0;color:#334155;border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;}
+        #fCount{font-size:12px;color:#64748b;padding:12px 18px 2px;margin:0;font-weight:600;}
+        .list{padding:6px 18px 18px;}
+        .client{border:1px solid #bbf7d0;border-left:5px solid #16a34a;border-radius:12px;padding:14px 16px;margin:10px 0 0;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06);page-break-inside:avoid;}
+        .chead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+        .cname{font-size:15px;font-weight:800;color:#0d1f3c;}
+        .badge{border-radius:999px;padding:3px 12px;font-size:11px;font-weight:800;letter-spacing:.3px;}
+        .badge.clear{background:#dcfce7;color:#166534;}
+        .clearedby{font-size:12px;color:#166534;font-weight:700;margin-top:3px;}
+        .fee{font-size:12px;color:#166534;font-weight:700;margin-top:2px;}
+        .fee-wrap{padding:14px 18px;border-bottom:1px solid var(--gray-200);background:#f0fdf4;}
+        .fee-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#166534;margin-bottom:8px;}
+        .fee-month{margin-bottom:10px;}
+        .fee-month-h{font-size:13px;font-weight:800;color:#166534;margin-bottom:4px;}
+        .fee-table{width:100%;border-collapse:collapse;font-size:12px;}
+        .fee-table th{text-align:left;color:#64748b;font-weight:700;border-bottom:1px solid #d1fae5;padding:4px 6px;}
+        .fee-table td{padding:4px 6px;border-bottom:1px solid #ecfdf5;color:#334155;}
+        .fee-grand{margin-top:8px;font-size:15px;font-weight:800;color:#166534;text-align:right;}
+        .cmeta{color:#64748b;font-size:12px;margin-top:2px;}
+        .sec{margin-top:8px;}
+        .sec-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#334155;}
+        ul{margin:4px 0 0;padding-left:18px;font-size:13px;color:#475569;}
+        li.done{color:#166534;}
+        .muted{color:#94a3b8;}
+        @media print{body{background:#fff;padding:0;}.toolbar,.filters{display:none !important;}.banner{box-shadow:none;}.panel{box-shadow:none;border:none;}}
+    </style></head><body><div class="wrap">
+        <div class="toolbar">
+            <button class="btn back" onclick="window.close()">← Back</button>
+            <button class="btn print" onclick="window.print()">🖨 Print</button>
+        </div>
+        <div class="banner">
+            <span style="font-size:22px;">✅</span>
+            <div>
+                <p class="btitle">Cleared Report</p>
+                <p class="bsub">Clients with all documentation satisfied · Generated ${esc(uwFmtWhen(Date.now()))}${currentUser ? ' by ' + esc(currentUser) : ''}</p>
+            </div>
+        </div>
+        <div class="panel">
+        <div class="filters">
+            <label class="fld">Search<input id="fName" placeholder="Client name…" oninput="applyF()"></label>
+            <label class="fld">Cleared by<select id="fAgent" onchange="applyF()"><option value="">All agents</option>${agentOptions}</select></label>
+            <label class="fld">Line<select id="fLine" onchange="applyF()"><option value="">All lines</option><option value="Personal">Personal</option><option value="Commercial">Commercial</option></select></label>
+            <label class="fld">Cleared from<input type="date" id="fFrom" onchange="applyF()"></label>
+            <label class="fld">Cleared to<input type="date" id="fTo" onchange="applyF()"></label>
+            <button class="clr" onclick="clearF()">Clear filters</button>
+        </div>
+        <div class="fee-wrap">
+            <div class="fee-title">💵 Clearance Fees — $10 per cleared client</div>
+            <div id="feeSummary"></div>
+        </div>
+        <p id="fCount"></p>
+        <div class="list">${clientsHtml}</div>
+        </div>
+        <script>
+        function applyF(){
+            var name=(document.getElementById('fName').value||'').toLowerCase();
+            var ag=document.getElementById('fAgent').value;
+            var ln=document.getElementById('fLine').value;
+            var from=document.getElementById('fFrom').value;
+            var to=document.getElementById('fTo').value;
+            var cards=document.querySelectorAll('.client'), shown=0;
+            cards.forEach(function(c){
+                var ok=true, d=c.getAttribute('data-cleared');
+                if(name && c.getAttribute('data-name').indexOf(name)<0) ok=false;
+                if(ag && c.getAttribute('data-agent')!==ag) ok=false;
+                if(ln && c.getAttribute('data-line')!==ln) ok=false;
+                if(from && (!d || d<from)) ok=false;
+                if(to && (!d || d>to)) ok=false;
+                c.style.display= ok ? '' : 'none';
+                if(ok) shown++;
+            });
+            var el=document.getElementById('fCount');
+            if(el) el.textContent = shown + ' cleared client' + (shown!==1?'s':'');
+            computeFees();
+        }
+        function computeFees(){
+            var mn=['January','February','March','April','May','June','July','August','September','October','November','December'];
+            var cards=document.querySelectorAll('.client'), months={}, grand=0;
+            cards.forEach(function(c){
+                if(c.style.display==='none') return;
+                var d=c.getAttribute('data-cleared'), m=d?d.slice(0,7):'Unknown';
+                var ag=c.getAttribute('data-agent')||'—';
+                if(!months[m]) months[m]={};
+                months[m][ag]=(months[m][ag]||0)+1;
+                grand+=10;
+            });
+            function mlabel(m){ if(m==='Unknown') return 'Unknown date'; var p=m.split('-'); return mn[parseInt(p[1],10)-1]+' '+p[0]; }
+            var keys=Object.keys(months).sort().reverse(), html='';
+            if(!keys.length){ html='<div class="muted">No cleared clients to bill.</div>'; }
+            keys.forEach(function(m){
+                var agents=months[m], sub=0, rows='';
+                Object.keys(agents).sort().forEach(function(ag){
+                    var cnt=agents[ag], amt=cnt*10; sub+=amt;
+                    rows+='<tr><td>'+ag+'</td><td style="text-align:center;">'+cnt+'</td><td style="text-align:right;">$'+amt.toFixed(2)+'</td></tr>';
+                });
+                html+='<div class="fee-month"><div class="fee-month-h">'+mlabel(m)+' — <strong>$'+sub.toFixed(2)+'</strong></div>'+
+                      '<table class="fee-table"><thead><tr><th>Agent</th><th style="text-align:center;">Cleared</th><th style="text-align:right;">Fee ($10 ea.)</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+            });
+            html+='<div class="fee-grand">Total to be paid: $'+grand.toFixed(2)+'</div>';
+            var el=document.getElementById('feeSummary'); if(el) el.innerHTML=html;
+        }
+        function clearF(){ ['fName','fAgent','fLine','fFrom','fTo'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';}); applyF(); }
+        applyF();
+        <\/script>
+    </div></body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { alert('Please allow pop-ups to open the report.'); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+}
+
+function uwCardHtml(r) {
+    const e = r.entry;
+    const dateStr = e.entryDate ? formatDate(e.entryDate) : '';
+
+    const chips = r.pending.map((item, idx) => {
+        const done = !!(r.items[item] && r.items[item].satisfied);
+        const bg  = done ? '#dcfce7' : '#fee2e2';
+        const col = done ? '#166534' : '#991b1b';
+        const bdr = done ? '#86efac' : '#fca5a5';
+        const tip = done && r.items[item].at
+            ? ` title="Satisfied ${uwEsc(uwFmtWhen(r.items[item].at))}${r.items[item].by ? ' by ' + uwEsc(r.items[item].by) : ''} — tap to reopen"`
+            : ' title="Tap to mark satisfied"';
+        return `<button type="button" onclick="uwToggleItem(${e.id}, ${idx})"${tip}
+            style="display:inline-flex;align-items:center;gap:4px;background:${bg};color:${col};border:1px solid ${bdr};border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;${done ? 'text-decoration:line-through;opacity:.85;' : ''}">${done ? '✓ ' : ''}${uwEsc(item)}</button>`;
+    }).join(' ');
+
+    const lastContact = r.contacts.length ? r.contacts[r.contacts.length - 1] : null;
+    const contactsHtml = r.contacts.length
+        ? r.contacts.map((c, i) => ({ c, i })).reverse().map(({ c, i }) =>
+            `<div style="font-size:12px;color:#475569;padding:4px 0;border-top:1px dashed #e5e7eb;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <span>${uwTypeLabel(c.type)} ${uwEsc(uwFmtWhen(c.at))}${c.by ? ' · ' + uwEsc(c.by) : ''}${c.note ? ' — ' + uwEsc(c.note) : ''}</span>
+                <button onclick="uwDeleteContact(${e.id}, ${i})" title="Remove this contact log" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:13px;line-height:1;padding:2px 6px;flex-shrink:0;">✕</button>
+            </div>`).join('')
+        : `<div style="font-size:12px;color:#94a3b8;font-style:italic;">No contact logged yet.</div>`;
+
+    const badge = r.cleared
+        ? `<span style="background:#dcfce7;color:#166534;border-radius:999px;padding:3px 12px;font-size:11px;font-weight:800;letter-spacing:.3px;vertical-align:middle;">✓ CLEAR</span>`
+        : `<span style="background:#fee2e2;color:#991b1b;border-radius:999px;padding:3px 12px;font-size:11px;font-weight:800;letter-spacing:.3px;vertical-align:middle;">${r.outstanding.length} PENDING</span>`;
+
+    return `<div style="border:1px solid ${r.cleared ? '#bbf7d0' : '#fecaca'};border-left:5px solid ${r.cleared ? '#16a34a' : '#dc2626'};border-radius:12px;padding:14px 16px;margin-bottom:12px;background:#fff;box-shadow:var(--shadow-sm);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+            <div style="min-width:0;">
+                <div style="font-size:15px;font-weight:800;color:#0d1f3c;">${uwEsc(e.customerName || '—')} ${badge}</div>
+                <div style="font-size:12px;color:#64748b;margin-top:3px;">
+                    ${uwEsc(e.agent || '—')} · ${uwEsc(e.lineOfBusiness || '—')} · ${uwEsc(e.company || '—')}${e.policyNumber ? ' · Policy ' + uwEsc(e.policyNumber) : ''}${dateStr ? ' · ' + dateStr : ''}${e.customerPhone ? ' · 📱 ' + uwEsc(e.customerPhone) : ''}
+                </div>
+                ${r.cleared && uwClearedBy(r) ? `<div style="font-size:11px;color:#166534;font-weight:700;margin-top:2px;">✓ Cleared by ${uwEsc(uwClearedBy(r))}${uwClearedAt(r) ? ' · ' + uwEsc(uwFmtWhen(uwClearedAt(r))) : ''}</div>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                ${r.cleared
+                    ? `<button class="btn-secondary btn-sm" onclick="uwReopen(${e.id})"><i data-lucide="rotate-ccw"></i> Reopen</button>`
+                    : `<button class="btn-success btn-sm" onclick="uwSatisfyAll(${e.id})"><i data-lucide="check-check"></i> Mark All Satisfied</button>`}
+            </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">${chips}</div>
+        <div style="margin-top:6px;font-size:11px;color:#94a3b8;">Tap an item to mark it satisfied (tap again to reopen).</div>
+        <div style="margin-top:12px;border-top:1px dashed #e5e7eb;padding-top:10px;">
+            <div style="font-size:12px;font-weight:800;color:#334155;margin-bottom:6px;">📞 Contact Log${r.contacts.length ? ` (${r.contacts.length})` : ''}${lastContact ? ` · last ${uwEsc(uwFmtWhen(lastContact.at))}` : ''}</div>
+            <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
+                <select id="uwType_${e.id}" title="Type of contact" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;">
+                    <option value="Call">📞 Call</option>
+                    <option value="Text">💬 Text</option>
+                    <option value="Voicemail">📩 Voicemail</option>
+                    <option value="Email">✉️ Email</option>
+                </select>
+                <textarea id="uwNote_${e.id}" rows="2" placeholder="Notes about this interaction — what was discussed, what's still needed…" style="flex:1;min-width:200px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+                <button class="btn-primary btn-sm" onclick="uwLogContact(${e.id})" style="white-space:nowrap;"><i data-lucide="phone-call"></i> Log Contact</button>
+            </div>
+            <div style="margin-top:5px;font-size:11px;color:#94a3b8;">Will be logged as <strong style="color:#475569;">${uwEsc(currentUser || 'this agent')}</strong> at the current time.</div>
+            <div style="margin-top:8px;">${contactsHtml}</div>
+        </div>
+    </div>`;
+}
+
+function uwToggleItem(entryId, idx) {
+    const data = JSON.parse(localStorage.getItem('binderData')) || [];
+    const entry = data.find(d => d.id === entryId);
+    if (!entry) return;
+    const item = uwPendingItems(entry)[idx];
+    if (!item) return;
+    const store = uwGetStore();
+    const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
+    if (!rec.items) rec.items = {};
+    if (rec.items[item] && rec.items[item].satisfied) {
+        delete rec.items[item];
+    } else {
+        rec.items[item] = { satisfied: true, at: Date.now(), by: currentUser || '' };
+    }
+    // Record who cleared it when this toggle completes the set; clear it if reopened.
+    const pending = uwPendingItems(entry);
+    const nowCleared = pending.length > 0 && pending.every(i => rec.items[i] && rec.items[i].satisfied);
+    if (nowCleared) {
+        rec.clearedBy = currentUser || '';
+        if (!rec.clearedAt) rec.clearedAt = Date.now();
+        _uwJustCleared.add(entryId);
+    } else {
+        delete rec.clearedBy; delete rec.clearedAt;
+        _uwJustCleared.delete(entryId);
+    }
+    uwSaveStore(store, (rec.items[item] ? 'marking "' : 'reopening "') + item + '" for ' + (entry.customerName || 'client'));
+    renderUnderwriting();
+}
+
+function uwSatisfyAll(entryId) {
+    const data = JSON.parse(localStorage.getItem('binderData')) || [];
+    const entry = data.find(d => d.id === entryId);
+    if (!entry) return;
+    const store = uwGetStore();
+    const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
+    if (!rec.items) rec.items = {};
+    uwPendingItems(entry).forEach(item => {
+        rec.items[item] = { satisfied: true, at: Date.now(), by: currentUser || '' };
+    });
+    rec.clearedBy = currentUser || '';
+    rec.clearedAt = Date.now();
+    uwSaveStore(store, 'Mark All Satisfied for ' + (entry.customerName || 'client'));
+    _uwJustCleared.add(entryId); // keep it visible with its green border in Open
+    renderUnderwriting();
+}
+
+function uwReopen(entryId) {
+    const store = uwGetStore();
+    if (store[entryId]) {
+        store[entryId].items = {};
+        delete store[entryId].clearedBy;
+        delete store[entryId].clearedAt;
+        uwSaveStore(store, 'reopen');
+    }
+    _uwJustCleared.delete(entryId);
+    renderUnderwriting();
+}
+
+// Icon + name for a logged contact's type (defaults to Call for old records).
+function uwTypeLabel(type) {
+    const icons = { Call: '📞', Text: '💬', Voicemail: '📩', Email: '✉️' };
+    const t = type || 'Call';
+    return `${icons[t] || '📞'} ${uwEsc(t)}`;
+}
+
+function uwDeleteContact(entryId, idx) {
+    const store = uwGetStore();
+    const rec = store[entryId];
+    if (!rec || !Array.isArray(rec.contacts)) return;
+    if (idx < 0 || idx >= rec.contacts.length) return;
+    if (!confirm('Remove this contact log entry?')) return;
+    rec.contacts.splice(idx, 1);
+    uwSaveStore(store, 'contact log removal');
+    renderUnderwriting();
+}
+
+function uwLogContact(entryId) {
+    // Record the interaction with a timestamp (stamped the moment the agent
+    // clicks), the contact type, plus whatever notes were typed in.
+    const noteEl = document.getElementById('uwNote_' + entryId);
+    const typeEl = document.getElementById('uwType_' + entryId);
+    const note = noteEl ? noteEl.value.trim() : '';
+    const type = typeEl ? typeEl.value : 'Call';
+    // Always attribute the contact to the agent who is signed in.
+    const by = currentUser || '';
+    const store = uwGetStore();
+    const rec = store[entryId] || (store[entryId] = { items: {}, contacts: [] });
+    if (!rec.contacts) rec.contacts = [];
+    rec.contacts.push({ at: Date.now(), by, type, note });
+    uwSaveStore(store, 'contact log');
+    if (noteEl) noteEl.value = '';
+    renderUnderwriting();
 }
 
 function renderProspectsDashboard() {
@@ -2044,7 +3215,7 @@ function renderProspectsDashboard() {
     const agentSel = document.getElementById('pdash_agentFilter');
     if (agentSel) {
         const current = agentSel.value;
-        const agents = [...new Set(all.map(p => p.agent).filter(Boolean))].sort();
+        const agents = getAllAgents();
         agentSel.innerHTML = '<option value="" style="color:#111;">All Agents</option>' +
             agents.map(a => `<option value="${a}" style="color:#111;"${a === current ? ' selected' : ''}>${a}</option>`).join('');
     }
@@ -2159,6 +3330,269 @@ function renderProspectsDashboard() {
     if (typeof refreshIcons === 'function') refreshIcons();
 }
 
+// On Daily Sales Entry: if we arrived from a prospect marked Sold, prefill
+// the customer fields and show a banner so the entry validates that sale.
+function salesCheckProspectSale() {
+    let sale = null;
+    try { sale = JSON.parse(sessionStorage.getItem('uibProspectSale') || 'null'); } catch (e) { sale = null; }
+    if (!sale) return;
+    try { sessionStorage.removeItem('uibProspectSale'); } catch (e) {}
+    const set = (id, v) => { const el = document.getElementById(id); if (el && v && !el.value) el.value = v; };
+    set('customerName', sale.name);
+    set('customerPhone', sale.phone);
+    set('customerEmail', sale.email);
+    set('referredBy', sale.referredBy);
+    const src = document.getElementById('source');
+    if (src && sale.source && [...src.options].some(o => o.value === sale.source)) src.value = sale.source;
+    const form = document.getElementById('agentForm');
+    if (form && !document.getElementById('prospectSaleBanner')) {
+        const b = document.createElement('div');
+        b.id = 'prospectSaleBanner';
+        b.style.cssText = 'margin:0 0 16px;padding:12px 16px;border-radius:12px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #6ee7b7;color:#065f46;font-weight:600;font-size:14px;display:flex;align-items:center;gap:10px;';
+        b.innerHTML = `💰 Validating sale for prospect <strong>${(sale.name || '').replace(/</g, '&lt;')}</strong> — complete and save this entry to record the policy.`;
+        form.parentNode.insertBefore(b, form);
+    }
+    const nameEl = document.getElementById('customerName');
+    if (nameEl) nameEl.focus();
+}
+
+// ── Prospect outcomes: Sold / Lost ───────────────────────────────
+function _prospectSave(prospects) {
+    localStorage.setItem('prospectData', JSON.stringify(prospects));
+    if (typeof renderNavMonthStats === 'function') renderNavMonthStats();
+}
+function _prospectFullName(p) { return `${p.firstName || ''} ${p.lastName || ''}`.trim(); }
+
+// Sold: the prospect leaves the active list (status Closed) and the agent is
+// taken to Daily Sales Entry, prefilled, to record the policy that validates
+// the sale.
+function prospectMarkSold(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    const name = _prospectFullName(p) || 'this prospect';
+    if (!confirm(`Mark ${name} as SOLD?\n\nThe prospect will be removed from the active list and you will be asked to create the Daily Sales Entry that validates the sale.`)) return;
+    p.status = 'Closed';
+    p.soldAt = new Date().toISOString();
+    p.soldBy = currentUser || '';
+    _prospectSave(prospects);
+    _prospectCloseInAMS(p);
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+
+    if (confirm(`Create the Daily Sales Entry for ${name} now to validate the sale?`)) {
+        try {
+            sessionStorage.setItem('uibProspectSale', JSON.stringify({
+                prospectId: p.id, name, phone: p.phone || '', email: p.email || '',
+                lob: p.lob || '', source: p.source || '', referredBy: p.referredBy || '', agent: p.agent || ''
+            }));
+        } catch (e) {}
+        sessionStorage.setItem('uibCurrentUser', currentUser || '');
+        window.location.href = './dailysalesentry';
+    }
+}
+
+// A sold prospect leaves the AMS prospect report: its client record, when
+// it has one, is marked Closed there.
+function _prospectCloseInAMS(p) {
+    try {
+        const key = amsClientKeyFromName(_prospectFullName(p));
+        const contacts = JSON.parse(localStorage.getItem('amsClientData')) || {};
+        const rec = contacts[key];
+        if (!rec || !rec.prospectStatus || rec.prospectStatus === 'Closed') return;
+        rec.prospectStatus = 'Closed';
+        rec.prospectClosedAt = new Date().toISOString();
+        rec.updatedAt = rec.prospectClosedAt;
+        localStorage.setItem('amsClientData', JSON.stringify(contacts));
+        if (typeof driveSet === 'function') driveSet('amsClientData', contacts);
+    } catch (e) { console.warn('Could not close the prospect in the AMS', e); }
+}
+
+// Lost: status Lost, and the client's info is archived in the AMS as an
+// "Inactive Prospect" so the history is kept.
+function prospectMarkLost(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    const name = _prospectFullName(p) || 'this prospect';
+    if (!confirm(`Mark ${name} as LOST?\n\nThe prospect will be archived into the AMS as an Inactive Prospect.`)) return;
+    p.status = 'Lost';
+    p.lostAt = new Date().toISOString();
+    p.lostBy = currentUser || '';
+    _prospectSave(prospects);
+    archiveProspectToAMS(p);
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+}
+
+// ── Take the Lead ────────────────────────────────────────────────
+// Any signed-in agent can claim a still-active prospect from the list.
+// The claimer becomes the assigned agent; whoever held it before is kept
+// in previousAgent so the handover stays on the record.
+function _prospectAgentList(p) {
+    return String((p && p.agent) || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+function _prospectIsMine(p, who) {
+    const me = String(who || '').trim().toLowerCase();
+    return !!me && _prospectAgentList(p).some(a => a.toLowerCase() === me);
+}
+
+function prospectTakeLead(id) {
+    const me = (currentUser || '').trim();
+    if (!me) { alert('Sign in first — the lead is assigned to whoever takes it.'); return; }
+
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    if (p.status === 'Closed' || p.status === 'Lost') { alert('This prospect is already closed.'); return; }
+
+    const name    = _prospectFullName(p) || 'this prospect';
+    const holders = _prospectAgentList(p).filter(a => a.toLowerCase() !== me.toLowerCase());
+    if (_prospectIsMine(p, me) && !holders.length) { alert(`${name} is already assigned to you.`); return; }
+
+    const who = holders.length ? holders.join(', ') : '';
+    if (!confirm(`Take the lead on ${name}?\n\n${who ? `Currently assigned to ${who}. You will replace them as the assigned agent.` : 'It has no assigned agent. You will become the assigned agent.'}`)) return;
+
+    if (who) p.previousAgent = who;
+    p.agent   = me;
+    p.takenBy = me;
+    p.takenAt = new Date().toISOString();
+
+    _prospectSave(prospects);
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+
+    // Straight into the checklist of what is still needed from the client.
+    prospectOpenPending(id);
+}
+
+// ── Pending items on a prospect ──────────────────────────────────
+// What the agent is still waiting on from the client. Opens by itself
+// right after a lead is taken, and from the 📋 button on any row.
+const PROSPECT_PENDING_ITEMS = [
+    '4 Point Inspection',
+    'Wind Mitigation Inspection',
+    "Driver's License (DL)",
+    'VIN Number',
+    'Prior Dec Page',
+    'Other'
+];
+let _prospectPendingId = null;
+
+function _prospectPendingList(p) {
+    return Array.isArray(p && p.pendingItems) ? p.pendingItems : [];
+}
+
+function prospectOpenPending(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    _prospectPendingId = id;
+
+    const chosen = _prospectPendingList(p);
+    document.getElementById('prospectPendingWho').textContent =
+        `${_prospectFullName(p) || 'This prospect'}${p.agent ? ' · ' + p.agent : ''}`;
+
+    document.getElementById('prospectPendingList').innerHTML = PROSPECT_PENDING_ITEMS.map((item, i) => `
+        <label style="display:flex;align-items:center;gap:11px;padding:11px 14px;cursor:pointer;font-size:14px;color:#374151;background:${i % 2 ? '#fafafa' : '#fff'};"
+               onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='${i % 2 ? '#fafafa' : '#fff'}'">
+            <input type="checkbox" class="prospect-pending-cb" value="${_esc(item)}" ${chosen.includes(item) ? 'checked' : ''}
+                   ${item === 'Other' ? 'onchange="prospectPendingOtherToggle()"' : ''}
+                   style="width:16px;height:16px;accent-color:#7c3aed;cursor:pointer;">
+            ${_esc(item)}
+        </label>`).join('') + `
+        <div id="prospectPendingOtherRow" style="display:${chosen.includes('Other') ? 'block' : 'none'};padding:10px 14px;background:#faf5ff;border-top:1px solid #e9d5ff;">
+            <input type="text" id="prospectPendingOther" placeholder="What else is outstanding?" value="${_esc(p.pendingOther || '')}"
+                   style="width:100%;padding:8px 10px;border:1px solid #d8b4fe;border-radius:6px;font-size:13px;box-sizing:border-box;">
+        </div>`;
+
+    document.getElementById('prospectPendingNote').value = p.pendingNote || '';
+    const m = document.getElementById('prospectPendingModal');
+    m.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    refreshIcons();
+}
+
+function prospectPendingOtherToggle() {
+    const on  = [...document.querySelectorAll('.prospect-pending-cb')].some(cb => cb.value === 'Other' && cb.checked);
+    const row = document.getElementById('prospectPendingOtherRow');
+    if (row) row.style.display = on ? 'block' : 'none';
+    if (on) document.getElementById('prospectPendingOther')?.focus();
+}
+
+function prospectClosePending() {
+    document.getElementById('prospectPendingModal').classList.remove('active');
+    _prospectPendingId = null;
+}
+
+function prospectSavePending() {
+    if (!_prospectPendingId) return prospectClosePending();
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === _prospectPendingId);
+    if (!p) return prospectClosePending();
+
+    const items = [...document.querySelectorAll('.prospect-pending-cb:checked')].map(cb => cb.value);
+    const other = (document.getElementById('prospectPendingOther')?.value || '').trim();
+    p.pendingItems     = items;
+    p.pendingOther     = items.includes('Other') ? other : '';
+    p.pendingNote      = (document.getElementById('prospectPendingNote').value || '').trim();
+    p.pendingUpdatedAt = new Date().toISOString();
+    p.pendingUpdatedBy = currentUser || '';
+
+    _prospectSave(prospects);
+    prospectClosePending();
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+}
+
+function archiveProspectToAMS(p) {
+    const name = _prospectFullName(p);
+    const key = amsClientKeyFromName(name);
+    if (!key) return;
+    try {
+        const contacts = JSON.parse(localStorage.getItem('amsClientData')) || {};
+        const existing = contacts[key] || {};
+        const now = new Date().toISOString();
+        const when = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const notes = Array.isArray(existing.notes) ? existing.notes.slice() : [];
+        const noteText = `Lost prospect archived ${when} by ${currentUser || 'agent'}` +
+            (p.lob ? ` · Interested in: ${p.lob}` : '') +
+            (p.followUpDate ? ` · Follow-up was: ${p.followUpDate}` : '') +
+            (p.notes ? ` · Notes: ${p.notes}` : '');
+        notes.push({ text: noteText, author: currentUser || '', date: now });
+        contacts[key] = {
+            ...existing,
+            firstName:      existing.firstName     || p.firstName || '',
+            lastName:       existing.lastName      || p.lastName  || '',
+            phone1:         existing.phone1        || p.phone     || '',
+            phone2:         existing.phone2        || p.phone2    || '',
+            email:          existing.email         || p.email     || '',
+            dob:            existing.dob           || p.dob       || '',
+            address:        existing.address       || p.address   || '',
+            city:           existing.city          || p.city      || '',
+            state:          existing.state         || p.state     || '',
+            zip:            existing.zip           || p.zip       || '',
+            assignedAgent:  existing.assignedAgent || p.agent     || '',
+            referral:       existing.referral      || p.referredBy || '',
+            referralSource: existing.referralSource|| p.source    || '',
+            // Only a client with no policies on file becomes an Inactive Prospect.
+            clientStatus:   (existing.clientStatus && /active/i.test(existing.clientStatus) && !/inactive/i.test(existing.clientStatus))
+                                ? existing.clientStatus : 'Inactive Prospect',
+            prospectId:     p.id,
+            prospectStatus: 'Lost',
+            prospectLostAt: now,
+            notes,
+            updatedAt: now,
+            createdAt: existing.createdAt || now,
+            createdBy: existing.createdBy || (currentUser || '')
+        };
+        localStorage.setItem('amsClientData', JSON.stringify(contacts));
+        if (typeof driveSet === 'function') driveSet('amsClientData', contacts);
+    } catch (e) {
+        console.warn('Could not archive prospect into AMS', e);
+    }
+}
+
 function renderProspectsTable() {
     const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
     const search    = (document.getElementById('prospectSearch')?.value || '').toLowerCase();
@@ -2169,11 +3603,14 @@ function renderProspectsTable() {
         const name = `${p.firstName} ${p.lastName}`.toLowerCase();
         const matchSearch = !search ||
             name.includes(search) ||
-            (p.phone || '').toLowerCase().includes(search) ||
-            (p.email || '').toLowerCase().includes(search) ||
-            (p.lob || '').toLowerCase().includes(search);
+            [p.phone, p.phone2, p.email, p.lob, p.businessName, p.address, p.city, p.zip,
+             p.currentCarrier, p.currentPolicyNumber, p.notes]
+                .some(v => String(v || '').toLowerCase().includes(search));
         const matchAgent  = !agentF  || p.agent === agentF;
-        const matchStatus = !statusF || p.status === statusF;
+        const st = p.status || 'Open';
+        const matchStatus = statusF === 'all' ? true
+            : statusF ? st === statusF
+            : (st !== 'Closed' && st !== 'Lost');   // default view: still-active prospects
         return matchSearch && matchAgent && matchStatus;
     });
 
@@ -2199,17 +3636,43 @@ function renderProspectsTable() {
         const fullName  = `${p.firstName || ''} ${p.lastName || ''}`.trim();
         const sStyle    = statusColors[p.status] || '';
         const followUp  = p.followUpDate ? new Date(p.followUpDate + 'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+        // Outstanding paperwork, shown as chips under the client's name.
+        const pending      = _prospectPendingList(p);
+        const pendingCount = pending.length;
+        const pendingChips = pending.map(it => {
+            const label = it === 'Other' ? (p.pendingOther ? `Other: ${p.pendingOther}` : 'Other') : it;
+            return `<span style="display:inline-block;margin:2px 3px 0 0;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;">${_esc(label)}</span>`;
+        }).join('');
+        // The rest of what is known about them, one quiet line under the name.
+        const where   = [p.address, p.city, [p.state, p.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+        const current = [p.currentCarrier, p.currentPolicyNumber ? `#${p.currentPolicyNumber}` : '',
+                         p.policyExpiration ? `exp ${p.policyExpiration}` : '',
+                         p.currentPremium ? `$${Number(p.currentPremium).toLocaleString('en-US')}` : ''].filter(Boolean).join(' · ');
+        const detail  = [p.businessName && p.businessName !== fullName ? `🏢 ${_esc(p.businessName)}` : '', where ? `📍 ${_esc(where)}` : '',
+                         current ? `🛡 ${_esc(current)}` : '',
+                         p.quotedPremium ? `💬 quoted $${Number(p.quotedPremium).toLocaleString('en-US')}` : '',
+                         p.dob ? `🎂 ${_esc(p.dob)}` : '']
+                        .filter(Boolean).map(t => `<div style="font-size:11px;font-weight:400;color:var(--gray-500);margin-top:2px;">${t}</div>`).join('');
         return `<tr>
-            <td style="font-weight:600;">${fullName}</td>
-            <td>${p.phone || '—'}</td>
+            <td style="font-weight:600;">${fullName}${detail}${pendingChips ? `<div style="margin-top:3px;font-weight:400;">${pendingChips}</div>` : ''}</td>
+            <td>${p.phone || '—'}${p.phone2 ? `<div style="font-size:11px;color:var(--gray-500);">${_esc(p.phone2)}</div>` : ''}</td>
             <td>${p.email || '—'}</td>
             <td>${p.lob || '—'}</td>
             <td>${p.source || '—'}</td>
-            <td>${p.agent || '—'}</td>
+            <td>${p.agent || '—'}${p.previousAgent ? `<div style="font-size:11px;color:var(--gray-500);">took over from ${p.previousAgent}</div>` : ''}</td>
             <td>${followUp}</td>
             <td><span style="padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;${sStyle}">${p.status || 'Open'}</span></td>
             <td style="font-size:12px;color:var(--gray-500);">${p.dateAdded || '—'}</td>
-            <td style="max-width:200px;font-size:12px;color:var(--gray-600);">${p.notes || '—'}</td>
+            <td style="max-width:200px;font-size:12px;color:var(--gray-600);" title="${_esc(p.notes || '')}">${p.notes ? _esc(p.notes.length > 90 ? p.notes.slice(0, 90) + '…' : p.notes) : '—'}</td>
+            <td style="white-space:nowrap;">
+                ${(p.status === 'Closed' || p.status === 'Lost') ? `<span style="font-size:12px;color:var(--gray-500);">${p.status === 'Closed' ? '✅ Sold' : '📁 Archived'}</span>` : `
+                ${_prospectIsMine(p, currentUser) && _prospectAgentList(p).length === 1
+                    ? `<span title="You are the assigned agent" style="display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;">🙋 Yours</span>`
+                    : `<button class="btn-sm" onclick="prospectTakeLead('${p.id}')" title="Assign this lead to yourself" style="background:linear-gradient(to right,#6d28d9,#7c3aed);color:#fff;border:none;">🙋 Take the Lead</button>`}
+                <button class="btn-sm" onclick="prospectOpenPending('${p.id}')" title="What is still outstanding from this client" style="background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;">📋 Items${pendingCount ? ` (${pendingCount})` : ''}</button>
+                <button class="btn-success btn-sm" onclick="prospectMarkSold('${p.id}')" title="Mark as sold and create the Daily Sales Entry">💰 Sold</button>
+                <button class="btn-danger btn-sm" onclick="prospectMarkLost('${p.id}')" title="Mark as lost and archive into AMS as an Inactive Prospect">✖ Lost</button>`}
+            </td>
         </tr>`;
     }).join('');
 
@@ -2239,7 +3702,7 @@ function renderVerificationLogsDashboard() {
     const agentSel = document.getElementById('vldash_agentFilter');
     if (agentSel) {
         const current = agentSel.value;
-        const agents = [...new Set(all.map(l => l.agent).filter(Boolean))].sort();
+        const agents = getAllAgents();
         agentSel.innerHTML = '<option value="" style="color:#111;">All Agents</option>' +
             agents.map(a => `<option value="${a}" style="color:#111;"${a === current ? ' selected' : ''}>${a}</option>`).join('');
     }
@@ -2413,6 +3876,7 @@ function deleteVerificationLog(id) {
     const who = `${entry.customerName || 'this customer'}${entry.dealer ? ' — ' + entry.dealer : ''}${entry.date ? ' (' + entry.date + ')' : ''}`;
     if (!confirm(`Delete the verification log for ${who}?\n\nThis removes it for everyone and cannot be undone.`)) return;
 
+    vlMarkDeleted(id); // tombstone first, so the merge on push drops it everywhere
     const remaining = logs.filter(l => l.id !== id);
     localStorage.setItem('verificationLogs', JSON.stringify(remaining));
 
@@ -2487,6 +3951,7 @@ function openDailySalesModal() {
     generateBinderNumber();
     refreshAllCarrierDropdowns();
     populateSourceDropdown('source', '');
+    populateMGADropdown('mga', '');
     resetDriversVehicles();
     const m = document.getElementById('dailySalesModal');
     m.classList.add('active');
@@ -2649,6 +4114,69 @@ function saveNewSource(suffix = '') {
     populateSourceDropdown('source' + suffix, val);
     document.getElementById('source' + suffix).value = val;
     cancelNewSource(suffix);
+}
+
+// ── MGA (Managing General Agency) — "+ Add" button next to the MGA field ──
+const DEFAULT_MGAS = ['5Star','ACI-Ascendant','All Risk','Appalachian','Bass Underwriters','FastComp','Hiscox-London','Hull&Co','London Underwriters','MJ Kelly','Phyladelphia','SCU','Security Underwriters','Shelly Middle Brooks','Surety One','Tapco'];
+
+function getCustomMGAs() {
+    try { return JSON.parse(localStorage.getItem('customMGAs')) || []; } catch(e) { return []; }
+}
+
+function saveCustomMGAs(arr) {
+    localStorage.setItem('customMGAs', JSON.stringify(arr));
+}
+
+function populateMGADropdown(selectId, selectedValue) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const all = [...DEFAULT_MGAS, ...getCustomMGAs().filter(m => !DEFAULT_MGAS.includes(m))];
+    sel.innerHTML = '<option value="">Select MGA (Optional)</option>' +
+        all.map(m => `<option value="${m}"${m === selectedValue ? ' selected' : ''}>${m}</option>`).join('');
+}
+
+// Every MGA <select> that can exist on a page — refreshed together so a
+// newly-added MGA shows up everywhere, not just in the field that opened it.
+const MGA_SELECT_IDS = ['mga', 'mgaCom', 'editMga'];
+
+let _mgaFormAutoSelect = null;
+
+function openAddMgaModal(targetSelectId) {
+    _mgaFormAutoSelect = targetSelectId || null;
+    const inp = document.getElementById('modalMgaInput');
+    if (inp) inp.value = '';
+    const m = document.getElementById('addMgaModal');
+    if (!m) return;
+    m.classList.add('active');
+    if (window.UIBMotion) UIBMotion.animateModalOpen(m);
+    setTimeout(() => inp?.focus(), 80);
+}
+
+function closeAddMgaModal() {
+    const m = document.getElementById('addMgaModal');
+    if (m) m.classList.remove('active');
+}
+
+function saveModalMga() {
+    const inp = document.getElementById('modalMgaInput');
+    const val = (inp?.value || '').trim();
+    if (!val) { inp?.focus(); return; }
+
+    const customs = getCustomMGAs();
+    const all = [...DEFAULT_MGAS, ...customs];
+    if (!all.map(m => m.toLowerCase()).includes(val.toLowerCase())) {
+        customs.push(val);
+        saveCustomMGAs(customs);
+    }
+
+    const target = _mgaFormAutoSelect;
+    MGA_SELECT_IDS.forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        populateMGADropdown(id, id === target ? val : sel.value);
+    });
+
+    closeAddMgaModal();
 }
 
 // ── Client Lookup Search ──────────────────────────────────────────────────────
@@ -2979,8 +4507,10 @@ function _agentDefaultMonth() {
 // Agent admins: log in as regular agents but can view EVERY agent's
 // submissions (extra Agent filter + Agent column). Editing and deleting
 // still applies only to their own entries.
-const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz'];
-function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser); }
+const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano'];
+// Agent-admins see every agent's entries: the named list, plus any account
+// Supabase marks as an administrator.
+function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser) || !!(window.UIBAuth && UIBAuth.isAdmin()); }
 
 // The entries the current user is allowed to SEE (before UI filters).
 function _agentVisibleEntries() {
@@ -2998,7 +4528,7 @@ function loadAgentData() {
         const sel = document.getElementById('agentAgentFilter');
         if (sel) {
             const current = sel.value;
-            const agents = [...new Set(allData.map(d => d.agent).filter(Boolean))].sort();
+            const agents = getAllAgents();
             sel.innerHTML = '<option value="">All Agents</option>' +
                 agents.map(a => `<option value="${a.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">${a.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</option>`).join('');
             if (agents.includes(current)) sel.value = current;
@@ -3009,7 +4539,114 @@ function loadAgentData() {
 
     populateAgentFilterOptions();
     applyAgentFilters();
+    renderNavMonthStats();
+    _restoreAgentSubmissionsState();
     apdInit();
+}
+
+// "Your Submissions" starts collapsed; the heading button expands it and the
+// choice is remembered per browser.
+function toggleAgentSubmissions(force) {
+    const body = document.getElementById('agentSubmissionsBody');
+    const btn = document.getElementById('agentSubmissionsToggle');
+    if (!body || !btn) return;
+    const open = typeof force === 'boolean' ? force : body.style.display === 'none';
+    body.style.display = open ? '' : 'none';
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const hint = document.getElementById('agentSubmissionsHint');
+    if (hint) hint.textContent = open ? 'Hide' : 'Show';
+    try { localStorage.setItem('uibSubmissionsOpen', open ? '1' : '0'); } catch (e) {}
+}
+function _restoreAgentSubmissionsState() {
+    let open = false;
+    try { open = localStorage.getItem('uibSubmissionsOpen') === '1'; } catch (e) {}
+    toggleAgentSubmissions(open);
+}
+
+// ── "New since you last looked" markers ──────────────────────────
+// Which prospect / underwriting rows this agent has already seen. Purely a
+// per-device, per-agent read marker, so it is written with _origSetItem to
+// stay out of the shared cloud store.
+function _seenKey(kind) { return 'uibSeen' + kind + '_' + ((currentUser || '').trim().toLowerCase() || 'anon'); }
+function _seenGet(kind) {
+    try { const v = JSON.parse(localStorage.getItem(_seenKey(kind))); return new Set(Array.isArray(v) ? v : []); }
+    catch (e) { return new Set(); }
+}
+function _seenMark(kind, ids) {
+    try {
+        const set = _seenGet(kind);
+        (ids || []).forEach(id => set.add(String(id)));
+        // Keep the marker from growing without bound on a long-lived device.
+        const keep = [...set].slice(-2000);
+        _origSetItem(_seenKey(kind), JSON.stringify(keep));
+    } catch (e) {}
+}
+
+// Still-open prospects this agent can see (admins: the whole office).
+function _openProspectsForUser() {
+    let all = [];
+    try { all = JSON.parse(localStorage.getItem('prospectData')) || []; } catch (e) { return []; }
+    const me = (currentUser || '').trim().toLowerCase();
+    const seesAll = isAgentAdmin();
+    return all.filter(pr => {
+        const st = pr.status || 'Open';
+        if (st === 'Closed' || st === 'Lost') return false;
+        if (seesAll) return true;
+        return String(pr.agent || '').split(',').map(a => a.trim().toLowerCase()).includes(me);
+    });
+}
+
+// New policies still in underwriting that this agent can see.
+function _openUnderwritingForUser() {
+    try {
+        const seesAll = isAgentAdmin();
+        return uwBuildList().filter(r =>
+            !r.cleared &&
+            /^new/i.test(r.entry.policyType || '') &&
+            (seesAll || r.entry.agent === currentUser));
+    } catch (e) { return []; }
+}
+
+// Current-month cards in the agent nav bar: this agent's own policies, premium,
+// agency commission and agent commission for the current calendar month (ET).
+function renderNavMonthStats() {
+    const host = document.getElementById('navMonthStats');
+    if (!host || !currentUser) return;
+    const { month, year } = _currentMonthYearET();
+    const monthLabel = `${month} ${year}`;
+    const mine = allData.filter(d => d.agent === currentUser).filter(d => _entryMonth(d) === monthLabel);
+    const premium = mine.reduce((sum, d) => sum + (parseFloat(d.totalPremium) || 0), 0);
+    const agencyFees = mine.reduce((sum, d) => sum + (parseFloat(d.agencyFee) || 0), 0);
+    const agencyComm = mine.reduce((sum, d) => sum + (parseFloat(d.agencyCommission) || 0), 0);
+    const special = _specialCommissionRows(currentUser, monthLabel);
+    const agentComm = special ? special.total : mine.reduce((sum, d) => sum + (parseFloat(d.agentCommissionShare) || 0), 0);
+    // New policies still in underwriting (any month): outstanding pending items.
+    // Agent admins see the whole office, everyone else their own — the same
+    // rule the prospects card and getVisibleData() use.
+    const uwRows = _openUnderwritingForUser();
+    const uwPending = uwRows.length;
+    // Still-open prospects (not Closed or Lost), scoped the same way, so the
+    // card always agrees with the Prospects section it opens.
+    const prospectRows = _openProspectsForUser();
+    const prospectsPending = prospectRows.length;
+    // Red bubble: how many of those arrived since this agent last opened the
+    // section. Clicking a card marks everything in it as seen.
+    const seenP = _seenGet('Prospects');
+    const seenU = _seenGet('UW');
+    const newProspects = prospectRows.filter(pr => !seenP.has(String(pr.id))).length;
+    const newUW = uwRows.filter(r => !seenU.has(String(r.entry.id))).length;
+    const badge = n => n > 0 ? `<span class="nav-stat-badge" title="${n} new since you last looked">${n > 99 ? '99+' : n}</span>` : '';
+    const $m = v => '$' + (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    host.innerHTML = `
+        <div class="nav-stats-title"><i data-lucide="calendar-days"></i> ${monthLabel}</div>
+        <div class="nav-stat-card"><h4>Policies</h4><div class="number">${mine.length}</div></div>
+        <div class="nav-stat-card"><h4>Premium Sold</h4><div class="number">${$m(premium)}</div></div>
+        <div class="nav-stat-card"><h4>Agency Fees</h4><div class="number">${$m(agencyFees)}</div></div>
+        <div class="nav-stat-card"><h4>Agency Commission</h4><div class="number">${$m(agencyComm)}</div></div>
+        <div class="nav-stat-card"><h4>Agent Commission</h4><div class="number">${$m(agentComm)}</div></div>
+        <div class="nav-stat-card nav-stat-uw" role="button" tabindex="0" title="Open Underwriting" onclick="showUnderwritingSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showUnderwritingSection();}">${badge(newUW)}<h4>UW Pending</h4><div class="number">${uwPending}</div></div>
+        <div class="nav-stat-card nav-stat-prospects" role="button" tabindex="0" title="Open Prospects" onclick="showProspectsSection()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showProspectsSection();}">${badge(newProspects)}<h4>Prospects Pending</h4><div class="number">${prospectsPending}</div></div>`;
+    if (window.refreshIcons) refreshIcons();
 }
 
 // Fill the LOB and Carrier dropdowns from this agent's own entries,
@@ -3103,7 +4740,7 @@ function renderAgentTable(entries) {
             <td style="text-align:center;">${canModify ? `<input type="checkbox" class="agent-row-cb" value="${entry.id}" onchange="_updateBulkDeleteBar()">` : ''}</td>
             <td>${formatDate(entry.entryDate)}</td>
             ${admin ? `<td>${String(entry.agent || '—').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</td>` : ''}
-            <td>${entry.customerName}</td>
+            <td>${amsCustomerCell(entry.customerName)}</td>
             <td>${entry.policyType}</td>
             <td>${entry.lineOfBusiness}</td>
             <td>${entry.company}</td>
@@ -3182,28 +4819,7 @@ function searchAgentSubmissions() {
 
 // Admin Dashboard
 function loadAdminDashboard() {
-    // One-time migration: set all Uriel Rendon entries to Gross Paid
-    if (!localStorage.getItem('migration_uriel_gross_paid')) {
-        const before = allData.length;
-        let changed = 0;
-        allData = allData.map(e => {
-            if (e.agent !== 'Uriel Rendon') return e;
-            const premium   = parseFloat(e.basePremium || e.totalPremium) || 0;
-            const agencyFee = parseFloat(e.agencyFee) || 0;
-            const rate      = getCommissionRate(e.company, e.lineOfBusiness, 'Gross Paid', e.policyType || 'New');
-            const agencyComm = rate > 0 ? parseFloat((premium * (rate / 100)).toFixed(2)) : (e.agencyCommission || 0);
-            const agentShare = parseFloat(((agencyFee + agencyComm) * 0.5).toFixed(2));
-            changed++;
-            return { ...e, paymentType: 'Gross Paid', agencyCommission: agencyComm, agentCommissionShare: agentShare };
-        });
-        if (changed > 0) {
-            localStorage.setItem('binderData', JSON.stringify(allData));
-            driveSet('binderData', allData);
-            recalculateAllCommissions();
-        }
-        localStorage.setItem('migration_uriel_gross_paid', '1');
-    }
-
+    _ensureRosterPublished();
     populateAgentFilter();
     _adminDefaultMonth();
     renderAdminStats();
@@ -3226,15 +4842,8 @@ function populateAgentFilter() {
     const select = document.getElementById('adminAgentFilter');
     if (!select) return;
 
-    // Get agents from master list
-    const agentMasterData = JSON.parse(localStorage.getItem('agentMasterData')) || {};
-    const masterAgents = Object.keys(agentMasterData);
-
-    // Also get any agents from existing entries (in case any exist outside master list)
-    const entryAgents = [...new Set(allData.map(d => d.agent).filter(Boolean))];
-
-    // Combine both sources, deduplicate, and sort alphabetically
-    const allAgents = [...new Set([...masterAgents, ...entryAgents])].sort();
+    // Only the registered agents (Agent Management list).
+    const allAgents = getAllAgents();
 
     select.innerHTML = '<option value="">All Agents</option>';
     allAgents.forEach(agent => {
@@ -3450,11 +5059,18 @@ function openEditModal(id) {
     cancelEditNewSource();
     cancelEditNewReferral();
     document.getElementById('editCustomerName').value = entry.customerName || '';
+    // Office location is editable after the fact; keep an unknown legacy value selectable.
+    const editLoc = document.getElementById('editLocation');
+    if (editLoc) {
+        const loc = entry.location || '';
+        if (loc && ![...editLoc.options].some(o => o.value === loc)) editLoc.add(new Option(loc, loc));
+        editLoc.value = loc;
+    }
     document.getElementById('editSource').value = entry.source || '';
     document.getElementById('editPolicyType').value = entry.policyType || '';
     document.getElementById('editLineOfBusiness').value = entry.lineOfBusiness || '';
     document.getElementById('editCompany').value = entry.company || '';
-    document.getElementById('editMga').value = entry.mga || '';
+    populateMGADropdown('editMga', entry.mga || '');
     const editPremFin = document.getElementById('editPremiumFinance');
     if (editPremFin) editPremFin.value = entry.premiumFinance || '';
     document.getElementById('editDown').value = entry.down || '';
@@ -3469,9 +5085,77 @@ function openEditModal(id) {
     document.getElementById('editTerm').value = entry.term || '';
     document.getElementById('editAgencyCommission').value = entry.agencyCommission || '';
     document.getElementById('editPaymentType').value = entry.paymentType || '';
-    document.getElementById('editStatus').value = entry.status || '';
+    renderEditDocStatus(entry);
     populate2ndAgentDropdown('editSecondAgent', entry.secondAgent || '');
+    _setupEditAgentReassign(entry);
     document.getElementById('editModal').classList.add('active');
+}
+
+// ── Reassign a submission (master admin only) ─────────────────
+const MASTER_ADMIN_EMAIL = 'admin@universalinsurancebroker.com';
+function _isMasterAdmin() {
+    const u = window.UIBAuth && UIBAuth.user();
+    return !!(u && String(u.email || '').toLowerCase() === MASTER_ADMIN_EMAIL);
+}
+function _setupEditAgentReassign(entry) {
+    const grp = document.getElementById('editAgentGroup');
+    const sel = document.getElementById('editAgent');
+    if (!grp || !sel) return;
+    if (!_isMasterAdmin()) { grp.style.display = 'none'; sel.innerHTML = ''; return; }
+    const agents = getAllAgents().slice();
+    const cur = entry.agent || '';
+    if (cur && !agents.includes(cur)) agents.unshift(cur);
+    const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    sel.innerHTML = agents.map(a => `<option value="${esc(a)}"${a === cur ? ' selected' : ''}>${esc(a)}${a === cur ? ' (current)' : ''}</option>`).join('');
+    grp.style.display = '';
+}
+
+// The Documentation Status items available on a binder entry depend on its
+// Line of Business. Kept in sync with the daily sales entry form's lists.
+const DOC_STATUS_PERSONAL = ['Pending Auto Pay Signature', 'E-Signature', 'Proof of Prior', 'Proof of Garaging', 'Proof of Grades', 'Proof of Homeowners', 'Telematics Enrollment', 'Paperless Enrollment', 'Photos/Inspections', 'Clean', 'Other'];
+const DOC_STATUS_COMMERCIAL = ['Binder', 'Carrier Invoice', 'Dec Pages AMS Upload', 'Proof of Active CGL', 'E-Signature', 'Proof of Prior', 'Proof of Active WC', 'Telematic Enrollments', 'Premium Finance Set Up', 'Invoice to be paid', 'Clean', 'Other'];
+
+function docStatusListFor(entry) {
+    return (entry && entry.lineType === 'commercial') ? DOC_STATUS_COMMERCIAL : DOC_STATUS_PERSONAL;
+}
+
+// Render the Documentation Status checkboxes into the Edit Policy modal,
+// pre-checking whatever the entry already carries. Available for every
+// binder entry, so pending items can be added by editing the transaction.
+function renderEditDocStatus(entry) {
+    const container = document.getElementById('editDocStatus');
+    if (!container) return;
+    const list = docStatusListFor(entry);
+    const current = Array.isArray(entry.documentationStatus) ? entry.documentationStatus : [];
+    const currentSet = new Set(current);
+    const otherItem = current.find(x => /^Other:/i.test(x)) || (currentSet.has('Other') ? 'Other' : '');
+    const otherText = otherItem ? otherItem.replace(/^Other:\s*/i, '').replace(/^Other$/i, '') : '';
+
+    container.innerHTML = list.map(item => {
+        if (item === 'Other') {
+            return `<div style="grid-column:1/-1;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;">
+                <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;color:#374151;cursor:pointer;white-space:nowrap;">
+                    <input type="checkbox" class="edit-doc-cb" value="Other" ${otherItem ? 'checked' : ''} style="width:15px;height:15px;accent-color:#dc2626;cursor:pointer;"> Other</label>
+                <input type="text" id="editDocOther" placeholder="Describe the other item…" value="${_claudeEsc(otherText)}" style="flex:1;min-width:120px;padding:6px 9px;border:1px solid #fecaca;border-radius:6px;font-size:13px;">
+            </div>`;
+        }
+        const accent = item === 'Clean' ? '#16a34a' : '#dc2626';
+        return `<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;">
+            <input type="checkbox" class="edit-doc-cb" value="${_claudeEsc(item)}" ${currentSet.has(item) ? 'checked' : ''} style="width:15px;height:15px;accent-color:${accent};cursor:pointer;"> ${_claudeEsc(item)}</label>`;
+    }).join('');
+}
+
+// Collect the Documentation Status selections from the Edit Policy modal.
+function collectEditDocStatus() {
+    const container = document.getElementById('editDocStatus');
+    if (!container) return [];
+    const checked = [...container.querySelectorAll('.edit-doc-cb:checked')].map(cb => cb.value);
+    const result = checked.filter(v => v !== 'Other');
+    if (checked.includes('Other')) {
+        const t = (document.getElementById('editDocOther')?.value || '').trim();
+        result.push(t ? 'Other: ' + t : 'Other');
+    }
+    return result;
 }
 
 function closeModal() {
@@ -3490,6 +5174,7 @@ function updateEntry() {
         return;
     }
     entry.customerName = toTitleCase(document.getElementById('editCustomerName').value);
+    entry.location = document.getElementById('editLocation')?.value || entry.location || '';
     entry.source = document.getElementById('editSource').value;
     entry.referredBy = toTitleCase(document.getElementById('editReferredBy').value);
     entry.policyType = document.getElementById('editPolicyType').value;
@@ -3509,8 +5194,15 @@ function updateEntry() {
     entry.term = document.getElementById('editTerm').value;
     entry.agencyCommission = parseFloat(document.getElementById('editAgencyCommission').value) || 0;
     entry.paymentType = document.getElementById('editPaymentType').value;
-    entry.status = document.getElementById('editStatus').value;
+    entry.documentationStatus = collectEditDocStatus();
     entry.secondAgent = document.getElementById('editSecondAgent')?.value || '';
+    // Reassignment is accepted only from the master admin account.
+    const _newAgent = document.getElementById('editAgent')?.value || '';
+    if (_isMasterAdmin() && _newAgent && _newAgent !== entry.agent) {
+        const _fromAgent = entry.agent || '';
+        entry.agent = _newAgent;
+        if (window.UIBAudit) UIBAudit.log('reassign_entry', entry.customerName || '', { id: entry.id, policyNumber: entry.policyNumber || '', from: _fromAgent, to: _newAgent });
+    }
     const _hasSecond = !!entry.secondAgent;
     const _commBase  = entry.agencyFee + entry.agencyCommission;
     entry.agentCommissionShare  = parseFloat((_commBase * (_hasSecond ? 0.25 : 0.50)).toFixed(2));
@@ -3694,7 +5386,12 @@ function initializeCarrierData() {
     });
 
     carrierMasterData = carrierData;
-    if (!stored || updated) {
+    if (!stored) {
+        // Fresh browser or origin: keep the seed local only. The first sync
+        // pulls the fleet's real carrier list over it; publishing the stock
+        // list from here would replace every custom carrier and rule.
+        _origSetItem('carrierMasterData', JSON.stringify(carrierData));
+    } else if (updated) {
         _origSetItem('carrierMasterData', JSON.stringify(carrierData));
         driveSet('carrierMasterData', carrierData);
     }
@@ -3755,24 +5452,12 @@ function closePasswordManagementModal() {
 }
 
 function loadPasswordManagementTable() {
-    const credentials = JSON.parse(localStorage.getItem('agentCredentials')) || {};
-    const tbody = document.getElementById('passwordTable');
-
-    tbody.innerHTML = getAllAgents().map(agent => {
-        // Support both old flat-string format and new {email, password} format
-        const cred = credentials[agent];
-        const pw   = typeof cred === 'object' ? (cred?.password || '') : (cred || '');
-        return `
-        <tr>
-            <td>${agent}</td>
-            <td>
-                <input type="password" value="${pw}" id="pwd_${agent}" class="password-input">
-            </td>
-            <td>
-                <button class="btn-success btn-sm" onclick="updateAgentPassword('${agent}')">Update</button>
-            </td>
-        </tr>`;
-    }).join('');
+    const container = document.getElementById('passwordTable');
+    if (!container) return;
+    container.innerHTML = `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px 18px;color:#3730a3;font-size:14px;line-height:1.5;">
+        <b>Logins are managed in Supabase Auth.</b> Agent accounts, passwords and admin rights are created and reset in the
+        Supabase dashboard (Authentication ▸ Users) or with <code>scripts/create_auth_users.mjs</code>. Passwords are never stored in the app.
+        Each agent can change their own password from the user menu.</div>`;
 }
 
 function updateAgentPassword(agent) {
@@ -4128,9 +5813,38 @@ document.getElementById('carrierForm')?.addEventListener('submit', (e) => {
 
 // Initialize agent data in localStorage
 function initializeAgentData() {
+    // Seed through the non-pushing writer: a fresh browser or origin must
+    // never publish an empty {} over the fleet's agent records.
     if (!localStorage.getItem('agentMasterData')) {
-        localStorage.setItem('agentMasterData', JSON.stringify({}));
+        _origSetItem('agentMasterData', JSON.stringify({}));
     }
+}
+
+// The roster must live in the cloud for sign-in matching and for every other
+// device. If this device knows agents the cloud copy does not, publish the
+// union (this device's records win). Safe to call on every admin load.
+let _rosterPublishing = false;
+async function _ensureRosterPublished() {
+    if (_rosterPublishing) return; _rosterPublishing = true;
+    try {
+        let local = {}; try { local = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+        const names = Object.keys(local).filter(n => local[n] && typeof local[n] === 'object');
+        if (!names.length) return;
+        const r = await driveGetResult('agentMasterData'); if (!r.ok) return;
+        const cloud = (r.value && typeof r.value === 'object' && !Array.isArray(r.value)) ? r.value : {};
+        const behind = names.some(n => !cloud[n] || (local[n].email && cloud[n].email !== local[n].email));
+        if (!behind) return;
+        const merged = Object.assign({}, cloud, local);
+        await driveSet('agentMasterData', merged);
+        console.log('Agent roster published to the cloud (' + Object.keys(merged).length + ' agents).');
+    } catch (e) { console.warn('Roster publish skipped:', e); }
+    finally { _rosterPublishing = false; }
+}
+
+function _agentNameForEmail(email) {
+    const e = String(email || '').trim().toLowerCase(); if (!e) return '';
+    let master = {}; try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (err) {}
+    return Object.keys(master).find(n => String((master[n] || {}).email || '').trim().toLowerCase() === e) || ((window.UIBAuth && UIBAuth.KNOWN_AGENTS) || {})[e] || '';
 }
 
 // Show Agent Management Modal
@@ -4146,27 +5860,34 @@ function closeAgentManagement() {
     document.getElementById('agentManagementModal').classList.remove('active');
 }
 
-// Load and display agent list
+// Load and display agent list. Lists every stored agent — those with a full
+// master record AND those that exist only as login credentials — so any of
+// them can be edited or deleted here.
 function loadAgentList() {
     const agents = JSON.parse(localStorage.getItem('agentMasterData')) || {};
+    let creds = {};
+    try { creds = JSON.parse(localStorage.getItem('agentCredentials')) || {}; } catch (e) {}
+    const names = [...new Set([...Object.keys(agents), ...Object.keys(creds)])].sort();
     const tbody = document.getElementById('agentListTable');
 
-    if (Object.keys(agents).length === 0) {
+    if (names.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="no-data">No agents added yet</td></tr>';
         return;
     }
 
     let tableHTML = '';
-    Object.entries(agents).forEach(([agentName, agentData]) => {
+    names.forEach(agentName => {
+        const agentData = agents[agentName] || {};
+        const email = agentData.email || (creds[agentName] && creds[agentName].email) || '-';
         const licenses = agentData.licenses ? agentData.licenses.join(', ') : '-';
         tableHTML += `<tr>
             <td>${agentData.name || agentName}</td>
-            <td>${agentData.email || '-'}</td>
+            <td>${email}</td>
             <td>${agentData.phone || '-'}</td>
             <td>${licenses}</td>
             <td>
-                <button class="btn-primary btn-sm" onclick="editAgent('${agentName}')"><i data-lucide="pencil"></i> Edit</button>
-                <button class="btn-danger btn-sm" onclick="deleteAgent('${agentName}')"><i data-lucide="trash-2"></i> Delete</button>
+                <button class="btn-primary btn-sm" data-agent="${escHtml(agentName)}" data-email="${escHtml(email === '-' ? '' : email)}" onclick="editAgent(this.dataset.agent, this.dataset.email)"><i data-lucide="pencil"></i> Edit</button>
+                <button class="btn-danger btn-sm" data-agent="${escHtml(agentName)}" data-email="${escHtml(email === '-' ? '' : email)}" onclick="deleteAgent(this.dataset.agent, this.dataset.email)"><i data-lucide="trash-2"></i> Delete</button>
             </td>
         </tr>`;
     });
@@ -4180,6 +5901,7 @@ function openAddAgentModal() {
     document.getElementById('agentFormTitle').textContent = 'Add New Agent';
     document.getElementById('manageAgentForm').reset();
     document.getElementById('manageAgentForm').dataset.editingAgent = '';
+    const lb = document.getElementById('agentLoginBlock'); if (lb) lb.style.display = '';
     document.querySelectorAll('.licenseCheckbox').forEach(cb => cb.checked = false);
     document.getElementById('docStatusMessage').innerHTML = '';
     document.getElementById('addEditAgentModal').classList.add('active');
@@ -4190,17 +5912,37 @@ function closeAddEditAgentModal() {
     document.getElementById('addEditAgentModal').classList.remove('active');
 }
 
-// Edit Agent - Load existing data into form
-function editAgent(agentName) {
-    const agents = JSON.parse(localStorage.getItem('agentMasterData')) || {};
-    const agent = agents[agentName];
+// Find an agent by email first (names drift between the roster, the
+// sign-in records and Supabase), then by name. An agent that exists only as
+// a sign-in record gets a starter profile built from its name and email.
+// Returns { key, agent, inMaster } or null.
+function _findAgentForEdit(agentName, email) {
+    let agents = {}, creds = {};
+    try { agents = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    try { creds = JSON.parse(localStorage.getItem('agentCredentials')) || {}; } catch (e) {}
+    const em = String(email || (creds[agentName] && creds[agentName].email) || '').trim().toLowerCase();
+    const byEmail = em && Object.keys(agents).find(n => String((agents[n] || {}).email || '').trim().toLowerCase() === em);
+    const key = byEmail || (agents[agentName] ? agentName : '');
+    if (key) return { key, agent: agents[key], inMaster: true };
+    if (agentName && (creds[agentName] || em)) {
+        return { key: agentName, agent: { name: agentName, email: em || '' }, inMaster: false };
+    }
+    return null;
+}
 
-    if (!agent) {
+// Edit Agent - Load existing data into form
+function editAgent(agentName, email) {
+    const found = _findAgentForEdit(agentName, email);
+
+    if (!found) {
         alert('Agent not found');
         return;
     }
+    const agent = found.agent;
+    agentName = found.key;
 
     document.getElementById('agentFormTitle').textContent = `Edit Agent: ${agent.name}`;
+    const lb = document.getElementById('agentLoginBlock'); if (lb) lb.style.display = 'none';
     document.getElementById('agentName').value = agent.name || '';
     document.getElementById('agentAddress').value = agent.address || '';
     document.getElementById('agentDOB').value = agent.dob || '';
@@ -4225,14 +5967,25 @@ function editAgent(agentName) {
 }
 
 // Delete Agent
-function deleteAgent(agentName) {
+function deleteAgent(agentName, email) {
     if (!confirm(`Are you sure you want to delete agent "${agentName}"?`)) {
         return;
     }
 
     const agents = JSON.parse(localStorage.getItem('agentMasterData')) || {};
+    const found = _findAgentForEdit(agentName, email);
+    if (found && found.inMaster) delete agents[found.key];
     delete agents[agentName];
     localStorage.setItem('agentMasterData', JSON.stringify(agents));
+    // Also remove their login credentials, otherwise the agent keeps showing
+    // up in login/agent dropdowns (getAllAgents unions the credentials keys).
+    try {
+        const creds = JSON.parse(localStorage.getItem('agentCredentials')) || {};
+        if (creds[agentName]) {
+            delete creds[agentName];
+            localStorage.setItem('agentCredentials', JSON.stringify(creds));
+        }
+    } catch (e) {}
     loadAgentList();
     alert(`Agent "${agentName}" deleted successfully!`);
 }
@@ -4294,9 +6047,24 @@ document.getElementById('manageAgentForm')?.addEventListener('submit', (e) => {
         delete agents[isEditing];
     }
 
+    const loginPassword = isEditing ? '' : (document.getElementById('agentNewLoginPassword')?.value || '');
+    const loginRole = document.getElementById('agentNewLoginRole')?.value === 'admin' ? 'admin' : 'agent';
+    if (!isEditing && loginPassword && loginPassword.length < 10) { alert('The temporary login password needs at least 10 characters.'); return; }
+
     // Save agent
     agents[agentName] = agentData;
     localStorage.setItem('agentMasterData', JSON.stringify(agents));
+
+    // New agent: create the sign-in at the same time, linked to this exact
+    // name, so the roster and the login can never disagree.
+    if (!isEditing && loginPassword) {
+        const btn = e.target.querySelector('button[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Creating login…'; }
+        _adminUsers('create', { email: email.toLowerCase(), password: loginPassword, agent_name: agentName, role: loginRole })
+            .then(() => { if (window.UIBAudit) UIBAudit.log('cred_create', email.toLowerCase(), { agent: agentName, role: loginRole }); alert(`Agent "${agentName}" saved and their login created.\n\nEmail: ${email}\nTemporary password: the one you typed. They can change it with the Password button after signing in.`); })
+            .catch(err => alert(`Agent "${agentName}" was saved, but the login could not be created: ${err.message || err}\n\nYou can create it later from Manage Login Credentials.`))
+            .finally(() => { if (btn) { btn.disabled = false; btn.textContent = '💾 Save Agent'; } closeAddEditAgentModal(); loadAgentList(); });
+        return;
+    }
 
     alert(`Agent "${agentName}" saved successfully!`);
     closeAddEditAgentModal();
@@ -4765,7 +6533,7 @@ function loadUniversalInsCommissions() {
     if (agentSel) {
         const prev = agentSel.value;
         agentSel.innerHTML = '<option value="">All Agents</option>';
-        [...allAgents].sort().forEach(a => {
+        getAllAgents().forEach(a => {
             const o = document.createElement('option'); o.value = a; o.textContent = a;
             if (a === prev) o.selected = true;
             agentSel.appendChild(o);
@@ -5037,7 +6805,7 @@ function openUICEntryPicker() {
     if (!modal) return;
 
     // Build agent list from binder data
-    const binderAgents = [...new Set((JSON.parse(localStorage.getItem('binderData')) || []).map(e => e.agent).filter(Boolean))].sort();
+    const binderAgents = getAllAgents();
 
     // Populate binder agent filter
     const agentSel = document.getElementById('uicPickerAgentFilter');
@@ -5640,45 +7408,116 @@ function getAgentCommissionShares(agentName) {
 let _commDetailSortField = 'date';
 let _commDetailSortDir   = 'desc';
 
-// "My Commissions" is always scoped to the current calendar month and to
-// new business only (policyType starting with "New" — excludes Renewal,
-// Renew A-B, Rewrite, Policy Change, etc). Baked in here since this is the
-// only place in the app that reads agent policy entries for this feature —
-// screen view, CSV export, and PDF export all go through this one function.
+// "My Commissions" defaults to the current calendar month and new business
+// only, but the Month / Transaction Type / Agent (admins) filters can change
+// that. The selected values are read here so the screen view, CSV export and
+// PDF export all stay in sync through this one function.
 function _currentMonthYearET() {
     const p = new Intl.DateTimeFormat('en-US', { timeZone: _ET, month: 'long', year: 'numeric' }).formatToParts(new Date());
     return { month: p.find(x => x.type === 'month').value, year: p.find(x => x.type === 'year').value };
 }
 
-function _getAgentPolicyEntries(agent) {
+// Who can view another agent's statement (full admins + agent-admins).
+function _canViewOtherAgentComm() {
+    return currentRole === 'admin' || (typeof isAgentAdmin === 'function' && isAgentAdmin());
+}
+// The agent whose statement is being viewed (self by default; admins may pick another).
+function _viewedCommAgent() {
+    const sel = document.getElementById('commFilterAgent');
+    if (sel && sel.value && _canViewOtherAgentComm()) return sel.value;
+    return currentUser;
+}
+// Selected month label, e.g. "September 2026" (defaults to current month).
+function _selectedCommMonthLabel() {
+    const sel = document.getElementById('commFilterMonth');
+    if (sel && sel.value) return sel.value;
     const { month, year } = _currentMonthYearET();
-    const currentMonthLabel = `${month} ${year}`;
+    return `${month} ${year}`;
+}
+// Selected transaction type. '' = all; 'New' = any New Business; else exact match.
+function _selectedCommType() {
+    const sel = document.getElementById('commFilterType');
+    return sel ? sel.value : 'New';
+}
+function _commTypeMatches(policyType) {
+    const type = _selectedCommType();
+    const pt = (policyType || '').trim();
+    if (!type) return true;
+    if (type === 'New') return /^new/i.test(pt);
+    return pt.toLowerCase() === type.toLowerCase();
+}
+function _commTypeLabel() {
+    const type = _selectedCommType();
+    if (!type) return 'All Transaction Types';
+    if (type === 'New') return 'New Business Only';
+    return type;
+}
+
+function _getAgentPolicyEntries(agent) {
+    const monthLabel = _selectedCommMonthLabel();
     return allData.filter(d =>
         d.agent === agent &&
-        /^new/i.test((d.policyType || '').trim()) &&
-        _entryMonth(d) === currentMonthLabel
+        _commTypeMatches(d.policyType) &&
+        _entryMonth(d) === monthLabel
     );
 }
 
+const _MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function _entryMonth(e) {
+    // Fast path for YYYY-MM-DD (every entry the app writes): same "October 2026"
+    // text as toLocaleDateString, without its cost on 5,000+ entries per render.
+    const d = e && e.entryDate;
+    const m = typeof d === 'string' && /^(\d{4})-(\d{2})/.exec(d);
+    if (m) { const i = +m[2] - 1; if (i >= 0 && i < 12) return _MONTH_NAMES[i] + ' ' + m[1]; }
     try {
-        return new Date(e.entryDate + 'T12:00:00').toLocaleDateString('en-US', { year:'numeric', month:'long' });
+        return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { year:'numeric', month:'long' });
     } catch(_) { return ''; }
 }
 
 function loadAgentCommissionData() {
-    const agent = currentUser;
-    // Already scoped to the current month + new business only (see _getAgentPolicyEntries).
+    // ── Agent filter (admins can view another agent's statement) ──
+    const agentWrap = document.getElementById('commFilterAgentWrap');
+    const agentSel  = document.getElementById('commFilterAgent');
+    if (agentWrap && agentSel) {
+        if (_canViewOtherAgentComm()) {
+            agentWrap.style.display = 'flex';
+            const roster = (typeof getAllAgents === 'function') ? getAllAgents() : [];
+            const prevA = agentSel.value || currentUser;
+            agentSel.innerHTML = roster.map(a =>
+                `<option value="${a}"${a === prevA ? ' selected' : ''}>${a === currentUser ? a + ' (you)' : a}</option>`).join('');
+            if (![...agentSel.options].some(o => o.value === prevA) && currentUser) agentSel.value = currentUser;
+        } else {
+            agentWrap.style.display = 'none';
+        }
+    }
+
+    const agent = _viewedCommAgent();
+
+    // ── Month filter — options come from this agent's entries (all types) ──
+    const monthSel = document.getElementById('commFilterMonth');
+    if (monthSel) {
+        const { month: cM, year: cY } = _currentMonthYearET();
+        const currentLabel = `${cM} ${cY}`;
+        const monthsSet = new Set([currentLabel]);
+        allData.forEach(d => { if (d.agent === agent) { const m = _entryMonth(d); if (m) monthsSet.add(m); } });
+        // Sort by actual date, newest first.
+        const _mval = (label) => { const [n, y] = label.split(' '); const d = new Date(`${n} 1, ${y}`); return isNaN(d) ? 0 : d.getTime(); };
+        const months = [...monthsSet].sort((a, b) => _mval(b) - _mval(a));
+        const prevM = monthSel.value && months.includes(monthSel.value) ? monthSel.value : currentLabel;
+        monthSel.innerHTML = months.map(m => `<option value="${m}"${m === prevM ? ' selected' : ''}>${m}</option>`).join('');
+    }
+
     const entries = _getAgentPolicyEntries(agent);
     const commissions = loadCommissionData();
     const agentData = commissions[agent] || { monthlyPaidCommissionCarriers:{}, grossPaidCarriers:{} };
     const monthlyPaidCarriers = agentData.monthlyPaidCommissionCarriers || {};
     const grossPaidCarriers   = agentData.grossPaidCarriers || {};
 
-    // Fixed to the current month — this view no longer lets the agent pick a different period.
-    const { month: fMonth, year: fYear } = _currentMonthYearET();
+    // Selected period + type (from the filters above).
+    const selMonthLabel = _selectedCommMonthLabel();
+    const [fMonth, fYear] = selMonthLabel.split(' ');
     const periodLabel = document.getElementById('commPeriodLabel');
-    if (periodLabel) periodLabel.textContent = `📅 ${fMonth} ${fYear} · New Business Only`;
+    if (periodLabel) periodLabel.textContent = `📅 ${selMonthLabel} · ${_commTypeLabel()}${agent !== currentUser ? ' · ' + agent : ''}`;
 
     // ── Populate dynamic filter dropdowns (Carrier / LOB only) ──
     const allCarriers = new Set(), allLOBs = new Set();
@@ -5846,6 +7685,158 @@ function loadAgentCommissionData() {
 
     // ── Detail tab (per-policy rows) ──
     _renderCommDetailTable(filtered);
+
+    // ── Special flat-rate commission rule (e.g. Amanda) ──
+    renderSpecialCommissionPanel(agent);
+
+    // Agents with a flat-rate special rule use ONLY that panel — hide the
+    // standard percentage-based section and its (percentage-oriented) filters.
+    const hasSpecial = !!SPECIAL_COMMISSION_RULES[agent];
+    const stdSection = document.getElementById('standardCommissionSection');
+    const stdFilters = document.getElementById('standardCommFilters');
+    if (stdSection) stdSection.style.display = hasSpecial ? 'none' : '';
+    if (stdFilters) stdFilters.style.display = hasSpecial ? 'none' : 'contents';
+}
+
+// ── Special per-agent flat-rate commission rules ─────────────────────────────
+// Some agents are paid a flat dollar amount per transaction instead of the
+// percentage-based agency/agent split. Scoped to the current month (ET),
+// matching the rest of the My Commissions view.
+// Agents whose personal auto book Amanda services. Their renewals are her
+// work even though the policies are written under their names.
+const RENEWAL_SERVICE_AGENTS = ['Uriel Rendon', 'Alberto Manzor', 'Randy Diaz'];
+
+const SPECIAL_COMMISSION_RULES = {
+    'Amanda Montano': {
+        label: "Amanda's Commission Rule",
+        policyItems: [
+            { label: 'New Business', rate: 15, match: pt => /^new/i.test(pt) },
+            { label: 'Renew A-B',    rate: 10, match: pt => (pt || '').trim().toLowerCase() === 'renew a-b' },
+            { label: 'Rewrites',     rate: 10, match: pt => /^rewrite/i.test((pt || '').trim()) }
+        ],
+        underwriting: { label: 'Cleared Underwriting', rate: 10 },
+        // Paid on renewals she services, which is not the same set as the
+        // policies written under her name: her own renewals, plus the whole
+        // personal auto book of the three agents whose service she handles.
+        bookItems: [{
+            label: 'Renewals Serviced',
+            rate: 5,
+            note: 'her renewals + all personal auto for Uriel Rendon, Alberto Manzor, Randy Diaz',
+            match: (e, agent) => {
+                const type = String(e.policyType || '').trim().toLowerCase();
+                if (e.agent === agent) return type === 'renewal';
+                if (RENEWAL_SERVICE_AGENTS.indexOf(e.agent) === -1) return false;
+                return /personal\s*auto/i.test(String(e.lineOfBusiness || ''));
+            }
+        }]
+    }
+};
+
+function _tsMonthLabelET(ts) {
+    try {
+        const p = new Intl.DateTimeFormat('en-US', { timeZone: _ET, month: 'long', year: 'numeric' }).formatToParts(new Date(ts));
+        return `${p.find(x => x.type === 'month').value} ${p.find(x => x.type === 'year').value}`;
+    } catch (e) { return ''; }
+}
+
+// Flat per-item totals for an agent on a special rule, for one month label.
+// Shared by the My Commissions panel and the dashboard month cards.
+function _specialCommissionRows(agent, monthLabel) {
+    const rule = SPECIAL_COMMISSION_RULES[agent];
+    if (!rule) return null;
+    const agentEntries = allData.filter(d => d.agent === agent && _entryMonth(d) === monthLabel);
+    const rows = [];
+    let total = 0;
+
+    rule.policyItems.forEach(item => {
+        const count = agentEntries.filter(e => item.match(e.policyType)).length;
+        const amount = count * item.rate;
+        total += amount;
+        rows.push({ label: item.label, count, rate: item.rate, amount });
+    });
+
+    // Rows counted across the whole book rather than the agent's own entries.
+    // Deduped by id so a policy cannot be paid on twice if a rule widens.
+    (rule.bookItems || []).forEach(item => {
+        const seen = new Set();
+        allData.forEach(e => {
+            if (_entryMonth(e) !== monthLabel) return;
+            if (!item.match(e, agent)) return;
+            const id = e.id != null ? String(e.id) : JSON.stringify([e.policyNumber, e.customerName, e.entryDate]);
+            seen.add(id);
+        });
+        const amount = seen.size * item.rate;
+        total += amount;
+        rows.push({ label: item.label, count: seen.size, rate: item.rate, amount, note: item.note });
+    });
+
+    // Cleared underwriting: clients this agent cleared in the current month.
+    if (rule.underwriting) {
+        let uwCount = 0;
+        try {
+            uwCount = uwBuildList().filter(r =>
+                r.cleared &&
+                uwClearedBy(r) === agent &&
+                _tsMonthLabelET(uwClearedAt(r)) === monthLabel
+            ).length;
+        } catch (e) { uwCount = 0; }
+        const amount = uwCount * rule.underwriting.rate;
+        total += amount;
+        rows.push({ label: rule.underwriting.label, count: uwCount, rate: rule.underwriting.rate, amount });
+    }
+
+    return { rows, total };
+}
+
+function renderSpecialCommissionPanel(agent) {
+    const panel = document.getElementById('specialCommissionPanel');
+    if (!panel) return;
+    const rule = SPECIAL_COMMISSION_RULES[agent];
+    if (!rule) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
+    // Follows the selected Month filter (defaults to the current month).
+    const monthLabel = _selectedCommMonthLabel();
+
+    const { rows, total } = _specialCommissionRows(agent, monthLabel);
+
+    const $ = v => `$${(v || 0).toFixed(2)}`;
+    const rowsHtml = rows.map(r => `
+        <tr>
+            <td style="padding:10px 14px;font-weight:600;color:#3730a3;">${r.label}${r.note ? `<div style="font-weight:400;font-size:11px;color:#64748b;margin-top:2px;">${r.note}</div>` : ''}</td>
+            <td style="padding:10px 14px;text-align:center;color:#475569;">${r.count}</td>
+            <td style="padding:10px 14px;text-align:center;color:#475569;">$${r.rate.toFixed(2)} each</td>
+            <td style="padding:10px 14px;text-align:right;font-weight:700;font-family:monospace;color:#166534;">${$(r.amount)}</td>
+        </tr>`).join('');
+
+    panel.innerHTML = `
+        <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1.5px solid #a5b4fc;border-radius:14px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+                <span style="font-size:16px;font-weight:800;color:#3730a3;">⭐ ${rule.label}</span>
+                <span style="font-size:12px;color:#4338ca;background:#c7d2fe;font-weight:700;padding:2px 10px;border-radius:10px;">📅 ${monthLabel}</span>
+            </div>
+            <div style="font-size:12px;color:#4338ca;margin-bottom:12px;">Flat per-transaction rate for this month.</div>
+            <div style="overflow-x:auto;background:#fff;border:1px solid #c7d2fe;border-radius:10px;">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                        <tr style="background:#eef2ff;">
+                            <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#4338ca;">Type</th>
+                            <th style="padding:10px 14px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#4338ca;">Count</th>
+                            <th style="padding:10px 14px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#4338ca;">Rate</th>
+                            <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#4338ca;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                    <tfoot>
+                        <tr style="background:linear-gradient(135deg,#4f46e5,#4338ca);">
+                            <td colspan="3" style="padding:12px 14px;font-weight:800;color:#fff;">TOTAL</td>
+                            <td style="padding:12px 14px;text-align:right;font-weight:800;font-family:monospace;color:#fff;font-size:15px;">${$(total)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>`;
+    panel.style.display = 'block';
+    if (window.refreshIcons) refreshIcons();
 }
 
 function _renderCommDetailTable(filtered) {
@@ -5873,7 +7864,7 @@ function _renderCommDetailTable(filtered) {
     if (!detailTbody) return;
 
     if (sorted.length === 0) {
-        detailTbody.innerHTML = '<tr><td colspan="12" class="no-data">No new business sold yet this month</td></tr>';
+        detailTbody.innerHTML = '<tr><td colspan="12" class="no-data">No transactions for this selection</td></tr>';
         return;
     }
 
@@ -5957,11 +7948,18 @@ function switchCommTab(tab) {
 }
 
 function clearCommissionFilters() {
-    // Month/Year are no longer user-selectable — this view is always the current month.
     ['commFilterCarrier','commFilterLOB'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
+    // Reset month to the current month and type back to New Business.
+    const { month, year } = _currentMonthYearET();
+    const monthSel = document.getElementById('commFilterMonth');
+    if (monthSel) monthSel.value = `${month} ${year}`;
+    const typeSel = document.getElementById('commFilterType');
+    if (typeSel) typeSel.value = 'New';
+    const agentSel = document.getElementById('commFilterAgent');
+    if (agentSel && currentUser) agentSel.value = currentUser;
     const sort = document.getElementById('commSortBy');
     if (sort) sort.value = 'date-desc';
     _commDetailSortField = 'date';
@@ -5970,13 +7968,13 @@ function clearCommissionFilters() {
 }
 
 function exportAgentCommissions() {
-    const agent = currentUser;
+    const agent = _viewedCommAgent();
     const entries = _getAgentPolicyEntries(agent);
-    const { month, year } = _currentMonthYearET();
+    const selMonthLabel = _selectedCommMonthLabel();
 
     let csvLines = [
         `Commission Statement - ${agent}`,
-        `Period: ${month} ${year} — New Business Only`,
+        `Period: ${selMonthLabel} — ${_commTypeLabel()}`,
         `Generated: ${getEasternDateTimeDisplay()}`,
         '',
         'Date,Customer,Carrier,LOB,Policy Type,Binder #,Base Premium,Agency Commission,Agency Fee,Agent Share (50%),Commission Type'
@@ -6012,11 +8010,11 @@ function exportAgentCommissions() {
 }
 
 function exportAgentCommissionsPDF() {
-    const agent = currentUser;
+    const agent = _viewedCommAgent();
     const entries = _getAgentPolicyEntries(agent);
     const sorted = [...entries].sort((a,b) => (a.entryDate||'').localeCompare(b.entryDate||''));
     const fmt = (v) => v ? `$${parseFloat(v).toFixed(2)}` : '-';
-    const { month, year } = _currentMonthYearET();
+    const selMonthLabel = _selectedCommMonthLabel();
 
     let totalAgencyComm = 0, totalAgentShare = 0, totalPremium = 0, totalFee = 0;
     sorted.forEach(e => {
@@ -6057,7 +8055,7 @@ function exportAgentCommissionsPDF() {
     <script>window.onload = () => window.print();<\/script>
     </head><body>
     <h2>Commission Statement — ${agent}</h2>
-    <div class="meta">${month} ${year} &middot; New Business Only &middot; Generated: ${getEasternDateTimeDisplay()} &middot; ${sorted.length} policies</div>
+    <div class="meta">${selMonthLabel} &middot; ${_commTypeLabel()} &middot; Generated: ${getEasternDateTimeDisplay()} &middot; ${sorted.length} policies</div>
     <div class="summary">
         <div class="sbox"><div class="lbl">Total Commissions</div><div class="val">${fmt(totalAgencyComm + totalAgentShare)}</div></div>
         <div class="sbox"><div class="lbl">Agency Commission</div><div class="val">${fmt(totalAgencyComm)}</div></div>
@@ -6122,6 +8120,7 @@ function saveCommissionStatements() {
 
 // ── Navigation ────────────────────────────────────────────────
 function showCommissionStatements() {
+    csUploadTargetMonth = null; csUploadTargetAgent = null;   // back on the page: a month tile sets it again
     // Re-read from localStorage every time the section opens — the in-memory
     // copy is only set once at page load, before the background cloud sync
     // finishes, so without this a fresh statement synced from Supabase would
@@ -6134,8 +8133,22 @@ function showCommissionStatements() {
 }
 
 // ── Upload Modal ──────────────────────────────────────────────
-function openCommissionUploadModal() {
+// Month a statement is being uploaded to, when opened from a month tile
+// ("July 2026"); null when opened from the header button (the sheet name or
+// the PDF decides the month, as before).
+let csUploadTargetMonth = null;
+let csUploadTargetAgent = null;   // agent whose month folder keeps the original files
+let csUploadSourceFile = null;    // the Excel file being imported, to keep a copy
+
+function openCommissionUploadModal(targetMonth) {
+    csUploadTargetMonth = typeof targetMonth === 'string' ? targetMonth : null;
+    csUploadTargetAgent = csUploadTargetMonth && csViewAgent && csViewAgent !== '__ALL__' ? csViewAgent : null;
     csResetUpload();
+    const tgt = document.getElementById('csUploadTarget');
+    if (tgt) {
+        tgt.style.display = csUploadTargetMonth ? 'block' : 'none';
+        tgt.innerHTML = csUploadTargetMonth ? `📅 Uploading to <strong>${_claudeEsc(csUploadTargetMonth)}</strong>. Whatever you upload here is filed under this month.` : '';
+    }
     const m = document.getElementById('commissionUploadModal');
     m.classList.add('active');
     if (window.UIBMotion) UIBMotion.animateModalOpen(m);
@@ -6161,6 +8174,7 @@ function csResetUpload() {
 function handleCSFileSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
+    csUploadSourceFile = file;
 
     const statusEl = document.getElementById('csFileStatus');
     statusEl.innerHTML = '⏳ Parsing file…';
@@ -6197,6 +8211,46 @@ function handleCSFileSelect(event) {
         }
     };
     reader.readAsArrayBuffer(file);
+}
+
+// ── Drag-and-drop onto the upload box ───────────────────────
+// An Excel statement goes through the normal sheet picker; carrier PDFs
+// are handed to the AI processor on the Documents page.
+function _csDropZoneOn(on) {
+    const z = document.getElementById('csDropZone');
+    if (!z) return;
+    z.style.borderColor = on ? '#1d4ed8' : 'var(--gray-200)';
+    z.style.background = on ? '#eff6ff' : 'var(--gray-50)';
+}
+function csDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; _csDropZoneOn(true); }
+function csDragLeave(e) { e.preventDefault(); _csDropZoneOn(false); }
+function csDrop(e) {
+    e.preventDefault();
+    _csDropZoneOn(false);
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if (!files.length) return;
+    const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+    const sheet = files.find(f => /\.(xlsx|xls)$/i.test(f.name));
+    const pdfs = files.filter(isPdf);
+    if (sheet) { handleCSFileSelect({ target: { files: [sheet] } }); return; }
+    if (pdfs.length) { csSendPdfsToAi(pdfs); return; }
+    document.getElementById('csFileStatus').innerHTML = '❌ Drop an Excel file (.xlsx) or carrier PDF statements.';
+}
+
+function csPickPdfs(input) {
+    const pdfs = Array.from(input.files || []);
+    input.value = '';
+    if (pdfs.length) csSendPdfsToAi(pdfs);
+}
+
+function csSendPdfsToAi(pdfs) {
+    closeCommissionUploadModal();
+    showMonthlyDocuments();
+    claudeAdminHandlePdfUpload({ target: { files: pdfs } });
+    const box = document.getElementById('claudeAdminSection');
+    if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (csUploadTargetMonth && typeof claudeShowToast === 'function')
+        claudeShowToast('📅 These PDFs will be filed under ' + csUploadTargetMonth + ' — press Process.', 'info');
 }
 
 function csNormalizeSheetName(name) {
@@ -6280,7 +8334,10 @@ function importSelectedSheet() {
     if (!csParsedPreview) { alert('Please select a month sheet first.'); return; }
 
     const { sheetName, entries, carrierTotals, grossTotal } = csParsedPreview;
-    const monthLabel = csNormalizeSheetName(sheetName);
+    const monthLabel = csUploadTargetMonth || csNormalizeSheetName(sheetName);
+    // From a month tile, add alongside that month's other statements
+    // instead of replacing them.
+    const stmtKey = csUploadTargetMonth ? `${monthLabel} — ${sheetName} (Excel)` : monthLabel;
 
     // Cross-reference with binder book to find agent matches
     const binder = JSON.parse(localStorage.getItem('binderData')) || [];
@@ -6294,7 +8351,7 @@ function importSelectedSheet() {
         if (hit) entry.agentMatch = hit.agent || null;
     });
 
-    commissionStatements[monthLabel] = {
+    commissionStatements[stmtKey] = {
         month: monthLabel,
         sheetName,
         uploadedAt: new Date().toISOString(),
@@ -6307,6 +8364,15 @@ function importSelectedSheet() {
     saveCommissionStatements();
     closeCommissionUploadModal();
     csCurrentMonthKey = monthLabel;
+    if (csUploadTargetMonth && csViewAgent) csViewMonth = monthLabel;
+    // Keep the original spreadsheet in that agent's month folder.
+    if (csUploadTargetAgent && csUploadSourceFile) {
+        const [mn, yr] = monthLabel.split(' ');
+        binderCloudUpload(csUploadSourceFile, 'AgentStmt_' + csUploadTargetAgent + '_' + yr + '_' + mn, 'Commission Statement')
+            .then(() => { csLoadAgentFileCounts(); csLoadAgentFileList(); })
+            .catch(e => console.warn('Could not keep the spreadsheet copy:', e));
+    }
+    csUploadTargetMonth = null; csUploadTargetAgent = null; csUploadSourceFile = null;
     loadCommissionStatementsList();
 }
 
@@ -6489,7 +8555,422 @@ function loadCommissionStatementsList() {
         }).join('');
     }
 
-    renderCSMonthDetail(csCurrentMonthKey);
+    // The header month picker is replaced by the agent → month cards.
+    if (monthSel) monthSel.style.display = 'none';
+    csRenderAgentView();
+}
+
+// ── Agent cards → months → statement ─────────────────────────
+// Pick an agent, then a month, and see only that agent's statement for
+// that month. "Agency overview" keeps the full all-agent view.
+const CS_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let csViewAgent = null;      // null = agent cards; '__ALL__' = agency overview; else agent key
+let csViewYear = null;
+let csViewMonth = null;
+
+function _csMoney(n) {
+    return '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// agent key -> { agent, total, count, months: { 'July 2026': { total, count } } }
+function _csAgentsAcrossMonths() {
+    const months = [...new Set(Object.keys(commissionStatements).map(csMonthOf))];
+    const agents = {};
+    const all = { agent: '__ALL__', total: 0, count: 0, months: {} };
+    months.forEach(m => {
+        const stmt = csGetCombined(m);
+        if (!stmt) return;
+        _csGroupByAgent(stmt).forEach(g => {
+            const a = agents[g.agent] || (agents[g.agent] = { agent: g.agent, total: 0, count: 0, months: {} });
+            a.total += g.total; a.count += g.entries.length;
+            a.months[m] = { total: g.total, count: g.entries.length };
+        });
+        all.total += stmt.grossTotal || 0; all.count += stmt.entries.length;
+        all.months[m] = { total: stmt.grossTotal || 0, count: stmt.entries.length };
+    });
+    // Every agent on the roster gets a card, even with no commissions yet.
+    (typeof getAllAgents === 'function' ? getAllAgents() : []).forEach(name => {
+        if (name && !agents[name]) agents[name] = { agent: name, total: 0, count: 0, months: {} };
+    });
+    const list = Object.values(agents).sort((a, b) => {
+        if (a.agent === '__UNASSIGNED__') return 1;
+        if (b.agent === '__UNASSIGNED__') return -1;
+        return a.agent.localeCompare(b.agent);
+    });
+    return { list, all };
+}
+
+function _csYearOf(label) { return parseInt(String(label).split(' ')[1], 10); }
+
+function csRenderAgentView() {
+    const box = document.getElementById('csAgentView');
+    const detail = document.getElementById('csDetail');
+    if (!box) return;
+    const { list, all } = _csAgentsAcrossMonths();
+    const info = csViewAgent === '__ALL__' ? all : list.find(a => a.agent === csViewAgent);
+    if (csViewAgent && !info) { csViewAgent = null; csViewMonth = null; }
+
+    if (!csViewAgent) {
+        detail.style.display = 'none';
+        const card = a => {
+            const unassigned = a.agent === '__UNASSIGNED__', agency = a.agent === '__ALL__';
+            const name = agency ? '🏢 Agency overview' : unassigned ? '⚠️ Unassigned' : a.agent;
+            const nMonths = Object.keys(a.months).length;
+            return `<button class="cs-agent-card" onclick="csOpenAgent('${a.agent.replace(/'/g, "\\'")}')"
+                style="${unassigned ? 'background:#fffbeb;border-color:#fcd34d;' : agency ? 'background:#f8fafc;' : ''}">
+                <div style="font-size:15px;font-weight:800;color:${unassigned ? '#92400e' : 'var(--navy)'};">${_claudeEsc(name)}</div>
+                <div style="font-size:18px;font-weight:800;margin-top:8px;color:${a.total >= 0 ? '#059669' : '#dc2626'};">${_csMoney(a.total)}</div>
+                <div style="font-size:11.5px;color:var(--gray-500);margin-top:2px;">${nMonths} month${nMonths !== 1 ? 's' : ''} · ${a.count} transactions</div>
+            </button>`;
+        };
+        box.innerHTML = `<h4 style="font-size:14px;font-weight:700;color:var(--navy);margin:0 0 10px;">Choose an agent</h4>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
+                ${list.map(card).join('')}${card(all)}
+            </div>`;
+        return;
+    }
+
+    const labels = Object.keys(info.months);
+    const years = [...new Set(labels.map(_csYearOf))].sort((a, b) => b - a);
+    if (!years.length) years.push(new Date().getFullYear());
+    if (!csViewYear || !years.includes(csViewYear)) csViewYear = years[0];
+    const name = csViewAgent === '__ALL__' ? '🏢 Agency overview' : _csAgentLabel(csViewAgent);
+
+    const monthBtns = CS_MONTH_NAMES.map(mn => {
+        const label = mn + ' ' + csViewYear;
+        const d = info.months[label];
+        const on = label === csViewMonth;
+        const ai = `<div style="margin-top:6px;"><button onclick="event.stopPropagation();openCommissionUploadModal('${label}')" title="Calculate commissions from a statement for ${label}"
+            style="padding:3px 9px;border-radius:999px;border:1px solid ${on ? 'rgba(255,255,255,.5)' : '#fed7aa'};background:${on ? 'rgba(255,255,255,.15)' : '#fff7ed'};color:${on ? '#fff' : '#c2410c'};font-size:11px;font-weight:700;cursor:pointer;">✨ AI</button></div>`;
+        const files = `<span id="csFileCount_${mn}" style="display:block;font-size:10.5px;font-weight:600;color:${on ? 'rgba(255,255,255,.85)' : '#1d4ed8'};min-height:13px;"></span>`;
+        return `<div onclick="csOpenAgentMonth('${label}')" title="Open ${label}: statement files and commissions"
+            style="padding:14px 10px;border-radius:12px;cursor:pointer;text-align:center;border:2px ${d || on ? 'solid' : 'dashed'} ${on ? '#1d4ed8' : 'var(--gray-200)'};
+                   background:${on ? 'linear-gradient(135deg,#0d1f3c,#1d4ed8)' : '#fff'};color:${on ? '#fff' : (d ? 'var(--gray-700)' : 'var(--gray-400)')};font-weight:700;font-size:13.5px;">
+            📅 ${mn}
+            ${d ? `<span style="display:block;margin-top:4px;font-size:12px;font-weight:700;color:${on ? '#a7f3d0' : (d.total >= 0 ? '#059669' : '#dc2626')};">${_csMoney(d.total)}</span>
+            <span style="display:block;font-size:10.5px;font-weight:600;color:${on ? 'rgba(255,255,255,.75)' : 'var(--gray-400)'};">${d.count} transactions</span>`
+               : `<span style="display:block;margin-top:4px;font-size:11px;font-weight:600;">no commissions</span>`}
+            ${files}${ai}
+        </div>`;
+    }).join('');
+
+    box.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            <button class="btn-secondary btn-sm" onclick="csOpenAgent(null)">← All agents</button>
+            <strong style="font-size:16px;color:var(--navy);">${_claudeEsc(name)}</strong>
+            ${csViewMonth && csViewAgent !== '__ALL__' && info.months[csViewMonth] ? `<button class="btn-danger btn-sm" onclick="csClearAgentMonth()" title="Remove only this agent's calculated commissions for this month (statement files stay)">🗑 Clear ${_claudeEsc(csViewMonth)} commissions</button>` : ''}
+            <span style="margin-left:auto;display:flex;gap:6px;">${years.map(y => `<button class="btn-sm ${y === csViewYear ? 'btn-primary' : 'btn-secondary'}" onclick="csSetViewYear(${y})">${y}</button>`).join('')}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">${monthBtns}</div>
+        ${csViewMonth ? `
+        <div id="csAgentFilesPanel" style="margin-top:16px;border:1px solid var(--gray-200);border-radius:12px;padding:14px 16px;background:#fff;">
+            <h4 style="margin:0 0 10px;font-size:14px;color:var(--navy);">📁 ${_claudeEsc(name)} · ${_claudeEsc(csViewMonth)} — statement files</h4>
+            <div ondragover="event.preventDefault();this.style.borderColor='#1d4ed8';this.style.background='#eff6ff';"
+                 ondragleave="this.style.borderColor='var(--gray-200)';this.style.background='#fafbfc';"
+                 ondrop="event.preventDefault();this.style.borderColor='var(--gray-200)';this.style.background='#fafbfc';csAgentFilesUpload(event.dataTransfer.files)"
+                 style="border:2px dashed var(--gray-200);border-radius:12px;padding:18px;text-align:center;margin-bottom:12px;background:#fafbfc;">
+                <div style="font-size:28px;">📎</div>
+                <p style="font-size:13px;color:var(--gray-500);margin:6px 0 10px;">Drop commission statements here (PDF or spreadsheet). They are kept only for ${_claudeEsc(name)} in ${_claudeEsc(csViewMonth)}.</p>
+                <input type="file" id="csAgentFileInput" multiple accept="application/pdf,.pdf,.xlsx,.xls,.csv" style="display:none;" onchange="csAgentFilesUpload(this.files);this.value='';">
+                <button class="btn-primary btn-sm" onclick="document.getElementById('csAgentFileInput').click()">⬆ Choose Files</button>
+                <span id="csAgentFileStatus" style="display:block;margin-top:8px;font-size:12.5px;color:var(--gray-500);"></span>
+            </div>
+            <div id="csAgentFileList"></div>
+        </div>
+        <div id="csAgentDash"></div>` : ''}`;
+    csLoadAgentFileCounts();
+    if (csViewMonth) csLoadAgentFileList();
+    if (csViewMonth) csRenderAgentDash(csViewMonth);
+
+    if (!csViewMonth || !info.months[csViewMonth]) { detail.style.display = 'none'; return; }
+    csCurrentMonthKey = csViewMonth;
+    detail.classList.toggle('cs-agent-mode', csViewAgent !== '__ALL__');
+    if (csViewAgent !== '__ALL__') csSelectedAgentKey = csViewAgent;
+    renderCSMonthDetail(csViewMonth);
+    if (csViewAgent !== '__ALL__') {
+        // Panel header: this agent's numbers, not the whole agency's.
+        const ents = (csGetCombined(csViewMonth).entries || []).filter(e => (e.agentMatch || '__UNASSIGNED__') === csViewAgent);
+        const tot = ents.reduce((t, e) => t + (e.commission || 0), 0);
+        const chip = (l, v, c) => `<span style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:4px 12px;font-size:11.5px;display:inline-flex;gap:6px;align-items:baseline;"><span style="opacity:.75;">${l}</span><strong style="font-size:13px;${c ? 'color:' + c + ';' : ''}">${v}</strong></span>`;
+        const statsEl = document.getElementById('csAgentPanelStats');
+        if (statsEl) statsEl.innerHTML =
+            chip('Commission', _csMoney(tot), tot >= 0 ? '#6ee7b7' : '#fca5a5') +
+            chip('Transactions', ents.length) +
+            chip('Carriers', new Set(ents.map(e => e.carrier).filter(Boolean)).size) +
+            chip('New', ents.filter(e => /^new/i.test((e.transaction || '').trim())).length) +
+            chip('Renewals', ents.filter(e => /renew/i.test(e.transaction || '')).length);
+        const monthEl = document.getElementById('csAgentPanelMonth');
+        if (monthEl) monthEl.textContent = '— ' + _csAgentLabel(csViewAgent) + ' · ' + csViewMonth;
+    }
+}
+
+// Remove one agent's calculated commissions for one month, across every
+// carrier statement of that month. Uploaded PDFs are not touched.
+async function csClearAgentMonth() {
+    if (!isAgentAdmin()) { alert('Only administrators can clear commissions.'); return; }
+    const agent = csViewAgent, month = csViewMonth;
+    if (!agent || agent === '__ALL__' || !month) return;
+    const keyOf = e => e.agentMatch || '__UNASSIGNED__';
+    const keys = csKeysForMonth(month);
+    const n = keys.reduce((t, k) => t + ((commissionStatements[k].entries || []).filter(e => keyOf(e) === agent).length), 0);
+    if (!n) { alert('Nothing to clear.'); return; }
+    if (!confirm(`Clear ${n} commission transaction${n !== 1 ? 's' : ''} for ${_csAgentLabel(agent)} in ${month}?\n\nOnly the calculated numbers are removed. The PDFs in Documents stay.`)) return;
+    keys.forEach(k => {
+        const st = commissionStatements[k];
+        st.entries = (st.entries || []).filter(e => keyOf(e) !== agent);
+        if (!st.entries.length) { delete commissionStatements[k]; return; }
+        const ct = {};
+        st.entries.forEach(e => { if (e.carrier) ct[e.carrier] = parseFloat(((ct[e.carrier] || 0) + (e.commission || 0)).toFixed(2)); });
+        st.carrierTotals = ct;
+        st.grossTotal = parseFloat(st.entries.reduce((t, e) => t + (e.commission || 0), 0).toFixed(2));
+        st.entryCount = st.entries.length;
+        if (st.agentTotals) delete st.agentTotals[agent];
+    });
+    localStorage.setItem('commissionStatements', JSON.stringify(commissionStatements));
+    const res = await _csSaveStatementsCloud();
+    if (window.UIBAudit) UIBAudit.log('commission_agent_month_cleared', agent, { month, transactions: n });
+    csViewMonth = null;
+    loadCommissionStatementsList();
+    alert(res.ok ? `Cleared ${n} transaction${n !== 1 ? 's' : ''} for ${_csAgentLabel(agent)} in ${month}. Every device will see it after its next sync.`
+                 : `Cleared on this device, but the cloud refused the change (${res.why}). Other devices still show the old numbers, and this device will get them back on its next sync. Send Claude this message.`);
+}
+
+// Saves statements to Supabase and says why when it fails.
+async function _csSaveStatementsCloud() {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+            method: 'POST',
+            headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+            body: JSON.stringify([{ key: 'commissionStatements', value: commissionStatements, updated_at: new Date().toISOString() }])
+        });
+        if (res.ok) return { ok: true };
+        let t = ''; try { t = (await res.text()).slice(0, 120); } catch (e) {}
+        return { ok: false, why: 'HTTP ' + res.status + (t ? ': ' + t : '') };
+    } catch (e) { return { ok: false, why: String(e && e.message || e) }; }
+}
+
+// ── Month dashboard (glass cards) ─────────────────────────────
+// Shown under an agent's month files: what the statements for that month
+// say, at a glance. Reads the same calculated entries as the table below.
+// Binder Book palette: blues from the header, with green/amber accents.
+const CS_DASH_COLORS = ['#1d4ed8', '#0ea5e9', '#10b981', '#f59e0b', '#3b82f6', '#14b8a6', '#d97706', '#6366f1'];
+
+function csRenderAgentDash(month) {
+    const box = document.getElementById('csAgentDash');
+    if (!box) return;
+    if (!month) { box.innerHTML = ''; return; }
+    const stmt = csGetCombined(month);
+    const all = (stmt && stmt.entries) || [];
+    const ents = csViewAgent === '__ALL__' ? all : all.filter(e => (e.agentMatch || '__UNASSIGNED__') === csViewAgent);
+    if (!ents.length) {
+        // Nothing calculated yet: say so, and how to fill it.
+        box.innerHTML = `<div style="margin-top:16px;padding:22px;border-radius:20px;border:1px solid #e5e7eb;text-align:center;
+                background: radial-gradient(900px 360px at 0% 0%, rgba(29,78,216,.10) 0%, transparent 60%), radial-gradient(800px 380px at 100% 100%, rgba(56,189,248,.10) 0%, transparent 60%), #fff;">
+            <div style="font-size:15px;font-weight:800;color:#0d1f3c;">✨ ${_claudeEsc(csViewAgent === '__ALL__' ? 'Agency' : _csAgentLabel(csViewAgent))} · ${_claudeEsc(month)} dashboard</div>
+            <p style="font-size:13px;color:#64748b;margin:10px 0 14px;">No commissions have been calculated for this month yet. Uploaded files are stored, but the dashboard is built from calculated commissions.</p>
+            <button class="btn-primary btn-sm" onclick="openCommissionUploadModal('${month}')">✨ Calculate with AI</button>
+        </div>`;
+        return;
+    }
+    const esc = _claudeEsc, money = n => (n < 0 ? '-' : '') + _csMoney(Math.abs(n));
+    const amt = e => Number(e.commission) || 0;
+    const total = ents.reduce((t, e) => t + amt(e), 0);
+    const pos = ents.filter(e => amt(e) >= 0).reduce((t, e) => t + amt(e), 0);
+    const neg = ents.filter(e => amt(e) < 0).reduce((t, e) => t + amt(e), 0);
+    const kind = e => { const t = (e.transaction || '').trim().toLowerCase();
+        return /^new/.test(t) ? 'New business' : /renew/.test(t) ? 'Renewals' : /rewrite/.test(t) ? 'Rewrites' : t ? 'Adjustments' : 'Other'; };
+    const group = (keyFn) => {
+        const g = {};
+        ents.forEach(e => { const k = keyFn(e) || '—'; (g[k] = g[k] || { k, total: 0, n: 0 }); g[k].total += amt(e); g[k].n++; });
+        return Object.values(g).sort((a, b) => b.total - a.total);
+    };
+    const carriers = group(e => e.carrier), kinds = group(kind);
+    const clients = group(e => _csClientName(e)).slice(0, 5);
+    const policies = new Set(ents.map(e => e.policyNumber).filter(Boolean)).size;
+
+    // Previous month with this agent's data, for the trend chip.
+    const [mn, yr] = month.split(' ');
+    const pi = CS_MONTH_NAMES.indexOf(mn);
+    const prevLabel = pi > 0 ? CS_MONTH_NAMES[pi - 1] + ' ' + yr : 'December ' + (Number(yr) - 1);
+    const prevStmt = csGetCombined(prevLabel);
+    const prevEnts = ((prevStmt && prevStmt.entries) || []).filter(e => csViewAgent === '__ALL__' || (e.agentMatch || '__UNASSIGNED__') === csViewAgent);
+    const prevTotal = prevEnts.length ? prevEnts.reduce((t, e) => t + amt(e), 0) : null;
+    const delta = prevTotal === null || prevTotal === 0 ? null : ((total - prevTotal) / Math.abs(prevTotal)) * 100;
+
+    // Donut of transaction kinds (by absolute commission).
+    const absSum = kinds.reduce((t, k) => t + Math.abs(k.total), 0) || 1;
+    let acc = 0;
+    const R = 54, C = 2 * Math.PI * R;
+    const arcs = kinds.map((k, i) => {
+        const frac = Math.abs(k.total) / absSum, len = frac * C;
+        const seg = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${CS_DASH_COLORS[i % CS_DASH_COLORS.length]}" stroke-width="18"
+            stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}" transform="rotate(-90 70 70)" stroke-linecap="butt"><title>${esc(k.k)}: ${money(k.total)}</title></circle>`;
+        acc += len; return seg;
+    }).join('');
+
+    const maxCarrier = Math.max(...carriers.map(c => Math.abs(c.total)), 1);
+    const kpi = (label, value, sub, color) => `<div class="cs-glass cs-kpi">
+        <div class="cs-kpi-label">${label}</div>
+        <div class="cs-kpi-value" style="${color ? 'color:' + color : ''}">${value}</div>
+        ${sub ? `<div class="cs-kpi-sub">${sub}</div>` : ''}</div>`;
+
+    box.innerHTML = `
+    <style>
+        .cs-dash { margin-top:16px; padding:22px; border-radius:20px; position:relative; overflow:hidden;
+            background: radial-gradient(900px 360px at 0% 0%, rgba(29,78,216,.10) 0%, transparent 60%),
+                        radial-gradient(800px 380px at 100% 100%, rgba(56,189,248,.10) 0%, transparent 60%), #ffffff;
+            color:#0d1f3c; border:1px solid #e5e7eb; box-shadow: 0 10px 30px rgba(13,31,60,.08); }
+        .cs-dash h4 { margin:0; font-size:15px; font-weight:800; color:#0d1f3c; letter-spacing:.2px; }
+        .cs-glass { background: rgba(255,255,255,.72); border:1px solid rgba(29,78,216,.14); border-radius:16px;
+            backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+            box-shadow: 0 6px 20px rgba(13,31,60,.07), inset 0 1px 0 #fff; }
+        .cs-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:14px 0; }
+        .cs-kpi { padding:14px 16px; }
+        .cs-kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:#64748b; font-weight:700; }
+        .cs-kpi-value { font-size:24px; font-weight:800; color:#0d1f3c; margin-top:4px; }
+        .cs-kpi-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+        .cs-dash-row { display:grid; grid-template-columns: 1.3fr 1fr; gap:12px; }
+        @media (max-width: 900px) { .cs-dash-row { grid-template-columns: 1fr; } }
+        .cs-panel { padding:16px; }
+        .cs-panel-title { font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:#1d4ed8; font-weight:800; margin-bottom:12px; }
+        .cs-bar { display:grid; grid-template-columns: 150px 1fr 90px; gap:10px; align-items:center; font-size:12.5px; margin:8px 0; }
+        .cs-bar-track { height:10px; border-radius:999px; background:#e8eefb; overflow:hidden; }
+        .cs-bar-fill { height:100%; border-radius:999px; }
+        .cs-legend { display:flex; flex-direction:column; gap:7px; font-size:12.5px; }
+        .cs-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:8px; }
+        .cs-client { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eef2f7; font-size:12.5px; }
+        .cs-client:last-child { border-bottom:none; }
+    </style>
+    <div class="cs-dash">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <h4>✨ ${esc(csViewAgent === '__ALL__' ? 'Agency' : _csAgentLabel(csViewAgent))} · ${esc(month)} dashboard</h4>
+            ${delta === null ? '' : `<span class="cs-glass" style="padding:5px 12px;font-size:12px;font-weight:700;color:${delta >= 0 ? '#059669' : '#dc2626'};">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}% vs ${esc(prevLabel)}</span>`}
+        </div>
+        <div class="cs-kpis">
+            ${kpi('Net commission', money(total), ents.length + ' transactions', total >= 0 ? '#059669' : '#dc2626')}
+            ${kpi('Earned', money(pos), 'positive transactions', '#1d4ed8')}
+            ${kpi('Charge-backs', money(neg), 'cancels & credits', neg < 0 ? '#dc2626' : '')}
+            ${kpi('Policies', policies || '—', carriers.length + ' carrier' + (carriers.length !== 1 ? 's' : ''))}
+            ${kpi('Avg per transaction', money(ents.length ? total / ents.length : 0), '')}
+        </div>
+        <div class="cs-dash-row">
+            <div class="cs-glass cs-panel">
+                <div class="cs-panel-title">Commission by carrier</div>
+                ${carriers.map((c, i) => `<div class="cs-bar">
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(c.k)}">${esc(c.k)}</span>
+                    <div class="cs-bar-track"><div class="cs-bar-fill" style="width:${(Math.abs(c.total) / maxCarrier * 100).toFixed(1)}%;background:linear-gradient(90deg, ${CS_DASH_COLORS[i % CS_DASH_COLORS.length]}, rgba(255,255,255,.35));"></div></div>
+                    <span style="text-align:right;font-weight:700;color:${c.total >= 0 ? '#0d1f3c' : '#dc2626'};">${money(c.total)}</span></div>`).join('')}
+            </div>
+            <div class="cs-glass cs-panel" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+                <div>
+                    <div class="cs-panel-title">Transaction mix</div>
+                    <svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Transaction mix">
+                        <circle r="${R}" cx="70" cy="70" fill="none" stroke="#e8eefb" stroke-width="18"></circle>${arcs}
+                        <text x="70" y="66" text-anchor="middle" fill="#0d1f3c" font-size="20" font-weight="800">${ents.length}</text>
+                        <text x="70" y="84" text-anchor="middle" fill="#64748b" font-size="10">transactions</text>
+                    </svg>
+                </div>
+                <div class="cs-legend" style="flex:1;min-width:150px;">
+                    ${kinds.map((k, i) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span><span class="cs-dot" style="background:${CS_DASH_COLORS[i % CS_DASH_COLORS.length]};"></span>${esc(k.k)} <span style="color:#94a3b8;">(${k.n})</span></span><strong>${money(k.total)}</strong></div>`).join('')}
+                </div>
+            </div>
+        </div>
+        <div class="cs-glass cs-panel" style="margin-top:12px;">
+            <div class="cs-panel-title">Top clients this month</div>
+            ${clients.map(c => `<div class="cs-client"><span>${esc(c.k)} <span style="color:#94a3b8;">· ${c.n} transaction${c.n !== 1 ? 's' : ''}</span></span><strong style="color:${c.total >= 0 ? '#059669' : '#dc2626'};">${money(c.total)}</strong></div>`).join('')}
+        </div>
+    </div>`;
+}
+
+// ── Statement files, per agent and month ─────────────────────
+// Stored under their own key (AgentStmt_<agent>_<year>_<Month>), apart from
+// the Documents page: what is uploaded on an agent's month stays there.
+function _csAgentFileKey(label) {
+    const [mn, yr] = String(label || csViewMonth).split(' ');
+    return 'AgentStmt_' + (csViewAgent || '') + '_' + yr + '_' + mn;
+}
+
+async function csAgentFilesUpload(fileList) {
+    const files = [...(fileList || [])];
+    if (!files.length || !csViewMonth) return;
+    const status = document.getElementById('csAgentFileStatus');
+    const key = _csAgentFileKey(), label = csViewMonth;
+    let done = 0, failed = 0;
+    for (const f of files) {
+        if (status) status.textContent = `☁️ Uploading ${done + failed + 1}/${files.length}: ${f.name}…`;
+        try { await binderCloudUpload(f, key, 'Commission Statement'); done++; }
+        catch (e) { failed++; console.warn('Agent statement upload failed:', e); }
+    }
+    if (status) status.textContent = failed
+        ? `⚠️ Uploaded ${done} of ${files.length}; ${failed} failed. Check your connection and try again.`
+        : `✅ Uploaded ${done} file${done !== 1 ? 's' : ''} to ${label}.`;
+    if (csViewMonth === label) csLoadAgentFileList();
+    csLoadAgentFileCounts();
+}
+
+async function csLoadAgentFileList() {
+    const box = document.getElementById('csAgentFileList');
+    if (!box) return;
+    const key = _csAgentFileKey();
+    box.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:10px;">Loading files…</div>';
+    const files = await binderCloudList(key);
+    if (_csAgentFileKey() !== key || !document.getElementById('csAgentFileList')) return;
+    if (!files.length) { box.innerHTML = '<div style="color:#9ca3af;font-style:italic;text-align:center;padding:10px;">No statement files for this month yet.</div>'; return; }
+    files.forEach(f => { _binderCloudFiles[f.id] = { path: f.storage_path, name: f.file_name }; });
+    box.innerHTML = files.map(f => `
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 8px;border-bottom:1px solid #e5e7eb;font-size:13px;">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.file_name)}">📄 ${escHtml(f.file_name)}</span>
+            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${f.size_bytes ? (f.size_bytes / 1024 / 1024).toFixed(2) + ' MB' : ''}</span>
+            <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploaded_at).toLocaleDateString()}</span>
+            <button class="btn-secondary btn-sm" onclick="binderCloudPreview('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Preview in the browser">👁️</button>
+            <button class="btn-primary btn-sm" onclick="binderCloudDownload('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Download">⬇️</button>
+            <button class="btn-danger btn-sm" onclick="csAgentFileDelete('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Delete">🗑️</button>
+        </div>`).join('');
+}
+
+async function csAgentFileDelete(docId) {
+    const f = _binderCloudFiles[docId];
+    if (!f) return;
+    if (!confirm('Delete "' + f.name + '"? This cannot be undone.')) return;
+    await fetch(_binderStorageUrl(f.path), { method: 'DELETE', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } });
+    await fetch(`${SUPABASE_URL}/rest/v1/documents?id=eq.${encodeURIComponent(docId)}`, { method: 'DELETE', headers: _SB_HEADERS });
+    csLoadAgentFileList();
+    csLoadAgentFileCounts();
+}
+
+// File-count badges on the month tiles (cosmetic; silent when offline).
+async function csLoadAgentFileCounts() {
+    if (!csViewAgent || !csViewYear) return;
+    const prefix = 'AgentStmt_' + csViewAgent + '_' + csViewYear + '_';
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?select=client_key&client_key=like.${encodeURIComponent(prefix)}*`, { headers: _SB_HEADERS });
+        if (!res.ok) return;
+        const counts = {};
+        (await res.json()).forEach(r => { const m = String(r.client_key || '').slice(prefix.length); counts[m] = (counts[m] || 0) + 1; });
+        CS_MONTH_NAMES.forEach(m => {
+            const el = document.getElementById('csFileCount_' + m);
+            if (el) el.textContent = counts[m] ? '📄 ' + counts[m] + ' file' + (counts[m] > 1 ? 's' : '') : '';
+        });
+    } catch (e) {}
+}
+
+function csOpenAgent(agent) {
+    csViewAgent = agent; csViewYear = null; csViewMonth = null;
+    csRenderAgentView();
+    refreshIcons();
+}
+
+function csSetViewYear(y) {
+    csViewYear = y; csViewMonth = null;
+    csRenderAgentView();
+}
+
+function csOpenAgentMonth(label) {
+    csViewMonth = label;
+    csRenderAgentView();
+    refreshIcons();
+    const d = document.getElementById('csDetail');
+    if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function csSelectMonth(monthKey) {
@@ -7011,6 +9492,35 @@ function resetCSFilters() {
     filterCSEntries();
 }
 
+// Start over: removes every statement on the Commission Statements page.
+// The uploaded PDFs in Documents are kept, a copy is downloaded first, and
+// the daily Cloud Backups still hold the old statements for a week.
+async function clearAllCommissionStatements() {
+    if (!isAgentAdmin()) { alert('Only administrators can clear commission statements.'); return; }
+    const keys = Object.keys(commissionStatements || {});
+    if (!keys.length) { alert('There are no commission statements to clear.'); return; }
+    const months = [...new Set(keys.map(csMonthOf))];
+    if (!confirm(`Clear ALL ${keys.length} commission statements (${months.length} months) from this page?\n\nA copy is downloaded to this computer first. The PDFs in Documents are not touched.`)) return;
+    const typed = prompt('Type CLEAR to confirm.');
+    if (String(typed || '').trim().toUpperCase() !== 'CLEAR') { alert('Nothing was cleared (CLEAR was not typed).'); return; }
+    try {
+        const blob = new Blob([JSON.stringify(commissionStatements, null, 1)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'commission_statements_backup_' + new Date().toISOString().slice(0, 10) + '.json';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (e) { if (!confirm('Could not download the backup copy. Clear anyway?')) return; }
+    commissionStatements = {};
+    localStorage.setItem('commissionStatements', '{}');
+    const saved = await _csSaveStatementsCloud(), ok = saved.ok;
+    if (window.UIBAudit) UIBAudit.log('commission_statements_cleared', 'all', { statements: keys.length, months });
+    csCurrentMonthKey = null; csViewAgent = null; csViewMonth = null;
+    loadCommissionStatementsList();
+    alert(ok ? 'All commission statements were cleared. Upload them again with "Upload Statement" or the AI processor.'
+             : 'Cleared on this device, but the cloud refused the change (' + saved.why + '). Other devices still show the old statements. Send Claude this message.');
+}
+
 function deleteCSStatement(monthKey) {
     if (!monthKey) return;
     // A month tab combines every carrier's statement for that month.
@@ -7042,10 +9552,7 @@ function showProductionDashboard() {
     allData = JSON.parse(localStorage.getItem('binderData')) || [];
 
     // Populate Agent filter — merge from data + registered agents
-    const agentsFromData = allData.map(d => d.agent).filter(Boolean);
-    const masterAgents   = Object.keys(JSON.parse(localStorage.getItem('agentMasterData'))  || {});
-    const credAgents     = Object.keys(JSON.parse(localStorage.getItem('agentCredentials')) || {});
-    const agents = [...new Set([...agentsFromData, ...masterAgents, ...credAgents])].sort();
+    const agents = getAllAgents();
     const agentSel = document.getElementById('prodAgentFilter');
     if (agentSel) agentSel.innerHTML =
         '<option value="">All Agents</option>' +
@@ -7188,6 +9695,9 @@ function prodRenderTable(data) {
         if (_prodSortCol === 'totalPremium' || _prodSortCol === 'basePremium') {
             va = parseFloat(a[_prodSortCol]) || 0;
             vb = parseFloat(b[_prodSortCol]) || 0;
+        } else if (_prodSortCol === 'effDate') {
+            va = (a.effDate || a.effectiveDate || '').toString();
+            vb = (b.effDate || b.effectiveDate || '').toString();
         } else {
             va = (a[_prodSortCol] || '').toString().toLowerCase();
             vb = (b[_prodSortCol] || '').toString().toLowerCase();
@@ -7204,10 +9714,20 @@ function prodRenderTable(data) {
             ${lbl}${arrow}</th>`;
     };
 
+    // Date header carries two sort targets: entry date (top) and effective date (bottom)
+    const dateTh = () => {
+        const arr = c => _prodSortCol === c ? (_prodSortDir === -1 ? ' ↓' : ' ↑') : ' <span style="opacity:.25">↕</span>';
+        return `<th style="padding:10px 12px;text-align:left;font-weight:600;color:#334155;white-space:nowrap;user-select:none;font-size:12px;">
+            <span onclick="prodSort('entryDate')" style="cursor:pointer;">Date${arr('entryDate')}</span><br>
+            <span onclick="prodSort('effDate')" style="cursor:pointer;font-size:11px;color:#94a3b8;font-weight:600;">Eff${arr('effDate')}</span></th>`;
+    };
+
     const rows = sorted.map(d => {
         const tp   = parseFloat(d.totalPremium) || 0;
         const date = (d.entryDate || '').slice(0,10);
         const disp = date ? new Date(date + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+        const effRaw  = (d.effDate || d.effectiveDate || '').slice(0,10);
+        const effDisp = effRaw ? new Date(effRaw + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
         const pnum = d.policyNumber || d.binderNumber || '—';
         const lobBadge = d.lineOfBusiness
             ? `<span style="background:#eff6ff;color:#1e40af;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;">${d.lineOfBusiness}</span>`
@@ -7221,7 +9741,10 @@ function prodRenderTable(data) {
 
         return `<tr style="border-bottom:1px solid #f1f5f9;"
             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-            <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;">${disp}</td>
+            <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;">
+                <div>${disp}</div>
+                ${effDisp ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Eff: ${effDisp}</div>` : ''}
+            </td>
             <td style="padding:9px 12px;font-size:13px;font-weight:600;color:#1e40af;">${d.agent||'—'}</td>
             <td style="padding:9px 12px;font-size:13px;">${d.customerName||'—'}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;font-family:monospace;">${pnum}</td>
@@ -7243,7 +9766,7 @@ function prodRenderTable(data) {
             <table style="width:100%;border-collapse:collapse;min-width:1000px;">
                 <thead>
                     <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
-                        ${th('entryDate','Date')}
+                        ${dateTh()}
                         ${th('agent','Agent')}
                         ${th('customerName','Client Name')}
                         ${th('policyNumber','Policy #')}
@@ -7274,7 +9797,7 @@ function prodSort(col) {
         _prodSortDir *= -1;
     } else {
         _prodSortCol = col;
-        _prodSortDir = (col === 'totalPremium' || col === 'basePremium' || col === 'entryDate') ? -1 : 1;
+        _prodSortDir = (col === 'totalPremium' || col === 'basePremium' || col === 'entryDate' || col === 'effDate') ? -1 : 1;
     }
     prodRenderTable(prodGetFilteredData());
 }
@@ -7404,9 +9927,10 @@ function prodExportCSV() {
     const data = prodGetFilteredData();
     if (data.length === 0) { alert('No data to export for this period.'); return; }
 
-    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
+    const headers = ['Date','Effective Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
     const rows = data.map(d => [
         d.entryDate         || '',
+        d.effDate || d.effectiveDate || '',
         d.agent             || '',
         d.customerName      || '',
         d.policyNumber      || '',
@@ -7472,7 +9996,7 @@ function apdInit() {
     _apdSortDir = saved?.sortDir ?? -1;
 
     // Populate Agent filter
-    const agents = [...new Set(allData.map(d => d.agent).filter(Boolean))].sort();
+    const agents = getAllAgents();
     const agentSel = document.getElementById('apd_agentFilter');
     if (agentSel) {
         agentSel.innerHTML =
@@ -7611,6 +10135,9 @@ function apdRenderTable(data) {
         if (_apdSortCol === 'totalPremium' || _apdSortCol === 'basePremium') {
             va = parseFloat(a[_apdSortCol]) || 0;
             vb = parseFloat(b[_apdSortCol]) || 0;
+        } else if (_apdSortCol === 'effDate') {
+            va = (a.effDate || a.effectiveDate || '').toString();
+            vb = (b.effDate || b.effectiveDate || '').toString();
         } else {
             va = (a[_apdSortCol] || '').toString().toLowerCase();
             vb = (b[_apdSortCol] || '').toString().toLowerCase();
@@ -7627,10 +10154,20 @@ function apdRenderTable(data) {
             ${lbl}${arrow}</th>`;
     };
 
+    // Date header carries two sort targets: entry date (top) and effective date (bottom)
+    const dateTh = () => {
+        const arr = c => _apdSortCol === c ? (_apdSortDir === -1 ? ' ↓' : ' ↑') : ' <span style="opacity:.25">↕</span>';
+        return `<th style="padding:10px 12px;text-align:left;font-weight:600;color:#334155;white-space:nowrap;user-select:none;font-size:12px;">
+            <span onclick="apdSort('entryDate')" style="cursor:pointer;">Date${arr('entryDate')}</span><br>
+            <span onclick="apdSort('effDate')" style="cursor:pointer;font-size:11px;color:#94a3b8;font-weight:600;">Eff${arr('effDate')}</span></th>`;
+    };
+
     const rows = sorted.map(d => {
         const tp   = parseFloat(d.totalPremium) || 0;
         const date = (d.entryDate || '').slice(0,10);
         const disp = date ? new Date(date + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+        const effRaw  = (d.effDate || d.effectiveDate || '').slice(0,10);
+        const effDisp = effRaw ? new Date(effRaw + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
         const pnum = d.policyNumber || d.binderNumber || '—';
         const lobBadge = d.lineOfBusiness
             ? `<span style="background:#eff6ff;color:#1e40af;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;">${d.lineOfBusiness}</span>`
@@ -7643,7 +10180,10 @@ function apdRenderTable(data) {
             : '—';
         return `<tr style="border-bottom:1px solid #f1f5f9;"
             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-            <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;">${disp}</td>
+            <td style="padding:9px 12px;font-size:12px;color:#64748b;white-space:nowrap;">
+                <div>${disp}</div>
+                ${effDisp ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Eff: ${effDisp}</div>` : ''}
+            </td>
             <td style="padding:9px 12px;font-size:13px;font-weight:600;color:#1e40af;">${d.agent||'—'}</td>
             <td style="padding:9px 12px;font-size:13px;">${d.customerName||'—'}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;font-family:monospace;">${pnum}</td>
@@ -7665,7 +10205,7 @@ function apdRenderTable(data) {
             <table style="width:100%;border-collapse:collapse;min-width:1000px;">
                 <thead>
                     <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
-                        ${th('entryDate','Date')}
+                        ${dateTh()}
                         ${th('agent','Agent')}
                         ${th('customerName','Client Name')}
                         ${th('policyNumber','Policy #')}
@@ -7696,7 +10236,7 @@ function apdSort(col) {
         _apdSortDir *= -1;
     } else {
         _apdSortCol = col;
-        _apdSortDir = (col === 'totalPremium' || col === 'basePremium' || col === 'entryDate') ? -1 : 1;
+        _apdSortDir = (col === 'totalPremium' || col === 'basePremium' || col === 'entryDate' || col === 'effDate') ? -1 : 1;
     }
     apdRenderTable(apdGetFilteredData());
 }
@@ -7818,9 +10358,10 @@ function apdExportCSV() {
     const data = apdGetFilteredData();
     if (data.length === 0) { alert('No data to export for this period.'); return; }
 
-    const headers = ['Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
+    const headers = ['Date','Effective Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
     const rows = data.map(d => [
         d.entryDate         || '',
+        d.effDate || d.effectiveDate || '',
         d.agent             || '',
         d.customerName      || '',
         d.policyNumber      || '',
@@ -7847,110 +10388,6 @@ function apdExportCSV() {
     a.download = `production_agent_${_apdPeriod}_${getEasternDateString()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-}
-
-// ── Binder Book May 26 Bulk Import ───────────────────────────────────────────
-async function importBinderMay26Data() {
-    const confirmed = confirm(
-        'Import Binder Book May 26 entries?\n\n' +
-        '• 40 policy entries (May 2026)\n' +
-        '• Agents: Uriel Rendon, Lazaro Reigosa Cruz, Amanda Montano, Randy Diaz\n' +
-        '• Personal Auto, Commercial, and other lines\n' +
-        '• Existing entries with matching IDs will be skipped (safe to re-run)\n\n' +
-        'Click OK to proceed.'
-    );
-    if (!confirmed) return;
-
-    let importData;
-    try {
-        const resp = await fetch('binder_may26_import.json?v=20260524');
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        importData = await resp.json();
-    } catch (err) {
-        alert('Failed to load binder_may26_import.json: ' + err.message);
-        return;
-    }
-
-    let existing = [];
-    try { existing = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) { existing = []; }
-
-    const existingIds = new Set(existing.map(e => e.id));
-    const newEntries  = importData.filter(e => !existingIds.has(e.id));
-
-    if (newEntries.length === 0) {
-        alert('All Binder Book May 26 entries already exist. Nothing was imported.');
-        return;
-    }
-
-    const merged = [...existing, ...newEntries];
-    localStorage.setItem('binderData', JSON.stringify(merged));
-    allData = merged;
-
-    alert(
-        `✅ Import complete!\n\n` +
-        `• ${newEntries.length} new entries added\n` +
-        `• ${importData.length - newEntries.length} duplicates skipped\n` +
-        `• Total records now: ${merged.length}`
-    );
-
-    if (typeof loadAdminData === 'function') loadAdminData();
-    if (typeof apdInit     === 'function') apdInit();
-    if (typeof prodApplyFilters === 'function') prodApplyFilters();
-}
-
-// ── Jorge Castro Bulk Import ─────────────────────────────────────────────────
-async function importJorgeCastroData() {
-    const confirmed = confirm(
-        'Import Jorge Castro commission data?\n\n' +
-        '• 3,428 policy entries (Jun 2023 – Apr 2026)\n' +
-        '• Location: Doral\n' +
-        '• Existing entries with matching IDs will be skipped (safe to re-run)\n\n' +
-        'Click OK to proceed.'
-    );
-    if (!confirmed) return;
-
-    let importData;
-    try {
-        const resp = await fetch('jorge_import.json?v=20260522');
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        importData = await resp.json();
-    } catch (err) {
-        alert('Failed to load jorge_import.json: ' + err.message);
-        return;
-    }
-
-    // Load current binderData
-    let existing = [];
-    try {
-        existing = JSON.parse(localStorage.getItem('binderData')) || [];
-    } catch (e) {
-        existing = [];
-    }
-
-    // Deduplicate by ID
-    const existingIds = new Set(existing.map(e => e.id));
-    const newEntries  = importData.filter(e => !existingIds.has(e.id));
-
-    if (newEntries.length === 0) {
-        alert('All Jorge Castro entries already exist in the system. Nothing was imported.');
-        return;
-    }
-
-    const merged = [...existing, ...newEntries];
-    localStorage.setItem('binderData', JSON.stringify(merged));
-    allData = merged;
-
-    alert(
-        `✅ Import complete!\n\n` +
-        `• ${newEntries.length} new entries added\n` +
-        `• ${importData.length - newEntries.length} duplicates skipped\n` +
-        `• Total records now: ${merged.length}`
-    );
-
-    // Refresh admin view if active
-    if (typeof loadAdminData === 'function') loadAdminData();
-    if (typeof apdInit     === 'function') apdInit();
-    if (typeof prodApplyFilters === 'function') prodApplyFilters();
 }
 
 // ============================================================
@@ -8070,7 +10507,7 @@ function _binderStorageUrl(path) {
     return `${SUPABASE_URL}/storage/v1/object/${FILES_BUCKET}/` + path.split('/').map(encodeURIComponent).join('/');
 }
 
-async function binderCloudUpload(file, clientKey, category) {
+async function binderCloudUpload(file, clientKey, category, uploadedBy) {
     const path = _binderStoragePath(clientKey, file.name);
     const res = await fetch(_binderStorageUrl(path), {
         method: 'POST',
@@ -8096,9 +10533,57 @@ async function binderCloudUpload(file, clientKey, category) {
             storage_path: path,
             size_bytes: file.size,
             mime_type: file.type || 'application/octet-stream',
-            uploaded_by: currentUser || 'Agent'
+            uploaded_by: uploadedBy || currentUser || 'Agent'
         }])
     });
+}
+
+// Files that could only be saved in this browser's IndexedDB (cloud
+// unreachable at the time, or AI-chat archives from older builds) exist on
+// this computer alone. Send each one to Supabase Storage so every device
+// sees it, and drop the local copy once the cloud has it.
+let _pushingLocalFiles = false;
+async function binderPushLocalFilesToCloud(report) {
+    const result = { uploaded: 0, skipped: 0, failed: 0 };
+    if (_pushingLocalFiles) return result;
+    _pushingLocalFiles = true;
+    try {
+        if (!binderDB) await binderInitDB();
+        if (!binderDB) return result;
+        const records = await new Promise(resolve => {
+            try {
+                const req = binderDB.transaction('files', 'readonly').objectStore('files').getAll();
+                req.onsuccess = e => resolve(e.target.result || []);
+                req.onerror   = () => resolve([]);
+            } catch (e) { resolve([]); }
+        });
+        const pending = records.filter(r => r && r.data && r.name && r.clientKey);
+        const cloudByKey = {};
+        for (const rec of pending) {
+            try {
+                if (!cloudByKey[rec.clientKey]) cloudByKey[rec.clientKey] = await binderCloudList(rec.clientKey);
+                const size = rec.size || rec.data.byteLength;
+                const already = cloudByKey[rec.clientKey].some(f => f.file_name === rec.name && Number(f.size_bytes) === size);
+                if (already) {
+                    result.skipped++;
+                } else {
+                    const file = new File([rec.data], rec.name, { type: rec.type || 'application/octet-stream' });
+                    await binderCloudUpload(file, rec.clientKey, rec.category || 'Other', rec.uploadedBy);
+                    cloudByKey[rec.clientKey].push({ file_name: rec.name, size_bytes: file.size });
+                    result.uploaded++;
+                }
+                await binderDBDeleteFile(rec.id);
+            } catch (e) {
+                result.failed++;
+                console.warn('Could not send local-only file to the cloud:', rec.name, e);
+            }
+        }
+        if (pending.length) console.log('Local-only files sent to cloud:', result);
+        return result;
+    } finally {
+        _pushingLocalFiles = false;
+        if (typeof report === 'function') report(result);
+    }
 }
 
 async function binderCloudList(clientKey) {
@@ -8123,6 +10608,70 @@ async function binderCloudDownload(docId) {
     a.download = f.name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+// Preview a cloud file in place instead of downloading it. PDFs render in an
+// iframe, images in an <img>, plain text/CSV in a <pre>; anything else (xlsx
+// and friends) has no browser viewer, so the modal offers the download.
+async function binderCloudPreview(docId) {
+    const f = _binderCloudFiles[docId];
+    if (!f) return;
+    const name = f.name || 'document';
+    const ext  = (name.split('.').pop() || '').toLowerCase();
+    document.getElementById('binderPreviewModal')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'binderPreviewModal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:100002;display:flex;align-items:center;justify-content:center;padding:22px;';
+    overlay.onclick = e => { if (e.target === overlay) _binderClosePreview(); };
+    overlay.innerHTML = `<div style="background:#fff;border-radius:14px;width:100%;max-width:980px;height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4);">
+        <div style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <strong style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📄 ${escHtml(name)}</strong>
+            <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+                <button onclick="binderCloudDownload('${escHtml(String(docId))}')"
+                    style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:#fff;padding:5px 12px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;">⬇ Download</button>
+                <button onclick="_binderClosePreview()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+            </div>
+        </div>
+        <div id="binderPreviewBody" style="flex:1;overflow:auto;background:#f3f4f6;display:flex;align-items:center;justify-content:center;">
+            <div style="color:#6b7280;font-style:italic;">Loading preview…</div>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const body = document.getElementById('binderPreviewBody');
+    if (!['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt', 'csv'].includes(ext)) {
+        body.innerHTML = `<div style="text-align:center;color:#6b7280;padding:30px;">
+            <div style="font-size:44px;margin-bottom:10px;">📄</div>
+            <p style="font-size:14px;margin-bottom:6px;"><strong>${escHtml(name)}</strong></p>
+            <p style="font-size:13px;">This file type can't be previewed in the browser.<br>Use Download to open it.</p></div>`;
+        return;
+    }
+    try {
+        const res = await fetch(_binderStorageUrl(f.path), {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+        });
+        if (!res.ok) { body.innerHTML = `<div style="color:#dc2626;padding:30px;">Could not load this file (HTTP ${res.status}).</div>`; return; }
+        if (ext === 'txt' || ext === 'csv') {
+            const text = await res.text();
+            body.style.alignItems = 'stretch';
+            body.innerHTML = `<pre style="margin:0;padding:18px;font-size:12.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;width:100%;">${escHtml(text.slice(0, 200000))}</pre>`;
+            return;
+        }
+        const type = ext === 'pdf' ? 'application/pdf' : ('image/' + (ext === 'jpg' ? 'jpeg' : ext));
+        const url  = URL.createObjectURL(new Blob([await res.arrayBuffer()], { type }));
+        overlay.dataset.blobUrl = url;
+        body.style.alignItems = ext === 'pdf' ? 'stretch' : 'center';
+        body.innerHTML = ext === 'pdf'
+            ? `<iframe src="${url}" style="width:100%;height:100%;border:none;"></iframe>`
+            : `<img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain;" alt="${escHtml(name)}">`;
+    } catch (e) {
+        body.innerHTML = `<div style="color:#dc2626;padding:30px;">Could not load this file — ${escHtml(String(e.message || e))}</div>`;
+    }
+}
+
+function _binderClosePreview() {
+    const m = document.getElementById('binderPreviewModal');
+    if (m?.dataset.blobUrl) URL.revokeObjectURL(m.dataset.blobUrl);
+    m?.remove();
 }
 
 async function binderCloudDelete(docId) {
@@ -8161,6 +10710,7 @@ async function binderLoadFileList() {
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.file_name)}">☁️ ${escHtml(f.file_name)}</span>
             <span style="color:#6b7280;font-size:12px;white-space:nowrap;padding:2px 6px;background:#f3f4f6;border-radius:4px;">${escHtml(f.category || 'Other')}</span>
             <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploaded_at).toLocaleDateString()}</span>
+            <button class="btn-secondary btn-sm" onclick="binderCloudPreview('${escHtml(f.id)}')" style="padding:3px 8px;font-size:11px;" title="Preview in the browser">👁️</button>
             <button class="btn-primary btn-sm" onclick="binderCloudDownload('${escHtml(f.id)}')" style="padding:3px 8px;font-size:11px;" title="Download">⬇️</button>
             <button class="btn-danger btn-sm" onclick="binderCloudDelete('${escHtml(f.id)}')" style="padding:3px 8px;font-size:11px;" title="Delete">🗑️</button>
         </div>
@@ -8637,41 +11187,10 @@ function claudeFindExistingClient(customerName, policyNumber) {
     ) || null;
 }
 
-// Email admin@universalinsurancebroker.com via the Apps Script proxy.
-// Requires a `sendEmail` action handler in the deployed Google Apps Script.
+// Flag the duplicate for the administrators in the Access Log (no customer
+// data leaves the system; the old unauthenticated email relay is gone).
 async function claudeNotifyAdminExistingClient(existing, reported, reporter) {
-    const subject = `⚠️ Existing client policy re-reported via chat: ${reported.customerName || ''}`;
-    const body = [
-        `An existing client/policy was reported again through the AI Assistant chat.`,
-        ``,
-        `Reported by (agent credited on the new entry): ${reporter}`,
-        ``,
-        `--- Reported policy ---`,
-        `Customer: ${reported.customerName || '-'}`,
-        `Policy #: ${reported.policyNumber || '-'}`,
-        `Carrier:  ${reported.company || '-'}`,
-        `LOB:      ${reported.lineOfBusiness || '-'}`,
-        `Premium:  $${reported.totalPremium || '-'}`,
-        ``,
-        `--- Existing record already on file ---`,
-        `Original agent (shown in app): ${existing.agent || '-'}`,
-        `Original entry date:           ${existing.entryDate || '-'}`,
-        `Existing carrier:              ${existing.company || '-'}`,
-        `Existing total premium:        $${existing.totalPremium || '-'}`,
-    ].join('\n');
-    try {
-        await fetch(DRIVE_API_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-                action: 'sendEmail',
-                to: 'admin@universalinsurancebroker.com',
-                subject,
-                body
-            })
-        });
-    } catch (e) {
-        console.warn('Admin existing-client email failed:', e);
-    }
+    try { if (window.UIBAudit) UIBAudit.log('duplicate_flagged', reported.customerName || '', { reporter, policyNumber: reported.policyNumber || '', originalAgent: existing.agent || '', originalEntryDate: existing.entryDate || '' }); } catch (e) {}
 }
 
 // Returns warning HTML (empty string if not an existing client).
@@ -8719,12 +11238,26 @@ function claudeBase64ToArrayBuffer(base64) {
 async function claudeArchivePdfToClientFiles(pdf, customerName, category) {
     if (!pdf || !pdf.base64 || !pdf.name) return null;
     try {
-        if (!binderDB) await binderInitDB();
-        if (!binderDB) return null;
-
         const named     = (customerName || '').trim();
         const clientKey = named ? binderClientKey(named) : 'UNFILED';
         const buffer    = claudeBase64ToArrayBuffer(pdf.base64);
+        const by        = currentUser || 'AI Assistant';
+
+        // Cloud first, like a manual upload, so the PDF shows on every device;
+        // this browser's IndexedDB is only the offline fallback.
+        try {
+            const cloud = await binderCloudList(clientKey);
+            if (cloud.some(f => f.file_name === pdf.name && Number(f.size_bytes) === buffer.byteLength)) {
+                return { clientKey, duplicate: true };
+            }
+            await binderCloudUpload(new File([buffer], pdf.name, { type: 'application/pdf' }), clientKey, category || 'Policy', by);
+            return { clientKey, duplicate: false };
+        } catch (cloudErr) {
+            console.warn('Cloud archive failed, saving locally:', pdf.name, cloudErr);
+        }
+
+        if (!binderDB) await binderInitDB();
+        if (!binderDB) return null;
 
         // Don't re-save the same document twice for the same client
         const existing = await binderDBGetFiles(clientKey);
@@ -8741,10 +11274,10 @@ async function claudeArchivePdfToClientFiles(pdf, customerName, category) {
             size:       buffer.byteLength,
             category:   category || 'Policy',
             uploadedAt: new Date().toISOString(),
-            uploadedBy: currentUser || amsCurrentUser || 'AI Assistant',
+            uploadedBy: by,
             data:       buffer
         });
-        return { clientKey, duplicate: false };
+        return { clientKey, duplicate: false, localOnly: true };
     } catch (e) {
         console.warn('Failed to archive chat PDF to client files:', e);
         return null;
@@ -8760,6 +11293,11 @@ function claudeRenderArchiveNotice(result, pdfName, customerName) {
     if (result.duplicate) {
         return `<div style="margin-top:10px;padding:10px 12px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;color:#475569;">
             📁 "${_claudeEsc(pdfName)}" is already saved in ${where} — not duplicated.
+        </div>`;
+    }
+    if (result.localOnly) {
+        return `<div style="margin-top:10px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e;">
+            📁 Saved "${_claudeEsc(pdfName)}" to ${where} on this computer only (cloud unreachable) — it is sent to the cloud automatically the next time the Binder Book opens online.
         </div>`;
     }
     return `<div style="margin-top:10px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af;">
@@ -8991,10 +11529,36 @@ Before the JSON, give a brief 2-3 sentence summary of what you found (document t
 // 4096-token response, truncating the extraction JSON mid-output so no
 // "extracted" card ever appears. Callers with even larger outputs (the admin
 // commission processor) pass a higher limit explicitly.
+// Anthropic SSE stream (as text) → the same { text, stopReason } shape the
+// buffered path returns. Mirrors aiParseSSE in ams.js.
+function _claudeParseSSE(raw) {
+    let text = '', stopReason = null, errType = null, errMsg = null;
+    raw.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line.startsWith('data:')) return;
+        const body = line.slice(5).trim();
+        if (!body || body === '[DONE]') return;
+        let evt;
+        try { evt = JSON.parse(body); } catch (e) { return; }
+        if (evt.type === 'content_block_delta' && evt.delta && evt.delta.type === 'text_delta') text += evt.delta.text || '';
+        else if (evt.type === 'message_delta' && evt.delta && evt.delta.stop_reason) stopReason = evt.delta.stop_reason;
+        else if (evt.type === 'error' && evt.error) { errType = evt.error.type || ''; errMsg = evt.error.message || JSON.stringify(evt.error); }
+    });
+    if (errMsg) {
+        if (errType === 'authentication_error') throw new Error('Claude API: invalid API key. Set the ANTHROPIC_API_KEY secret in your Supabase Edge Functions.');
+        throw new Error(`Claude API ${errType}: ${errMsg}`);
+    }
+    if (!text) throw new Error('Empty response from Claude (the stream produced no text).');
+    return { text, stopReason, raw: null };
+}
+
 async function claudeCallAPI(systemPrompt, messages, maxTokens = 8192) {
     const payload = {
         model: CLAUDE_MODEL,
         max_tokens: maxTokens,
+        // Streamed so bytes keep flowing: a buffered call on long PDFs hit
+        // Supabase's 150-second idle timeout (IDLE_TIMEOUT).
+        stream: true,
         system: systemPrompt,
         messages: messages.map(m => ({
             role: m.role,
@@ -9014,6 +11578,7 @@ async function claudeCallAPI(systemPrompt, messages, maxTokens = 8192) {
 
     // Read as text first so we can see exactly what came back
     const raw = await res.text();
+    if (raw.startsWith('event:') || raw.startsWith('data:')) return _claudeParseSSE(raw);
     let data;
     try { data = JSON.parse(raw); }
     catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`); }
@@ -10091,7 +12656,7 @@ async function claudeAdminApplyStatement(stmt) {
         return;
     }
 
-    const monthLabel = stmt.statementMonth || stmt.statementDate || `Statement ${new Date().toISOString().slice(0, 10)}`;
+    const monthLabel = csUploadTargetMonth || stmt.statementMonth || stmt.statementDate || `Statement ${new Date().toISOString().slice(0, 10)}`;
     const carrier = stmt.carrier || 'Unknown';
     const key = `${monthLabel} — ${carrier} (AI)`;
 
@@ -10159,7 +12724,9 @@ async function claudeAdminApplyStatement(stmt) {
     const cloudOk = await claudeAdminSaveStatementsToSupabase();
 
     const docNote = documents.length
-        ? `\n✓ ${documents.length} original PDF${documents.length > 1 ? 's' : ''} filed under ${(documents[0].monthKey || '').replace('MonthlyDocs_', '').split('_').reverse().join(' ')} in the Documents section.`
+        ? (/^AgentStmt_/.test(documents[0].monthKey || '')
+            ? `\n✓ ${documents.length} original PDF${documents.length > 1 ? 's' : ''} kept in ${csUploadTargetAgent}'s ${csUploadTargetMonth} statement files.`
+            : `\n✓ ${documents.length} original PDF${documents.length > 1 ? 's' : ''} filed under ${(documents[0].monthKey || '').replace('MonthlyDocs_', '').split('_').reverse().join(' ')} in the Documents section.`)
         : (_claudeAdminLastPdfs.length ? '\n⚠️ Could not upload the original PDF(s) to cloud storage.' : '');
 
     if (cloudOk) {
@@ -10193,7 +12760,13 @@ function _mdocKeyForMonthLabel(label) {
 // return their metadata for the statement record.
 async function claudeAdminUploadStatementDocs(monthLabel) {
     const docs = [];
-    const mdocKey = _mdocKeyForMonthLabel(monthLabel);
+    // From an agent's month tile the originals stay in that agent's month
+    // folder; otherwise they go to Documents as before.
+    let mdocKey = _mdocKeyForMonthLabel(monthLabel);
+    if (csUploadTargetMonth && csUploadTargetAgent) {
+        const [mn, yr] = csUploadTargetMonth.split(' ');
+        mdocKey = 'AgentStmt_' + csUploadTargetAgent + '_' + yr + '_' + mn;
+    }
     for (const pdf of _claudeAdminLastPdfs) {
         try {
             const safeName = String(pdf.name).replace(/[^\w.\- ()]/g, '_');
@@ -10429,6 +13002,44 @@ function updateVehiclesEmptyState(suffix = '') {
 
 function amsClientKeyFromName(name) {
     return (name || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+// Open the AMS. It is a separate deployment, so the browser does NOT copy
+// this tab's sign-in into it the way it does for a same-origin tab — the
+// opened window asks for the session back over postMessage instead (see
+// the bridge in uib-auth.js), which is why the reference is kept rather
+// than discarded.
+function binderOpenAms(path) {
+    const base = String((window.UIB_CONFIG || {}).AMS_URL || '/ams').replace(/\/+$/, '');
+    const w = window.open(base + (path || ''), '_blank');
+    if (w) { try { w.focus(); } catch (e) {} }
+    return w;
+}
+
+// A customer's own profile in the AMS. The AMS keys clients by the
+// upper-cased, space-collapsed name (its amsClientKey is this same
+// transform), so the link needs no stored id to find the right record.
+function amsClientUrl(name) {
+    const base = String((window.UIB_CONFIG || {}).AMS_URL || '/ams').replace(/\/+$/, '');
+    return base + '?client=' + encodeURIComponent(amsClientKeyFromName(name));
+}
+
+// The customer cell on the Your Submissions table — the one place a name
+// is a link. Everywhere else a name is still plain text on purpose: this
+// table is the agent's own book, where opening the client is the next
+// thing they want.
+function amsCustomerCell(name) {
+    if (!name) return '—';
+    // Opened with window.open, not by letting the anchor do it: browsers
+    // now imply rel=noopener for target=_blank, and without an opener the
+    // AMS has nobody to ask for the sign-in and lands the agent on a login
+    // screen. The href stays real so the row is still a proper link.
+    const url = amsClientUrl(name);
+    return `<a href="${_esc(url)}" onclick="event.preventDefault();binderOpenAms(this.dataset.q)"` +
+           ` data-q="${_esc(url.slice(url.indexOf('?')))}"` +
+           ` title="Open ${_esc(name)} in the AMS"` +
+           ` style="color:#1d4ed8;font-weight:600;text-decoration:none;border-bottom:1px solid rgba(29,78,216,.3);">` +
+           `${_esc(name)}</a>`;
 }
 
 function splitCustomerName(fullName) {
@@ -10732,40 +13343,25 @@ function importLRCQ1Transactions() {
 // id, tombstones respected) — it only adds back what's missing,
 // never duplicates and never resurrects intentional deletions.
 // ============================================================
-const BACKUP_SNAPSHOT_KEYS = ['binderData', 'binderDeletedIds', 'commissionData', 'carrierMasterData', 'prospectData'];
+// Restore only ever merges binderData back (see restoreCloudBackup); the other
+// keys ride along so a snapshot is a complete picture — including the signed
+// dealer verification logs, which were not being backed up at all before.
+const BACKUP_SNAPSHOT_KEYS = ['binderData', 'binderDeletedIds', 'commissionData', 'carrierMasterData', 'prospectData',
+                              'verificationLogs', 'verificationLogsDeleted', 'commissionStatements', 'agentMasterData'];
 const BACKUP_SLOTS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => 'backupSnapshot_' + d)
     .concat(Array.from({length:12}, (_, i) => 'backupSnapshot_M' + String(i + 1).padStart(2, '0')));
 
 // Plain write — deliberately NOT driveSet: snapshots are point-in-time
 // copies that must never be merged with the cloud or flagged dirty.
-// Snapshots are written to BOTH backends. Supabase is the primary store, but
-// when it went down for a full day the backups went down with it — a backup
-// that shares a failure domain with the thing it protects is not a backup. The
-// Apps Script store stayed reachable throughout, so it gets a copy too. A
-// failure on either side never blocks the other.
+// Snapshots go to Supabase only (the unauthenticated Apps Script mirror was
+// retired); enable daily backups in the Supabase dashboard for the off-site copy.
 async function _backupPost(key, value) {
-    const results = await Promise.allSettled([
-        (async () => {
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
-                method: 'POST',
-                headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
-                body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
-            });
-            if (!res.ok) throw new Error('Supabase HTTP ' + res.status);
-        })(),
-        (async () => {
-            // Apps Script mirror — no-cors, so success is best-effort by design.
-            await fetch(DRIVE_API_URL, {
-                method: 'POST', mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key, value })
-            });
-        })()
-    ]);
-    // Only fail if BOTH backends rejected — one surviving copy is enough.
-    if (results.every(r => r.status === 'rejected')) {
-        throw new Error('both backup backends failed: ' + results.map(r => r.reason).join(' | '));
-    }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+        method: 'POST',
+        headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates' }),
+        body: JSON.stringify([{ key, value, updated_at: new Date().toISOString() }])
+    });
+    if (!res.ok) throw new Error('Supabase HTTP ' + res.status);
 }
 
 // Freshness probe: fetch ONLY the snapshot's date field, not the multi-MB
@@ -10782,9 +13378,18 @@ async function _snapshotDate(slot) {
 }
 
 let _backupRanThisLoad = false;
-async function runDailyCloudBackup() {
+// The snapshot is a multi-MB upload, so it waits until the page has settled,
+// and phones leave it to desktops unless no device has backed up in 2 days.
+function runDailyCloudBackup() {
     if (_backupRanThisLoad) return;
     _backupRanThisLoad = true;
+    setTimeout(_runDailyCloudBackup, 20000);
+}
+function _isPhone() {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '') ||
+        (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent || ''));
+}
+async function _runDailyCloudBackup() {
     try {
         const today = getEasternDateString();                       // YYYY-MM-DD (ET)
         const noon  = new Date(today + 'T12:00:00');
@@ -10796,6 +13401,13 @@ async function runDailyCloudBackup() {
         const needDaily   = dailyDate !== today;
         const needMonthly = !monthlyDate || String(monthlyDate).slice(0, 7) !== today.slice(0, 7);
         if (!needDaily && !needMonthly) return;   // both current — two tiny probes, zero blobs
+        if (_isPhone() && !needMonthly) {
+            // Skip if yesterday's snapshot exists: a desktop will take today's.
+            const y = new Date(noon.getTime() - 86400000);
+            const ySlot = 'backupSnapshot_' + y.toLocaleDateString('en-US', { weekday: 'short' });
+            const yIso = y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0');
+            if (await _snapshotDate(ySlot) === yIso) return;
+        }
 
         let entries = [];
         try { entries = JSON.parse(localStorage.getItem('binderData')) || []; } catch (e) {}
@@ -11024,6 +13636,7 @@ async function mdocLoadFileList() {
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(f.file_name)}">📄 ${escHtml(f.file_name)}</span>
             <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${f.size_bytes ? (f.size_bytes / 1024 / 1024).toFixed(2) + ' MB' : ''}</span>
             <span style="color:#9ca3af;font-size:11px;white-space:nowrap;">${new Date(f.uploaded_at).toLocaleDateString()}</span>
+            <button class="btn-secondary btn-sm" onclick="binderCloudPreview('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Preview in the browser">👁️</button>
             <button class="btn-primary btn-sm" onclick="binderCloudDownload('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Download">⬇️</button>
             <button class="btn-danger btn-sm" onclick="mdocDeleteFile('${escHtml(String(f.id))}')" style="padding:3px 9px;font-size:11px;" title="Delete">🗑️</button>
         </div>`).join('');
@@ -11188,9 +13801,7 @@ function rnwSelectMonth(monthKey) {
 }
 
 function _rnwAgentList() {
-    const entryAgents  = (allData || []).map(e => e.agent).filter(Boolean);
-    const masterAgents = Object.keys(JSON.parse(localStorage.getItem('agentMasterData') || '{}'));
-    return [...new Set([...entryAgents, ...masterAgents])].sort();
+    return getAllAgents();
 }
 
 // The rows currently rendered in the renewals table, in display order.
@@ -11745,7 +14356,7 @@ function claudeRenewalImportAll(setIdx) {
 // delete a policy that is already there.
 // ============================================================
 const SAFETY_KEYS = ['binderData', 'binderDeletedIds', 'commissionData', 'carrierMasterData',
-                     'prospectData', 'agentMasterData', 'agentCredentials', 'amsClientData',
+                     'prospectData', 'agentMasterData', 'amsClientData',
                      'commissionStatements', 'verificationLogs'];
 
 function _safetyLocal(key) {
@@ -11846,6 +14457,8 @@ function showDataSafety() {
             '<p style="margin:0 0 14px;"><strong>Download a snapshot</strong> to keep an off-cloud copy of the whole book on your own computer. Do this regularly, and especially before any big import.</p>' +
             '<button onclick="downloadLocalSnapshot()" style="width:100%;background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;border:none;padding:11px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:18px;">⬇ Download snapshot (' + count + ' policies)</button>' +
             '<p style="margin:0 0 14px;"><strong>Restore from a snapshot</strong> merges a saved file back in. It only <em>adds</em> missing policies — it never deletes or overwrites what is already there.</p>' +
+            '<p style="margin:0 0 14px;"><strong>Send this computer\'s local-only files to the cloud.</strong> Documents that could only be saved on this PC (💾) are uploaded so every device — and the new site address — can see them. This also runs by itself each time the Binder Book opens.</p>' +
+            '<button onclick="this.disabled=true;this.textContent=\'Sending…\';binderPushLocalFilesToCloud(function(r){alert(\'Sent \'+r.uploaded+\' file(s) to the cloud, \'+r.skipped+\' already there, \'+r.failed+\' failed.\');document.getElementById(\'dataSafetyModal\').remove();})" style="width:100%;background:#fff;border:1.5px solid #0f766e;color:#0f766e;padding:11px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:16px;">📤 Send local files to cloud</button>' +
             '<input type="file" id="dataSafetyFile" accept="application/json,.json" style="display:none;" onchange="restoreSnapshotFromFile(this)">' +
             '<button onclick="document.getElementById(\'dataSafetyFile\').click()" style="width:100%;background:#fff;border:1.5px solid #0f766e;color:#0f766e;padding:11px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;">⬆ Restore from snapshot file…</button>' +
           '</div>' +
@@ -11853,3 +14466,267 @@ function showDataSafety() {
     document.body.appendChild(m);
     m.addEventListener('click', e => { if (e.target === m) m.remove(); });
 }
+
+
+// ═══════════════════════════════════════════════════════════════
+//  COMPLIANCE: audit hooks, Access Log, Retention Review (admin)
+// ═══════════════════════════════════════════════════════════════
+(function () {
+    const L = (a, t, d) => { try { if (window.UIBAudit) UIBAudit.log(a, t, d); } catch (e) {} };
+    const wrap = (name, action, targetFn, detailsFn) => {
+        const orig = window[name]; if (typeof orig !== 'function') return;
+        window[name] = function () { const r = orig.apply(this, arguments); try { L(action, targetFn ? targetFn.apply(this, arguments) : null, detailsFn ? detailsFn.apply(this, arguments) : null); } catch (e) {} return r; };
+    };
+    wrap('exportToCSV', 'export', (entries, filename) => filename, (entries) => ({ rows: entries ? entries.length : 0, format: 'csv' }));
+    wrap('exportToExcel', 'export', () => 'all_sales.xlsx', () => ({ rows: (allData || []).length, format: 'xlsx' }));
+    wrap('exportAgentCommissions', 'export', () => 'agent_commissions.csv', () => ({ format: 'csv' }));
+    wrap('exportAgentCommissionsPDF', 'export', () => 'agent_commissions.pdf', () => ({ format: 'pdf' }));
+    wrap('exportCSAgentReportCSV', 'export', () => 'commission_statement_agent.csv', () => ({ format: 'csv' }));
+    wrap('exportCSAdjustmentsCSV', 'export', () => 'commission_adjustments.csv', () => ({ format: 'csv' }));
+    wrap('deleteEntry', 'delete_entry', (id) => { const e = (allData || []).find(x => x.id === id); return e ? e.customerName : String(id); }, (id) => ({ id }));
+    wrap('saveEntry', 'save_entry', () => { const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : ''; const el = document.getElementById('customerName' + sfx); return el ? el.value : ''; }, () => { const sfx = typeof _lineTypeSuffix === 'function' ? _lineTypeSuffix() : ''; const el = document.getElementById('policyNumber' + sfx); return { policyNumber: el ? el.value : '' }; });
+    wrap('enterAdmin', 'admin_console', null, null);
+})();
+
+const ACTION_LABELS = { sign_in: 'Signed in', sign_out: 'Signed out', sign_out_click: 'Signed out', admin_console: 'Opened admin console', view_client: 'Viewed client', save_contact: 'Saved contact', save_entry: 'Saved entry', delete_entry: 'Deleted entry', delete_policy: 'Deleted policy', view_file: 'Viewed file', upload_file: 'Uploaded file', delete_file: 'Deleted file', export: 'Exported data', duplicate_flagged: 'Duplicate flagged', retention_delete: 'Retention deletion', legal_hold: 'Legal hold', training_ack: 'Acknowledgment signed', cred_create: 'Login created', cred_reset_password: 'Password reset', cred_delete: 'Login deleted', cred_set_role: 'Role changed', draft_restored: 'Unsaved entry restored', mfa_setting: '2-step setting changed', reassign_entry: 'Submission reassigned', ai_engine: 'AI engine changed', ai_request: 'AI request' };
+
+function showAccessLog() {
+    if (!isAgentAdmin()) { alert('Only administrators can view the access log.'); return; }
+    showSection('accessLogSection');
+    refreshIcons();
+    renderAccessLog();
+}
+async function renderAccessLog() {
+    const box = document.getElementById('accessLogTable'); if (!box) return;
+    box.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading…</div>';
+    const action = document.getElementById('alFilterAction')?.value || '';
+    const email = (document.getElementById('alFilterUser')?.value || '').trim().toLowerCase();
+    const days = parseInt(document.getElementById('alFilterDays')?.value || '30', 10);
+    let rows = [];
+    try { rows = await UIBAudit.list({ limit: 1000, action: action || undefined, email: email || undefined, since: days ? new Date(Date.now() - days * 864e5).toISOString() : undefined }); }
+    catch (e) { box.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 18px;color:#991b1b;font-size:14px;">${_esc(e.message || e)}</div>`; return; }
+    const fmt = (iso) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: '2-digit', hour: 'numeric', minute: '2-digit' });
+    const det = (d) => d && typeof d === 'object' ? Object.keys(d).filter(k => d[k] !== undefined && d[k] !== null && d[k] !== '').map(k => `${k}: ${d[k]}`).join(' · ') : '';
+    box.innerHTML = `<div class="table-container"><table style="width:100%;"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Record</th><th>Details</th><th>Page</th></tr></thead><tbody>` +
+        (rows.map(r => `<tr><td style="white-space:nowrap;font-size:12px;">${fmt(r.at)}</td><td>${_esc(r.user_name || r.user_email)}<div style="font-size:11px;color:var(--gray-500);">${_esc(r.user_email)}</div></td><td>${_esc(ACTION_LABELS[r.action] || r.action)}</td><td>${_esc(r.target || '')}</td><td style="font-size:12px;color:var(--gray-500);">${_esc(det(r.details))}</td><td style="font-size:12px;">${_esc(r.page || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="no-data">No activity in this period.</td></tr>') +
+        `</tbody></table></div><p style="font-size:12px;color:var(--gray-500);margin-top:10px;">${rows.length} event${rows.length === 1 ? '' : 's'} · the log is append-only and kept 5 years.</p>`;
+    renderAckStatus();
+}
+async function renderAckStatus() {
+    const box = document.getElementById('accessLogAcks'); if (!box) return;
+    let acks = {}; try { acks = (await UIBAudit.getAcks()) || {}; } catch (e) {}
+    const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
+    const rows = getAllAgents().map(n => { const em = ((master[n] && master[n].email) || '').toLowerCase(); const a = em && acks[em]; const ok = a && a.version === UIBAudit.ACK_VERSION; return `<tr><td>${_esc(n)}</td><td style="font-size:12px;">${_esc(em || '—')}</td><td>${ok ? '<span style="color:#166534;font-weight:700;">✓ ' + new Date(a.date).toLocaleDateString() + '</span>' : '<span style="color:#b45309;font-weight:700;">Not yet for ' + UIBAudit.ACK_VERSION + '</span>'}</td></tr>`; }).join('');
+    box.innerHTML = `<h3 style="margin:22px 0 8px;font-size:15px;">Confidentiality &amp; security acknowledgment (${UIBAudit.ACK_VERSION})</h3><div class="table-container"><table style="width:100%;"><thead><tr><th>Agent</th><th>Email</th><th>Accepted</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function exportAccessLogCSV() {
+    const rows = Array.from(document.querySelectorAll('#accessLogTable tbody tr')).map(tr => Array.from(tr.children).map(td => '"' + td.textContent.replace(/"/g, '""').trim() + '"').join(','));
+    if (!rows.length) return;
+    const blob = new Blob(['When,Who,Action,Record,Details,Page\n' + rows.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'access_log.csv'; a.click();
+    if (window.UIBAudit) UIBAudit.log('export', 'access_log.csv', { rows: rows.length, format: 'csv' });
+}
+
+// ── Retention Review ───────────────────────────────────────────
+async function _complianceSettings() {
+    try {
+        const r = await driveGetResult('complianceSettings');
+        const v = (r && r.ok && r.value && typeof r.value === 'object') ? r.value : {};
+        return Object.assign({ retentionYears: 7, legalHold: {} }, v);
+    } catch (e) { return { retentionYears: 7, legalHold: {} }; }
+}
+async function _saveComplianceSettings(v) {
+    await fetch(`${SUPABASE_URL}/rest/v1/app_store`, { method: 'POST', headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }), body: JSON.stringify([{ key: 'complianceSettings', value: v, updated_at: new Date().toISOString() }]) });
+}
+function showRetentionReview() {
+    if (!isAgentAdmin()) { alert('Only administrators can run the retention review.'); return; }
+    showSection('retentionSection');
+    refreshIcons();
+    renderRetentionReview();
+}
+async function renderRetentionReview() {
+    const box = document.getElementById('retentionTable'); if (!box) return;
+    box.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading…</div>';
+    const cfg = await _complianceSettings();
+    const yearsEl = document.getElementById('retentionYears'); if (yearsEl && !yearsEl.dataset.touched) yearsEl.value = cfg.retentionYears;
+    const years = parseInt((yearsEl && yearsEl.value) || cfg.retentionYears, 10) || 7;
+    const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - years);
+    const dateOf = (e) => new Date(e.expDate || e.expirationDate || e.entryDate || e.timestamp || 0);
+    const old = (allData || []).filter(e => { const d = dateOf(e); return d.getTime() > 0 && d < cutoff; }).sort((a, b) => dateOf(a) - dateOf(b));
+    const held = cfg.legalHold || {};
+    box.innerHTML = `<p style="font-size:13px;color:var(--gray-500);margin:0 0 12px;">${old.length} entr${old.length === 1 ? 'y is' : 'ies are'} older than ${years} years (before ${cutoff.toLocaleDateString()}). Florida requires at least 5 years after a policy ends. Records on <b>legal hold</b> are never deleted here.</p>` +
+        `<div class="table-container"><table style="width:100%;"><thead><tr><th><input type="checkbox" onchange="document.querySelectorAll('.retPick').forEach(c=>{ if(!c.disabled) c.checked=this.checked; })"></th><th>Entry date</th><th>Customer</th><th>Agent</th><th>Policy #</th><th>Legal hold</th></tr></thead><tbody>` +
+        (old.map(e => `<tr><td><input type="checkbox" class="retPick" value="${_esc(e.id)}" ${held[e.id] ? 'disabled' : ''}></td><td style="white-space:nowrap;">${_esc((e.entryDate || '').slice(0, 10))}</td><td>${_esc(e.customerName || '')}</td><td>${_esc(e.agent || '')}</td><td>${_esc(e.policyNumber || '')}</td><td><button class="btn-sm ${held[e.id] ? 'btn-danger' : 'btn-secondary'}" onclick="toggleLegalHold('${_esc(e.id)}')">${held[e.id] ? '⚖ On hold — release' : 'Put on hold'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="no-data">Nothing is past the retention period.</td></tr>') +
+        `</tbody></table></div>`;
+}
+async function saveRetentionYears() {
+    const years = parseInt(document.getElementById('retentionYears').value, 10);
+    if (!years || years < 5) { alert('Keep at least 5 years (Florida Statute 626.748).'); return; }
+    const cfg = await _complianceSettings(); cfg.retentionYears = years; await _saveComplianceSettings(cfg);
+    document.getElementById('retentionYears').dataset.touched = '';
+    renderRetentionReview();
+}
+async function toggleLegalHold(id) {
+    const cfg = await _complianceSettings(); cfg.legalHold = cfg.legalHold || {};
+    const e = (allData || []).find(x => x.id === id) || {};
+    if (cfg.legalHold[id]) { if (!confirm('Release the legal hold on this record?')) return; delete cfg.legalHold[id]; }
+    else cfg.legalHold[id] = { by: currentUser, at: new Date().toISOString() };
+    await _saveComplianceSettings(cfg);
+    if (window.UIBAudit) UIBAudit.log('legal_hold', e.customerName || id, { id, on: !!cfg.legalHold[id] });
+    renderRetentionReview();
+}
+async function deleteRetentionSelected() {
+    const ids = Array.from(document.querySelectorAll('.retPick:checked')).map(c => c.value);
+    if (!ids.length) { alert('Select the entries to delete first.'); return; }
+    const cfg = await _complianceSettings(); const held = cfg.legalHold || {};
+    const safe = ids.filter(id => !held[id]);
+    if (!confirm(`Permanently delete ${safe.length} entr${safe.length === 1 ? 'y' : 'ies'} that passed the retention period? This cannot be undone.`)) return;
+    binderMarkDeleted(safe);
+    allData = allData.filter(d => !safe.includes(d.id));
+    localStorage.setItem('binderData', JSON.stringify(allData));
+    if (window.UIBAudit) UIBAudit.log('retention_delete', `${safe.length} entries`, { ids: safe });
+    renderRetentionReview();
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  UNSAVED-FORM PROTECTION on the entry pages
+//  A forced sign-out (30 idle minutes, expired session) reloads the page.
+//  Stash whatever is in the entry form first and offer it back after the
+//  next sign-in on this device.
+// ═══════════════════════════════════════════════════════════════
+const _DRAFT_KEY = 'uibFormDraft';
+function _entryForm() { return document.getElementById('agentForm') || document.getElementById('healthForm'); }
+function uibStashFormDraft() {
+    const form = _entryForm(); if (!form) return false;
+    const fields = {}; let any = false;
+    form.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
+        if (el.type === 'file' || el.type === 'button' || el.type === 'submit' || el.type === 'hidden') return;
+        const v = (el.type === 'checkbox' || el.type === 'radio') ? !!el.checked : el.value;
+        fields[el.id] = v;
+        if (v !== '' && v !== false && v !== el.defaultValue) any = true;
+    });
+    if (!any) return false;
+    try { _origSetItem(_DRAFT_KEY, JSON.stringify({ page: location.pathname, at: Date.now(), user: currentUser || '', fields })); } catch (e) { return false; }
+    return true;
+}
+function uibRestoreFormDraft() {
+    const form = _entryForm(); if (!form) return;
+    let d = null; try { d = JSON.parse(localStorage.getItem(_DRAFT_KEY)); } catch (e) {}
+    if (!d || !d.fields) return;
+    if (d.page !== location.pathname || Date.now() - (d.at || 0) > 24 * 3600 * 1000) { localStorage.removeItem(_DRAFT_KEY); return; }
+    if (!confirm('You were signed out before saving an entry on this page. Restore what you had typed?')) { localStorage.removeItem(_DRAFT_KEY); return; }
+    Object.keys(d.fields).forEach(id => {
+        const el = document.getElementById(id); if (!el) return;
+        if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!d.fields[id]; else el.value = d.fields[id];
+    });
+    localStorage.removeItem(_DRAFT_KEY);
+    if (window.UIBAudit) UIBAudit.log('draft_restored', d.user || '', { page: d.page });
+}
+document.addEventListener('uib:forced-signout', () => { uibStashFormDraft(); });
+document.addEventListener('DOMContentLoaded', () => {
+    if (!_entryForm() || document.getElementById('agentTable')) return;   // entry pages only
+    // A login linked to a name that is not a registered agent must not reach
+    // the entry pages through a restored session either.
+    const u = (window.UIBAuth && UIBAuth.user()) || null;
+    if (u && u.role !== 'admin' && !getAllAgents().includes(u.name)) {
+        const fix = _agentNameForEmail(u.email);
+        if (fix) { UIBAuth.adoptName(fix); try { currentUser = fix; } catch (e) {} }
+    }
+    setTimeout(uibRestoreFormDraft, 400);
+});
+
+
+// ── Agent profile (click the agent name) ──────────────────────
+function openAgentProfile() {
+    const name = currentUser || '';
+    if (!name) return;
+    let master = {}; try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    const rec = master[name] || {};
+    const auth = (window.UIBAuth && UIBAuth.user()) || {};
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const fmtDate = (d) => { if (!d) return ''; const t = new Date(d + 'T00:00:00'); return isNaN(t) ? d : t.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); };
+    const ym = new Date().toISOString().slice(0, 7);
+    const mine = (allData || []).filter(e => e.agent === name && String(e.entryDate || '').startsWith(ym));
+    const premium = mine.reduce((t, e) => t + (parseFloat(e.totalPremium) || 0), 0);
+    const share = mine.reduce((t, e) => t + (parseFloat(e.agentCommissionShare) || 0), 0);
+    const money = (n) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const initials = name.split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+    const row = (label, val) => val ? `<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--gray-200);font-size:14px;"><span style="color:var(--gray-500);">${label}</span><span style="font-weight:600;text-align:right;word-break:break-word;">${val}</span></div>` : '';
+    const role = (auth.role === 'admin') ? 'Administrator' : 'Agent';
+    document.getElementById('agentProfileBody').innerHTML = `
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+            <div style="width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex-shrink:0;">${esc(initials)}</div>
+            <div><div style="font-size:19px;font-weight:800;color:var(--navy);">${esc(name)}</div><div style="font-size:13px;color:var(--gray-500);">${role} · Universal Insurance Brokers</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
+            <div style="background:#eff6ff;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#1e40af;font-weight:700;">THIS MONTH</div><div style="font-size:18px;font-weight:800;color:#1e3a8a;">${mine.length}</div><div style="font-size:11px;color:#1e40af;">policies</div></div>
+            <div style="background:#ecfdf5;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#047857;font-weight:700;">PREMIUM</div><div style="font-size:15px;font-weight:800;color:#065f46;">${money(premium)}</div></div>
+            <div style="background:#f5f3ff;border-radius:10px;padding:10px;text-align:center;"><div style="font-size:11px;color:#6d28d9;font-weight:700;">MY COMMISSION</div><div style="font-size:15px;font-weight:800;color:#5b21b6;">${money(share)}</div></div>
+        </div>
+        ${row('Sign-in email', esc(auth.email || rec.email || ''))}
+        ${row('Phone', esc(rec.phone || ''))}
+        ${row('Office', esc(typeof getAgentDefaultLocation === 'function' ? getAgentDefaultLocation(name) : ''))}
+        ${row('Licenses', esc((rec.licenses || []).join(', ')))}
+        ${row('Address', esc(rec.address || ''))}
+        ${row('Date of birth', esc(fmtDate(rec.dob)))}
+        ${row('Agent since', esc(rec.createdAt ? String(rec.createdAt).split(',')[0] : ''))}
+        ${(!rec.phone && !rec.address && !(rec.licenses || []).length) ? '<p style="font-size:12px;color:var(--gray-500);margin:10px 0 0;">More details appear here once an administrator fills them in under Agent Management.</p>' : ''}`;
+    const m = document.getElementById('agentProfileModal');
+    m.classList.add('active');
+    if (window.UIBMotion && UIBMotion.animateModalOpen) UIBMotion.animateModalOpen(m);
+    refreshIcons();
+}
+function closeAgentProfile() { document.getElementById('agentProfileModal')?.classList.remove('active'); }
+
+
+// ── AI engine settings (admin) ─────────────────────────────────
+async function openAiEngine() {
+    if (!isAgentAdmin()) { alert('Only administrators can change the AI engine.'); return; }
+    if (!window.UIBAI) { alert('The AI engine switch did not load. Reload the page.'); return; }
+    const dev = UIBAI.deviceCfg(); const cfg = Object.assign({}, await UIBAI.agencyCfg(), dev || {});
+    document.getElementById('aiEngine').value = cfg.engine || 'claude';
+    document.getElementById('aiUrl').value = cfg.url || '';
+    document.getElementById('aiModel').value = cfg.model || '';
+    document.getElementById('aiVision').value = cfg.visionModel || '';
+    document.getElementById('aiFallback').checked = cfg.fallback !== false;
+    document.getElementById('aiScope').value = dev ? 'device' : 'agency';
+    document.getElementById('aiTestResult').textContent = dev ? 'This device has its own setting.' : '';
+    aiEngineToggle();
+    document.getElementById('aiEngineModal').classList.add('active');
+    refreshIcons();
+}
+function aiEngineToggle() { document.getElementById('aiOllamaFields').style.display = document.getElementById('aiEngine').value === 'ollama' ? '' : 'none'; }
+function _aiEngineForm() {
+    return { engine: document.getElementById('aiEngine').value, url: document.getElementById('aiUrl').value.trim() || UIBAI.DEFAULTS.url,
+             model: document.getElementById('aiModel').value.trim() || UIBAI.DEFAULTS.model, visionModel: document.getElementById('aiVision').value.trim() || UIBAI.DEFAULTS.visionModel,
+             fallback: document.getElementById('aiFallback').checked };
+}
+async function aiEngineTest() {
+    const out = document.getElementById('aiTestResult'); out.style.color = ''; out.textContent = 'Connecting…';
+    try {
+        const models = await UIBAI.testOllama(document.getElementById('aiUrl').value.trim());
+        document.getElementById('aiModelList').innerHTML = models.map(m => `<option value="${m.replace(/"/g, '&quot;')}">`).join('');
+        out.style.color = '#166534';
+        out.textContent = models.length ? `✓ Connected. Installed models: ${models.join(', ')}` : '✓ Connected, but no models are installed yet. Run: ollama pull llama3.1:8b';
+    } catch (e) {
+        out.style.color = '#991b1b';
+        const url = document.getElementById('aiUrl').value.trim() || UIBAI.DEFAULTS.url;
+        out.innerHTML = e.reason === 'origin'
+            ? '✗ <b>Ollama is running but is blocking this website.</b><br>1. In PowerShell run: <code>setx OLLAMA_ORIGINS "' + location.origin + '"</code><br>2. Right-click the Ollama icon by the clock and choose <b>Quit Ollama</b>, then start Ollama again from the Start menu.<br>3. If Chrome shows a "local network access" prompt, choose <b>Allow</b>. Then press Test connection again.'
+            : e.reason === 'http'
+            ? '✗ Ollama answered with an error (' + e.message + '). Check the address: it should be ' + UIBAI.DEFAULTS.url + '.'
+            : '✗ <b>Nothing is answering at ' + url + '.</b><br>1. Make sure Ollama is installed (ollama.com) and running: its llama icon should be by the clock.<br>2. Open <a href="' + url + '" target="_blank" rel="noopener">' + url + '</a> in a new tab. It should say "Ollama is running".<br>3. If that page works but this test still fails, click the icon left of the web address, set <b>Local network access</b> to Allow, reload and try again.';
+    }
+}
+async function aiEngineSave() {
+    const v = _aiEngineForm();
+    try {
+        if (document.getElementById('aiScope').value === 'device') UIBAI.saveDevice(v);
+        else { await UIBAI.saveAgency(v); UIBAI.saveDevice(null); }
+        if (window.UIBAudit) UIBAudit.log('ai_engine', v.engine, { scope: document.getElementById('aiScope').value, model: v.model, url: v.engine === 'ollama' ? v.url : '' });
+        document.getElementById('aiEngineModal').classList.remove('active');
+        alert('AI engine saved: ' + (v.engine === 'ollama' ? 'Ollama (' + v.model + ')' : 'Claude') + '.');
+    } catch (e) { alert(e.message || e); }
+}
+function aiEngineClearDevice() { UIBAI.saveDevice(null); openAiEngine(); }

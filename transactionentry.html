@@ -2,13 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="uib-config.js?v=20261022a"></script>
+    <script src="lz-string.min.js"></script>
+    <script src="storage-codec.js?v=20261029a"></script>
+    <script src="uib-auth.js?v=20261022c"></script>
+    <script src="uib-audit.js?v=20261013j"></script>
+    <script src="uib-ai.js?v=20261022c"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>New Transaction Entry - UIB Binder Book</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --navy:       #0d1f3c;
@@ -268,6 +274,7 @@
             .app-header h1 { font-size: 16px; }
         }
     </style>
+    <link rel="stylesheet" href="uib-theme.css?v=20261003a">
 </head>
 <body>
 
@@ -279,7 +286,7 @@
 <!-- Sticky Header -->
 <div class="app-header">
     <div class="title-group">
-        <img src="icon.png" alt="UIB" class="header-icon">
+        <img src="icon.png?v=20261015w" alt="UIB" class="header-icon">
         <h1><i data-lucide="file-plus" style="width:20px;height:20px;margin-right:6px;vertical-align:-3px;"></i>New Transaction Entry</h1>
     </div>
     <button type="button" class="btn-danger btn-sm" onclick="window.location.href='./'">&#10005; Close</button>
@@ -452,25 +459,12 @@
                         </select>
                     </div>
                     <div class="form-group" style="margin:0;">
-                        <label>MGA</label>
+                        <label style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>MGA</span>
+                            <button type="button" class="btn-success btn-sm" onclick="openAddMgaModal('mga')" style="padding:2px 8px;font-size:11px;"><i data-lucide="plus-circle"></i> Add</button>
+                        </label>
                         <select id="mga">
                             <option value="">Select MGA (Optional)</option>
-                            <option value="5Star">5Star</option>
-                            <option value="ACI-Ascendant">ACI-Ascendant</option>
-                            <option value="All Risk">All Risk</option>
-                            <option value="Appalachian">Appalachian</option>
-                            <option value="Bass Underwriters">Bass Underwriters</option>
-                            <option value="FastComp">FastComp</option>
-                            <option value="Hiscox-London">Hiscox-London</option>
-                            <option value="Hull&amp;Co">Hull&amp;Co</option>
-                            <option value="London Underwriters">London Underwriters</option>
-                            <option value="MJ Kelly">MJ Kelly</option>
-                            <option value="Phyladelphia">Phyladelphia</option>
-                            <option value="SCU">SCU</option>
-                            <option value="Security Underwriters">Security Underwriters</option>
-                            <option value="Shelly Middle Brooks">Shelly Middle Brooks</option>
-                            <option value="Surety One">Surety One</option>
-                            <option value="Tapco">Tapco</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin:0;">
@@ -804,25 +798,12 @@
                         </select>
                     </div>
                     <div class="form-group" style="margin:0;">
-                        <label>MGA</label>
+                        <label style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>MGA</span>
+                            <button type="button" class="btn-success btn-sm" onclick="openAddMgaModal('mgaCom')" style="padding:2px 8px;font-size:11px;"><i data-lucide="plus-circle"></i> Add</button>
+                        </label>
                         <select id="mgaCom">
                             <option value="">Select MGA (Optional)</option>
-                            <option value="5Star">5Star</option>
-                            <option value="ACI-Ascendant">ACI-Ascendant</option>
-                            <option value="All Risk">All Risk</option>
-                            <option value="Appalachian">Appalachian</option>
-                            <option value="Bass Underwriters">Bass Underwriters</option>
-                            <option value="FastComp">FastComp</option>
-                            <option value="Hiscox-London">Hiscox-London</option>
-                            <option value="Hull&amp;Co">Hull&amp;Co</option>
-                            <option value="London Underwriters">London Underwriters</option>
-                            <option value="MJ Kelly">MJ Kelly</option>
-                            <option value="Phyladelphia">Phyladelphia</option>
-                            <option value="SCU">SCU</option>
-                            <option value="Security Underwriters">Security Underwriters</option>
-                            <option value="Shelly Middle Brooks">Shelly Middle Brooks</option>
-                            <option value="Surety One">Surety One</option>
-                            <option value="Tapco">Tapco</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin:0;">
@@ -1086,6 +1067,24 @@
     </div>
 </div>
 
+<div id="addMgaModal" class="modal">
+    <div class="modal-content" style="max-width:420px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <h3 style="margin:0;">Add MGA</h3>
+            <button type="button" class="btn-danger btn-sm" onclick="closeAddMgaModal()">&#10005;</button>
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+            <label>MGA Name *</label>
+            <input type="text" id="modalMgaInput" placeholder="e.g. Coastal Underwriters"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();saveModalMga();}">
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="closeAddMgaModal()">Cancel</button>
+            <button type="button" class="btn-success" onclick="saveModalMga()">&#10003; Save</button>
+        </div>
+    </div>
+</div>
+
 <div id="editModal" class="modal">
     <div class="modal-content wide" style="max-width:700px;max-height:90vh;overflow-y:auto;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
@@ -1151,11 +1150,13 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js?v=20260727b"></script>
+<script src="app.js?v=20261104f"></script>
+<script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="motion.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const savedUser = sessionStorage.getItem('uibCurrentUser');
+        const authUser = (window.UIBAuth && UIBAuth.user()) || null;
+        const savedUser = authUser ? (authUser.role === 'admin' ? 'Admin' : authUser.name) : null;
         if (!savedUser) {
             window.location.href = './';
             return;
@@ -1175,6 +1176,8 @@
         refreshAllCarrierDropdowns();
         populateSourceDropdown('source', '');
         populateSourceDropdown('sourceCom', '');
+        populateMGADropdown('mga', '');
+        populateMGADropdown('mgaCom', '');
         resetDriversVehicles();
         resetDriversVehicles('Com');
         setTodayDate();
@@ -1327,5 +1330,7 @@
         if (match.term) document.getElementById('term' + suffix).value = match.term;
     }
 </script>
+<script src="uib-motion.js?v=20261002a"></script>
+<script src="uib-drop.js?v=20261103a"></script>
 </body>
 </html>

@@ -2,13 +2,28 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="uib-config.js?v=20261022a"></script>
+    <script src="lz-string.min.js"></script>
+    <script src="storage-codec.js?v=20261029a"></script>
+    <script src="uib-auth.js?v=20261022c"></script>
+    <script src="uib-mfa.js?v=20261013e"></script>
+    <script src="uib-audit.js?v=20261013j"></script>
+    <script src="uib-ai.js?v=20261022c"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>UIB Binder Book - Universal Insurance Brokers</title>
+    <link rel="manifest" href="/manifest.json?v=20261015w">
+    <meta name="theme-color" content="#0d1f3c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="UIB Binder Book">
+    <meta property="og:image" content="https://uib-binderbook.vercel.app/icon.png?v=20261015w">
+    <meta property="og:title" content="UIB Binder Book">
+    <link rel="apple-touch-icon" href="/icons/uib-apple-touch.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
         /* ── Design Tokens ──────────────────────────────────────── */
         :root {
@@ -310,6 +325,38 @@
         }
         .user-info span { font-weight: 700; color: var(--blue); font-size: .95rem; }
         .user-info-actions { display:flex; gap:8px; flex-wrap:wrap; }
+        .nav-primary { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .nav-logout { margin-left: auto; }
+        .nav-groups { flex-basis: 100%; display: flex; gap: 12px; flex-wrap: wrap; padding-top: 10px; margin-top: 2px; border-top: 1px solid rgba(37,99,235,.14); }
+        .nav-group { flex: 1 1 320px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,.65); border: 1px solid rgba(37,99,235,.14); }
+        .nav-group-label { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1e3a8a !important; display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; }
+        .nav-group-label svg { width: 14px; height: 14px; }
+        .nav-stats { flex-basis: 100%; display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; padding-top: 10px; border-top: 1px solid rgba(37,99,235,.14); }
+        .nav-stats-title { grid-column: 1 / -1; font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1e3a8a !important; display: inline-flex; align-items: center; gap: 5px; }
+        .nav-stats-title svg { width: 14px; height: 14px; }
+        .nav-stat-card { background: linear-gradient(135deg, var(--navy) 0%, var(--blue-mid) 100%); color: #fff; padding: 14px 12px; border-radius: 12px; box-shadow: 0 6px 18px rgba(29,78,216,.22); text-align: center; position: relative; }
+        /* Glow drawn inside the card's own box (no overflow clipping) so the unread badge can sit over the corner. */
+        .nav-stat-card::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(circle farthest-corner at 40% 40%, rgba(255,255,255,.08) 0%, transparent 87%); pointer-events: none; }
+        .nav-stat-card h4 { font-size: 10.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; opacity: .75; margin: 0 0 6px; color: #fff; }
+        .nav-stat-card .number { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+        .nav-stat-uw { background: linear-gradient(135deg, #c2410c 0%, #f97316 60%, #fb923c 100%); box-shadow: 0 6px 18px rgba(249,115,22,.3); cursor: pointer; }
+        .nav-stat-uw:focus-visible { outline: 3px solid rgba(249,115,22,.45); outline-offset: 2px; }
+        .nav-stat-prospects { background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 60%, #a78bfa 100%); box-shadow: 0 6px 18px rgba(124,58,237,.3); cursor: pointer; }
+        .nav-stat-prospects:focus-visible { outline: 3px solid rgba(124,58,237,.45); outline-offset: 2px; }
+        /* Unread count — items added since this agent last opened the section. */
+        /* Centred exactly on the card's top-right corner. */
+        .nav-stat-badge { position: absolute; top: 0; right: 0; z-index: 2; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; background: #dc2626; color: #fff !important; font-size: 9.5px; font-weight: 800; line-height: 16px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,.3); transform: translate(50%, -50%); }
+        @keyframes navBadgePop { 0% { transform: translate(50%, -50%) scale(.4); opacity: 0; } 70% { transform: translate(50%, -50%) scale(1.15); } 100% { transform: translate(50%, -50%) scale(1); opacity: 1; } }
+        .nav-stat-badge { animation: navBadgePop .28s ease-out; }
+        .nav-search { flex-basis: 100%; padding-top: 12px; border-top: 1px solid rgba(37,99,235,.14); }
+        .collapse-toggle { width: 100%; display: flex; align-items: center; gap: 10px; margin: 30px 0 0; padding: 14px 18px; background: linear-gradient(180deg, #fff, #f3f6ff); border: 1px solid rgba(37,99,235,.18); border-radius: 12px; color: #1e3a8a; font-size: 1.15em; font-weight: 800; text-align: left; cursor: pointer; font-family: inherit; }
+        .collapse-toggle .collapse-hint { margin-left: auto; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #2563eb; }
+        .collapse-toggle .collapse-chev { width: 20px; height: 20px; color: #2563eb; transition: transform .25s ease; }
+        .collapse-toggle[aria-expanded="true"] .collapse-chev { transform: rotate(180deg); }
+        .collapse-toggle[aria-expanded="true"] { background: linear-gradient(180deg, #f3f6ff, #e8efff); border-color: rgba(37,99,235,.3); }
+        .collapse-toggle:hover { border-color: rgba(37,99,235,.35); }
+        .collapse-toggle:focus-visible { outline: 3px solid rgba(37,99,235,.3); outline-offset: 2px; }
+        .collapse-body { padding-top: 20px; }
 
         /* ── Forms ───────────────────────────────────────────────── */
         .form-section {
@@ -526,6 +573,13 @@
             box-shadow: 0 1px 3px rgba(0,0,0,.1);
         }
         .prod-bar-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+        /* Underwriting filter tabs */
+        .uw-tab { background:#f8fafc; color:#64748b; transition:all .15s; }
+        .uw-tab:hover { background:#fff; color:#334155; }
+        .uw-tab-active { background:#dc2626 !important; color:#fff !important; }
+        .uw-line-tab { background:#f8fafc; color:#64748b; transition:all .15s; }
+        .uw-line-tab:hover { background:#fff; color:#334155; }
+        .uw-line-tab-active { background:#1d4ed8 !important; color:#fff !important; }
         .prod-bar-label { width:140px; font-size:12px; font-weight:600; color:#334155; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
         .prod-bar-track { flex:1; position:relative; height:32px; background:#f1f5f9; border-radius:6px; overflow:hidden; }
         .prod-bar-fill  { height:100%; border-radius:6px; display:flex; align-items:center; padding-left:10px; transition:width .5s ease; min-width:2%; }
@@ -645,7 +699,11 @@
             table td { padding: 9px 10px; }
 
             /* ── Filter bar ── */
-            .filter-section { flex-direction: column; gap: 10px; padding: 12px 14px; }
+            .filter-section { flex-direction: column; align-items: stretch !important; gap: 10px; padding: 12px 14px; }
+            .filter-section .filter-group { width: 100%; }
+            #agentPremiumMin, #agentPremiumMax { min-width: 0 !important; width: auto !important; flex: 1 1 0; }
+            #agentSubmissionSearch { width: 100% !important; min-width: 0; flex: 1 1 100%; }
+            .filter-section > div:has(> #agentSubmissionSearch) { margin-left: 0 !important; width: 100%; flex-wrap: wrap; }
             .filter-group input,
             .filter-group select { min-width: 100%; }
 
@@ -668,6 +726,14 @@
             .user-info { flex-direction: column; align-items: flex-start; gap: 8px; }
             .user-info-actions { width: 100%; }
             .user-info-actions button { flex: 1; }
+            .nav-primary { width: 100%; flex-direction: column; align-items: stretch; }
+            .nav-primary button { width: 100%; }
+            .nav-logout { margin-left: 0; width: 100%; }
+            .nav-groups { flex-direction: column; }
+            .nav-group { flex-basis: auto; width: 100%; }
+            .nav-groups, .nav-stats, .nav-search { flex-basis: auto; width: 100%; }
+            .nav-stats { grid-template-columns: repeat(2, 1fr); }
+            .nav-stats .nav-stat-card:last-child:nth-child(even) { grid-column: 1 / -1; }
 
             /* ── Form actions ── */
             .form-actions { flex-direction: column; align-items: stretch; }
@@ -715,6 +781,7 @@
             .modal-content { padding: 16px 12px; }
         }
     </style>
+    <link rel="stylesheet" href="uib-theme.css?v=20261003a">
 </head>
 <body>
     <!-- Google Drive Sync Banner -->
@@ -724,7 +791,7 @@
 
     <div class="container">
         <header>
-            <h1><img src="icon.png" alt="" class="header-icon"> UIB Binder Book</h1>
+            <h1><img src="icon.png?v=20261015w" alt="" class="header-icon"> UIB Binder Book</h1>
             <p>Universal Insurance Brokers - Sales & Commission Management</p>
         </header>
 
@@ -736,7 +803,7 @@
 
                         <!-- Logo / Brand -->
                         <div style="text-align:center;margin-bottom:32px;">
-                            <img src="icon.png" alt="UIB Logo" style="width:88px;height:88px;object-fit:contain;margin-bottom:14px;filter:drop-shadow(0 6px 16px rgba(29,78,216,.25));">
+                            <img src="icon.png?v=20261015w" alt="UIB Logo" style="width:88px;height:88px;object-fit:contain;margin-bottom:14px;filter:drop-shadow(0 6px 16px rgba(29,78,216,.25));">
                             <h2 style="margin:0 0 6px;font-size:1.6rem;font-weight:800;color:#0d1f3c;letter-spacing:-0.5px;">UIB Binder Book</h2>
                             <p style="margin:0;font-size:14px;color:#6b7280;">Sign in to your account</p>
                         </div>
@@ -745,7 +812,7 @@
                         <div id="agentLoginError" style="display:none;background:#fef2f2;color:#991b1b;padding:10px 14px;border-radius:10px;margin-bottom:16px;font-size:14px;font-weight:600;border:1px solid #fca5a5;"></div>
 
                         <!-- Login Form -->
-                        <form onsubmit="submitAgentEmailLogin(event)">
+                        <form onsubmit="submitAgentEmailLogin(event)" data-uib-login id="agentEmailLoginForm">
                             <div style="margin-bottom:16px;">
                                 <label style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:6px;">Email Address</label>
                                 <input type="email" id="agentLoginEmail" placeholder="Enter your email" required
@@ -767,6 +834,7 @@
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;">
                                 <input type="checkbox" id="rememberAgentEmail" style="width:16px;height:16px;accent-color:#1d4ed8;cursor:pointer;">
                                 <label for="rememberAgentEmail" style="font-size:13px;color:#6b7280;cursor:pointer;margin:0;user-select:none;">Remember my email</label>
+                                <a href="#" onclick="sendPasswordReset();return false;" style="margin-left:auto;font-size:13px;color:#1d4ed8;font-weight:600;text-decoration:none;">Forgot password?</a>
                             </div>
                             <button id="loginSignInBtn" type="submit" style="width:100%;padding:14px;font-size:15px;font-weight:700;background:linear-gradient(135deg,#1d4ed8,#1e40af);color:#fff;border:none;border-radius:12px;cursor:pointer;transition:all .2s;box-shadow:0 4px 14px rgba(29,78,216,.4);"
                                 onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(29,78,216,.5)'"
@@ -919,6 +987,64 @@
                                 <input type="text" id="prospectDateAdded" readonly style="background:#f0f0f0; cursor:not-allowed; font-size:13px;">
                             </div>
                         </div>
+                        <div style="font-size:12px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.4px;margin:4px 0 10px;">Contact &amp; Address</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Alternate Phone</label>
+                                <input type="tel" id="prospectPhone2" placeholder="(555) 987-6543">
+                            </div>
+                            <div class="form-group">
+                                <label>Date of Birth</label>
+                                <input type="date" id="prospectDob">
+                            </div>
+                            <div class="form-group">
+                                <label>Business Name</label>
+                                <input type="text" id="prospectBusinessName" placeholder="If the prospect is a business">
+                            </div>
+                            <div class="form-group" style="grid-column:1/-1;">
+                                <label>Street Address</label>
+                                <input type="text" id="prospectAddress" placeholder="123 Main St, Apt 4">
+                            </div>
+                            <div class="form-group">
+                                <label>City</label>
+                                <input type="text" id="prospectCity" placeholder="Miami">
+                            </div>
+                            <div class="form-group">
+                                <label>State</label>
+                                <input type="text" id="prospectState" maxlength="2" placeholder="FL" style="text-transform:uppercase;">
+                            </div>
+                            <div class="form-group">
+                                <label>ZIP Code</label>
+                                <input type="text" id="prospectZip" maxlength="10" placeholder="33101">
+                            </div>
+                        </div>
+                        <div style="font-size:12px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.4px;margin:4px 0 10px;">Current Coverage &amp; Quote</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Current Carrier</label>
+                                <input type="text" id="prospectCurrentCarrier" placeholder="Who insures them today">
+                            </div>
+                            <div class="form-group">
+                                <label>Current Policy #</label>
+                                <input type="text" id="prospectCurrentPolicy">
+                            </div>
+                            <div class="form-group">
+                                <label>Current Premium ($)</label>
+                                <input type="number" id="prospectCurrentPremium" min="0" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label>Policy Expiration</label>
+                                <input type="date" id="prospectPolicyExpiration">
+                            </div>
+                            <div class="form-group">
+                                <label>Quoted Premium ($)</label>
+                                <input type="number" id="prospectQuotedPremium" min="0" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label>Lead Generator</label>
+                                <input type="text" id="prospectLeadGenerator" placeholder="Who brought the lead in">
+                            </div>
+                        </div>
                         <div class="form-group" style="margin-top:8px;">
                             <label>Notes</label>
                             <textarea id="prospectNotes" rows="3" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; font-size:14px; resize:vertical;" placeholder="Additional notes about this prospect..."></textarea>
@@ -928,6 +1054,27 @@
                             <button type="reset" class="btn-primary">Clear Form</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- Pending Items Modal — opens after an agent takes a lead -->
+            <div id="prospectPendingModal" class="modal">
+                <div class="modal-content" style="max-width:520px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <h3 style="margin:0;"><i data-lucide="clipboard-list"></i> Pending Items</h3>
+                        <button type="button" class="btn-danger btn-sm" onclick="prospectClosePending()">✕ Close</button>
+                    </div>
+                    <p id="prospectPendingWho" style="color:var(--gray-500); font-size:13px; margin:0 0 16px;"></p>
+                    <p style="color:var(--gray-600); font-size:13px; margin:0 0 12px;">Tick everything still outstanding for this client. Untick an item once you have it.</p>
+                    <div id="prospectPendingList" style="display:flex; flex-direction:column; gap:2px; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; margin-bottom:14px;"></div>
+                    <div class="form-group">
+                        <label>Note (optional)</label>
+                        <textarea id="prospectPendingNote" rows="2" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; font-size:14px; resize:vertical;" placeholder="Anything else you are waiting on…"></textarea>
+                    </div>
+                    <div class="form-actions" style="margin-top:18px;">
+                        <button type="button" class="btn-success" onclick="prospectSavePending()">💾 Save Pending Items</button>
+                        <button type="button" class="btn-secondary" onclick="prospectClosePending()">Skip</button>
+                    </div>
                 </div>
             </div>
 
@@ -1187,7 +1334,8 @@
                     </select>
                     <select id="prospectFilterStatus" onchange="renderProspectsTable()"
                         style="padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
-                        <option value="">All Statuses</option>
+                        <option value="">Active (Open, Contacted, Quoted)</option>
+                        <option value="all">All Statuses</option>
                         <option>Open</option>
                         <option>Contacted</option>
                         <option>Quoted</option>
@@ -1211,6 +1359,7 @@
                                 <th>Status</th>
                                 <th>Date Added</th>
                                 <th>Notes</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="prospectsTableBody">
@@ -1219,6 +1368,66 @@
                     </table>
                 </div>
                 <p id="prospectCount" style="margin-top:10px; font-size:13px; color:var(--gray-500);"></p>
+            </div>
+
+            <!-- Underwriting Section -->
+            <div id="underwritingSection" class="section">
+                <div class="user-info" style="display:flex; flex-direction:column; align-items:stretch; gap:10px;">
+                    <strong style="font-size:1.05rem;"><i data-lucide="shield-alert"></i> Underwriting — Pending Documentation</strong>
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <button class="btn-secondary btn-sm" onclick="showSection((currentRole==='admin')?'adminSection':'agentSection')"><i data-lucide="arrow-left"></i> Back</button>
+                            <button class="btn-primary btn-sm" onclick="uwGenerateReport()"><i data-lucide="file-text"></i> Cleared Report</button>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <button class="btn-sm" id="uwUndoBtn" onclick="uwUndo()" disabled title="Nothing to undo" style="background:linear-gradient(to right,#b45309 0%,#f59e0b 60%,#fbbf24 100%);color:#fff;border:none;"><i data-lucide="undo-2"></i> <span id="uwUndoLabel">Undo</span></button>
+                            <button class="btn-secondary btn-sm" onclick="renderUnderwriting()"><i data-lucide="refresh-cw"></i> Refresh</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Header / stats -->
+                <div style="margin-top:18px;border:1px solid var(--gray-200);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);">
+                    <div style="background:linear-gradient(135deg,#7f1d1d 0%,#dc2626 100%);color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <i data-lucide="shield-alert" style="width:20px;height:20px;"></i>
+                            <div>
+                                <h3 style="margin:0;font-size:1.02rem;font-weight:800;letter-spacing:-0.2px;">Underwriting Queue</h3>
+                                <p style="margin:0;font-size:11px;opacity:0.85;" id="uw_sub">Every reported client with pending documentation appears here automatically.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="uw_statsRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px 20px;background:#fff;border-bottom:1px solid var(--gray-200);"></div>
+                </div>
+
+                <!-- Filters -->
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin:16px 0; align-items:center;">
+                    <div style="display:inline-flex;border:1px solid var(--gray-200);border-radius:var(--radius-sm);overflow:hidden;">
+                        <button type="button" id="uwTab_open"    class="uw-tab uw-tab-active" onclick="uwSetFilter('open')"    style="border:none;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">Open</button>
+                        <button type="button" id="uwTab_cleared" class="uw-tab"               onclick="uwSetFilter('cleared')" style="border:none;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">Cleared</button>
+                        <button type="button" id="uwTab_all"     class="uw-tab"               onclick="uwSetFilter('all')"     style="border:none;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">All</button>
+                    </div>
+                    <input type="text" id="uwSearch" placeholder="Search client, carrier, policy #, agent…"
+                        oninput="renderUnderwriting()"
+                        style="flex:1; min-width:180px; padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
+                    <select id="uwAgentFilter" onchange="renderUnderwriting()"
+                        style="padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:14px;">
+                        <option value="">All Agents</option>
+                    </select>
+                </div>
+
+                <!-- Personal / Commercial toggle -->
+                <div style="display:flex;justify-content:center;margin:0 0 16px 0;">
+                    <div style="display:inline-flex;border:1px solid var(--gray-200);border-radius:999px;overflow:hidden;box-shadow:var(--shadow-sm);">
+                        <button type="button" id="uwLine_all"        class="uw-line-tab uw-line-tab-active" onclick="uwSetLine('all')"        style="border:none;padding:9px 22px;font-size:13px;font-weight:700;cursor:pointer;">All Lines</button>
+                        <button type="button" id="uwLine_personal"   class="uw-line-tab"                    onclick="uwSetLine('personal')"   style="border:none;padding:9px 22px;font-size:13px;font-weight:700;cursor:pointer;border-left:1px solid var(--gray-200);">👤 Personal</button>
+                        <button type="button" id="uwLine_commercial" class="uw-line-tab"                    onclick="uwSetLine('commercial')" style="border:none;padding:9px 22px;font-size:13px;font-weight:700;cursor:pointer;border-left:1px solid var(--gray-200);">🏢 Commercial</button>
+                    </div>
+                </div>
+
+                <!-- List -->
+                <div id="underwritingList"></div>
+                <p id="uwCount" style="margin-top:10px; font-size:13px; color:var(--gray-500);"></p>
             </div>
 
             <!-- Verification Logs Section -->
@@ -1326,15 +1535,50 @@
             <!-- Agent Dashboard -->
             <div id="agentSection" class="section">
                 <div class="user-info">
-                    <span id="userDisplay"></span>
-                    <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
-                    <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
-                    <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
-                    <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
-                    <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(135deg,#5b21b6,#3b1a8c);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
-                    <button class="btn-sm" onclick="window.open('ams.html','_blank')" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
-                    <button class="btn-danger btn-sm" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
+                    <span id="userDisplay" role="button" tabindex="0" onclick="openAgentProfile()" onkeydown="if(event.key==='Enter')openAgentProfile()" title="Open my profile" style="cursor:pointer;"></span>
+                    <div class="nav-primary">
+                        <button class="btn-success btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./dailysalesentry';"><i data-lucide="clipboard-list"></i> Daily Sales Entry</button>
+                        <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./transactionentry';" style="background:linear-gradient(to right,#047857 0%,#10b981 60%,#34d399 100%);color:#fff;border:none;"><i data-lucide="file-plus"></i> New Transaction Entry</button>
+                        <button class="btn-sm" onclick="sessionStorage.setItem('uibCurrentUser', currentUser || ''); window.location.href='./healthentry';" style="background:linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%);color:#fff;border:none;"><i data-lucide="heart-pulse"></i> New Health Entry</button>
+                        <button class="btn-sm" onclick="openNewProspectModal()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="user-plus"></i> New Prospect</button>
+                    </div>
+                    <button class="btn-danger btn-sm nav-logout" onclick="logout()" style="margin-left:0;"><i data-lucide="log-out"></i> Logout</button>
+                    <div class="nav-groups">
+                        <div class="nav-group">
+                            <span class="nav-group-label"><i data-lucide="wrench"></i> Tools</span>
+                            <button class="btn-sm" onclick="window.open('https://uibautorater.vercel.app','_blank','noopener')" title="Open the Auto Rater (separate app)" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);color:#fff;border:none;"><i data-lucide="calculator"></i> Auto Rater</button>
+                            <button class="btn-sm" onclick="window.open('https://maxai-sable.vercel.app','_blank','noopener')" style="background:linear-gradient(to right,#3b1a8c 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;" title="Open MAX, the lead app for marketing partners"><i data-lucide="bot"></i> MAX</button>
+                            <button class="btn-sm" onclick="binderOpenAms()" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);color:#fff;border:none;"><i data-lucide="building-2"></i> AMS</button>
+                            <button class="btn-sm" onclick="showUnderwritingSection()" style="background:linear-gradient(to right,#c2410c 0%,#f97316 60%,#fb923c 100%);color:#fff;border:none;"><i data-lucide="shield-alert"></i> Underwriting</button>
+                            <button class="btn-sm" onclick="showProspectsSection()" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);color:#fff;border:none;"><i data-lucide="target"></i> Prospects</button>
+                        </div>
+                        <div class="nav-group">
+                            <span class="nav-group-label"><i data-lucide="bar-chart-3"></i> Reports</span>
+                            <button class="btn-primary btn-sm" onclick="showAgentCommissions()"><i data-lucide="trending-up"></i> My Commissions</button>
+                            <button class="btn-sm" onclick="showProductionDashboard()" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);color:#fff;border:none;"><i data-lucide="bar-chart-2"></i> Production</button>
+                            <button class="btn-sm" onclick="showVerificationLogsSection()" style="background:linear-gradient(to right,#3b1a8c 0%,#5b21b6 60%,#7c3aed 100%);color:#fff;border:none;"><i data-lucide="list-checks"></i> Dealer Verifications</button>
+                        </div>
+                    </div>
+                    <div class="nav-stats" id="navMonthStats"></div>
+                    <!-- ── Universal Search ── -->
+                    <div class="nav-search">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                            <i data-lucide="search" style="width:18px;height:18px;color:#0369a1;flex-shrink:0;"></i>
+                            <span style="font-size:14px;font-weight:700;color:#0369a1;">Search All Entries</span>
+                            <span style="font-size:12px;color:#64748b;font-style:italic;">— any agent, any location</span>
+                        </div>
+                        <div style="position:relative;">
+                            <input type="text" id="agentGlobalSearch"
+                                placeholder="Search by customer, carrier, policy #, binder #, LOB, agent, location…"
+                                oninput="agentGlobalSearchRun(this.value)"
+                                autocomplete="off"
+                                style="width:100%;padding:11px 40px 11px 14px;border:1.5px solid #7dd3fc;border-radius:10px;font-size:14px;background:#fff;outline:none;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.07);">
+                            <button type="button" onclick="agentGlobalSearchClear()" id="agentGlobalSearchClearBtn"
+                                style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;color:#94a3b8;cursor:pointer;padding:4px;">✕</button>
+                        </div>
+                        <!-- Results -->
+                        <div id="agentGlobalSearchResults" style="margin-top:10px;"></div>
+                    </div>
                 </div>
 
                 <div class="success-message" id="successMessage"><i data-lucide="check-circle"></i> Policy entry saved successfully!</div>
@@ -1522,25 +1766,12 @@
                                         </select>
                                     </div>
                                     <div class="form-group" style="margin:0;">
-                                        <label>MGA</label>
+                                        <label style="display:flex;justify-content:space-between;align-items:center;">
+                                            <span>MGA</span>
+                                            <button type="button" class="btn-success btn-sm" onclick="openAddMgaModal('mga')" style="padding:2px 8px;font-size:11px;"><i data-lucide="plus-circle"></i> Add</button>
+                                        </label>
                                         <select id="mga">
                                             <option value="">Select MGA (Optional)</option>
-                                            <option value="5Star">5Star</option>
-                                            <option value="ACI-Ascendant">ACI-Ascendant</option>
-                                            <option value="All Risk">All Risk</option>
-                                            <option value="Appalachian">Appalachian</option>
-                                            <option value="Bass Underwriters">Bass Underwriters</option>
-                                            <option value="FastComp">FastComp</option>
-                                            <option value="Hiscox-London">Hiscox-London</option>
-                                            <option value="Hull&Co">Hull&Co</option>
-                                            <option value="London Underwriters">London Underwriters</option>
-                                            <option value="MJ Kelly">MJ Kelly</option>
-                                            <option value="Phyladelphia">Phyladelphia</option>
-                                            <option value="SCU">SCU</option>
-                                            <option value="Security Underwriters">Security Underwriters</option>
-                                            <option value="Shelly Middle Brooks">Shelly Middle Brooks</option>
-                                            <option value="Surety One">Surety One</option>
-                                            <option value="Tapco">Tapco</option>
                                         </select>
                                     </div>
                                     <div class="form-group" style="margin:0;">
@@ -1831,26 +2062,6 @@
                     </div>
                 </div><!-- end binderFileModal -->
 
-                <!-- ── Universal Search ── -->
-                <div style="margin:24px 0 0 0;background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border:1.5px solid #bae6fd;border-radius:14px;padding:18px 20px;">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                        <i data-lucide="search" style="width:18px;height:18px;color:#0369a1;flex-shrink:0;"></i>
-                        <span style="font-size:14px;font-weight:700;color:#0369a1;">Search All Entries</span>
-                        <span style="font-size:12px;color:#64748b;font-style:italic;">— any agent, any location</span>
-                    </div>
-                    <div style="position:relative;">
-                        <input type="text" id="agentGlobalSearch"
-                            placeholder="Search by customer, carrier, policy #, binder #, LOB, agent, location…"
-                            oninput="agentGlobalSearchRun(this.value)"
-                            autocomplete="off"
-                            style="width:100%;padding:11px 40px 11px 14px;border:1.5px solid #7dd3fc;border-radius:10px;font-size:14px;background:#fff;outline:none;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.07);">
-                        <button type="button" onclick="agentGlobalSearchClear()" id="agentGlobalSearchClearBtn"
-                            style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;color:#94a3b8;cursor:pointer;padding:4px;">✕</button>
-                    </div>
-                    <!-- Results -->
-                    <div id="agentGlobalSearchResults" style="margin-top:10px;"></div>
-                </div>
-
                 <!-- ── Claude AI Assistant (inline section) ── -->
                 <div id="claudeInlineSection" style="margin:18px 0 0 0;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;transition:border-color .15s,background .15s;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
@@ -1949,7 +2160,12 @@
                 </div><!-- end inline production dashboard -->
 
                 <div style="margin-top:36px;">
-                    <h3 style="color: #333; margin: 30px 0 20px 0; font-size: 1.3em;">📊 Your Submissions</h3>
+                    <button type="button" class="collapse-toggle" id="agentSubmissionsToggle" onclick="toggleAgentSubmissions()" aria-expanded="false" aria-controls="agentSubmissionsBody">
+                        <span class="collapse-title">📊 Your Submissions</span>
+                        <span class="collapse-hint" id="agentSubmissionsHint">Show</span>
+                        <i data-lucide="chevron-down" class="collapse-chev"></i>
+                    </button>
+                    <div id="agentSubmissionsBody" class="collapse-body" style="display:none;">
                     <div class="filter-section" style="flex-wrap:wrap;gap:10px;align-items:flex-end;">
                         <div class="filter-group" id="agentAgentFilterGroup" style="display:none;">
                             <label>Agent:</label>
@@ -2046,12 +2262,15 @@
                             </tbody>
                         </table>
                     </div>
+                    </div><!-- end agentSubmissionsBody -->
                 </div>
 
                 <div class="footer-buttons">
                     <button class="btn-secondary" onclick="exportAgentData()">📥 Export My Data (CSV)</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-success" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);" onclick="window.open('https://uibautorater.vercel.app','_blank','noopener')" title="Open the Auto Rater (separate app)"><i data-lucide="calculator"></i> Auto Rater</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#3b1a8c 0%,#7c3aed 60%,#a78bfa 100%);" onclick="window.open('https://maxai-sable.vercel.app','_blank','noopener')" title="Open MAX, the lead app for marketing partners"><i data-lucide="bot"></i> MAX</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);" onclick="binderOpenAms()"><i data-lucide="building-2"></i> AMS</button>
+                    <button class="btn-success" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
                     <button class="btn-danger" onclick="logout()">Logout</button>
                 </div>
             </div>
@@ -2066,7 +2285,7 @@
                     <button class="btn-success btn-sm" onclick="openAddCredentialModal()"><i data-lucide="user-plus"></i> Add Agent Credential</button>
                 </div>
                 <div style="max-width:680px; margin:24px auto 0;">
-                    <p style="font-size:13px; color:var(--gray-500); margin-bottom:20px;">Set the email address and password each agent uses to log in via the Agent Login button.</p>
+                    <p style="font-size:13px; color:var(--gray-500); margin-bottom:20px;">Each agent signs in with the email and password set here. Accounts are created in Supabase Auth; the app never stores passwords.</p>
                     <div id="credentialListPage"></div>
                 </div>
             </div>
@@ -2080,9 +2299,8 @@
                     </div>
                     <form onsubmit="submitAddCredential(event)">
                         <div class="form-group" style="margin-bottom:14px;">
-                            <label>Agent Name</label>
-                            <input type="text" id="newCredAgent" placeholder="Full name" required
-                                style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
+                            <label>Agent</label>
+                            <select id="newCredAgent" required style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"></select>
                         </div>
                         <div class="form-group" style="margin-bottom:14px;">
                             <label>Email Address</label>
@@ -2090,15 +2308,68 @@
                                 style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
                         </div>
                         <div class="form-group" style="margin-bottom:20px;">
-                            <label>Password</label>
-                            <input type="text" id="newCredPassword" placeholder="Enter password" required
+                            <label>Temporary password (10+ characters)</label>
+                            <input type="text" id="newCredPassword" placeholder="Enter password" required minlength="10" autocomplete="off"
                                 style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:20px;">
+                            <label>Role</label>
+                            <select id="newCredRole" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"><option value="agent">Agent</option><option value="admin">Admin</option></select>
                         </div>
                         <div style="display:flex;gap:10px;">
                             <button type="submit" class="btn-success" style="flex:1;padding:11px;"><i data-lucide="save"></i> Save</button>
                             <button type="button" class="btn-secondary" style="flex:1;padding:11px;" onclick="closeAddCredentialModal()">Cancel</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- Access Log (admin) -->
+            <div id="accessLogSection" class="section">
+                <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button class="btn-secondary btn-sm" onclick="showSection('adminSection'); refreshIcons();"><i data-lucide="arrow-left"></i> Back to Admin</button>
+                        <strong><i data-lucide="shield-check"></i> Access Log</strong>
+                    </div>
+                    <button class="btn-primary btn-sm" onclick="exportAccessLogCSV()"><i data-lucide="download"></i> Export CSV</button>
+                </div>
+                <div style="max-width:1100px; margin:20px auto 0;">
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;">
+                        <select id="alFilterAction" onchange="renderAccessLog()" style="padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;">
+                            <option value="">All actions</option>
+                            <option value="sign_in">Sign-ins</option><option value="sign_out">Sign-outs</option><option value="admin_console">Admin console</option>
+                            <option value="view_client">Client views</option><option value="save_entry">Entries saved</option><option value="save_contact">Contacts saved</option>
+                            <option value="delete_entry">Entries deleted</option><option value="delete_policy">Policies deleted</option><option value="export">Exports</option>
+                            <option value="view_file">Files viewed</option><option value="upload_file">Files uploaded</option><option value="delete_file">Files deleted</option>
+                            <option value="retention_delete">Retention deletions</option><option value="legal_hold">Legal holds</option><option value="training_ack">Acknowledgments</option><option value="mfa_setting">2-step setting</option><option value="reassign_entry">Reassignments</option>
+                            <option value="cred_create">Logins created</option><option value="cred_reset_password">Password resets</option><option value="cred_delete">Logins deleted</option><option value="duplicate_flagged">Duplicates flagged</option>
+                        </select>
+                        <input id="alFilterUser" type="text" placeholder="Filter by email" onchange="renderAccessLog()" style="padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;min-width:200px;">
+                        <select id="alFilterDays" onchange="renderAccessLog()" style="padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;">
+                            <option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option><option value="0">All</option>
+                        </select>
+                        <button class="btn-secondary btn-sm" onclick="renderAccessLog()"><i data-lucide="refresh-cw"></i> Refresh</button>
+                    </div>
+                    <div id="accessLogTable"></div>
+                    <div id="accessLogAcks"></div>
+                </div>
+            </div>
+
+            <!-- Retention Review (admin) -->
+            <div id="retentionSection" class="section">
+                <div class="user-info" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button class="btn-secondary btn-sm" onclick="showSection('adminSection'); refreshIcons();"><i data-lucide="arrow-left"></i> Back to Admin</button>
+                        <strong><i data-lucide="archive-restore"></i> Retention Review</strong>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; font-size:13px;">
+                        Keep records for <input id="retentionYears" type="number" min="5" max="25" oninput="this.dataset.touched='1'" style="width:60px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:8px;"> years
+                        <button class="btn-secondary btn-sm" onclick="saveRetentionYears()">Save</button>
+                        <button class="btn-danger btn-sm" onclick="deleteRetentionSelected()"><i data-lucide="trash-2"></i> Delete selected</button>
+                    </div>
+                </div>
+                <div style="max-width:1100px; margin:20px auto 0;">
+                    <div id="retentionTable"></div>
                 </div>
             </div>
 
@@ -2555,8 +2826,9 @@
                     <div style="display:flex;gap:8px;align-items:center;">
                         <select id="csMonthSelect" onchange="csSelectMonth(this.value)"
                             style="padding:7px 14px;border:1px solid var(--gray-200);border-radius:8px;font-size:13.5px;font-weight:700;color:var(--gray-700);cursor:pointer;"></select>
-                        <button class="btn-primary btn-sm" style="background:linear-gradient(135deg,#b45309,#f59e0b);" onclick="showMonthlyDocuments()" title="Monthly document storage + carrier commission dashboard"><i data-lucide="folder-open"></i> Documents</button>
+                        <button class="btn-primary btn-sm" style="background:linear-gradient(135deg,#b45309,#f59e0b);" onclick="csUploadTargetMonth = null; showMonthlyDocuments()" title="Monthly document storage + carrier commission dashboard"><i data-lucide="folder-open"></i> Documents</button>
                         <button class="btn-primary btn-sm" onclick="openCommissionUploadModal()"><i data-lucide="upload"></i> Upload Statement</button>
+                        <button class="btn-danger btn-sm" onclick="clearAllCommissionStatements()" title="Remove every commission statement from this page (the uploaded PDFs in Documents stay)"><i data-lucide="trash-2"></i> Clear all statements</button>
                     </div>
                 </div>
 
@@ -2567,6 +2839,15 @@
                     <p style="margin-bottom:20px;font-size:14px;">Upload your monthly carrier commission Excel file to get started.</p>
                     <button class="btn-primary" onclick="openCommissionUploadModal()"><i data-lucide="upload"></i> Upload First Statement</button>
                 </div>
+
+                <!-- Agent cards → months → that agent's statement -->
+                <style>
+                    #csDetail.cs-agent-mode > div:not(#csAgentPanel) { display:none !important; }
+                    #csDetail.cs-agent-mode #csAgentNavList { display:none !important; }
+                    .cs-agent-card { text-align:left;padding:16px;border-radius:12px;border:2px solid var(--gray-200);background:#fff;cursor:pointer;transition:all .15s; }
+                    .cs-agent-card:hover { border-color:#1d4ed8;box-shadow:0 4px 14px rgba(29,78,216,.12); }
+                </style>
+                <div id="csAgentView" style="margin-top:16px;"></div>
 
                 <!-- Detail Area (shown when a month is selected) -->
                 <div id="csDetail" style="display:none;margin-top:16px;">
@@ -2608,7 +2889,7 @@
                     </div>
 
                     <!-- Per-Agent Commission Statement — click an agent, see their detail grouped by carrier -->
-                    <div style="margin-bottom:22px;border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;">
+                    <div id="csAgentPanel" style="margin-bottom:22px;border:1px solid var(--gray-200);border-radius:var(--radius-md);overflow:hidden;">
                         <div style="background:linear-gradient(135deg,var(--navy),#1a365d);color:#fff;padding:12px 16px;">
                             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                                 <div style="display:flex;align-items:center;gap:8px;">
@@ -2806,38 +3087,23 @@
                 </div>
 
                 <div class="footer-buttons" style="margin-bottom:18px;">
-                    <button class="btn-primary" onclick="exportAllData()"><i data-lucide="download"></i> Export CSV</button>
-                    <button class="btn-success" onclick="exportToExcel()"><i data-lucide="file-spreadsheet"></i> Export Excel</button>
-                    <button class="btn-primary" onclick="showCommissionDashboard()"><i data-lucide="trending-up"></i> Commissions</button>
                     <button class="btn-success" onclick="showCommissionStatements()"><i data-lucide="file-spreadsheet"></i> Commission Statements</button>
                     <button class="btn-primary" onclick="showCarrierManagement()"><i data-lucide="building-2"></i> Carriers</button>
                     <button class="btn-primary" onclick="showAgentManagement()"><i data-lucide="users"></i> Agents</button>
                     <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0f766e,#14b8a6);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0f766e,#2dd4bf);" onclick="showDataSafety()" title="Download an off-cloud snapshot of the whole book, or merge one back in"><i data-lucide="life-buoy"></i> Data Safety</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#0d1f3c,#1d4ed8);" onclick="window.open('ams.html','_blank')"><i data-lucide="building-2"></i> AMS</button>
-                    <button class="btn-success" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#c2410c,#f59e0b);" onclick="showRenewalsSection()" title="Upcoming policy renewals + AI renewal report processor"><i data-lucide="refresh-cw"></i> Renewals</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);" onclick="showProspectsSection()"><i data-lucide="target"></i> Prospects</button>
-                    <button class="btn-primary" style="background:linear-gradient(135deg,#5b21b6,#3b1a8c);" onclick="showVerificationLogsSection()"><i data-lucide="list-checks"></i> Dealer Verifications</button>
-                    <button class="btn-warning" onclick="importJorgeCastroData()" title="Import all Jorge Castro entries from the Doral commission spreadsheet">
-                        <i data-lucide="upload"></i> Import Jorge Castro
-                    </button>
-                    <button class="btn-success" onclick="importBinderMay26Data()" title="Import Binder Book May 26 entries (40 policies — Uri, Lazaro, Amanda, Randy)">
-                        <i data-lucide="upload"></i> Import Binder May 26
-                    </button>
-                    <button class="btn-warning" onclick="importLRCQ1Transactions()" title="Import 6 Q1 LRC transactions for Lazaro (Rewrites, Endorsements, Miscellaneous)">
-                        <i data-lucide="upload"></i> Import LRC Q1 (Lazaro)
-                    </button>
-                    <button class="btn-purple" onclick="fixAllEntriesCase()" title="Convert all customer names, companies, and contacts to Title Case">
-                        <i data-lucide="type"></i> Fix Name Casing
-                    </button>
-                    <button class="btn-purple" onclick="recalculateAllBinderCommissions()" title="Recalculate Agency & Agent Commission for every entry using carrier rules">
-                        <i data-lucide="refresh-cw"></i> Recalculate All Commissions
-                    </button>
-                    <button class="btn-warning" onclick="setAgentPaymentType('Uriel Rendon','Gross Paid')" title="Set all Uriel Rendon entries to Gross Paid and recalculate commissions">
-                        <i data-lucide="zap"></i> Uriel → Gross Paid
-                    </button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#4c1d95 0%,#6d28d9 60%,#a78bfa 100%);" onclick="showAccessLog()" title="Who signed in and who viewed, changed, exported or deleted records"><i data-lucide="shield-check"></i> Access Log</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#111827 0%,#374151 60%,#6b7280 100%);" onclick="openAiEngine()" title="Choose Claude (cloud) or Ollama (local) for the AI features"><i data-lucide="cpu"></i> AI Engine</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#14b8a6 60%,#5eead4 100%);" onclick="showCloudBackups()" title="Automatic daily/monthly snapshots — view and restore"><i data-lucide="archive"></i> Cloud Backups</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0f766e 0%,#2dd4bf 60%,#5eead4 100%);" onclick="showDataSafety()" title="Download an off-cloud snapshot of the whole book, or merge one back in"><i data-lucide="life-buoy"></i> Data Safety</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0d1f3c 0%,#6d28d9 60%,#a78bfa 100%);" onclick="showMondayImport()" title="Data migration imports: the monday.com/NowCerts/binder-book file into the Binder Book and AMS, or the insureds contacts file into the AMS client records"><i data-lucide="file-input"></i> Data Import</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0e7490 0%,#06b6d4 60%,#67e8f9 100%);" onclick="window.open('https://uibautorater.vercel.app','_blank','noopener')" title="Open the Auto Rater (separate app)"><i data-lucide="calculator"></i> Auto Rater</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#3b1a8c 0%,#7c3aed 60%,#a78bfa 100%);" onclick="window.open('https://maxai-sable.vercel.app','_blank','noopener')" title="Open MAX, the lead app for marketing partners"><i data-lucide="bot"></i> MAX</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);" onclick="binderOpenAms()"><i data-lucide="building-2"></i> AMS</button>
+                    <button class="btn-success" style="background:linear-gradient(to right,#000000 0%,#374151 60%,#6b7280 100%);" onclick="showProductionDashboard()"><i data-lucide="bar-chart-2"></i> Production Dashboard</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#c2410c 0%,#ea580c 60%,#f59e0b 100%);" onclick="showRenewalsSection()" title="Upcoming policy renewals + AI renewal report processor"><i data-lucide="refresh-cw"></i> Renewals</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#6d28d9 0%,#7c3aed 60%,#a78bfa 100%);" onclick="showProspectsSection()"><i data-lucide="target"></i> Prospects</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#c2410c 0%,#f97316 60%,#fb923c 100%);" onclick="showUnderwritingSection()"><i data-lucide="shield-alert"></i> Underwriting</button>
+                    <button class="btn-primary" style="background:linear-gradient(to right,#3b1a8c 0%,#5b21b6 60%,#7c3aed 100%);" onclick="showVerificationLogsSection()"><i data-lucide="list-checks"></i> Dealer Verifications</button>
                     <button class="btn-danger" onclick="logout()"><i data-lucide="log-out"></i> Logout</button>
                 </div>
 
@@ -3000,10 +3266,14 @@
     <div id="adminLoginModal" class="modal">
         <div class="modal-content">
             <h3><i data-lucide="shield"></i> Admin Login</h3>
-            <form id="adminLoginForm">
+            <form id="adminLoginForm" data-uib-login>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Admin Email</label>
+                    <input type="email" id="adminEmail" placeholder="admin@email.com" autocomplete="username" autofocus>
+                </div>
                 <div class="form-group" style="margin-bottom: 15px;">
                     <label>Password</label>
-                    <input type="password" id="adminPassword" placeholder="Enter admin password" autofocus>
+                    <input type="password" id="adminPassword" placeholder="Enter admin password" autocomplete="current-password">
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeAdminLoginModal()">Cancel</button>
@@ -3013,15 +3283,92 @@
         </div>
     </div>
 
+    <!-- Add MGA Modal -->
+    <div id="addMgaModal" class="modal">
+        <div class="modal-content" style="max-width:420px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+                <h3 style="margin:0;">Add MGA</h3>
+                <button type="button" class="btn-danger btn-sm" onclick="closeAddMgaModal()">✕</button>
+            </div>
+            <div class="form-group" style="margin-bottom:16px;">
+                <label>MGA Name *</label>
+                <input type="text" id="modalMgaInput" placeholder="e.g. Coastal Underwriters"
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();saveModalMga();}">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeAddMgaModal()">Cancel</button>
+                <button type="button" class="btn-success" onclick="saveModalMga()">✓ Save</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Modal -->
+
+    <!-- Agent profile -->
+    <div id="agentProfileModal" class="modal">
+        <div class="modal-content" style="max-width:460px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <h3 style="margin:0;"><i data-lucide="user-round"></i> My Profile</h3>
+                <button class="btn-secondary btn-sm" onclick="closeAgentProfile()">✕ Close</button>
+            </div>
+            <div id="agentProfileBody"></div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
+                <button class="btn-primary btn-sm" style="flex:1;min-width:150px;" onclick="changeMyPassword()"><i data-lucide="key-round"></i> Change Password</button>
+                <button class="btn-secondary btn-sm" style="flex:1;min-width:150px;" onclick="UIBMfa.manage()"><i data-lucide="shield-check"></i> 2-Step Verification</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI engine settings (admin) -->
+    <div id="aiEngineModal" class="modal">
+        <div class="modal-content" style="max-width:520px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;"><i data-lucide="cpu"></i> AI Engine</h3>
+                <button class="btn-secondary btn-sm" onclick="document.getElementById('aiEngineModal').classList.remove('active')">✕ Close</button>
+            </div>
+            <p style="font-size:13px;color:var(--gray-500);margin:0 0 14px;">Choose which AI reads documents and answers in the Binder Book and AMS. Ollama runs on your own computer, so client data never leaves it.</p>
+            <div class="form-group"><label>Engine</label>
+                <select id="aiEngine" onchange="aiEngineToggle()"><option value="claude">Claude (cloud)</option><option value="ollama">Ollama (local)</option></select></div>
+            <div id="aiOllamaFields">
+                <div class="form-group"><label>Ollama address</label><input id="aiUrl" type="text" placeholder="http://localhost:11434"></div>
+                <div class="form-group"><label>Text model</label><input id="aiModel" type="text" list="aiModelList" placeholder="llama3.1:8b"></div>
+                <div class="form-group"><label>Vision model <span style="font-size:11px;color:var(--gray-500);">(photos and scanned PDFs)</span></label><input id="aiVision" type="text" list="aiModelList" placeholder="llama3.2-vision"></div>
+                <datalist id="aiModelList"></datalist>
+                <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:4px 0 12px;"><input type="checkbox" id="aiFallback" checked style="width:16px;height:16px;"> If Ollama can't be reached, use Claude instead</label>
+                <button type="button" class="btn-secondary btn-sm" onclick="aiEngineTest()"><i data-lucide="plug"></i> Test connection</button>
+                <div id="aiTestResult" style="font-size:13px;margin-top:8px;"></div>
+            </div>
+            <div class="form-group" style="margin-top:14px;"><label>Apply to</label>
+                <select id="aiScope"><option value="agency">Whole agency (every device)</option><option value="device">This device only</option></select></div>
+            <div style="display:flex;gap:10px;margin-top:6px;">
+                <button class="btn-success" style="flex:1;" onclick="aiEngineSave()"><i data-lucide="save"></i> Save</button>
+                <button class="btn-secondary" style="flex:1;" onclick="aiEngineClearDevice()" title="Remove this device's own setting and follow the agency setting">Use agency setting here</button>
+            </div>
+        </div>
+    </div>
     <div id="editModal" class="modal">
         <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
             <h3><i data-lucide="pencil"></i> Edit Policy Entry</h3>
             <form id="editForm">
                 <div class="form-grid">
+                    <div class="form-group" id="editAgentGroup" style="display:none;grid-column:1 / -1;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:10px 12px;">
+                        <label style="color:#92400e;">🔒 Assigned Agent <span style="font-size:11px;font-weight:600;">(Master Admin only)</span></label>
+                        <select id="editAgent" style="font-family:inherit;"></select>
+                        <small style="display:block;margin-top:4px;color:#92400e;font-size:11px;">Moves this submission to another agent. Recorded in the Access Log.</small>
+                    </div>
                     <div class="form-group">
                         <label>Customer Name</label>
                         <input type="text" id="editCustomerName">
+                    </div>
+                    <div class="form-group">
+                        <label>📍 Office Location</label>
+                        <select id="editLocation">
+                            <option value="">— Select Location —</option>
+                            <option value="Lehigh Acres Office">Lehigh Acres Office</option>
+                            <option value="Hialeah Office">Hialeah Office</option>
+                            <option value="Boca Raton">Boca Raton</option>
+                            <option value="Homestead Location">Homestead Location</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Source</label>
@@ -3108,25 +3455,12 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>MGA</label>
+                        <label style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>MGA</span>
+                            <button type="button" class="btn-success btn-sm" onclick="openAddMgaModal('editMga')" style="padding:2px 8px;font-size:11px;"><i data-lucide="plus-circle"></i> Add</button>
+                        </label>
                         <select id="editMga">
                             <option value="">Select MGA (Optional)</option>
-                            <option value="5Star">5Star</option>
-                            <option value="ACI-Ascendant">ACI-Ascendant</option>
-                            <option value="All Risk">All Risk</option>
-                            <option value="Appalachian">Appalachian</option>
-                            <option value="Bass Underwriters">Bass Underwriters</option>
-                            <option value="FastComp">FastComp</option>
-                            <option value="Hiscox-London">Hiscox-London</option>
-                            <option value="Hull&amp;Co">Hull&amp;Co</option>
-                            <option value="London Underwriters">London Underwriters</option>
-                            <option value="MJ Kelly">MJ Kelly</option>
-                            <option value="Phyladelphia">Phyladelphia</option>
-                            <option value="SCU">SCU</option>
-                            <option value="Security Underwriters">Security Underwriters</option>
-                            <option value="Shelly Middle Brooks">Shelly Middle Brooks</option>
-                            <option value="Surety One">Surety One</option>
-                            <option value="Tapco">Tapco</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -3225,15 +3559,14 @@
                             <option value="Gross Paid">🔥 Gross Paid</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Status</label>
-                        <select id="editStatus">
-                            <option value="">Pending</option>
-                            <option value="Clean">Clean</option>
-                            <option value="Alta">Alta</option>
-                            <option value="Other">Other</option>
-                        </select>
+                </div>
+                <!-- Documentation Status (pending items) — editable for any client -->
+                <div id="editDocStatusSection" style="margin-top:14px;background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1.5px solid #fca5a5;border-radius:10px;padding:14px 16px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+                        <span style="font-size:14px;font-weight:800;color:#991b1b;">📋 Documentation Status</span>
+                        <span style="font-size:11px;color:#b91c1c;font-style:italic;">— check any pending items for this client (leave all unchecked if none)</span>
                     </div>
+                    <div id="editDocStatus" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;"></div>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
@@ -3339,14 +3672,38 @@
             <div style="max-width:1000px;width:100%;margin:0 auto;padding:24px 20px 60px;flex:1;">
 
                 <!-- Fixed period banner — this view is always the current month, new business only -->
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:12px 18px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);border-radius:12px;color:#fff;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:12px 18px;background:linear-gradient(to right,#0d1f3c 0%,#12336e 60%,#1d4ed8 100%);border-radius:12px;color:#fff;">
                     <i data-lucide="calendar-check" style="width:18px;height:18px;"></i>
                     <strong id="commPeriodLabel" style="font-size:14px;">📅 Loading…</strong>
-                    <span style="font-size:12px;opacity:.75;">This statement always shows the current month's new business — see Commission Statements (admin) for other periods or transaction types.</span>
+                    <span style="font-size:12px;opacity:.75;">Use the filters below to change the month or transaction type.</span>
                 </div>
+
+                <!-- Special flat-rate commission rule panel (shown only for agents with a custom rule, e.g. Amanda) -->
+                <div id="specialCommissionPanel" style="display:none;margin-bottom:20px;"></div>
 
                 <!-- Filters -->
                 <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px;padding:14px 18px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+                    <div id="commFilterAgentWrap" style="display:none;flex-direction:column;gap:5px;min-width:150px;">
+                        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Agent</label>
+                        <select id="commFilterAgent" onchange="loadAgentCommissionData()" style="padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;"></select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:5px;min-width:150px;">
+                        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Month</label>
+                        <select id="commFilterMonth" onchange="loadAgentCommissionData()" style="padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;"></select>
+                    </div>
+                    <div id="standardCommFilters" style="display:contents;">
+                    <div style="display:flex;flex-direction:column;gap:5px;min-width:140px;">
+                        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Transaction Type</label>
+                        <select id="commFilterType" onchange="loadAgentCommissionData()" style="padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;">
+                            <option value="New">New Business</option>
+                            <option value="">All Types</option>
+                            <option value="Renewal">Renewal</option>
+                            <option value="Renew A-B">Renew A-B</option>
+                            <option value="Rewrite">Rewrite</option>
+                            <option value="Endorsement">Endorsement</option>
+                            <option value="Miscellaneous">Miscellaneous</option>
+                        </select>
+                    </div>
                     <div style="display:flex;flex-direction:column;gap:5px;min-width:130px;">
                         <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Carrier</label>
                         <select id="commFilterCarrier" onchange="loadAgentCommissionData()" style="padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;">
@@ -3370,8 +3727,11 @@
                         </select>
                     </div>
                     <button type="button" onclick="clearCommissionFilters()" class="btn-secondary btn-sm" style="padding:9px 14px;">✕ Clear</button>
+                    </div><!-- /standardCommFilters -->
                 </div>
 
+                <!-- Standard percentage-based commission section (hidden for agents with a flat-rate special rule, e.g. Amanda) -->
+                <div id="standardCommissionSection">
                 <!-- Stat Cards -->
                 <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:20px;">
                     <div class="stat-card"><h4>Total Commissions</h4><div class="number" id="agentTotalCommissions">$0.00</div></div>
@@ -3444,6 +3804,7 @@
                         </table>
                     </div>
                 </div>
+                </div><!-- /standardCommissionSection -->
 
                 <!-- Actions -->
                 <div style="display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap;">
@@ -3636,6 +3997,19 @@
                     <input type="tel" id="agentPhone" placeholder="(555) 123-4567" required>
                 </div>
 
+                <div id="agentLoginBlock" style="border:1.5px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+                    <h4 style="margin:0 0 4px;">🔑 Sign-in for this agent</h4>
+                    <p style="margin:0 0 12px;font-size:12.5px;color:#4b5563;">The login is created with the email above and linked to this agent's name. Leave the password empty to add the agent without a login for now.</p>
+                    <div class="form-group" style="margin-bottom:10px;">
+                        <label>Temporary password (10+ characters)</label>
+                        <input type="text" id="agentNewLoginPassword" placeholder="Give this to the agent; they change it after signing in" minlength="10" autocomplete="off">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Role</label>
+                        <select id="agentNewLoginRole" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"><option value="agent">Agent</option><option value="admin">Admin</option></select>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label>Insurance License Type(s) *</label>
                     <div style="border: 1px solid #ddd; padding: 10px; border-radius: 4px; background-color: #f9f9f9;">
@@ -3682,16 +4056,22 @@
                 <h3 style="margin:0;"><i data-lucide="upload"></i> Upload Commission Statement</h3>
                 <button class="btn-danger btn-sm" onclick="closeCommissionUploadModal()">✕ Close</button>
             </div>
+            <div id="csUploadTarget" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:12px;"></div>
 
             <!-- Step 1: File Selection -->
             <div id="csStep1">
-                <div style="border:2px dashed var(--gray-200);border-radius:var(--radius-md);padding:40px 24px;text-align:center;background:var(--gray-50);margin-bottom:14px;">
+                <div id="csDropZone" ondragover="csDragOver(event)" ondragleave="csDragLeave(event)" ondrop="csDrop(event)"
+                    style="border:2px dashed var(--gray-200);border-radius:var(--radius-md);padding:40px 24px;text-align:center;background:var(--gray-50);margin-bottom:14px;transition:all .15s;">
                     <div style="font-size:44px;margin-bottom:12px;">📂</div>
-                    <p style="color:var(--gray-500);margin-bottom:18px;font-size:14px;">Select your monthly commission Excel file <strong>(.xlsx)</strong></p>
+                    <p style="color:var(--gray-500);margin-bottom:18px;font-size:14px;"><strong>Drop the statement here</strong>: an Excel file <strong>(.xlsx)</strong>, or carrier PDFs for the AI processor<br>or</p>
                     <label for="csFileInput" class="btn-primary" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px;padding:10px 22px;">
                         <i data-lucide="file-spreadsheet"></i> Browse File
                     </label>
                     <input type="file" id="csFileInput" accept=".xlsx,.xls" onchange="handleCSFileSelect(event)" style="display:none;">
+                    <label for="csPdfInput" class="btn-secondary" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px;padding:10px 22px;margin-left:8px;">
+                        <i data-lucide="file-text"></i> Choose PDFs
+                    </label>
+                    <input type="file" id="csPdfInput" accept="application/pdf" multiple onchange="csPickPdfs(this)" style="display:none;">
                 </div>
                 <p id="csFileStatus" style="font-size:13px;color:var(--gray-500);text-align:center;min-height:18px;"></p>
             </div>
@@ -3728,9 +4108,14 @@
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/motion@latest/dist/motion.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20260727b"></script>
-    <script src="supabase.js?v=20260727b"></script>
+    <script src="app.js?v=20261104f"></script>
+    <script src="uib-binder-sync.js?v=20261030c"></script>
+    <script src="monday-import.js?v=20261104a"></script>
+    <script src="supabase.js?v=20261027a"></script>
+<script src="uib-motion.js?v=20261002a"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){var s=(r.active||r.waiting||r.installing||{}).scriptURL||'';if(/rater-sw\.js/.test(s)||/\/rater\/?$/.test(r.scope))r.unregister();});}).catch(function(){});navigator.serviceWorker.register('/sw.js');}</script>
+<script src="uib-drop.js?v=20261103a"></script>
 </body>
 </html>

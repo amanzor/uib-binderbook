@@ -62,9 +62,19 @@ function amsDBDeleteFile(id) {
     });
 }
 
+function amsDBPutFile(record) {
+    return new Promise((resolve, reject) => {
+        if (!amsDB) { reject('DB not ready'); return; }
+        const tx  = amsDB.transaction('files', 'readwrite');
+        const req = tx.objectStore('files').put(record);
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror   = e => reject(e.target.error);
+    });
+}
+
 // ── Supabase Storage — cloud files (shared with Binder Book) ──
-const AMS_SB_URL    = 'https://jgjmobktucyimupelfxd.supabase.co';
-const AMS_SB_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
+const AMS_SB_URL    = ((window.UIB_CONFIG || {}).SUPABASE_URL || 'https://jgjmobktucyimupelfxd.supabase.co');
+const AMS_SB_KEY    = (window.UIB_CONFIG || {}).SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impnam1vYmt0dWN5aW11cGVsZnhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5NDAxMDYsImV4cCI6MjA5ODUxNjEwNn0.5vClAeHl-Cgo6QH4IW3oDHKQn_DKB3DZef9bN9IP0XQ';
 const AMS_SB_BUCKET = 'client-files';
 const AMS_SB_HEADERS = {
     'apikey': AMS_SB_KEY,
@@ -205,54 +215,71 @@ function amsNormalizeRestrictedCarrierLOBs(entries) {
     return fixed;
 }
 
-const AMS_ADMIN_PASSWORD = 'admin2024';
 
 // ── State ────────────────────────────────────────────────────
 let amsCurrentUser   = null;
 let amsCurrentRole   = null;
 let amsClientIndex   = {};   // key → { key, displayName, policies[], contact{} }
 let amsActiveKey     = null; // currently selected client key
+// The binder array the client index was built from. The index holds references
+// into it, so an edit made from a client's policy row can be saved by writing
+// this array back — no id lookup, which batch-imported duplicate ids would break.
+let amsBinderCache   = [];
 let amsFilteredKeys  = [];   // keys after search/filter
 let _amsSearchTimer  = null;
 
 // ── Data helpers ─────────────────────────────────────────────
 function amsGetBinderData()  { let d = JSON.parse(localStorage.getItem('binderData'))  || []; if (!Array.isArray(d)) d = d.value || []; return d; }
 function amsGetClientData()  { return JSON.parse(localStorage.getItem('amsClientData')) || {}; }
-function amsGetCredentials() { return JSON.parse(localStorage.getItem('agentCredentials')) || {}; }
+// Agent roster for dropdowns. Logins live in Supabase Auth now, so the
+// names come from the Agent Management list (agentMasterData).
+function amsGetCredentials() {
+    let master = {};
+    try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
+    const out = {};
+    Object.keys(master).forEach((n) => { out[n] = { email: (master[n] && master[n].email) || '' }; });
+    return out;
+}
 function amsGetCarriers()    { return JSON.parse(localStorage.getItem('carrierMasterData')) || {}; }
 
+// Shared data (the book of business above all) must be MERGED into the
+// cloud copy, never written over it. A plain setItem here used to push the
+// whole binderData array raw — so an AMS tab holding a stale or filtered
+// copy replaced the book for every other device. UIBBinderSync does the
+// merge, the shrink guard and the local mirror; only device-local keys take
+// the plain path.
 function amsSave(key, value) {
+    var S = window.UIBBinderSync;
+    if (S && S.isMergeManaged(key)) { S.save(key, value); return; }
     localStorage.setItem(key, JSON.stringify(value));
-    amsSyncToDrive(key, value);
 }
 
-async function amsSyncToDrive(key, value) {
-    try {
-        const payload = JSON.stringify({ key: key, value: value });
-        await fetch(AMS_DRIVE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, mode: 'no-cors' });
-    } catch (e) { /* Drive unavailable */ }
-}
+// The Admin login. Setting, clearing or changing the agent on a record, and
+// deleting a policy, are restricted to it — an agent signed in with their own
+// account can never reassign a record or delete one, whatever the UI shows.
+function amsIsAdminUser() { return amsCurrentRole === 'admin'; }
 
 // Lock or unlock an agent <select> based on current role.
 // Agents see their own name locked; only admin can change it.
 function amsLockAgentField(sel) {
     if (!sel) return;
-    if (amsCurrentRole !== 'admin') {
+    if (!amsIsAdminUser()) {
         sel.disabled = true;
         sel.title    = '🔒 Only Admin can change the assigned agent';
         sel.style.background   = '#f3f4f6';
         sel.style.cursor       = 'not-allowed';
         sel.style.borderColor  = '#d1d5db';
         sel.style.color        = '#6b7280';
-        // Add a lock label next to the field if not already there
-        const parent = sel.parentElement;
-        if (parent && !parent.querySelector('.ams-agent-lock-badge')) {
+        // Badge this field's own label — not a neighbour's, which is where
+        // previousElementSibling lands when the field sits in a grid.
+        const field = sel.closest('.info-field, .form-group') || sel.parentElement;
+        const label = field?.querySelector('label');
+        if (label && !label.querySelector('.ams-agent-lock-badge')) {
             const badge = document.createElement('span');
             badge.className = 'ams-agent-lock-badge';
             badge.textContent = '🔒 Admin only';
             badge.style.cssText = 'font-size:11px;color:#dc2626;font-weight:700;margin-left:8px;';
-            const label = parent.previousElementSibling || parent.querySelector('label');
-            if (label) label.appendChild(badge);
+            label.appendChild(badge);
         }
     } else {
         sel.disabled = false;
@@ -262,7 +289,7 @@ function amsLockAgentField(sel) {
         sel.style.borderColor = '';
         sel.style.color       = '';
         // Remove lock badge if present
-        sel.closest('.info-field, .form-group, div')
+        (sel.closest('.info-field, .form-group') || sel.parentElement)
             ?.querySelectorAll('.ams-agent-lock-badge')
             .forEach(b => b.remove());
     }
@@ -277,6 +304,7 @@ function amsBuildClientIndex() {
     const binder   = amsGetBinderData();
     const contacts = amsGetClientData();
     const index    = {};
+    amsBinderCache = binder;
 
     // Correct any Infinity/Kemper entries mislabeled as Homeowners, then persist.
     if (amsNormalizeRestrictedCarrierLOBs(binder) > 0) {
@@ -299,6 +327,8 @@ function amsBuildClientIndex() {
 
     // Also include clients that have contact info but no policies yet
     Object.keys(contacts).forEach(key => {
+        // A client record a monday.com import created, since undone.
+        if (!index[key] && contacts[key] && contacts[key].importUndone) return;
         if (!index[key]) {
             index[key] = {
                 key,
@@ -321,6 +351,12 @@ function amsBuildClientIndex() {
             return db - da;
         });
     });
+
+    // Health Book clients join the list as their own records (health.js),
+    // even when a P&C client carries the same name.
+    if (typeof window.healthIndexClients === 'function') {
+        try { window.healthIndexClients(index); } catch (e) { console.warn('Health clients not indexed:', e); }
+    }
 
     amsClientIndex = index;
     amsFilteredKeys = Object.keys(index).sort();
@@ -430,46 +466,38 @@ function togglePasswordVisibility(inputId, btn) {
 function amsDoLogin() {
     const email    = (document.getElementById('amsLoginEmail')?.value || '').trim().toLowerCase();
     const password = (document.getElementById('amsLoginPassword')?.value || '');
-    const creds    = amsGetCredentials();
     const errEl    = document.getElementById('amsLoginError');
-
-    let matched = null;
-    Object.entries(creds).forEach(([agent, data]) => {
-        const agentEmail = (typeof data === 'object' ? data.email : '') || '';
-        const agentPass  = (typeof data === 'object' ? data.password : data) || '';
-        if (agentEmail.toLowerCase() === email && agentPass === password) matched = agent;
+    if (!window.UIBAuth) { if (errEl) { errEl.textContent = 'Sign-in is unavailable: uib-auth.js did not load.'; errEl.style.display = 'block'; } return; }
+    UIBMfa.signIn(email, password, document.getElementById('amsAgentLoginForm')).then((user) => {
+        const remember = document.getElementById('amsRememberEmail')?.checked;
+        try { if (remember) localStorage.setItem('amsRememberedEmail', email); else localStorage.removeItem('amsRememberedEmail'); } catch (e) {}
+        try { document.cookie = remember ? 'amsRememberedEmail=' + encodeURIComponent(email) + '; max-age=' + (400 * 24 * 3600) + '; path=/; SameSite=Lax; Secure' : 'amsRememberedEmail=; max-age=0; path=/; SameSite=Lax; Secure'; } catch (e) {}
+        const pw = document.getElementById('amsLoginPassword'); if (pw) pw.value = '';
+        amsCurrentUser = (user.name && user.name !== 'Admin') ? user.name : 'Admin';
+        amsCurrentRole = user.role;
+        const knownAgents = Object.keys(amsGetCredentials()); if (!knownAgents.length) knownAgents.push('Alberto Manzor', 'Randy Diaz', 'Amanda Montano', 'Uriel Rendon', 'Jorge Castro', 'Lazaro Reigoza');
+        if (amsCurrentUser !== 'Admin' && user.role !== 'admin' && !knownAgents.includes(amsCurrentUser)) {
+            const creds = amsGetCredentials(); const byEmail = Object.keys(creds).find(n => String(creds[n].email || '').toLowerCase() === String(user.email || '').toLowerCase()) || (UIBAuth.KNOWN_AGENTS || {})[String(user.email || '').toLowerCase()];
+            if (byEmail) { amsCurrentUser = byEmail; UIBAuth.adoptName(byEmail); amsLaunchApp(); return; }
+            // Never lock an agent out over the name; continue as they are.
+        }
+        amsLaunchApp();
+    }).catch((err) => {
+        if (errEl) { errEl.textContent = /invalid login credentials/i.test(String(err.message)) ? 'Invalid email or password.' : (err.message || 'Sign-in failed.'); errEl.style.display = 'block'; }
     });
-
-    if (!matched) {
-        if (errEl) { errEl.textContent = 'Invalid email or password.'; errEl.style.display = 'block'; }
-        return;
-    }
-
-    const remember = document.getElementById('amsRememberEmail')?.checked;
-    if (remember) {
-        localStorage.setItem('amsRememberedEmail', email);
-    } else {
-        localStorage.removeItem('amsRememberedEmail');
-    }
-
-    amsCurrentUser = matched;
-    amsCurrentRole = 'agent';
-    amsLaunchApp();
 }
 
 function amsDoAdminLogin() {
+    const email = (document.getElementById('amsAdminEmail')?.value || '').trim().toLowerCase();
     const pwd   = (document.getElementById('amsAdminPassword')?.value || '');
     const errEl = document.getElementById('amsAdminLoginError');
-    const creds = amsGetCredentials();
-    const adminPwd = (typeof creds['Admin'] === 'object' ? creds['Admin'].password : creds['Admin']) || AMS_ADMIN_PASSWORD;
-
-    if (pwd !== adminPwd && pwd !== AMS_ADMIN_PASSWORD) {
-        if (errEl) { errEl.style.display = 'block'; }
-        return;
-    }
-    amsCurrentUser = 'Admin';
-    amsCurrentRole = 'admin';
-    amsLaunchApp();
+    if (!window.UIBAuth) return;
+    UIBMfa.signIn(email, pwd, document.getElementById('amsAdminLoginForm')).then((user) => {
+        if (user.role !== 'admin') { UIBAuth.signOut(); if (errEl) { errEl.textContent = 'This account is not an administrator.'; errEl.style.display = 'block'; } return; }
+        amsCurrentUser = 'Admin';
+        amsCurrentRole = 'admin';
+        amsLaunchApp();
+    }).catch(() => { if (errEl) { errEl.textContent = 'Incorrect email or password.'; errEl.style.display = 'block'; } });
 }
 
 function amsShowAdminLogin() {
@@ -483,38 +511,216 @@ function amsShowAgentLogin() {
 }
 
 function amsLogout() {
+    if (window.UIBAuth) UIBAuth.signOut();
     amsCurrentUser = null;
     amsCurrentRole = null;
     amsActiveKey   = null;
+    if (typeof amsHomeResetUser === 'function') amsHomeResetUser();
     const aiBtn = document.getElementById('aiBubbleBtn');
     if (aiBtn) aiBtn.style.display = 'none';
     document.getElementById('aiChatPanel')?.classList.remove('open');
     document.getElementById('amsApp').classList.remove('visible');
     document.getElementById('amsLoginScreen').style.display = 'flex';
-    document.getElementById('amsLoginEmail').value    = '';
+    // Keep the remembered email in the box after signing out.
+    let remembered = ''; try { remembered = localStorage.getItem('amsRememberedEmail') || ''; } catch (e) {}
+    if (!remembered) { const m = document.cookie.match(/(?:^|; )amsRememberedEmail=([^;]*)/); if (m) { try { remembered = decodeURIComponent(m[1]); } catch (e) {} } }
+    document.getElementById('amsLoginEmail').value    = remembered;
     document.getElementById('amsLoginPassword').value = '';
+    const rb = document.getElementById('amsRememberEmail'); if (rb) rb.checked = !!remembered;
 }
 
-// ── Drive → localStorage sync ────────────────────────────────
+// ── Cloud → localStorage sync ────────────────────────────────
+// Reads the same Supabase app_store rows the Binder Book writes, so the AMS
+// opens on the fleet's current data. The old Google Sheet copy this used to
+// read stopped being updated by the Binder Book long ago, and writing it back
+// through the auto-sync layer pushed that stale copy over the cloud.
+// Rows are written with the raw setter: they came FROM the cloud, so pushing
+// them back would only overwrite what another device saved meanwhile.
+function _amsRawSet(key, value) {
+    if (window.uibCloud && typeof window.uibCloud.rawSet === 'function') window.uibCloud.rawSet(key, value);
+    else localStorage.setItem(key, value);
+}
+
 async function amsSyncDataFromDrive() {
-    const keys = ['binderData', 'amsClientData', 'carrierMasterData', 'agentMasterData'];
-    const results = await Promise.allSettled(keys.map(async key => {
-        try {
-            const res  = await fetch(`${AMS_DRIVE_URL}?key=${key}`);
-            const json = await res.json();
-            if (json.success && json.data != null) {
-                let data = json.data;
-                // Unwrap {value: [...]} if data was stored with wrapper
-                if (data && !Array.isArray(data) && data.value && Array.isArray(data.value)) {
-                    data = data.value;
-                }
-                localStorage.setItem(key, JSON.stringify(data));
-                return { key, count: Array.isArray(data) ? data.length : Object.keys(data).length };
+    const keys = ['binderData', 'amsClientData', 'carrierMasterData', 'agentMasterData', 'healthData', 'healthCarrierData'];
+    try {
+        const res = await fetch(`${AMS_SB_URL}/rest/v1/app_store?select=key,value&key=in.(${keys.join(',')})`, { headers: AMS_SB_HEADERS });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const rows = await res.json();
+        return keys.map(key => {
+            const row = rows.find(r => r.key === key);
+            if (!row || row.value == null) return { key, count: 0 };
+            let data = row.value;
+            // Unwrap {value: [...]} if data was stored with wrapper
+            if (data && !Array.isArray(data) && data.value && Array.isArray(data.value)) {
+                data = data.value;
             }
-        } catch (e) { /* Drive unavailable — use localStorage */ }
-        return { key, count: 0 };
-    }));
-    return results.map(r => r.value || r.reason);
+            _amsRawSet(key, JSON.stringify(data));
+            return { key, count: Array.isArray(data) ? data.length : Object.keys(data).length };
+        });
+    } catch (e) {
+        // Cloud unavailable — use whatever is in localStorage already
+        return keys.map(key => ({ key, count: 0 }));
+    }
+}
+
+// ── Live refresh from the cloud ──────────────────────────────
+// The AMS and the Binder Book run as separate deployments on separate
+// origins, so they share no browser storage — the Supabase row IS the
+// connection between them. A client entered in the Binder Book therefore
+// appears here only once this page pulls again, so pull on a timer and
+// whenever the tab comes back to the front rather than only at login.
+const AMS_REFRESH_MS = 60000;
+let _amsRefreshTimer  = null;
+let _amsRefreshing    = false;
+let _amsRefreshBound  = false;
+
+// Never redraw out from under someone: an open dialog or a focused field
+// means they are mid-entry, and re-rendering would discard it.
+function amsRefreshBusy() {
+    if (document.querySelector('.ams-modal.open')) return true;
+    const a = document.activeElement;
+    return !!(a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName));
+}
+
+function _amsVisible(el) { return !!(el && el.offsetParent !== null); }
+
+async function amsRefreshFromCloud() {
+    if (_amsRefreshing || !window.UIBBinderSync) return;
+    if (amsRefreshBusy()) return;
+    _amsRefreshing = true;
+    try {
+        const res = await window.UIBBinderSync.pull();
+        // Nothing new, or the cloud did not answer — keep the current view.
+        if (!res.ok || !res.changed) return;
+        amsBuildClientIndex();
+        if (amsRefreshBusy()) return;          // they started typing mid-pull
+        amsRenderClientList();
+        if (amsActiveKey) amsRenderPolicies(amsActiveKey);
+        // Certificates and additional interests another agent saved.
+        if (amsActiveKey && _amsVisible(document.getElementById('tabCertificates')) && typeof certRenderList === 'function') certRenderList();
+        if (amsActiveKey && _amsVisible(document.getElementById('tabInterests')) && typeof aiRender === 'function') aiRender();
+        if (amsActiveKey && _amsVisible(document.getElementById('tabDocuments'))) amsRenderFileGrid();
+        if (_amsVisible(document.getElementById('amsHomePanel')) && typeof amsHomeRender === 'function') amsHomeRender();
+        const rnw = document.getElementById('amsRenewalsPanel');
+        if (_amsVisible(rnw) && typeof amsRenewalsRender === 'function') amsRenewalsRender();
+    } catch (e) {
+        // Offline or the cloud is down: show what this device already has.
+    } finally {
+        _amsRefreshing = false;
+    }
+}
+
+function amsStartLiveRefresh() {
+    if (!_amsRefreshTimer) {
+        // Hidden tabs are skipped: polling from a dozen background tabs is
+        // what exhausted the database's IO budget before.
+        _amsRefreshTimer = setInterval(() => {
+            if (!document.hidden) amsRefreshFromCloud();
+        }, AMS_REFRESH_MS);
+    }
+    if (!_amsRefreshBound) {
+        _amsRefreshBound = true;
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) { amsRefreshFromCloud(); amsCheckForUpdate(); }
+        });
+    }
+    // Records the current page's ETag now, so only a deploy AFTER this
+    // point raises the banner.
+    amsCheckForUpdate();
+    setInterval(amsCheckForUpdate, AMS_UPDATE_CHECK_MS);
+}
+
+// Enter the app if a session is present. Safe to call twice: the second
+// call finds amsCurrentUser already set and does nothing.
+function amsEnterIfSignedIn() {
+    if (amsCurrentUser) return true;
+    const u = (window.UIBAuth && UIBAuth.user()) || null;
+    if (!u) return false;
+    amsCurrentUser = (u.name && u.name !== 'Admin') ? u.name : 'Admin';
+    amsCurrentRole = u.role;
+    amsLaunchApp();
+    return true;
+}
+
+// ── Stale-tab guard ──────────────────────────────────────────
+// The Binder Book has APP_BUILD: a tab left open across a deploy notices
+// and reloads. The AMS had nothing, so an agent who leaves it open for
+// days keeps running whatever shipped the day they opened it — which is
+// how a browser pointed at a deployment that HAS a Certificate Master tab
+// shows one that does not.
+//
+// This needs no build step and no new file: the server already sends an
+// ETag for this page, so an ETag that has changed since load IS a new
+// deployment. The agent is offered the reload rather than having it
+// forced — they may be halfway through a form.
+const AMS_UPDATE_CHECK_MS = 5 * 60 * 1000;
+let _amsPageTag     = null;
+let _amsUpdateShown = false;
+
+async function amsCheckForUpdate() {
+    if (_amsUpdateShown || document.hidden) return;
+    let tag;
+    try {
+        const res = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' });
+        if (!res.ok) return;
+        tag = res.headers.get('etag') || res.headers.get('last-modified');
+    } catch (e) { return; }                 // offline: nothing to say
+    if (!tag) return;                       // no validator: cannot tell, stay quiet
+    if (_amsPageTag === null) { _amsPageTag = tag; return; }
+    if (tag === _amsPageTag) return;
+    _amsUpdateShown = true;
+    amsShowUpdateBanner();
+}
+
+function amsShowUpdateBanner() {
+    if (document.getElementById('amsUpdateBanner')) return;
+    const bar = document.createElement('div');
+    bar.id = 'amsUpdateBanner';
+    bar.style.cssText =
+        'position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:100001;' +
+        'display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:11px;' +
+        'background:#0d1f3c;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.35);' +
+        'font-family:system-ui,Arial,sans-serif;font-size:13px;max-width:92vw;';
+    bar.innerHTML =
+        '<span>A newer version of the AMS has been released.</span>' +
+        '<button id="amsUpdateReload" style="background:#22c55e;color:#fff;border:none;border-radius:7px;' +
+            'padding:7px 14px;font-weight:700;font-size:12px;cursor:pointer;">Reload</button>' +
+        '<button id="amsUpdateLater" style="background:none;color:rgba(255,255,255,.7);border:none;' +
+            'font-size:12px;cursor:pointer;">Later</button>';
+    document.body.appendChild(bar);
+    bar.querySelector('#amsUpdateReload').onclick = function () { location.reload(); };
+    bar.querySelector('#amsUpdateLater').onclick  = function () { bar.remove(); };
+}
+
+// Point the login screen's "← Back to Binder Book" link at wherever the
+// Binder Book actually is. On this site's own copy of the AMS the markup's
+// relative href is already right; on the standalone deployment it is not,
+// and config is the one place that knows.
+function amsSetBinderLink() {
+    var a = document.getElementById('amsBackToBinder');
+    var url = (window.UIB_CONFIG || {}).BINDER_URL;
+    if (a && url) a.href = url;
+}
+
+// A ?client= link from the Binder Book opens that client's profile here.
+// The key is the upper-cased, space-collapsed customer name, which is what
+// amsClientKey produces, so the two sides agree without storing an id.
+// Runs after login, so a deep link still goes through the sign-in screen.
+function amsOpenDeepLinkedClient() {
+    var key;
+    try { key = new URLSearchParams(location.search).get('client'); } catch (e) { return; }
+    if (!key) return;
+    key = amsClientKey(decodeURIComponent(key));
+    if (!amsClientIndex[key]) {
+        // The name may have reached the AMS only moments ago, or not at all.
+        // Say which client, rather than silently showing the empty list.
+        amsFlashBanner('No AMS record yet for "' + key + '" — it may still be syncing');
+        return;
+    }
+    amsLoadClientDetail(key);
+    // Leave the address bar clean so a refresh does not keep re-opening it.
+    try { history.replaceState({}, '', location.pathname); } catch (e) {}
 }
 
 // ── App launch ───────────────────────────────────────────────
@@ -532,11 +738,18 @@ function amsLaunchApp() {
     amsInitDB().then(async () => {
         await amsSyncDataFromDrive();
         amsBuildClientIndex();
+        amsBackfillAgentOnRecord();
         amsPopulateAgentFilter();
         amsPopulateCarrierFilter();
         amsRenderClientList();
         amsPopulateModalDropdowns();
         lucide.createIcons();
+        amsStartLiveRefresh();
+        if (typeof amsRenderLogoSection === 'function') amsRenderLogoSection();
+        if (typeof amsRenderRecent === 'function') amsRenderRecent();
+        amsOpenDeepLinkedClient();
+        // Land on Home unless a link opened a client.
+        if (!amsActiveKey && typeof amsSidebarNav === 'function' && typeof amsHomeRender === 'function') amsSidebarNav('home');
     });
 
     // Keyboard: Escape closes preview
@@ -611,16 +824,80 @@ function amsPopulateModalDropdowns() {
         });
     }
 
-    // Contact: assigned agent — admin only
-    const ciAgent = document.getElementById('ci_assignedAgent');
-    if (ciAgent) {
-        ciAgent.innerHTML = '<option value="">— Select Agent —</option>';
-        const creds = amsGetCredentials();
-        Object.keys(creds).sort().forEach(a => {
-            const o = document.createElement('option'); o.value = a; o.textContent = a; ciAgent.appendChild(o);
+    // Contact: assigned agent + agent on record — both admin only
+    ['ci_assignedAgent', 'ci_csrName'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const current = sel.value;
+        sel.innerHTML = '<option value="">— Select Agent —</option>';
+        const names = new Set(Object.keys(amsGetCredentials()));
+        // Keep a name already on the record even if that login is gone, so
+        // opening a client never silently blanks its agent on record.
+        if (current) names.add(current);
+        [...names].sort().forEach(a => {
+            const o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o);
         });
-        amsLockAgentField(ciAgent);
+        sel.value = current;
+        amsLockAgentField(sel);
+    });
+}
+
+// ── Agent On Record ──────────────────────────────────────────
+// The field used to be a free-text "CSR Name". It now records which agent owns
+// the client, so seed it from the agent on their most recent policy (falling
+// back to the assigned agent). Any old CSR text is kept in csrNameLegacy rather
+// than thrown away. Runs once per browser; re-runs only fill in blanks.
+const AMS_AOR_BACKFILL_KEY = 'amsAgentOnRecordBackfill_v1';
+
+function amsClientCurrentAgent(client) {
+    const dated = (client?.policies || []).filter(p => p && p.agent);
+    if (dated.length) {
+        const newest = dated.slice().sort((a, b) =>
+            String(b.expirationDate || b.effectiveDate || b.entryDate || '')
+                .localeCompare(String(a.expirationDate || a.effectiveDate || a.entryDate || '')))[0];
+        if (newest?.agent) return newest.agent;
     }
+    return client?.contact?.assignedAgent || '';
+}
+
+function amsBackfillAgentOnRecord() {
+    const contacts = amsGetClientData();
+    // No contacts at all while policies exist means the cloud copy has not
+    // arrived yet — building a skeleton now and saving it would replace the
+    // fleet's client records with that skeleton.
+    if (!Object.keys(contacts).length && Object.keys(amsClientIndex).length) return 0;
+    // The fleet-wide first run already happened; a fresh browser or origin has
+    // no local flag but its (cloud-pulled) contacts do carry the Agent On
+    // Record. Treat that as done — a repeat "first run" would overwrite any
+    // agent assigned by hand since.
+    const flagged  = !!localStorage.getItem(AMS_AOR_BACKFILL_KEY);
+    const firstRun = !flagged && !Object.values(contacts).some(r => r && r.csrName);
+    if (!flagged && !firstRun) _amsRawSet(AMS_AOR_BACKFILL_KEY, new Date().toISOString());
+    let changed = 0;
+
+    Object.values(amsClientIndex).forEach(client => {
+        if (client.isHealth) return;   // Health Book records are not client records
+        const agent = amsClientCurrentAgent(client);
+        if (!agent) return;
+        const rec = contacts[client.key] || (contacts[client.key] = {});
+        // First run replaces the old CSR text; later runs only fill blanks.
+        if (!firstRun && rec.csrName) return;
+        if (rec.csrName === agent) return;
+        if (firstRun && rec.csrName && rec.csrName !== agent && !rec.csrNameLegacy) {
+            rec.csrNameLegacy = rec.csrName;
+        }
+        rec.csrName   = agent;
+        rec.updatedAt = new Date().toISOString();
+        changed++;
+    });
+
+    if (changed) amsSave('amsClientData', contacts);
+    if (firstRun) localStorage.setItem(AMS_AOR_BACKFILL_KEY, new Date().toISOString());
+    if (changed) {
+        amsBuildClientIndex();
+        console.log(`Agent On Record set on ${changed} client${changed === 1 ? '' : 's'}.`);
+    }
+    return changed;
 }
 
 // ── Search & Filter ──────────────────────────────────────────
@@ -641,6 +918,7 @@ function amsApplyFilters(q) {
     if (q === undefined) q = (document.getElementById('amsSidebarSearch')?.value || '').toLowerCase().trim();
     const agentFilter    = document.getElementById('amsAgentFilter')?.value   || '';
     const carrierFilter  = document.getElementById('amsCarrierFilter')?.value || '';
+    const typeFilter     = document.getElementById('amsTypeFilter')?.value    || '';
     const includeRelated = document.getElementById('amsIncludeRelated')?.checked !== false;
 
     amsRelationReasons = {};
@@ -651,7 +929,18 @@ function amsApplyFilters(q) {
         if (!client) return false;
         if (agentFilter && !client.policies.some(p => p.agent === agentFilter)
             && (client.contact?.assignedAgent || '') !== agentFilter) return false;
-        if (carrierFilter && !client.policies.some(p => p.company === carrierFilter)) return false;
+        if (carrierFilter && !client.policies.some(p => p.company === carrierFilter)
+            && !(client.isHealth && (client.health || []).some(h => h.carrier === carrierFilter))) return false;
+        if (typeFilter && amsClientKind(client) !== typeFilter) return false;
+        // The book tab on top: Health shows Health Book clients; Personal and
+        // Commercial show clients with a policy in that book (and prospects,
+        // who have none yet).
+        if (typeof amsBook === 'function') {
+            const book = amsBook();
+            if (book === 'health') { if (!client.isHealth) return false; }
+            else if (client.isHealth) return false;
+            else if (client.policies.length && !client.policies.some(p => amsBookMatch(p))) return false;
+        }
         return true;
     };
 
@@ -693,6 +982,51 @@ function amsApplyFilters(q) {
     amsRenderClientList(relatedKeys.length);
 }
 
+// What a record in the client list is: a client, a prospect (no policies
+// yet, status Prospect), an inactive client (every policy canceled or
+// expired), or a Health Book client.
+function amsClientKind(client) {
+    if (client.isHealth) return 'health';
+    const st = (client.contact && client.contact.clientStatus) || '';
+    if (!client.policies.length && /prospect/i.test(st)) return 'prospects';
+    return amsClientActivity(client).inactive ? 'inactive' : 'clients';
+}
+
+// Is anything still in force for this client? Each policy number counts
+// once, by its most recent entry; a client whose every policy is canceled
+// or expired is inactive. Worked out from the policies each time, so a
+// new policy makes the client active again with nothing to undo.
+function amsClientActivity(client) {
+    const pols = (client && client.policies) || [];
+    if (!pols.length) return { inactive: false, reason: '', lastDate: '', policies: 0 };
+    const groups = {};
+    pols.forEach((p, i) => {
+        const k = String(p.policyNumber || '').trim().toUpperCase() || ('#' + i);
+        (groups[k] = groups[k] || []).push(p);
+    });
+    let anyLive = false, canceled = 0, expired = 0, lastDate = '';
+    Object.values(groups).forEach(list => {
+        const dateOf = p => String(p.expirationDate || p.effectiveDate || p.effDate || p.entryDate || '');
+        list.forEach(p => { const d = String(p.cancellationDate || p.expirationDate || p.entryDate || ''); if (d > lastDate) lastDate = d; });
+        if (list.some(p => amsGetPolicyStatus(p) === 'Canceled')) { canceled++; return; }
+        const latest = list.slice().sort((a, b) => dateOf(b).localeCompare(dateOf(a)))[0];
+        const st = amsGetPolicyStatus(latest);
+        if (st === 'Expired') expired++;
+        else anyLive = true;
+    });
+    if (anyLive) return { inactive: false, reason: '', lastDate, policies: Object.keys(groups).length };
+    const reason = canceled && expired ? 'Canceled & expired' : canceled ? 'Canceled' : 'Expired';
+    return { inactive: true, reason, lastDate, policies: Object.keys(groups).length };
+}
+
+// The status a client shows: a manual Prospect / Inactive on the record
+// stands; otherwise a client with nothing in force reads Inactive.
+function amsClientStatusOf(client) {
+    const manual = (client && client.contact && client.contact.clientStatus) || '';
+    if (/prospect|inactive/i.test(manual)) return manual;
+    return amsClientActivity(client).inactive ? 'Inactive' : (manual || 'Active');
+}
+
 // ── Render client list ───────────────────────────────────────
 function amsRenderClientList(relatedCount = 0) {
     const container = document.getElementById('amsClientList');
@@ -705,6 +1039,8 @@ function amsRenderClientList(relatedCount = 0) {
             : `${total} client${total !== 1 ? 's' : ''}`;
     }
 
+    amsUpdateMergeButton();
+
     if (!amsFilteredKeys.length) {
         container.innerHTML = '<div class="no-results">No clients found.</div>';
         return;
@@ -712,8 +1048,15 @@ function amsRenderClientList(relatedCount = 0) {
 
     container.innerHTML = amsFilteredKeys.map(key => {
         const c = amsClientIndex[key];
+        if (c.isHealth && typeof window.healthClientCard === 'function') {
+            return window.healthClientCard(c, key === amsActiveKey, amsRelationReasons[key]);
+        }
         const contact = c.contact || {};
         const numPolicies = c.policies.length;
+        const clientStatus = amsClientStatusOf(c);
+        const statusClass  = /inactive/i.test(clientStatus) ? 'status-inactive'
+                           : /prospect/i.test(clientStatus) ? 'status-prospect'
+                           : 'status-active';
         const lastAgent   = c.policies[0]?.agent || contact.assignedAgent || '';
         const phone       = contact.phone1 || '';
         const lastDate    = c.policies[0]?.entryDate
@@ -723,11 +1066,14 @@ function amsRenderClientList(relatedCount = 0) {
         const relReason = amsRelationReasons[key];
 
         return `
-        <div class="client-card ${key === amsActiveKey ? 'active' : ''} ${relReason ? 'is-related' : ''}" onclick="amsLoadClientDetail('${amsEsc(key)}')">
+        <div class="client-card ${key === amsActiveKey ? 'active' : ''} ${relReason ? 'is-related' : ''}" onclick="amsLoadClientDetail('${amsEscHtml(amsEsc(key))}')">
             <div style="display:flex;gap:10px;align-items:center;">
                 <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--navy));color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${initials}</div>
                 <div style="flex:1;min-width:0;">
-                    <div class="cc-name">${amsEscHtml(c.displayName)}</div>
+                    <div style="display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:3px;">
+                        <div class="cc-name" style="margin-bottom:0;">${amsEscHtml(c.displayName)}</div>
+                        <span class="cc-badge ${statusClass}" style="flex-shrink:0;">${amsEscHtml(clientStatus)}</span>
+                    </div>
                     <div class="cc-meta">
                         ${phone ? `<span>${amsEscHtml(phone)}</span>` : ''}
                         ${lastDate ? `<span>${lastDate}</span>` : ''}
@@ -744,8 +1090,229 @@ function amsRenderClientList(relatedCount = 0) {
     }).join('');
 }
 
+// ── Merge clients ────────────────────────────────────────────
+// Fold two or more duplicate client records into one. Policies, contact
+// details, notes, ACORD forms, and documents (local + cloud) from the
+// "source" records are moved onto the "primary" record the user keeps.
+let _amsMergeKeys       = [];   // index → client key, for the open modal
+let _amsMergePrimaryIdx = -1;   // index of the record to keep
+
+function amsUpdateMergeButton() {
+    const btn = document.getElementById('amsMergeBtn');
+    if (btn) btn.style.display = amsFilteredKeys.filter(k => !amsClientIndex[k]?.isHealth).length >= 2 ? 'inline-flex' : 'none';
+}
+
+function amsOpenMergeModal() {
+    // Health Book records keep their own card; they are never merged into a client.
+    _amsMergeKeys = amsFilteredKeys.filter(k => !amsClientIndex[k]?.isHealth);
+    if (_amsMergeKeys.length < 2) {
+        alert('Need at least two clients in the list to merge. Adjust your search or filters first.');
+        return;
+    }
+    _amsMergePrimaryIdx = -1;
+
+    document.getElementById('amsMergeList').innerHTML = _amsMergeKeys.map((key, i) => {
+        const c = amsClientIndex[key];
+        const n = c.policies.length;
+        const phone = c.contact && c.contact.phone1 ? ' · ' + amsEscHtml(c.contact.phone1) : '';
+        return `
+        <div class="ams-merge-row" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--gray-100);">
+            <input type="checkbox" class="ams-merge-check" data-idx="${i}" onchange="amsMergeSelectionChanged()" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;">
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;font-size:13px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${amsEscHtml(c.displayName)}</div>
+                <div style="font-size:11px;color:var(--gray-500);">${n} polic${n !== 1 ? 'ies' : 'y'}${phone}</div>
+            </div>
+            <label class="ams-merge-keep" style="display:none;align-items:center;gap:5px;font-size:11px;color:var(--blue-mid);font-weight:700;white-space:nowrap;cursor:pointer;">
+                <input type="radio" name="amsMergePrimary" data-idx="${i}" onchange="amsMergePrimaryChanged(${i})"> keep
+            </label>
+        </div>`;
+    }).join('');
+
+    document.getElementById('amsMergeSummary').textContent = 'Select at least two clients.';
+    document.getElementById('amsMergeConfirmBtn').disabled = true;
+    document.getElementById('amsMergeModal').classList.add('open');
+    if (window.lucide) lucide.createIcons();
+}
+
+function amsCloseMergeModal() {
+    document.getElementById('amsMergeModal').classList.remove('open');
+}
+
+function amsMergeSelectionChanged() {
+    const checks = [...document.querySelectorAll('.ams-merge-check')];
+    const checkedIdx = checks.filter(c => c.checked).map(c => +c.dataset.idx);
+
+    // Show the "keep" control only on checked rows
+    checks.forEach(chk => {
+        const keepWrap = chk.closest('.ams-merge-row').querySelector('.ams-merge-keep');
+        keepWrap.style.display = chk.checked ? 'inline-flex' : 'none';
+    });
+
+    // Default the primary to the checked record with the most policies
+    if (checkedIdx.length >= 2 && !checkedIdx.includes(_amsMergePrimaryIdx)) {
+        _amsMergePrimaryIdx = checkedIdx.slice().sort((a, b) =>
+            amsClientIndex[_amsMergeKeys[b]].policies.length -
+            amsClientIndex[_amsMergeKeys[a]].policies.length)[0];
+    }
+    if (checkedIdx.length < 2) _amsMergePrimaryIdx = -1;
+
+    // Reflect the primary selection in the radios
+    checks.forEach(chk => {
+        const radio = chk.closest('.ams-merge-row').querySelector('input[type=radio]');
+        radio.checked = (+chk.dataset.idx === _amsMergePrimaryIdx);
+    });
+
+    amsUpdateMergeSummary(checkedIdx);
+}
+
+function amsMergePrimaryChanged(idx) {
+    _amsMergePrimaryIdx = +idx;
+    const checkedIdx = [...document.querySelectorAll('.ams-merge-check:checked')].map(c => +c.dataset.idx);
+    amsUpdateMergeSummary(checkedIdx);
+}
+
+function amsUpdateMergeSummary(checkedIdx) {
+    const summary = document.getElementById('amsMergeSummary');
+    const btn     = document.getElementById('amsMergeConfirmBtn');
+    if (checkedIdx.length < 2) {
+        summary.textContent = 'Select at least two clients.';
+        btn.disabled = true;
+        return;
+    }
+    if (_amsMergePrimaryIdx < 0 || !checkedIdx.includes(_amsMergePrimaryIdx)) {
+        summary.textContent = 'Choose which client to keep.';
+        btn.disabled = true;
+        return;
+    }
+    const primaryName    = amsClientIndex[_amsMergeKeys[_amsMergePrimaryIdx]].displayName;
+    const totalPolicies  = checkedIdx.reduce((s, i) => s + amsClientIndex[_amsMergeKeys[i]].policies.length, 0);
+    summary.innerHTML = `Keeping <strong>${amsEscHtml(primaryName)}</strong> — ${checkedIdx.length} records, ${totalPolicies} total polic${totalPolicies !== 1 ? 'ies' : 'y'} combined.`;
+    btn.disabled = false;
+}
+
+function amsConfirmMerge() {
+    const checkedIdx = [...document.querySelectorAll('.ams-merge-check:checked')].map(c => +c.dataset.idx);
+    if (checkedIdx.length < 2) { alert('Select at least two clients to merge.'); return; }
+    if (_amsMergePrimaryIdx < 0 || !checkedIdx.includes(_amsMergePrimaryIdx)) {
+        alert('Choose which client to keep.'); return;
+    }
+
+    const primaryKey = _amsMergeKeys[_amsMergePrimaryIdx];
+    const sourceKeys = checkedIdx.map(i => _amsMergeKeys[i]).filter(k => k !== primaryKey);
+    const primaryName = amsClientIndex[primaryKey].displayName;
+    const names = sourceKeys.map(k => amsClientIndex[k].displayName).join(', ');
+
+    if (!confirm(
+        `Merge ${sourceKeys.length} client${sourceKeys.length !== 1 ? 's' : ''} (${names}) into "${primaryName}"?\n\n` +
+        `All their policies, notes, contact info, forms, and documents will move into "${primaryName}" and the ` +
+        `duplicate record${sourceKeys.length !== 1 ? 's' : ''} will be removed. This cannot be undone.`
+    )) return;
+
+    const btn = document.getElementById('amsMergeConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = 'Merging…';
+    amsPerformMerge(primaryKey, sourceKeys)
+        .catch(err => {
+            alert('Merge failed: ' + (err && err.message ? err.message : err));
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="git-merge"></i> Merge Selected';
+            if (window.lucide) lucide.createIcons();
+        });
+}
+
+async function amsPerformMerge(primaryKey, sourceKeys) {
+    const primaryName = amsClientIndex[primaryKey].displayName;
+    const sourceSet   = new Set(sourceKeys);
+
+    // 1) Repoint every policy owned by a source client to the primary's name,
+    //    so the rebuilt index groups them under the primary key.
+    const binder = amsGetBinderData();
+    let movedPolicies = 0;
+    binder.forEach(entry => {
+        if (sourceSet.has(amsClientKey(entry.customerName))) {
+            entry.customerName = primaryName;
+            entry.updatedAt = Date.now();
+            movedPolicies++;
+        }
+    });
+    amsSave('binderData', binder);
+
+    // 2) Merge contact fields (primary wins; blanks filled from sources) and
+    //    concatenate notes, then drop the source contact records.
+    const contacts = amsGetClientData();
+    const target   = contacts[primaryKey] || {};
+    const contactFields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
+        'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
+        'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
+        'privacyNoticeDate','privacyNoticeMethod'];
+    sourceKeys.forEach(sk => {
+        const src = contacts[sk] || {};
+        contactFields.forEach(f => { if (!target[f] && src[f]) target[f] = src[f]; });
+        if (Array.isArray(src.notes) && src.notes.length) {
+            target.notes = (target.notes || []).concat(src.notes);
+        }
+        delete contacts[sk];
+    });
+    target.updatedAt = new Date().toISOString();
+    contacts[primaryKey] = target;
+    amsSave('amsClientData', contacts);
+
+    // 3) Re-key saved ACORD forms (`${clientKey}_${formId}`) onto the primary.
+    try {
+        const forms = JSON.parse(localStorage.getItem('acordSavedForms') || '{}');
+        let changed = false;
+        Object.keys(forms).forEach(k => {
+            for (const sk of sourceKeys) {
+                if (k.startsWith(sk + '_')) {
+                    const newKey = primaryKey + k.slice(sk.length);
+                    if (!(newKey in forms)) forms[newKey] = forms[k];
+                    delete forms[k];
+                    changed = true;
+                    break;
+                }
+            }
+        });
+        if (changed) amsSave('acordSavedForms', forms);
+    } catch (e) { /* forms are best-effort */ }
+
+    // 4) Move local (IndexedDB) documents onto the primary key.
+    try {
+        for (const sk of sourceKeys) {
+            const files = await amsDBGetFilesForClient(sk);
+            for (const f of files) {
+                f.clientKey = primaryKey;
+                await amsDBPutFile(f);
+            }
+        }
+    } catch (e) { /* local docs are best-effort */ }
+
+    // 5) Move cloud (Supabase) document rows onto the primary key. Storage paths
+    //    are unchanged (downloads use the path directly), only the owning key.
+    try {
+        for (const sk of sourceKeys) {
+            await fetch(`${AMS_SB_URL}/rest/v1/documents?client_key=eq.${encodeURIComponent(sk)}`, {
+                method: 'PATCH',
+                headers: Object.assign({}, AMS_SB_HEADERS, { 'Prefer': 'return=minimal' }),
+                body: JSON.stringify({ client_key: primaryKey })
+            });
+        }
+    } catch (e) { /* cloud docs are best-effort */ }
+
+    // Rebuild, refresh the list, and open the merged client.
+    amsBuildClientIndex();
+    amsActiveKey = primaryKey;
+    amsApplyFilters();
+    amsCloseMergeModal();
+    amsLoadClientDetail(primaryKey);
+    amsFlashBanner(`Merged ${sourceKeys.length + 1} clients into ${primaryName} · ${movedPolicies} polic${movedPolicies !== 1 ? 'ies' : 'y'} moved ✓`);
+}
+
 // ── Load & render client detail ──────────────────────────────
 function amsLoadClientDetail(key) {
+    if (/^HEALTH::/.test(key || '') && typeof window.healthOpenClient === 'function') {
+        window.healthOpenClient(key);
+        return;
+    }
     const client = amsClientIndex[key];
     if (!client) return;
     amsActiveKey = key;
@@ -774,21 +1341,40 @@ function amsLoadClientDetail(key) {
     if (contact.email)  metaItems.push(`<span><i data-lucide="mail"  style="width:12px;height:12px;"></i> ${amsEscHtml(contact.email)}</span>`);
     if (contact.city)   metaItems.push(`<span><i data-lucide="map-pin" style="width:12px;height:12px;"></i> ${amsEscHtml(contact.city)}</span>`);
     metaItems.push(`<span class="tag tag-blue">${numPol} Polic${numPol !== 1 ? 'ies' : 'y'}</span>`);
-    if (contact.clientStatus) metaItems.push(`<span class="tag tag-green">${amsEscHtml(contact.clientStatus)}</span>`);
+    const _detailStatus = amsClientStatusOf(client);
+    const _statusTag = /inactive/i.test(_detailStatus) ? 'tag-gray'
+                     : /prospect/i.test(_detailStatus) ? 'tag-orange'
+                     : 'tag-green';
+    metaItems.push(`<span class="tag ${_statusTag}">${amsEscHtml(_detailStatus)}</span>`);
     document.getElementById('detailMeta').innerHTML = metaItems.join('');
 
     // Populate contact form fields
     const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
                     'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
-                    'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
+                    'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
+                    'privacyNoticeDate','privacyNoticeMethod'];
     fields.forEach(f => {
         const el = document.getElementById(`ci_${f}`);
-        if (el) el.value = contact[f] || '';
+        if (!el) return;
+        const val = contact[f] || '';
+        // A name no longer in the agent list (a departed agent, or the old CSR
+        // text this field used to hold) would vanish from a <select>. Keep it as
+        // an option so opening a client never blanks what is on record.
+        if (el.tagName === 'SELECT' && val && ![...el.options].some(o => o.value === val)) {
+            const o = document.createElement('option');
+            o.value = val; o.textContent = val;
+            el.appendChild(o);
+        }
+        el.value = val;
     });
 
     amsRenderPolicies(key);
     amsRenderNotes(key);
     amsUpdateDocBadge();
+    if (typeof amsUpdateCommBadge === 'function') amsUpdateCommBadge(key);
+    if (window.UIBCertUI) window.UIBCertUI.updateBadge(key);
+    if (window.UIBInterests) window.UIBInterests.updateBadge(key);
+    if (window.UIBInsuredLogin) window.UIBInsuredLogin.updateTab(key);
     amsShowTab('contact');
     lucide.createIcons();
 }
@@ -803,7 +1389,7 @@ function amsRenderPolicies(key) {
         return;
     }
 
-    tbody.innerHTML = policies.map(p => {
+    tbody.innerHTML = policies.map((p, polIdx) => {
         const dateStr = p.entryDate
             ? new Date(p.entryDate + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
             : '—';
@@ -813,6 +1399,17 @@ function amsRenderPolicies(key) {
         const status = amsGetPolicyStatus(p);
         const statusColor = amsGetStatusColor(status);
         const statusBg = amsGetStatusBackground(status);
+
+        const memoCount = Array.isArray(p.memos) ? p.memos.length : 0;
+        const lastMemo  = memoCount ? p.memos[memoCount - 1] : null;
+        const memoChip  = memoCount
+            ? `<div style="margin-top:4px;"><span title="${amsEscAttr(lastMemo.text || '')}"
+                style="background:#fef3c7;color:#92400e;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;cursor:default;">📝 ${memoCount}</span></div>`
+            : '';
+        const cancelChip = p.cancellationDate
+            ? `<div style="margin-top:4px;"><span title="${amsEscAttr(p.cancelReason || 'Cancellation recorded')}"
+                style="background:#fee2e2;color:#b91c1c;border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;white-space:nowrap;">Cancels ${amsEscHtml(p.cancellationDate)}</span></div>`
+            : '';
 
         const txnHistory = p.transactionHistory || [];
         const hasCarrierData = txnHistory.length > 0 || p.al3SourceFile || p.al3TxnCode;
@@ -882,8 +1479,8 @@ function amsRenderPolicies(key) {
 
         return `<tr style="cursor:${hasCarrierData ? 'pointer' : 'default'};" ${hasCarrierData ? `onclick="amsTxnToggle(${p.id})"` : ''}>
             <td style="white-space:nowrap;">${dateStr}</td>
-            <td>${amsEscHtml(p.agent || '—')}</td>
-            <td><span class="tag tag-blue">${amsEscHtml(p.policyType || '—')}</span></td>
+            <td>${amsAgentLink(p.agent, amsEscHtml(p.agent || '—'))}</td>
+            <td>${(() => { const t = amsTxnTypeLabel(p, policies); return t ? `<span class="tag tag-blue">${amsEscHtml(t)}</span>` : '<span style="color:var(--gray-400);">—</span>'; })()}</td>
             <td>${amsEscHtml(p.lineOfBusiness || '—')}</td>
             <td><strong>${amsEscHtml(p.company || '—')}</strong></td>
             <td style="font-family:monospace;font-size:11.5px;">${amsEscHtml(p.policyNumber || '—')}</td>
@@ -895,6 +1492,7 @@ function amsRenderPolicies(key) {
                 <span class="policy-status" style="background:${statusBg};color:${statusColor};padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;display:inline-block;">
                     ${amsEscHtml(p.policyStatus || status)}
                 </span>
+                ${cancelChip}${memoChip}
             </td>
             <td style="white-space:nowrap;" onclick="event.stopPropagation()">
                 <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
@@ -903,8 +1501,9 @@ function amsRenderPolicies(key) {
                         ? `<button class="btn-secondary btn-sm" onclick="amsEditPolicy(${p.id})" title="Edit policy">
                                <i data-lucide="pencil"></i>
                            </button>
-                           <button class="btn-secondary btn-sm" onclick="amsOpenPolicyActionMenu(event, ${p.id})" title="More actions">
-                               <i data-lucide="more-vertical"></i>
+                           <button class="btn-sm" onclick="amsOpenPolicyActionMenu(event, ${p.id}, '${amsEscJsAttr(key)}', ${polIdx})" title="Renew, rewrite, cancel, memo, status"
+                               style="background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                               ⚙ Actions ▾
                            </button>`
                         : '<span style="font-size:11px;color:var(--gray-300);">—</span>'}
                 </div>
@@ -943,13 +1542,17 @@ function amsRenderNotes(key) {
 
 // ── Tabs ─────────────────────────────────────────────────────
 function amsShowTab(tab) {
-    ['contact','policies','notes','documents','forms'].forEach(t => {
+    ['contact','policies','notes','communications','documents','clientApps','certificates','interests','insuredLogin'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         if (el) el.style.display = t === tab ? 'block' : 'none';
         document.querySelector(`.ams-tab[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
     });
     if (tab === 'documents' && amsActiveKey) amsRenderFileGrid();
-    if (tab === 'forms' && amsActiveKey) acordRenderFormsList();
+    if (tab === 'clientApps' && amsActiveKey) clientAppsRender();
+    if (tab === 'certificates' && amsActiveKey && typeof certRenderList === 'function') certRenderList();
+    if (tab === 'interests' && amsActiveKey && typeof aiRender === 'function') aiRender();
+    if (tab === 'insuredLogin' && amsActiveKey && typeof ilRender === 'function') ilRender();
+    if (tab === 'communications' && amsActiveKey && typeof amsRenderCommunications === 'function') amsRenderCommunications(amsActiveKey);
 }
 
 // ── Save contact info ────────────────────────────────────────
@@ -960,10 +1563,26 @@ function amsSaveContact() {
 
     const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
                     'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
-                    'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus'];
+                    'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
+                    'privacyNoticeDate','privacyNoticeMethod'];
+    // Assigned agent is the Admin login's to set — an agent saving the contact
+    // tab keeps whatever it was, even if the locked field was tampered with.
+    const priorAgents = { assignedAgent: contacts[amsActiveKey].assignedAgent || '',
+                          csrName:       contacts[amsActiveKey].csrName       || '' };
     fields.forEach(f => {
         contacts[amsActiveKey][f] = document.getElementById(`ci_${f}`)?.value || '';
     });
+    if (!amsIsAdminUser()) {
+        let blocked = false;
+        Object.keys(priorAgents).forEach(f => {
+            if (contacts[amsActiveKey][f] === priorAgents[f]) return;
+            contacts[amsActiveKey][f] = priorAgents[f];
+            const el = document.getElementById(`ci_${f}`);
+            if (el) el.value = priorAgents[f];
+            blocked = true;
+        });
+        if (blocked) alert('Only an administrator can change the assigned agent or the agent on record. The rest of your changes were saved.');
+    }
     contacts[amsActiveKey].updatedAt = new Date().toISOString();
 
     amsSave('amsClientData', contacts);
@@ -1009,6 +1628,7 @@ function amsOpenAddPolicyModal() {
                     'mp_effDate','mp_expDate','mp_policyStatus',
                     'mp_propAddress','mp_propUnit','mp_propCity','mp_propState','mp_propZip','mp_propYearBuilt'];
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.querySelectorAll('#mp_policyType option[data-legacy]').forEach(o => o.remove());
 
     // Pre-fill the insured property address from the client's contact record so
     // homeowner policies default to the address already on file.
@@ -1073,6 +1693,20 @@ function amsEditPolicy(policyId) {
         const el = document.getElementById(elId);
         if (el) el.value = entry[field] || '';
     });
+    // Transaction type: older AMS entries say "New Business"; a cancellation
+    // entry keeps its stored value so saving it does not turn it into a sale.
+    const ptSel = document.getElementById('mp_policyType');
+    if (ptSel) {
+        [...ptSel.options].filter(o => o.dataset.legacy).forEach(o => o.remove());
+        const stored = String(entry.policyType || '');
+        if (/^new\b/i.test(stored)) ptSel.value = 'New';
+        else if (stored && ![...ptSel.options].some(o => o.value === stored)) {
+            const o = new Option(stored + (amsIsCancellationEntry(entry) ? ' (status: Canceled)' : ''), stored);
+            o.dataset.legacy = '1';
+            ptSel.add(o);
+            ptSel.value = stored;
+        }
+    }
 
     // Load drivers and vehicles from the entry
     amsResetDriversVehicles(entry.drivers, entry.vehicles);
@@ -1089,13 +1723,13 @@ function amsClosePolicyModal() {
 }
 
 function amsSavePolicyModal() {
-    const agent      = document.getElementById('mp_agent')?.value      || '';
+    let   agent      = document.getElementById('mp_agent')?.value      || '';
     const policyType = document.getElementById('mp_policyType')?.value || '';
     const lob        = document.getElementById('mp_lob')?.value        || '';
     const carrier    = document.getElementById('mp_carrier')?.value    || '';
 
     if (!agent)      { alert('Please select an Agent.');            return; }
-    if (!policyType) { alert('Please select a Policy Type.');       return; }
+    if (!policyType) { alert('Please select a Transaction Type.');  return; }
     if (!lob)        { alert('Please select a Line of Business.');  return; }
     if (!carrier)    { alert('Please select a Carrier.');           return; }
     if (amsIsRestrictedHomeownerCarrier(carrier) && amsIsHomeownerLOB(lob)) {
@@ -1105,6 +1739,22 @@ function amsSavePolicyModal() {
 
     const editId = parseInt(document.getElementById('amsPolicyEditId')?.value) || null;
     let binder   = amsGetBinderData();
+
+    // Only the Admin login decides who a record belongs to. An agent editing a
+    // record keeps whatever agent it already had; a record they create is theirs.
+    if (!amsIsAdminUser()) {
+        const original = editId ? binder.find(p => p.id === editId) : null;
+        const forced   = original ? (original.agent || amsCurrentUser || '') : (amsCurrentUser || '');
+        if (agent !== forced) {
+            const sel = document.getElementById('mp_agent');
+            if (sel) sel.value = forced;
+            if (original && original.agent && agent) {
+                alert('Only an administrator can change the agent on a record. Saving it under ' + original.agent + '.');
+            }
+        }
+        agent = forced;
+        if (!agent) { alert('Your login has no agent name, so this record cannot be saved. Ask an administrator.'); return; }
+    }
 
     const v = id => document.getElementById(id)?.value || '';
     const n = id => parseFloat(document.getElementById(id)?.value) || 0;
@@ -1160,6 +1810,16 @@ function amsSavePolicyModal() {
     amsRenderClientList();
     amsRenderPolicies(amsActiveKey);
     amsFlashBanner(editId ? 'Policy updated ✓' : 'Policy added ✓');
+
+    // A newly added line that belongs on a Certificate of Liability
+    // Insurance is the moment to offer the certificate — not days later
+    // when the holder asks for it. Only on a new policy: re-editing one
+    // should not nag.
+    if (!editId && window.UIBCertUI) {
+        const saved = binder[binder.length - 1];
+        const who   = amsClientIndex[amsActiveKey]?.displayName || amsActiveKey;
+        setTimeout(() => window.UIBCertUI.offerAfterSave(amsActiveKey, [saved], who), 250);
+    }
 }
 
 // ── Print ────────────────────────────────────────────────────
@@ -1178,6 +1838,16 @@ function amsEscHtml(str) {
         .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// Safe inside a double-quoted HTML attribute (title="…").
+function amsEscAttr(str) { return amsEscHtml(str); }
+
+// Safe as a single-quoted JS string inside an HTML attribute
+// (onclick="fn('…')") — the backslash survives HTML decoding, so a name like
+// O'BRIEN does not terminate the string early.
+function amsEscJsAttr(str) {
+    return amsEscHtml(String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+}
+
 function amsFlashBanner(msg) {
     const b = document.getElementById('amsSyncBanner');
     if (!b) return;
@@ -1187,28 +1857,28 @@ function amsFlashBanner(msg) {
 }
 
 // ── Init ─────────────────────────────────────────────────────
-const AMS_DRIVE_URL = "https://script.google.com/macros/s/AKfycbypm1A3G5Wgf4onwSU-yk6FbmTOA-9in7HcFrg0YWL6UBdhNj4di7yVDNlflLYwaehI/exec";
 
-async function amsPullCredentialsFromDrive() {
-    try {
-        const res  = await fetch(`${AMS_DRIVE_URL}?key=agentCredentials`);
-        const json = await res.json();
-        if (json.success && json.data && typeof json.data === 'object') {
-            localStorage.setItem('agentCredentials', JSON.stringify(json.data));
-        }
-    } catch (e) {
-        // Drive unavailable — use whatever is in localStorage already
-    }
-}
+async function amsPullCredentialsFromDrive() { /* logins live in Supabase Auth now */ }
 
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
+    amsSetBinderLink();
 
-    // Pull latest credentials from Drive so login works on any device
-    amsPullCredentialsFromDrive();
+    // Already signed in (opened from the Binder Book, or same tab)? Go straight in.
+    amsEnterIfSignedIn();
+
+    // Opened from the Binder Book on the other domain: the browser does not
+    // copy the sign-in across origins, so uib-auth.js asks the opener for it
+    // over postMessage. That answer is a round trip away — wait for it
+    // rather than flashing a login screen at an agent who is signed in. If
+    // no answer comes, the login screen is already what is on screen.
+    if (!amsCurrentUser && window.opener) {
+        window.addEventListener('uib-auth-adopted', amsEnterIfSignedIn, { once: true });
+    }
 
     // Pre-fill remembered email
-    const remembered = localStorage.getItem('amsRememberedEmail');
+    let remembered = null; try { remembered = localStorage.getItem('amsRememberedEmail'); } catch (e) {}
+    if (!remembered) { const m = document.cookie.match(/(?:^|; )amsRememberedEmail=([^;]*)/); if (m) { try { remembered = decodeURIComponent(m[1]); } catch (e) {} } }
     if (remembered) {
         const emailEl = document.getElementById('amsLoginEmail');
         const checkEl = document.getElementById('amsRememberEmail');
@@ -1443,11 +2113,36 @@ async function amsRenderFileGrid() {
                 ${canPrev ? `<button class="btn-primary btn-sm" style="font-size:10px;padding:3px 8px;" onclick="event.stopPropagation();amsPreviewFile(${idx})"><i data-lucide="eye" style="width:10px;height:10px;"></i> View</button>` : ''}
                 ${dlBtn}
             </div>
+            ${f.cloud
+                ? (() => { const on = amsDocShared(f.docId); return `<button type="button" class="fc-share${on ? ' on' : ''}" onclick="event.stopPropagation();amsToggleDocShare('${amsEscHtml(f.docId)}')"
+                      title="${on ? 'Shown in the client portal — click to make private' : 'Private — click to show it in the client portal'}">${on ? '👁 Client can see' : '🔒 Private'}</button>`; })()
+                : `<div class="fc-share-note" title="Saved on this computer only, so the client portal cannot reach it">💾 this device only</div>`}
         </div>`;
     }));
 
     grid.innerHTML = cards.join('');
     lucide.createIcons();
+}
+
+// ── Client portal sharing ─────────────────────────────────────
+// A document shows in the client portal only when an agent marks it
+// "Client can see". The marks live in clientSharedDocs ({docId: record}),
+// merged record by record so agents never overwrite each other's choices.
+// Everything uploaded is private until someone shares it.
+function amsSharedDocs() {
+    try { const v = JSON.parse(localStorage.getItem('clientSharedDocs')); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {}; }
+    catch (e) { return {}; }
+}
+function amsDocShared(docId) { const r = amsSharedDocs()[String(docId)]; return !!(r && r.shared); }
+function amsToggleDocShare(docId) {
+    if (!amsActiveKey) return;
+    const map = amsSharedDocs();
+    const k = String(docId);
+    const on = !(map[k] && map[k].shared);
+    map[k] = { docId: k, clientKey: amsActiveKey, shared: on, by: amsCurrentUser || '', at: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    amsSave('clientSharedDocs', map);
+    amsRenderFileGrid();
+    if (typeof amsFlashBanner === 'function') amsFlashBanner(on ? 'Shown in the client portal ✓' : 'Hidden from the client portal');
 }
 
 // ── Delete file ───────────────────────────────────────────────
@@ -1749,7 +2444,41 @@ function amsCollectProperty() {
 
 // ── Policy Status Management ─────────────────────────────────
 // Determine policy status based on dates and explicit status field
+// ── Transaction type ─────────────────────────────────────────
+// What the Binder Book records as policyType is the TRANSACTION: New,
+// Renewal, Endorsement, Rewrite, Renew A-B, Miscellaneous. A cancellation
+// is not a transaction type here — it is the policy's status — so an entry
+// recorded as a cancellation ("Canc", "Cancellation") shows the transaction
+// it cancelled and reads Canceled under Status.
+function amsIsCancellationEntry(p) { return /^canc/i.test(String((p && p.policyType) || '').trim()); }
+function amsTxnTypeLabel(p, siblings) {
+    let t = String((p && p.policyType) || '').trim();
+    if (amsIsCancellationEntry(p)) {
+        const num = String(p.policyNumber || '').trim();
+        const orig = num && (siblings || []).find(o => o !== p && String(o.policyNumber || '').trim() === num && !amsIsCancellationEntry(o) && o.policyType);
+        if (!orig) return '';
+        t = String(orig.policyType).trim();
+    }
+    if (/^new/i.test(t) || /^nbs$/i.test(t)) return 'New';
+    if (/renew\s*a\s*-?\s*b/i.test(t)) return 'Renew A-B';
+    if (/^renew/i.test(t)) return 'Renew';
+    if (/^end/i.test(t)) return 'Endorsement';
+    if (/^rewrite/i.test(t)) return 'Rewrite';
+    if (/^misc/i.test(t)) return 'Miscellaneous';
+    return t;
+}
+
 function amsGetPolicyStatus(policy) {
+    // A cancellation transaction, or a policy with a cancellation date that
+    // has passed, is a canceled policy.
+    if (amsIsCancellationEntry(policy)) return 'Canceled';
+    if (policy.cancellationDate) {
+        const today = new Date().toISOString().slice(0, 10);
+        if (String(policy.cancellationDate).slice(0, 10) <= today) return 'Canceled';
+    }
+    // The Renewals page writes 'Cancelled' (the spelling the Binder Book filters
+    // on) — fold both spellings into the one this app displays.
+    if (/^cancell?ed$/i.test(policy.policyStatus || '')) return 'Canceled';
     // If explicit status is set, use it
     if (policy.policyStatus && ['Active', 'Pending Cancellation', 'Expired', 'Canceled'].includes(policy.policyStatus)) {
         return policy.policyStatus;
@@ -1792,15 +2521,18 @@ function amsGetStatusBackground(status) {
 }
 
 // Open policy action menu
-function amsOpenPolicyActionMenu(event, policyId) {
+function amsOpenPolicyActionMenu(event, policyId, clientKey, polIdx) {
     event.stopPropagation();
     
     // Close any open menu
     const existing = document.getElementById('amsPolicyActionMenu');
     if (existing) existing.remove();
     
-    const binder = amsGetBinderData();
-    const policy = binder.find(p => p.id === policyId);
+    // Prefer the client index entry: it is the exact row that was clicked, while
+    // an id lookup picks the first match and batch imports can leave duplicates.
+    const policy = (clientKey != null && polIdx != null)
+        ? amsClientIndex[clientKey]?.policies?.[polIdx]
+        : amsGetBinderData().find(p => p.id === policyId);
     if (!policy) return;
     
     const currentStatus = amsGetPolicyStatus(policy);
@@ -1828,7 +2560,33 @@ function amsOpenPolicyActionMenu(event, policyId) {
     const statusOptions = ['Active', 'Pending Cancellation', 'Expired', 'Canceled'];
     
     let menuHTML = `<div style="padding:8px 0;">`;
-    
+
+    // ── Renewal actions — the same ones on the Renewals page, acting on this
+    //    client's policy. Renew / rewrite / cancel stay admin-only; memos are
+    //    open to the assigned agent as well.
+    if (clientKey != null && polIdx != null) {
+        const keyArg   = `'${amsEscJsAttr(clientKey)}', ${polIdx}`;
+        const isRnwAdm = typeof amsIsRenewalAdmin === 'function' && amsIsRenewalAdmin();
+        const memoCount = Array.isArray(policy.memos) ? policy.memos.length : 0;
+        const item = (label, onclick, color) => `
+            <button onclick="document.getElementById('amsPolicyActionMenu')?.remove();${onclick}" style="
+                width:100%;padding:8px 12px;border:none;background:transparent;color:${color || 'var(--navy)'};
+                text-align:left;cursor:pointer;font-size:13px;transition:background .15s;"
+                onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='transparent'">
+                ${label}
+            </button>`;
+
+        menuHTML += `<div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Renewal Actions</div>`;
+        if (isRnwAdm) {
+            menuHTML += item('🔄 Renew', `amsPolicyRenew(${keyArg});`);
+            menuHTML += item('🔀 Renew A-B (rewrite)', `amsPolicyRenewAB(${keyArg});`);
+            menuHTML += item(policy.cancellationDate ? '🚫 Edit cancellation' : '🚫 Cancel policy',
+                             `amsPolicyCancel(${keyArg});`, 'var(--red)');
+        }
+        menuHTML += item(memoCount ? `📝 Memos (${memoCount})` : '📝 Memo', `amsPolicyMemo(${keyArg});`);
+        menuHTML += `<div style="border-top:1px solid var(--gray-200);margin:4px 0;"></div>`;
+    }
+
     menuHTML += `<div style="padding:8px 12px;font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Change Status</div>`;
     
     statusOptions.forEach(status => {
@@ -1873,7 +2631,7 @@ function amsOpenPolicyActionMenu(event, policyId) {
         <i data-lucide="pencil" style="width:14px;height:14px;display:inline;margin-right:6px;"></i> Edit Policy
     </button>`;
     
-    menuHTML += `<button onclick="amsDeletePolicy(${policyId});document.getElementById('amsPolicyActionMenu').remove();" style="
+    if (amsIsAdminUser()) menuHTML += `<button onclick="amsDeletePolicy(${policyId});document.getElementById('amsPolicyActionMenu').remove();" style="
         width: 100%;
         padding: 8px 12px;
         border: none;
@@ -1924,14 +2682,32 @@ function amsChangePolicyStatus(policyId, newStatus) {
 
 // Delete policy
 function amsDeletePolicy(policyId) {
+    if (!amsIsAdminUser()) { alert('Only an administrator can delete a policy.'); return; }
     if (!confirm('Are you sure you want to delete this policy? This action cannot be undone.')) return;
     
     const binder = amsGetBinderData();
     const filtered = binder.filter(p => p.id !== policyId);
+    const redraw = () => { amsBuildClientIndex(); amsRenderPolicies(amsActiveKey); };
+
+    // A delete has to travel as a tombstone. Writing the shortened array on
+    // its own deletes nothing: the merge unions the entry back in from the
+    // cloud, and the shrink guard rightly refuses the write. Record the
+    // tombstone FIRST so both honour the deletion, and redraw only once the
+    // merged book has landed — otherwise the row is still on screen.
+    if (window.UIBBinderSync) {
+        window.UIBBinderSync.markDeleted(policyId)
+            .then(() => window.UIBBinderSync.save('binderData', filtered))
+            .then(ok => {
+                redraw();
+                amsFlashBanner(ok ? 'Policy deleted ✓'
+                                  : 'Deleted on this device — the cloud could not be reached, it will sync later');
+            })
+            .catch(() => { redraw(); amsFlashBanner('Could not delete the policy — try again'); });
+        return;
+    }
+
     amsSave('binderData', filtered);
-    
-    amsBuildClientIndex();
-    amsRenderPolicies(amsActiveKey);
+    redraw();
     amsFlashBanner('Policy deleted ✓');
 }
 
@@ -4427,6 +5203,111 @@ function acordGetClientMapping() {
     };
 }
 
+// ── Client Apps ──────────────────────────────────────────────
+// The tab holds two things: the applications already filled out for this
+// client (at the top — that is the work, and what an agent comes back
+// for) and, behind a toggle, the blank ACORD library to start a new one.
+
+// Saved drafts live in `acordSavedForms` under `${clientKey}_${formId}`.
+// Older drafts carry only field values; the metadata below is added on
+// save, so anything saved before this is shown without a date rather
+// than hidden.
+function clientAppsSavedFor(clientKey) {
+    var out = [];
+    var all = {};
+    try { all = JSON.parse(localStorage.getItem('acordSavedForms') || '{}'); } catch (e) { return out; }
+    Object.keys(all).forEach(function (k) {
+        if (k.indexOf(clientKey + '_') !== 0) return;
+        if (all[k] && all[k]._deleted) return;          // soft-deleted elsewhere
+        var formId = k.slice(clientKey.length + 1);
+        var form   = ACORD_FORMS.find(function (f) { return f.id === formId; });
+        if (!form) return;                      // a form we no longer ship
+        var data   = all[k] || {};
+        var filled = Object.keys(data).filter(function (f) {
+            return f !== 'updatedAt' && f !== 'savedBy' && String(data[f] || '').trim() !== '';
+        }).length;
+        out.push({ storageKey: k, form: form, filled: filled,
+                   updatedAt: data.updatedAt || 0, savedBy: data.savedBy || '' });
+    });
+    return out.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+}
+
+function clientAppsRender() {
+    var el = document.getElementById('clientAppsSaved');
+    if (!el) return;
+    if (!amsActiveKey) { el.innerHTML = '<p style="color:var(--gray-400);font-size:12px;">Select a client first.</p>'; return; }
+
+    var saved = clientAppsSavedFor(amsActiveKey);
+    if (!saved.length) {
+        el.innerHTML =
+            '<div style="border:1px dashed var(--gray-200);border-radius:10px;padding:22px 16px;text-align:center;color:var(--gray-400);">' +
+              '<div style="font-size:24px;margin-bottom:6px;">🗂</div>' +
+              '<p style="font-size:12px;margin:0;">No applications saved for this client yet.</p>' +
+              '<p style="font-size:11px;margin:4px 0 0;">Open <strong>Forms</strong> below and fill one in — it will be listed here.</p>' +
+            '</div>';
+        return;
+    }
+
+    el.innerHTML =
+        '<div style="font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">' +
+          'Saved applications · ' + saved.length +
+        '</div>' +
+        saved.map(function (s) {
+            var when = s.updatedAt
+                ? new Date(s.updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                : 'saved earlier';
+            return '' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;' +
+                 'border:1px solid var(--gray-200);border-radius:10px;padding:12px 14px;margin-bottom:8px;">' +
+              '<div style="min-width:0;">' +
+                '<div style="font-weight:700;color:var(--navy);font-size:13px;">' +
+                   s.form.icon + ' ' + amsEscHtml(s.form.num) + ' — ' + amsEscHtml(s.form.name) +
+                '</div>' +
+                '<div style="font-size:11px;color:var(--gray-500);margin-top:3px;">' +
+                   s.filled + ' field' + (s.filled === 1 ? '' : 's') + ' filled · ' + amsEscHtml(when) +
+                   (s.savedBy ? ' · ' + amsEscHtml(s.savedBy) : '') +
+                '</div>' +
+              '</div>' +
+              '<div style="display:flex;gap:6px;flex-shrink:0;">' +
+                '<button onclick="acordOpenForm(\'' + amsEsc(s.form.id) + '\')" style="padding:6px 13px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Open</button>' +
+                '<button onclick="clientAppsDeleteSaved(\'' + amsEsc(s.storageKey) + '\')" style="padding:6px 11px;background:#fff;color:#991b1b;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Delete</button>' +
+              '</div>' +
+            '</div>';
+        }).join('');
+}
+
+// Expanding renders the library on first open, so a client with no saved
+// applications does not pay for building forty cards.
+function clientAppsToggleForms() {
+    var body = document.getElementById('clientAppsFormsBody');
+    var hint = document.getElementById('clientAppsFormsHint');
+    var btn  = document.getElementById('clientAppsFormsToggle');
+    if (!body) return;
+    var open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    if (hint) hint.textContent = open ? 'Show' : 'Hide';
+    if (btn)  btn.setAttribute('aria-expanded', String(!open));
+    if (!open) {
+        acordRenderFormsList();
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+function clientAppsDeleteSaved(storageKey) {
+    var all = {};
+    try { all = JSON.parse(localStorage.getItem('acordSavedForms') || '{}'); } catch (e) { return; }
+    var entry = all[storageKey];
+    if (!entry) return;
+    if (!confirm('Delete this saved application?\n\nThe filled-in answers are discarded. The blank form stays available.')) return;
+    // Marked deleted rather than removed. Shared records merge by union, so
+    // a key that simply disappears here is restored from another device's
+    // copy on the next pull; a newer updatedAt carrying the flag travels.
+    all[storageKey] = { _deleted: true, updatedAt: Date.now(), savedBy: amsCurrentUser || '' };
+    amsSave('acordSavedForms', all);
+    clientAppsRender();
+    amsFlashBanner('Saved application deleted');
+}
+
 function acordRenderFormsList() {
     const el = document.getElementById('acordFormsList');
     if (!el) return;
@@ -4599,9 +5480,16 @@ function acordSaveForm(formId) {
         });
     });
 
+    // Stamped so the Client Apps list can show when it was saved and by
+    // whom. Neither name collides with an ACORD field id, and acordOpenForm
+    // reads values by field id, so the extra keys are inert on reload.
+    data.updatedAt = Date.now();
+    data.savedBy   = amsCurrentUser || '';
+
     const savedForms = JSON.parse(localStorage.getItem('acordSavedForms') || '{}');
     savedForms[amsActiveKey + '_' + formId] = data;
-    localStorage.setItem('acordSavedForms', JSON.stringify(savedForms));
+    amsSave('acordSavedForms', savedForms);
+    if (typeof clientAppsRender === 'function') clientAppsRender();
     alert('Draft saved for ' + form.num + '!');
 }
 
@@ -4876,7 +5764,22 @@ After a brief summary (1-3 sentences: what the document is, how many clients fou
           "effectiveDate": "YYYY-MM-DD", "expirationDate": "YYYY-MM-DD",
           "policyStatus": "Active|Cancelled|Expired|Pending",
           "drivers":  [ { "firstName": "", "lastName": "", "dob": "YYYY-MM-DD", "dl": "" } ],
-          "vehicles": [ { "year": "", "make": "", "model": "", "vin": "" } ]
+          "vehicles": [ { "year": "", "make": "", "model": "", "vin": "" } ],
+          "certificate": {
+            "appliesTo": "General Liability | Automobile Liability | Umbrella/Excess | Workers Compensation — omit entirely for any other line",
+            "naic": "carrier NAIC number if the document shows one",
+            "occurrenceOrClaimsMade": "Occurrence | Claims-made",
+            "aggregateAppliesPer": "Policy | Project | Loc | Other",
+            "autoCoveredAutos": [ "Any Auto", "Owned", "Scheduled", "Hired", "Non-Owned" ],
+            "limits": {
+              "eachOccurrence": "", "damageToRentedPremises": "", "medExpAnyOnePerson": "",
+              "personalAndAdvInjury": "", "generalAggregate": "", "productsCompOpAgg": "",
+              "combinedSingleLimit": "", "bodilyInjuryPerPerson": "", "bodilyInjuryPerAccident": "",
+              "propertyDamagePerAccident": "",
+              "umbrellaEachOccurrence": "", "umbrellaAggregate": "", "umbrellaDeductibleOrRetention": "",
+              "elEachAccident": "", "elDiseaseEachEmployee": "", "elDiseasePolicyLimit": ""
+            }
+          }
         }
       ]
     }
@@ -4889,11 +5792,22 @@ EXTRACTION TIPS:
 - Home/property policies usually have no drivers/vehicles — leave those arrays empty.
 - On spreadsheet exports, map the columns intelligently (e.g. "Insured Name" → customerName, "Cell" → phone1, "Eff Date" → effectiveDate).
 - If a document has no policy info (e.g. a driver license photo), return the client with an empty "policies" array — contact info alone is still valuable.
-- Omit any field you can't find. Never guess SSNs, license numbers, or VINs.`;
+- Omit any field you can't find. Never guess SSNs, license numbers, or VINs.
+
+CERTIFICATE OF LIABILITY INSURANCE (ACORD 25):
+The agency issues certificates from this data, and a certificate is a legal statement of coverage — a wrong limit on one is a real liability, so accuracy here matters more than completeness.
+- Include the "certificate" object ONLY when the policy is one of the four lines an ACORD 25 carries: General Liability, Automobile Liability, Umbrella/Excess, or Workers Compensation. Omit it entirely for homeowners, flood, boat and every other line — those have no row on the form.
+- Copy limits EXACTLY as the declaration page states them, digits only (1,000,000 not "1M", 2000000 not "two million"). Omit any limit the document does not state. Never infer a limit from a premium, from another limit, or from what is typical — a limit you did not read is a limit you must leave out.
+- In your summary sentence, say plainly which of the four certificate lines you found, so the agent knows what the certificate will cover before they open it.`;
 }
 
 // ── API call (same proxy as Binder Book) ─────────────────────
-async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
+// Requests streaming (stream:true) so the Edge Function forwards Claude's
+// server-sent events as they arrive. That keeps bytes flowing and avoids the
+// Supabase 150s idle timeout that used to kill long renewal-report extractions.
+// Falls back to plain-JSON parsing so it still works against a proxy that
+// hasn't been redeployed yet, and for error responses (which are always JSON).
+async function aiCallAPI(systemPrompt, messages, maxTokens = 16000) {
     const res = await fetch(AI_PROXY_URL, {
         method: 'POST',
         headers: {
@@ -4901,9 +5815,17 @@ async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
             'apikey': AMS_SB_KEY,
             'Authorization': 'Bearer ' + AMS_SB_KEY
         },
-        body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens, system: systemPrompt, messages })
+        body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens, system: systemPrompt, messages, stream: true })
     });
+
     const raw = await res.text();
+
+    // Streamed (SSE) response → accumulate the text deltas.
+    if (raw.startsWith('event:') || raw.startsWith('data:')) {
+        return aiParseSSE(raw);
+    }
+
+    // Buffered JSON response (old proxy, or an error).
     let data;
     try { data = JSON.parse(raw); }
     catch (e) { throw new Error(`AI proxy returned non-JSON (HTTP ${res.status}): ${raw.slice(0, 200)}`); }
@@ -4915,6 +5837,34 @@ async function aiCallAPI(systemPrompt, messages, maxTokens = 8192) {
     if (!data.content || !data.content.length) throw new Error(`Empty response from Claude. Raw: ${raw.slice(0, 300)}`);
     const tb = data.content.find(b => b.type === 'text');
     return { text: tb ? tb.text : '', stopReason: data.stop_reason || null };
+}
+
+// Parse an Anthropic SSE stream (as text) into the same { text, stopReason }
+// shape the buffered path returns, so callers don't care which path ran.
+function aiParseSSE(raw) {
+    let text = '', stopReason = null, errType = null, errMsg = null;
+    raw.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line.startsWith('data:')) return;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') return;
+        let evt;
+        try { evt = JSON.parse(payload); } catch (e) { return; }
+        if (evt.type === 'content_block_delta' && evt.delta && evt.delta.type === 'text_delta') {
+            text += evt.delta.text || '';
+        } else if (evt.type === 'message_delta' && evt.delta && evt.delta.stop_reason) {
+            stopReason = evt.delta.stop_reason;
+        } else if (evt.type === 'error' && evt.error) {
+            errType = evt.error.type || '';
+            errMsg  = evt.error.message || JSON.stringify(evt.error);
+        }
+    });
+    if (errMsg) {
+        if (errType === 'authentication_error') throw new Error('Claude API: invalid API key. Set the ANTHROPIC_API_KEY secret in Supabase Edge Functions.');
+        throw new Error(`Claude API ${errType}: ${errMsg}`);
+    }
+    if (!text) throw new Error('Empty response from Claude (the stream produced no text).');
+    return { text, stopReason };
 }
 
 // ── Send ─────────────────────────────────────────────────────
@@ -5061,6 +6011,7 @@ function aiCreateClient(setIdx, clientIdx, silent) {
 
     // Add policies (skip duplicates by policy number for this client)
     let added = 0, skipped = 0;
+    const addedPolicies = [];
     const pols = Array.isArray(c.policies) ? c.policies : [];
     if (pols.length) {
         const binder = amsGetBinderData();
@@ -5098,6 +6049,7 @@ function aiCreateClient(setIdx, clientIdx, silent) {
                 drivers:  Array.isArray(p.drivers)  ? p.drivers.map(d => ({ firstName: d.firstName || '', lastName: d.lastName || '', dob: d.dob || '', dl: d.dl || '' })) : [],
                 vehicles: Array.isArray(p.vehicles) ? p.vehicles.map(v => ({ year: String(v.year || ''), make: v.make || '', model: v.model || '', vin: String(v.vin || '').replace(/\s+/g, '').toUpperCase() })) : []
             });
+            addedPolicies.push(binder[binder.length - 1]);
             added++;
         });
         amsSave('binderData', binder);
@@ -5119,8 +6071,15 @@ function aiCreateClient(setIdx, clientIdx, silent) {
     if (!silent) {
         amsLoadClientDetail(key);
         amsFlashBanner(`${existedBefore ? 'Client updated' : 'Client created'}: ${name} ✓`);
+        // The policies just read off the declaration page may be lines the
+        // ACORD 25 carries. Ask before building anything — and let the
+        // offer itself name which lines matched, so the agent is deciding
+        // about a certificate, not about a dialog.
+        if (addedPolicies.length && window.UIBCertUI) {
+            setTimeout(() => window.UIBCertUI.offerFromExtraction(key, name, addedPolicies), 250);
+        }
     }
-    return { key, name, existedBefore, added, skipped };
+    return { key, name, existedBefore, added, skipped, addedPolicies };
 }
 
 function aiCreateAllClients(setIdx) {
@@ -5199,6 +6158,8 @@ function rnwHandlePdfUpload(event) {
             loaded++;
             return;
         }
+        // Keep a copy before it is read into memory and forgotten.
+        rnwArchiveReport(file);
         const reader = new FileReader();
         reader.onload = e => {
             _rnwPendingPdfs.push({ name: file.name, base64: e.target.result.split(',')[1] });
@@ -5314,7 +6275,7 @@ async function rnwSendMessage() {
     const loading = rnwAddMessage('assistant', hasPdfs ? '✨ Reading renewal report(s) and matching against the AMS…' : '✨ Thinking…');
 
     try {
-        const reply = await aiCallAPI(rnwBuildSystemPrompt(hasPdfs), _rnwMessages, hasPdfs ? 16000 : 4096);
+        const reply = await aiCallAPI(rnwBuildSystemPrompt(hasPdfs), _rnwMessages, hasPdfs ? 32000 : 4096);
         loading.remove();
         let replyText = reply.text || '(no response)';
         _rnwMessages.push({ role: 'assistant', content: replyText });
@@ -5500,4 +6461,212 @@ function rnwImportAll(setIdx) {
     });
     amsFlashBanner(`Renewal import done ✓ — ${updated} updated, ${added} added, ${created} created`);
     rnwAddMessage('assistant', `✅ Import complete: ${updated} polic${updated !== 1 ? 'ies' : 'y'} updated, ${added} added to existing clients, ${created} new client${created !== 1 ? 's' : ''} created.`);
+}
+
+
+// ── Audit log hooks (GLBA Safeguards: who viewed / changed / exported) ──
+(function () {
+    const L = (a, t, d) => { try { if (window.UIBAudit) UIBAudit.log(a, t, d); } catch (e) {} };
+    const cname = (key) => { const c = (typeof amsClientIndex !== 'undefined' && amsClientIndex[key]) || {}; return (c.name || ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || key); };
+    const wrap = (name, action, targetFn, detailsFn) => {
+        const orig = window[name]; if (typeof orig !== 'function') return;
+        window[name] = function () { const r = orig.apply(this, arguments); try { L(action, targetFn ? targetFn.apply(this, arguments) : null, detailsFn ? detailsFn.apply(this, arguments) : null); } catch (e) {} return r; };
+    };
+    wrap('amsLoadClientDetail', 'view_client', (key) => cname(key), (key) => ({ key }));
+    wrap('amsSaveContact', 'save_contact', () => cname(amsActiveKey), () => { const d = document.getElementById('ci_privacyNoticeDate'); return { key: amsActiveKey, privacyNoticeDate: d ? d.value : undefined }; });
+    wrap('amsDeletePolicy', 'delete_policy', () => cname(amsActiveKey), (id) => ({ policyId: id }));
+    wrap('amsDeleteFileById', 'delete_file', () => cname(amsActiveKey), (id) => ({ fileId: id }));
+    wrap('amsPreviewFile', 'view_file', () => cname(amsActiveKey), (idx) => ({ index: idx }));
+    wrap('amsUploadFiles', 'upload_file', () => cname(amsActiveKey), (list) => ({ count: list && list.length }));
+    wrap('amsLogout', 'sign_out_click', null, null);
+})();
+
+
+// ── Phone layout: client list first, then the client full screen ──
+function amsIsPhone() { return window.matchMedia('(max-width: 768px)').matches; }
+function amsMobileBack(fromPopstate) {
+    if (!fromPopstate && history.state && history.state.amsDetail) { history.back(); return; }   // popstate finishes the job
+    document.body.classList.remove('ams-m-detail');
+    try { window.scrollTo(0, 0); } catch (e) {}
+}
+document.addEventListener('DOMContentLoaded', () => {
+    // Hooked after every script has loaded, so later definitions can't replace the hooks.
+    // Only a tap on a client opens the full-screen client view (background
+    // refreshes also call amsLoadClientDetail and must not move the screen).
+    document.addEventListener('click', (e) => {
+        if (!amsIsPhone() || !e.target.closest || !e.target.closest('.client-card')) return;
+        setTimeout(() => {
+            if (document.body.classList.contains('ams-m-detail')) return;
+            document.body.classList.add('ams-m-detail');
+            try { history.pushState({ amsDetail: 1 }, ''); } catch (err) {}
+            try { window.scrollTo(0, 0); } catch (err) {}
+        }, 0);
+    });
+    const nav = window.amsSidebarNav;
+    if (typeof nav === 'function') {
+        window.amsSidebarNav = function () { document.body.classList.remove('ams-m-detail'); return nav.apply(this, arguments); };
+    }
+    // Android Back gesture / button returns to the list instead of leaving the AMS.
+    window.addEventListener('popstate', () => { if (document.body.classList.contains('ams-m-detail')) amsMobileBack(true); });
+});
+
+
+// ── Agent names, clickable wherever they appear ──────────────
+//  Reports, renewals, accounting -- one helper so a name looks and behaves
+//  the same everywhere. Placeholders ("Unassigned", "—", blank) are not
+//  people and stay plain text; linking them would open an empty profile.
+function amsAgentIsReal(name) {
+    var n = String(name == null ? '' : name).trim();
+    if (!n) return false;
+    if (/^[—–-]+$/.test(n)) return false;
+    return !/^(unassigned|unmatched|unknown|n\/a|none)$/i.test(n.replace(/^[—–-]\s*/, ''));
+}
+
+// `inner` lets a caller keep its own markup (a <strong>, an icon) and still
+// get the link; it must already be escaped.
+function amsAgentLink(name, inner, extraCss) {
+    var raw = String(name == null ? '' : name).trim();
+    var shown = inner != null ? inner : amsEscHtml(raw || '—');
+    if (!amsAgentIsReal(raw)) return shown;
+    // encodeURIComponent leaves ' ! * ( ) as-is, so a name like O'Brien would
+    // close the JS string literal inside the attribute and the click would
+    // throw. Percent-encode those too; any name then survives the round trip.
+    var packed = encodeURIComponent(raw).replace(/['!*()]/g, function (c) {
+        return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+    });
+    return '<a href="#" class="ams-agent-link" title="Open ' + amsEscHtml(raw) + '’s profile"' +
+           ' onclick="event.preventDefault();event.stopPropagation();amsOpenAgentProfile(decodeURIComponent(\'' +
+           packed + '\'));return false;"' +
+           ' style="color:inherit;text-decoration:underline;text-underline-offset:2px;' +
+           'text-decoration-color:rgba(29,78,216,.45);cursor:pointer;' + (extraCss || '') + '">' +
+           shown + '</a>';
+}
+
+
+// ── Renewal reports: keep the PDFs the processor was given ───
+//  They were read into memory and thrown away, so nothing could be traced
+//  back to the report it came from. Each upload is now filed against a
+//  reserved key, foldered by month, and dropped after a year.
+var RNW_REPORT_KEY = '__RENEWAL_REPORTS__';
+var RNW_REPORT_DAYS = 366;          // "one year", with a day's grace
+var _rnwReports = [];
+var _rnwReportsOpen = false;
+
+function _rnwMonthFolder(d) {
+    d = d ? new Date(d) : new Date();
+    if (isNaN(d)) d = new Date();
+    return d.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'long', year: 'numeric' });
+}
+
+// Fire-and-forget: a failure to archive must never block the import the
+// agent actually asked for, but it should say so rather than go quiet.
+async function rnwArchiveReport(file) {
+    if (typeof amsCloudUpload !== 'function') return;
+    try {
+        await amsCloudUpload(file, RNW_REPORT_KEY, _rnwMonthFolder());
+    } catch (e) {
+        if (typeof rnwAddMessage === 'function') {
+            rnwAddMessage('assistant', '⚠️ ' + (file && file.name ? '"' + file.name + '" was read, but ' : '') +
+                'the report could not be filed for later reference. The import itself is unaffected.');
+        }
+    }
+}
+
+function rnwReportExpired(r) {
+    if (!r || !r.uploadedAt) return false;
+    var age = (Date.now() - new Date(r.uploadedAt).getTime()) / 86400000;
+    return age > RNW_REPORT_DAYS;
+}
+
+async function amsRnwLoadReports() {
+    if (typeof amsCloudList !== 'function') return;
+    var card = document.getElementById('amsRnwReportsCard');
+    if (card) card.style.display = amsIsRenewalAdmin() ? '' : 'none';
+    if (!amsIsRenewalAdmin()) return;
+    try { _rnwReports = await amsCloudList(RNW_REPORT_KEY) || []; } catch (e) { _rnwReports = []; }
+
+    // One year means one year: anything past it goes, and the count below
+    // reflects what is actually still held.
+    var stale = _rnwReports.filter(rnwReportExpired);
+    if (stale.length && typeof amsCloudDeleteFile === 'function') {
+        for (var i = 0; i < stale.length; i++) {
+            try { await amsCloudDeleteFile(stale[i].docId, stale[i].storagePath); } catch (e) {}
+        }
+        _rnwReports = _rnwReports.filter(function (r) { return !rnwReportExpired(r); });
+    }
+    amsRnwRenderReports();
+}
+
+function amsRnwToggleReports() {
+    _rnwReportsOpen = !_rnwReportsOpen;
+    var body = document.getElementById('amsRnwReportsBody');
+    var btn  = document.getElementById('amsRnwReportsToggle');
+    if (body) body.style.display = _rnwReportsOpen ? '' : 'none';
+    if (btn)  btn.textContent = _rnwReportsOpen ? 'Hide' : 'Show';
+    if (_rnwReportsOpen) amsRnwRenderReports();
+}
+
+function amsRnwRenderReports() {
+    var countEl = document.getElementById('amsRnwReportsCount');
+    if (countEl) countEl.textContent = _rnwReports.length
+        ? '· ' + _rnwReports.length + ' on file'
+        : '· nothing on file yet';
+    var body = document.getElementById('amsRnwReportsBody');
+    if (!body || !_rnwReportsOpen) return;
+
+    if (!_rnwReports.length) {
+        body.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--gray-400);">' +
+            'Nothing filed yet. Reports attached to the processor above are kept here from now on.</div>';
+        return;
+    }
+    // Newest month first, and newest report within it.
+    var byMonth = {};
+    _rnwReports.forEach(function (r) {
+        var m = r.category || 'Undated';
+        (byMonth[m] = byMonth[m] || []).push(r);
+    });
+    var months = Object.keys(byMonth).sort(function (a, b) {
+        var da = new Date(a), db = new Date(b);
+        if (isNaN(da) || isNaN(db)) return a < b ? 1 : -1;
+        return db - da;
+    });
+    body.innerHTML = months.map(function (m) {
+        var rows = byMonth[m].slice().sort(function (a, b) {
+            return String(b.uploadedAt || '').localeCompare(String(a.uploadedAt || ''));
+        }).map(function (r) {
+            var when = r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString('en-US') : '';
+            return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;' +
+                       'padding:9px 12px;border-top:1px solid var(--gray-200);flex-wrap:wrap;">' +
+                '<div style="min-width:0;">' +
+                  '<div style="font-size:12px;font-weight:600;color:var(--navy);">' + amsEscHtml(r.name) + '</div>' +
+                  '<div style="font-size:10.5px;color:var(--gray-500);margin-top:2px;">' +
+                     (r.uploadedBy ? amsEscHtml(r.uploadedBy) + ' · ' : '') + amsEscHtml(when) + '</div>' +
+                '</div>' +
+                '<div style="display:flex;gap:6px;flex-shrink:0;">' +
+                  '<button onclick="amsCloudDownloadFile(\'' + amsEscHtml(r.docId) + '\',\'' +
+                      amsEscHtml(r.storagePath) + '\',\'' + amsEscHtml(r.name) + '\')" ' +
+                      'style="padding:4px 10px;background:#fff;color:var(--navy);border:1px solid var(--gray-200);' +
+                      'border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Download</button>' +
+                  (amsIsAdminUser()
+                    ? '<button onclick="amsRnwDeleteReport(\'' + amsEscHtml(r.docId) + '\')" ' +
+                      'style="padding:4px 9px;background:#fff;color:#991b1b;border:1px solid var(--gray-200);' +
+                      'border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">Delete</button>'
+                    : '') +
+                '</div></div>';
+        }).join('');
+        return '<div style="border:1px solid var(--gray-200);border-radius:9px;overflow:hidden;margin-bottom:10px;">' +
+               '<div style="padding:8px 12px;background:var(--gray-50,#f9fafb);font-size:11.5px;font-weight:800;' +
+                   'color:var(--navy);">' + amsEscHtml(m) + ' <span style="font-weight:600;color:var(--gray-500);">· ' +
+                   byMonth[m].length + '</span></div>' + rows + '</div>';
+    }).join('');
+}
+
+async function amsRnwDeleteReport(docId) {
+    if (!amsIsAdminUser()) return;
+    var r = _rnwReports.filter(function (x) { return String(x.docId) === String(docId); })[0];
+    if (!r) return;
+    if (!confirm('Delete "' + r.name + '"?\n\nThe policies already imported from it are not affected.')) return;
+    try { await amsCloudDeleteFile(r.docId, r.storagePath); } catch (e) {}
+    _rnwReports = _rnwReports.filter(function (x) { return String(x.docId) !== String(docId); });
+    amsRnwRenderReports();
 }
