@@ -8753,7 +8753,7 @@ async function _csSaveStatementsCloud() {
 // Shown under an agent's month files: what the statements for that month
 // say, at a glance. Reads the same calculated entries as the table below.
 // Binder Book palette: blues from the header, with green/amber accents.
-const CS_DASH_COLORS = ['#60a5fa', '#38bdf8', '#34d399', '#fbbf24', '#93c5fd', '#2dd4bf', '#f59e0b', '#a5b4fc'];
+const CS_DASH_COLORS = ['#1d4ed8', '#0ea5e9', '#10b981', '#f59e0b', '#3b82f6', '#14b8a6', '#d97706', '#6366f1'];
 
 function csRenderAgentDash(month) {
     const box = document.getElementById('csAgentDash');
@@ -8808,40 +8808,39 @@ function csRenderAgentDash(month) {
     box.innerHTML = `
     <style>
         .cs-dash { margin-top:16px; padding:22px; border-radius:20px; position:relative; overflow:hidden;
-            background: radial-gradient(1000px 380px at 0% 0%, rgba(29,78,216,.55) 0%, transparent 60%),
-                        radial-gradient(900px 420px at 100% 100%, rgba(56,189,248,.28) 0%, transparent 60%),
-                        linear-gradient(135deg, #0d1f3c 0%, #12336e 60%, #1d4ed8 140%); color:#e5e7eb;
-            box-shadow: 0 10px 30px rgba(13,31,60,.25); }
-        .cs-dash h4 { margin:0; font-size:15px; font-weight:800; color:#fff; letter-spacing:.2px; }
-        .cs-glass { background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:16px;
+            background: radial-gradient(900px 360px at 0% 0%, rgba(29,78,216,.10) 0%, transparent 60%),
+                        radial-gradient(800px 380px at 100% 100%, rgba(56,189,248,.10) 0%, transparent 60%), #ffffff;
+            color:#0d1f3c; border:1px solid #e5e7eb; box-shadow: 0 10px 30px rgba(13,31,60,.08); }
+        .cs-dash h4 { margin:0; font-size:15px; font-weight:800; color:#0d1f3c; letter-spacing:.2px; }
+        .cs-glass { background: rgba(255,255,255,.72); border:1px solid rgba(29,78,216,.14); border-radius:16px;
             backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
-            box-shadow: 0 8px 32px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.12); }
+            box-shadow: 0 6px 20px rgba(13,31,60,.07), inset 0 1px 0 #fff; }
         .cs-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:14px 0; }
         .cs-kpi { padding:14px 16px; }
-        .cs-kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:rgba(255,255,255,.65); font-weight:700; }
-        .cs-kpi-value { font-size:24px; font-weight:800; color:#fff; margin-top:4px; }
-        .cs-kpi-sub { font-size:11.5px; color:rgba(255,255,255,.6); margin-top:2px; }
+        .cs-kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:#64748b; font-weight:700; }
+        .cs-kpi-value { font-size:24px; font-weight:800; color:#0d1f3c; margin-top:4px; }
+        .cs-kpi-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
         .cs-dash-row { display:grid; grid-template-columns: 1.3fr 1fr; gap:12px; }
         @media (max-width: 900px) { .cs-dash-row { grid-template-columns: 1fr; } }
         .cs-panel { padding:16px; }
-        .cs-panel-title { font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:rgba(255,255,255,.7); font-weight:800; margin-bottom:12px; }
+        .cs-panel-title { font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:#1d4ed8; font-weight:800; margin-bottom:12px; }
         .cs-bar { display:grid; grid-template-columns: 150px 1fr 90px; gap:10px; align-items:center; font-size:12.5px; margin:8px 0; }
-        .cs-bar-track { height:10px; border-radius:999px; background:rgba(255,255,255,.1); overflow:hidden; }
+        .cs-bar-track { height:10px; border-radius:999px; background:#e8eefb; overflow:hidden; }
         .cs-bar-fill { height:100%; border-radius:999px; }
         .cs-legend { display:flex; flex-direction:column; gap:7px; font-size:12.5px; }
         .cs-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:8px; }
-        .cs-client { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:12.5px; }
+        .cs-client { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eef2f7; font-size:12.5px; }
         .cs-client:last-child { border-bottom:none; }
     </style>
     <div class="cs-dash">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
             <h4>✨ ${esc(csViewAgent === '__ALL__' ? 'Agency' : _csAgentLabel(csViewAgent))} · ${esc(month)} dashboard</h4>
-            ${delta === null ? '' : `<span class="cs-glass" style="padding:5px 12px;font-size:12px;font-weight:700;color:${delta >= 0 ? '#6ee7b7' : '#fca5a5'};">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}% vs ${esc(prevLabel)}</span>`}
+            ${delta === null ? '' : `<span class="cs-glass" style="padding:5px 12px;font-size:12px;font-weight:700;color:${delta >= 0 ? '#059669' : '#dc2626'};">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}% vs ${esc(prevLabel)}</span>`}
         </div>
         <div class="cs-kpis">
-            ${kpi('Net commission', money(total), ents.length + ' transactions', total >= 0 ? '#6ee7b7' : '#fca5a5')}
-            ${kpi('Earned', money(pos), 'positive transactions', '#93c5fd')}
-            ${kpi('Charge-backs', money(neg), 'cancels & credits', neg < 0 ? '#fca5a5' : '')}
+            ${kpi('Net commission', money(total), ents.length + ' transactions', total >= 0 ? '#059669' : '#dc2626')}
+            ${kpi('Earned', money(pos), 'positive transactions', '#1d4ed8')}
+            ${kpi('Charge-backs', money(neg), 'cancels & credits', neg < 0 ? '#dc2626' : '')}
             ${kpi('Policies', policies || '—', carriers.length + ' carrier' + (carriers.length !== 1 ? 's' : ''))}
             ${kpi('Avg per transaction', money(ents.length ? total / ents.length : 0), '')}
         </div>
@@ -8850,26 +8849,26 @@ function csRenderAgentDash(month) {
                 <div class="cs-panel-title">Commission by carrier</div>
                 ${carriers.map((c, i) => `<div class="cs-bar">
                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(c.k)}">${esc(c.k)}</span>
-                    <div class="cs-bar-track"><div class="cs-bar-fill" style="width:${(Math.abs(c.total) / maxCarrier * 100).toFixed(1)}%;background:linear-gradient(90deg, ${CS_DASH_COLORS[i % CS_DASH_COLORS.length]}, rgba(255,255,255,.55));"></div></div>
-                    <span style="text-align:right;font-weight:700;color:${c.total >= 0 ? '#fff' : '#fca5a5'};">${money(c.total)}</span></div>`).join('')}
+                    <div class="cs-bar-track"><div class="cs-bar-fill" style="width:${(Math.abs(c.total) / maxCarrier * 100).toFixed(1)}%;background:linear-gradient(90deg, ${CS_DASH_COLORS[i % CS_DASH_COLORS.length]}, rgba(255,255,255,.35));"></div></div>
+                    <span style="text-align:right;font-weight:700;color:${c.total >= 0 ? '#0d1f3c' : '#dc2626'};">${money(c.total)}</span></div>`).join('')}
             </div>
             <div class="cs-glass cs-panel" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
                 <div>
                     <div class="cs-panel-title">Transaction mix</div>
                     <svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Transaction mix">
-                        <circle r="${R}" cx="70" cy="70" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="18"></circle>${arcs}
-                        <text x="70" y="66" text-anchor="middle" fill="#fff" font-size="20" font-weight="800">${ents.length}</text>
-                        <text x="70" y="84" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="10">transactions</text>
+                        <circle r="${R}" cx="70" cy="70" fill="none" stroke="#e8eefb" stroke-width="18"></circle>${arcs}
+                        <text x="70" y="66" text-anchor="middle" fill="#0d1f3c" font-size="20" font-weight="800">${ents.length}</text>
+                        <text x="70" y="84" text-anchor="middle" fill="#64748b" font-size="10">transactions</text>
                     </svg>
                 </div>
                 <div class="cs-legend" style="flex:1;min-width:150px;">
-                    ${kinds.map((k, i) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span><span class="cs-dot" style="background:${CS_DASH_COLORS[i % CS_DASH_COLORS.length]};"></span>${esc(k.k)} <span style="color:rgba(255,255,255,.55);">(${k.n})</span></span><strong>${money(k.total)}</strong></div>`).join('')}
+                    ${kinds.map((k, i) => `<div style="display:flex;justify-content:space-between;gap:8px;"><span><span class="cs-dot" style="background:${CS_DASH_COLORS[i % CS_DASH_COLORS.length]};"></span>${esc(k.k)} <span style="color:#94a3b8;">(${k.n})</span></span><strong>${money(k.total)}</strong></div>`).join('')}
                 </div>
             </div>
         </div>
         <div class="cs-glass cs-panel" style="margin-top:12px;">
             <div class="cs-panel-title">Top clients this month</div>
-            ${clients.map(c => `<div class="cs-client"><span>${esc(c.k)} <span style="color:rgba(255,255,255,.5);">· ${c.n} transaction${c.n !== 1 ? 's' : ''}</span></span><strong style="color:${c.total >= 0 ? '#6ee7b7' : '#fca5a5'};">${money(c.total)}</strong></div>`).join('')}
+            ${clients.map(c => `<div class="cs-client"><span>${esc(c.k)} <span style="color:#94a3b8;">· ${c.n} transaction${c.n !== 1 ? 's' : ''}</span></span><strong style="color:${c.total >= 0 ? '#059669' : '#dc2626'};">${money(c.total)}</strong></div>`).join('')}
         </div>
     </div>`;
 }
