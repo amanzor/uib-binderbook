@@ -12,7 +12,7 @@ S=json.load(open('statement_all.json'))
 AG=['Uriel Rendon','Randy Diaz','Amanda Montano','Lazaro Reigoza','Alberto Manzor']
 RULE={'Uriel Rendon':'50/50 split after a $10.00 Underwriting Pack fee on each new-business policy (documented rule, commissions/2026-09-uriel-rendon).',
       'Randy Diaz':'50% agent share — the app\'s default agentCommissionShare. Confirm before paying.',
-      'Amanda Montano':'50% agent share — the app\'s default agentCommissionShare. Confirm before paying.',
+      'Amanda Montano':'No percentage — the agency keeps all commission on her clients. Flat pay: $25 per new policy, $10 per policy whose Underwriting-tab items she clears, $10 per renewal she renews in the AMS.',
       'Lazaro Reigoza':'50% agent share — the app\'s default agentCommissionShare. Confirm before paying.',
       'Alberto Manzor':'House / agency book — shown for completeness; no agent payout calculated.'}
 NAVY=colors.HexColor('#1F3864'); LIGHT=colors.HexColor('#D9E1F2'); GREY=colors.HexColor('#555555'); AMBER=colors.HexColor('#FFF4D6'); AL=colors.HexColor('#C9A227')
@@ -37,12 +37,22 @@ for a in AG:
     st+=[r,Paragraph('Summary',sect)]
     rows=[['','Amount'],['Gross commission on agent\'s policies (August carrier statements)',m(A['gross'])]]
     if uriel: rows+=[[f"Less: Underwriting Pack fees ({A['fee_count']} new-business policies × $10.00)",m(-A['fees'])],['Net commission to split',m(A['net'])]]
+    if a=='Amanda Montano':
+        for k in ('New policy','AMS renewal','Underwriting work'):
+            fs=[f for f in A['flat'] if f['kind']==k and f['amount']]
+            rows.append([f"{k} fees ({len(fs)} × ${ {'New policy':25,'AMS renewal':10,'Underwriting work':10}[k]}.00)",m(sum(f['amount'] for f in fs))])
     rows+=[['Agency share',m(A['agency'] - A['fees'] if uriel else A['agency'])],[('PAYABLE TO '+a.upper()) if not house else 'Agent payout (house book)',m(A['agent_pay'])]]
     t=Table(rows,colWidths=[5.7*inch,1.7*inch]); t.setStyle(TableStyle(base+[('ALIGN',(1,0),(1,-1),'RIGHT'),('FONTNAME',(0,-1),(-1,-1),'Helvetica-Bold'),('BACKGROUND',(0,-1),(-1,-1),LIGHT),('TEXTCOLOR',(0,-1),(-1,-1),NAVY),('LINEABOVE',(0,-1),(-1,-1),1.1,NAVY)]))
-    st+=[t,Paragraph('By carrier',sect)]
+    st.append(t)
+    if a=='Amanda Montano':
+        st.append(Paragraph('Flat fees',sect))
+        ft=[['Fee','Insured','Carrier','Policy #','Date','Status','Amount']]+[[f['kind'],Paragraph(str(f['customer'])[:30],cell),Paragraph(str(f['carrier'])[:28],cell),str(f['policy']),f['date'],Paragraph(f['status'],cell),m(f['amount'])] for f in A['flat']]
+        ft.append(['Total','','','','','',m(A['agent_pay'])])
+        t=Table(ft,colWidths=[x*inch for x in [1.05,1.35,1.3,1.05,0.75,1.3,0.6]]); t.setStyle(TableStyle(base+[('ALIGN',(6,0),(6,-1),'RIGHT'),('FONTNAME',(0,-1),(-1,-1),'Helvetica-Bold')])); st.append(t)
+    st.append(Paragraph('By carrier' + (' (commission on her clients — kept by the agency)' if a=='Amanda Montano' else ''),sect))
     bc=[['Carrier','New business','Renewals & adj.','Gross']+(['UW fees'] if uriel else [])+['Agent pay']]
     for c,v in A['by_carrier'].items(): bc.append([c,m(v['new']),m(v['other']),m(v['comm'])]+([m(-v['fee'])] if uriel else [])+[m(v['agent_pay'])])
-    bc.append(['Total',m(sum(v['new'] for v in A['by_carrier'].values())),m(sum(v['other'] for v in A['by_carrier'].values())),m(A['gross'])]+([m(-A['fees'])] if uriel else [])+[m(A['agent_pay'])])
+    bc.append(['Total',m(sum(v['new'] for v in A['by_carrier'].values())),m(sum(v['other'] for v in A['by_carrier'].values())),m(A['gross'])]+([m(-A['fees'])] if uriel else [])+[m(sum(v['agent_pay'] for v in A['by_carrier'].values()))])
     t=Table(bc); t.setStyle(TableStyle(base+[('ALIGN',(1,0),(-1,-1),'RIGHT'),('FONTNAME',(0,-1),(-1,-1),'Helvetica-Bold'),('LINEABOVE',(0,-1),(-1,-1),0.8,NAVY)])); st.append(t)
     if uriel and A['alloc']:
         st.append(Paragraph('Underwriting Pack fees — who gets the $10',sect))
@@ -88,6 +98,8 @@ for k in ['Unmatched','Jorge book (not on his Aug stmt)']:
 for a in AG:
     for p in S[a]['rows']:
         if 'name match' in p['how'] or 'producer' in p['how']: ws4.append([f'{a} (matched by name/producer)',p['carrier'],p['policy'],p['customer'],'',p['comm'],p['how']])
+wsA=wb.create_sheet('Amanda Flat Fees'); hdr(wsA,['Fee','Insured','Carrier','Policy #','Date','Status','Amount'])
+for f in S['Amanda Montano']['flat']: wsA.append([f['kind'],f['customer'],f['carrier'],f['policy'],f['date'],f['status'],f['amount']])
 ws5=wb.create_sheet('Aug Binder - No Carrier Txn'); hdr(ws5,['Agent','Entry date','Carrier','Policy #','Customer','Premium'])
 for a,v in S['_missing'].items():
     for x in v: ws5.append([a,x['date'],x['carrier'],x['policy'],x['customer'],x['premium']])

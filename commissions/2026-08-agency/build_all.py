@@ -1,8 +1,12 @@
 """Apply each agent's rule to the attributed August transactions.
   Uriel Rendon : documented rule (commissions/2026-09-uriel-rendon/README.md) - $10 UW pack fee
                  on each new-business policy with commission > 0, then 50/50.
-  Randy Diaz, Amanda Montano, Lazaro Reigoza : app default agent share, 50% (agentCommissionShare
-                 in app.js). No UW fee. TO CONFIRM.
+  Amanda Montano : NO percentage - the agency keeps all commission on her clients. Flat pay:
+                 $25 per new policy she writes, $10 per policy whose Underwriting-tab items she
+                 clears, $10 per renewal she renews in the AMS (Renewals > Renewed, renewal date
+                 in the month).
+  Randy Diaz, Lazaro Reigoza : app default agent share, 50% (agentCommissionShare in app.js).
+                 No UW fee. TO CONFIRM.
   Alberto Manzor : house / agency book - no agent payout computed.
 """
 import json,re,collections
@@ -43,7 +47,7 @@ for a in AG:
             p['uw_to'],p['uw_state']=uw_who(p['binder_id']) if p['fee'] else ('','')
         else: p['fee']=0.0; p['uw_to']=p['uw_state']=''
         p['net']=round(p['comm']-p['fee'],2)
-        share=0.0 if a=='Alberto Manzor' else 0.5
+        share=0.0 if a in ('Alberto Manzor','Amanda Montano') else 0.5
         p['agent_pay']=round(p['net']*share,2); p['agency']=round(p['net']-p['agent_pay']+p['fee'],2)
     by=collections.OrderedDict()
     for p in rows:
@@ -64,6 +68,30 @@ for a in AG:
 other=collections.defaultdict(list)
 for t in T:
     if t['agent'] not in AG: other[t['agent'] or 'Unmatched'].append(t)
+# ---- Amanda Montano flat fees
+NEW_FEE,UW_FEE_A,RNW_FEE=25.0,10.0,10.0
+flat=[]
+on_stmt={t['key'] for t in T}
+for e in b:
+    if e.get('agent')=='Amanda Montano' and (e.get('entryDate') or '').startswith('2026-08') and e.get('policyType') in ('New','Rewrite'):
+        flat.append(dict(kind='New policy',amount=NEW_FEE,customer=e.get('customerName'),carrier=e.get('company'),policy=e.get('policyNumber'),date=e.get('entryDate'),status='earned'))
+seen=set()
+for e in b:
+    pt=str(e.get('policyType') or '').lower(); rd=str(e.get('effectiveDate') or e.get('effDate') or e.get('entryDate') or '')[:10]
+    if e.get('agent')=='Amanda Montano' and 'renew' in pt and rd.startswith('2026-08'):
+        k=re.sub(r'\D','',str(e.get('policyNumber')))
+        later=[x for x in b if re.sub(r'\D','',str(x.get('policyNumber')))==k and x is not e and 'renew' in str(x.get('policyType') or '').lower() and str(x.get('effDate') or '')[:7]>'2026-08']
+        if later or k in seen:
+            flat.append(dict(kind='AMS renewal',amount=0.0,customer=e.get('customerName'),carrier=e.get('company'),policy=e.get('policyNumber'),date=rd,status='not counted - same policy renewed again eff '+str(later[0].get('effDate')) if later else 'duplicate')); continue
+        seen.add(k)
+        flat.append(dict(kind='AMS renewal',amount=RNW_FEE,customer=e.get('customerName'),carrier=e.get('company'),policy=e.get('policyNumber'),date=rd,status='earned'))
+for a2 in AG:
+    for p in res[a2]['rows']:
+        if p['fee'] and p['uw_to']=='Amanda Montano':
+            flat.append(dict(kind='Underwriting work',amount=UW_FEE_A if p['uw_state']=='cleared' else 0.0,customer=p['customer'],carrier=p['carrier'],policy=p['policy'],date='',status='earned' if p['uw_state']=='cleared' else 'held - items still open ($10 when cleared)'))
+A=res['Amanda Montano']; A['flat']=flat; A['agent_pay']=round(sum(f['amount'] for f in flat),2); A['agency']=round(A['gross']-A['agent_pay'],2)
+for f in flat: print('  Amanda',f['kind'],f['amount'],f['customer'],f['status'])
+print('  Amanda payable',A['agent_pay'],'| agency keeps',A['agency'])
 res['_other']={k:dict(total=round(sum(t['comm'] for t in v),2),txns=v) for k,v in other.items()}
 for k,v in res['_other'].items(): print(k,v['total'])
 # binder entries in August for each agent with no carrier txn

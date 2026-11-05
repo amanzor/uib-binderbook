@@ -25,7 +25,7 @@ National General, so a file existed somewhere; nobody else's National General is
 |---|---|---:|---:|---:|---:|
 | Uriel Rendon | 50/50 after $10 UW pack fee on new business (his documented rule) | $5,354.57 | ($280.00) | **$2,537.28** | $2,817.29 |
 | Randy Diaz | 50% (app default — confirm) | $3,546.73 | — | **$1,773.36** | $1,773.37 |
-| Amanda Montano | 50% (app default — confirm) | $3,990.36 | — | **$1,995.15** | $1,995.21 |
+| Amanda Montano | flat fees only — agency keeps her clients' commission | $3,990.36 | — | **$70.00** | $3,920.36 |
 | Lazaro Reigoza | 50% (app default — confirm) | $1,453.45 | — | **$726.71** | $726.74 |
 | Alberto Manzor | house book — no payout | $323.07 | — | — | $323.07 |
 | Jorge Castro | already on his August statement | $11,118.92 | | | |
@@ -35,6 +35,22 @@ National General, so a file existed somewhere; nobody else's National General is
 
 Uriel's 28 UW pack fees: 26 agency (no pending items), 1 Amanda Montano (items still open),
 1 held (not worked yet).
+
+### Amanda Montano — flat-fee rule
+No percentage: the agency keeps all commission on her clients ($3,990.36 in August). She is paid
+**$25 per new policy** she writes, **$10 per policy whose Underwriting-tab items she clears**, and
+**$10 per renewal she renews in the AMS** (Renewals ▸ Renewed, renewal date in the month).
+
+| Fee | August | Amount |
+|---|---|---:|
+| New policies | Michel Hernandez Esnard (Ocean Harbor), Billal Chahine (Infinity) | $50.00 |
+| AMS renewals | Ivette Borrell (8/26), Yerandy Carrazana (8/29) | $20.00 |
+| Underwriting work | Scott Kupersmith (Uriel) — items still open, $10 held until cleared | $0.00 |
+| **Payable** | | **$70.00** |
+
+Tijana Olsen 862628611 has an 8/27 imported renewal row, but the same policy was renewed in the AMS
+effective 9/5, so it counts in September. The Underwriting tab only holds September-onward
+policies, so August has no other underwriting work recorded.
 
 ## How a transaction is assigned
 
@@ -55,7 +71,7 @@ Uriel's 28 UW pack fees: 26 agency (no pending items), 1 Amanda Montano (items s
   policies (e.g. 879038354, 972778107, 986257767) and $564.17 of United chargebacks
   (cancellations on UAO-000694805, UAO-000695126, UAM-003007497, UAE-000268427, UAO-062029202
   "Done By Alberto"). Decide whether to adjust Jorge's next statement.
-- **Splits for Randy, Amanda and Lazaro** are the app's default 50% `agentCommissionShare`;
+- **Splits for Randy and Lazaro** are the app's default 50% `agentCommissionShare`;
   no written rule exists for them in the repo.
 - Workbook ▸ *Aug Binder - No Carrier Txn*: August new business with no August carrier
   transaction (mostly carriers with no uploaded statement — Spinnaker, UPC, Landmark, etc.).
