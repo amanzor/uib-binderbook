@@ -1,0 +1,80 @@
+# August 2026 — agency commissions, all agents except Jorge Castro
+
+Jorge Castro's August statement was already issued (Admin ▸ Commission Statements ▸
+`AgentStmt_Jorge Castro_2026_August`, gross $11,712.56). This prices **everyone else** off the
+six carrier statements uploaded for August (`MonthlyDocs_2026_August`).
+
+## Every carrier read ties to its printed total
+
+| Carrier | Parsed | Printed |
+|---|---:|---:|
+| Progressive | $19,468.25 | AGENT TOTAL $19,468.25 |
+| Kemper / Infinity | $3,596.22 | FL COMMISSION TOTAL $3,596.22 |
+| GEICO | $2,396.88 | Commissions $2,396.88 |
+| Ocean Harbor | $831.00 | Commission Due $831.00 |
+| AmWins | $71.30 | AGENCY TOTAL $71.30 (10% of net cash) |
+| United Auto | ($50.85) | 10% as collected; with the 3% promo ($127.45 chargeback, excluded) = $178.30 owed back, as printed |
+| **Total** | **$26,312.80** | |
+
+**No National General statement is in the August uploads.** Jorge's statement carries $593.64 of
+National General, so a file existed somewhere; nobody else's National General is included here.
+
+## Result
+
+| Agent | Rule applied | Gross | UW fees | **Agent payable** | Agency keeps |
+|---|---|---:|---:|---:|---:|
+| Uriel Rendon | 50/50 after $10 UW pack fee on new business (his documented rule) | $5,354.57 | ($280.00) | **$2,537.28** | $2,817.29 |
+| Randy Diaz | 50% (app default — confirm) | $3,546.73 | — | **$1,773.36** | $1,773.37 |
+| Amanda Montano | 50% (app default — confirm) | $3,990.36 | — | **$1,995.15** | $1,995.21 |
+| Lazaro Reigoza | 50% (app default — confirm) | $1,453.45 | — | **$726.71** | $726.74 |
+| Alberto Manzor | house book — no payout | $323.07 | — | — | $323.07 |
+| Jorge Castro | already on his August statement | $11,118.92 | | | |
+| Jorge's book, *not* on his Aug statement | review | $203.90 | | | |
+| Unmatched | review | $321.80 | | | |
+| **Total** | | **$26,312.80** | | | |
+
+Uriel's 28 UW pack fees: 26 agency (no pending items), 1 Amanda Montano (items still open),
+1 held (not worked yet).
+
+## How a transaction is assigned
+
+1. **Jorge first** — each line on his issued August detail statement is matched to the carrier
+   transactions by policy number and amount; those are his and are excluded.
+2. **Binder book by policy number** — agent on the most recent binder entry for that policy.
+   Policies Jorge owns whose August activity was *not* on his statement go to the
+   "Jorge's book, not on his statement" review bucket, never to another agent.
+3. **Progressive producer column** (MANZOR, ALBERTO / MONTANO, AMANDA) when the binder has no match.
+4. **Insured name** against the binder (same carrier preferred, latest entry). Most of these are
+   the same policy with a new term suffix (e.g. Ocean Harbor `…306` → `…308`).
+
+## Review items (workbook ▸ Review Items)
+
+- **Unmatched $321.80**: Kemper Heric Melo 50035563801 New $171.80; Progressive Gonzalez E.
+  868925218 $82.70 and Cruz M. 48386315 $67.30 (both "Unassigned" producer).
+- **Jorge's book, not on his statement, net $203.90**: $768.07 of Progressive on Jorge binder
+  policies (e.g. 879038354, 972778107, 986257767) and $564.17 of United chargebacks
+  (cancellations on UAO-000694805, UAO-000695126, UAM-003007497, UAE-000268427, UAO-062029202
+  "Done By Alberto"). Decide whether to adjust Jorge's next statement.
+- **Splits for Randy, Amanda and Lazaro** are the app's default 50% `agentCommissionShare`;
+  no written rule exists for them in the repo.
+- Workbook ▸ *Aug Binder - No Carrier Txn*: August new business with no August carrier
+  transaction (mostly carriers with no uploaded statement — Spinnaker, UPC, Landmark, etc.).
+
+## Deliverables
+
+- `<Agent>_Commission_Statement_August_2026.pdf` — one per agent: rule, summary, by carrier, detail by policy.
+- `UIB_Agency_Commissions_August_2026.xlsx` — Agency Summary, By Carrier, Policy Detail, Review Items,
+  Aug Binder - No Carrier Txn.
+
+## Rebuilding
+
+```
+mkdir -p aug && cd aug && python3 ../../../tools/commission-audit/fetch.py 2026 August && cd ..
+#  plus Jorge's Detailed statement from AgentStmt_Jorge Castro_2026_August into aug/jorge/,
+#  raw_amsClientData / raw_underwritingData from app_store, and pdftotext -layout on each PDF
+python3 parse_aug.py aug/pdfs      # Progressive, Kemper, United, AmWins, Ocean -> carriers.json
+python3 parse_geico.py aug/pdfs    # GEICO
+python3 parse_jorge.py aug/jorge/<Detailed>.txt
+python3 match_all.py && python3 fallback.py && python3 build_all.py
+OUT=. python3 make_outputs.py
+```
