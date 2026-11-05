@@ -1255,7 +1255,10 @@
     // Auth check — redirect to main app if not logged in
     document.addEventListener('DOMContentLoaded', () => {
         const authUser = (window.UIBAuth && UIBAuth.user()) || null;
-        const savedUser = authUser ? (authUser.role === 'admin' ? 'Admin' : authUser.name) : null;
+        // An admin account with a name (Alberto, Randy, Amanda) records entries
+        // under that name; only a nameless admin login is "Admin" — the same
+        // rule as the main page.
+        const savedUser = authUser ? ((authUser.role === 'admin' && (!authUser.name || authUser.name === 'Admin')) ? 'Admin' : authUser.name) : null;
         if (!savedUser) {
             window.location.href = './';
             return;
@@ -1263,7 +1266,7 @@
 
         // Restore currentUser so app.js functions work correctly
         currentUser = savedUser;
-        currentRole = savedUser === 'Admin' ? 'admin' : 'agent';
+        currentRole = (savedUser === 'Admin' || (authUser && authUser.role === 'admin')) ? 'admin' : 'agent';
 
         // Update display
         const userDisplay = document.getElementById('userDisplay');

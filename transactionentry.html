@@ -1156,14 +1156,14 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const authUser = (window.UIBAuth && UIBAuth.user()) || null;
-        const savedUser = authUser ? (authUser.role === 'admin' ? 'Admin' : authUser.name) : null;
+        const savedUser = authUser ? ((authUser.role === 'admin' && (!authUser.name || authUser.name === 'Admin')) ? 'Admin' : authUser.name) : null;
         if (!savedUser) {
             window.location.href = './';
             return;
         }
 
         currentUser = savedUser;
-        currentRole = savedUser === 'Admin' ? 'admin' : 'agent';
+        currentRole = (savedUser === 'Admin' || (authUser && authUser.role === 'admin')) ? 'admin' : 'agent';
 
         const userDisplay = document.getElementById('userDisplay');
         if (userDisplay) userDisplay.textContent = `👤 ${currentUser}`;
