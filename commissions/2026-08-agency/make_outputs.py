@@ -13,7 +13,7 @@ AG=['Uriel Rendon','Randy Diaz','Amanda Montano','Lazaro Reigoza','Alberto Manzo
 RULE={'Uriel Rendon':'50/50 split after a $10.00 Underwriting Pack fee on each new-business policy (documented rule, commissions/2026-09-uriel-rendon).',
       'Randy Diaz':'50% agent share — the app\'s default agentCommissionShare. Confirm before paying.',
       'Amanda Montano':'No percentage — the agency keeps all commission on her clients. Flat pay: $25 per new policy, $10 per policy whose Underwriting-tab items she clears, $10 per renewal she renews in the AMS.',
-      'Lazaro Reigoza':'50% agent share — the app\'s default agentCommissionShare. Confirm before paying.',
+      'Lazaro Reigoza':'50% agent share on carrier-statement commission, plus his August new business from the binder book (commission + agency fee) at the same 50%.',
       'Alberto Manzor':'House / agency book — shown for completeness; no agent payout calculated.'}
 NAVY=colors.HexColor('#1F3864'); LIGHT=colors.HexColor('#D9E1F2'); GREY=colors.HexColor('#555555'); AMBER=colors.HexColor('#FFF4D6'); AL=colors.HexColor('#C9A227')
 m=lambda v: f"(${abs(v):,.2f})" if v<-0.004 else f"${abs(v) if abs(v)<0.005 else v:,.2f}"
@@ -35,7 +35,12 @@ for a in AG:
     st=[Paragraph(f'Commission Statement — {a}',title),Paragraph('August 2026 carrier statements  |  Prepared 11/05/2026',sub)]
     r=Table([[Paragraph('<b>COMMISSION RULE APPLIED</b>  '+RULE[a],body)]],colWidths=[7.4*inch]); r.setStyle(TableStyle([('BOX',(0,0),(-1,-1),1,AL),('BACKGROUND',(0,0),(-1,-1),AMBER),('LEFTPADDING',(0,0),(-1,-1),8)]))
     st+=[r,Paragraph('Summary',sect)]
-    rows=[['','Amount'],['Gross commission on agent\'s policies (August carrier statements)',m(A['gross'])]]
+    nb=sum(p['comm'] for p in A['rows'] if p['how'].startswith('August new business from binder book'))
+    if nb:
+        rows=[['','Amount'],['Commission on agent\'s policies (August carrier statements)',m(A['gross']-nb)],
+              ['August new business from the binder book (commission + agency fee)',m(nb)],['Total gross',m(A['gross'])]]
+    else:
+        rows=[['','Amount'],['Gross commission on agent\'s policies (August carrier statements)',m(A['gross'])]]
     if uriel: rows+=[[f"Less: Underwriting Pack fees ({A['fee_count']} new-business policies × $10.00)",m(-A['fees'])],['Net commission to split',m(A['net'])]]
     if a=='Amanda Montano':
         for k in ('New policy','AMS renewal','Underwriting work'):
@@ -63,7 +68,7 @@ for a in AG:
     dt=[hd]
     for p in sorted(A['rows'],key=lambda p:(p['carrier'],-p['comm'])):
         tx='; '.join(f"{x['tran']} {m(x['comm'])}" for x in p['txns'])
-        dt.append([p['carrier'],Paragraph(str(p['customer'])[:34],cell),p['policy'],Paragraph(tx[:140],cell),m(p['comm'])]+([m(p['fee']) if p['fee'] else '',Paragraph(uwlabel(p),cell)] if uriel else [])+[m(p['agent_pay'])])
+        dt.append([Paragraph(p['carrier'],cell),Paragraph(str(p['customer'])[:34],cell),p['policy'],Paragraph(tx[:140],cell),m(p['comm'])]+([m(p['fee']) if p['fee'] else '',Paragraph(uwlabel(p),cell)] if uriel else [])+[m(p['agent_pay'])])
     cw=[0.95,1.45,0.95,2.15,0.65]+([0.5,0.95] if uriel else [])+[0.65]
     if not uriel: cw[3]+=1.45
     t=Table(dt,colWidths=[c*inch for c in cw],repeatRows=1); t.setStyle(TableStyle(base+[('FONTSIZE',(0,1),(-1,-1),7.2),('ALIGN',(4,0),(-1,-1),'RIGHT'),('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#F3F6FB')])]))
@@ -82,7 +87,7 @@ for a in AG:
 o=S['_other']
 for k in ['Jorge Castro','Jorge book (not on his Aug stmt)','Unmatched']:
     if k in o: ws.append([k,{'Jorge Castro':'Already on Jorge\'s August statement (excl. National General $593.64 — that statement is not in the August uploads)','Jorge book (not on his Aug stmt)':'Jorge\'s binder policies whose August transactions are NOT on his statement — review','Unmatched':'No binder/AMS match — review'}[k],len(o[k]['txns']),o[k]['total'],0,None,None])
-ws.append(['TOTAL (ties to the six carrier statements)','',None,'=SUM(D4:D%d)'%ws.max_row]); ws[ws.max_row][0].font=B
+ws.append(['TOTAL (six carrier statements $26,312.80 + Lazaro binder new business $1,204.35)','',None,'=SUM(D4:D%d)'%ws.max_row]); ws[ws.max_row][0].font=B
 for col,w in zip('ABCDEFG',[34,70,9,16,13,14,14]): ws.column_dimensions[col].width=w
 for row in ws.iter_rows(min_row=4,min_col=4,max_col=7):
     for c in row: c.number_format='#,##0.00;(#,##0.00)'

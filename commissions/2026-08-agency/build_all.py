@@ -17,6 +17,7 @@ byid={e['id']:e for e in b}
 AG=['Uriel Rendon','Randy Diaz','Amanda Montano','Lazaro Reigoza','Alberto Manzor']
 def is_new_tx(t):
     tr=(t.get('tran') or '').lower()
+    if (t.get('how') or '').startswith('August new business from binder book'): return True
     if t['carrier']=='GEICO': return 'first year' in tr
     return tr.startswith('new') or tr in ('new business',)
 def uw_who(bid):
@@ -31,6 +32,21 @@ def uw_who(bid):
             if v.get('satisfied') and (v.get('at') or 0)>at: best,at=v.get('by',''),v.get('at') or 0
         who=best
     return (who or 'Unassigned'), ('open' if outst else 'cleared')
+# ---- Lazaro Reigoza: August new business from the binder book (commission + agency fee),
+# added to his production at the same 50% split when no uploaded carrier statement carries it.
+BINDER_NB_AGENTS=['Lazaro Reigoza']
+stmt_keys={t['key'] for t in T if t['key']}
+D_=lambda s: re.sub(r'\D','',str(s or '')).lstrip('0')
+for e in b:
+    if e.get('agent') in BINDER_NB_AGENTS and (e.get('entryDate') or '').startswith('2026-08') and e.get('policyType') in ('New','Rewrite'):
+        k=D_(e.get('policyNumber')); ka=re.sub(r'[^A-Z0-9]','',str(e.get('policyNumber')).upper())
+        if k in stmt_keys or ka in stmt_keys: continue
+        comm=float(e.get('agencyCommission') or 0); fee=float(e.get('agencyFee') or 0)
+        T.append(dict(carrier=str(e.get('company') or ''),policy=str(e.get('policyNumber') or ''),key=ka,name=e.get('customerName'),
+                      customer=e.get('customerName'),tran='New Business (binder) comm %.2f + agency fee %.2f'%(comm,fee),date=e.get('entryDate'),
+                      prem=float(e.get('basePremium') or 0),rate=None,comm=round(comm+fee,2),agent=e['agent'],
+                      how='August new business from binder book (commission + agency fee)',binder_id=e.get('id'),binder_type=e.get('policyType'),binder_comm=comm,binder_fee=fee))
+        print('  binder NB',e['agent'],e.get('customerName'),comm,fee)
 res={}
 for a in AG:
     pol=collections.OrderedDict()

@@ -26,15 +26,28 @@ National General, so a file existed somewhere; nobody else's National General is
 | Uriel Rendon | 50/50 after $10 UW pack fee on new business (his documented rule) | $5,354.57 | ($280.00) | **$2,537.28** | $2,817.29 |
 | Randy Diaz | 50% (app default — confirm) | $3,546.73 | — | **$1,773.36** | $1,773.37 |
 | Amanda Montano | flat fees only — agency keeps her clients' commission | $3,990.36 | — | **$70.00** | $3,920.36 |
-| Lazaro Reigoza | 50% (app default — confirm) | $1,453.45 | — | **$726.71** | $726.74 |
+| Lazaro Reigoza | 50% — carrier statements + August new business from the binder | $2,657.80 | — | **$1,328.89** | $1,328.91 |
 | Alberto Manzor | house book — no payout | $323.07 | — | — | $323.07 |
 | Jorge Castro | already on his August statement | $11,118.92 | | | |
 | Jorge's book, *not* on his Aug statement | review | $203.90 | | | |
 | Unmatched | review | $321.80 | | | |
-| **Total** | | **$26,312.80** | | | |
+| **Total** | | **$27,517.15** ($26,312.80 statements + $1,204.35 binder new business) | | | |
 
 Uriel's 28 UW pack fees: 26 agency (no pending items), 1 Amanda Montano (items still open),
 1 held (not worked yet).
+
+### Lazaro Reigoza — August new business added from the binder book
+His three August new-business policies are on no uploaded carrier statement, so they are added
+from the binder book at commission + agency fee, split 50%:
+
+| Insured | Carrier | Commission | Agency fee | Lazaro 50% |
+|---|---|---:|---:|---:|
+| Traffic Systems Technology (surety bond) | Philadelphia Indemnity | $661.30 | $0.00 | $330.65 |
+| DF Painting Services (GL) | Spinnaker | $56.90 | $281.00 | $168.95 |
+| Home Art's Design (inland marine) | Spinnaker | $101.50 | $103.65 | $102.58 |
+| **Total** | | **$819.70** | **$384.65** | **$602.18** |
+
+Plus $726.71 (50% of $1,453.45 carrier-statement commission) = **$1,328.89**.
 
 ### Amanda Montano — flat-fee rule
 No percentage: the agency keeps all commission on her clients ($3,990.36 in August). She is paid
@@ -71,7 +84,7 @@ policies, so August has no other underwriting work recorded.
   policies (e.g. 879038354, 972778107, 986257767) and $564.17 of United chargebacks
   (cancellations on UAO-000694805, UAO-000695126, UAM-003007497, UAE-000268427, UAO-062029202
   "Done By Alberto"). Decide whether to adjust Jorge's next statement.
-- **Splits for Randy and Lazaro** are the app's default 50% `agentCommissionShare`;
+- **Split for Randy** is the app's default 50% `agentCommissionShare`;
   no written rule exists for them in the repo.
 - Workbook ▸ *Aug Binder - No Carrier Txn*: August new business with no August carrier
   transaction (mostly carriers with no uploaded statement — Spinnaker, UPC, Landmark, etc.).
