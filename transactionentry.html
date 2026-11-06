@@ -482,7 +482,7 @@
                         <label>Policy Number * <span style="font-size:11px;color:#7c3aed;font-weight:500;">(must match existing policy)</span></label>
                         <input type="text" id="policyNumber" required autocomplete="off"
                             oninput="txnPolicySearch(this.value)"
-                            onblur="setTimeout(()=>{document.getElementById('policySearchDropdown').style.display='none'},200)">
+                            onchange="txnAutoMatch(this.value)" onblur="setTimeout(()=>{document.getElementById('policySearchDropdown').style.display='none'},200)">
                         <div id="policySearchDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:#fff;border:1.5px solid #c4b5fd;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;margin-top:3px;"></div>
                         <div id="policyValidationMsg" style="display:none;margin-top:4px;font-size:12px;font-weight:600;border-radius:6px;padding:4px 10px;"></div>
                     </div>
@@ -821,7 +821,7 @@
                         <label>Policy Number * <span style="font-size:11px;color:#7c3aed;font-weight:500;">(must match existing policy)</span></label>
                         <input type="text" id="policyNumberCom" required autocomplete="off"
                             oninput="txnPolicySearch(this.value,'Com')"
-                            onblur="setTimeout(()=>{document.getElementById('policySearchDropdownCom').style.display='none'},200)">
+                            onchange="txnAutoMatch(this.value,'Com')" onblur="setTimeout(()=>{document.getElementById('policySearchDropdownCom').style.display='none'},200)">
                         <div id="policySearchDropdownCom" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:#fff;border:1.5px solid #c4b5fd;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;margin-top:3px;"></div>
                         <div id="policyValidationMsgCom" style="display:none;margin-top:4px;font-size:12px;font-weight:600;border-radius:6px;padding:4px 10px;"></div>
                     </div>
@@ -1301,10 +1301,20 @@
         } catch (e) { /* ignore parse errors */ }
     }
 
+    // Typed (or pasted) a full policy number without picking it from the
+    // list: if it matches exactly one existing policy, treat it as picked.
+    function txnAutoMatch(val, suffix = '') {
+        const v = String(val || '').trim().toLowerCase();
+        if (!v) return;
+        const nums = [...new Set((JSON.parse(localStorage.getItem('binderData')) || [])
+            .map(e => e.policyNumber).filter(p => p && String(p).trim().toLowerCase() === v))];
+        if (nums.length === 1) txnSelectPolicy(nums[0], suffix);
+    }
+
     function txnSelectPolicy(polNum, suffix = '') {
         const dd = document.getElementById('policySearchDropdown' + suffix);
         const msg = document.getElementById('policyValidationMsg' + suffix);
-        dd.style.display = 'none';
+        if (dd) dd.style.display = 'none';
 
         document.getElementById('policyNumber' + suffix).value = polNum;
 
@@ -1314,10 +1324,12 @@
 
         _txnSelectedPolicy = match;
 
+        if (msg) {
         msg.style.display = 'block';
         msg.style.background = '#ecfdf5';
         msg.style.color = '#065f46';
         msg.textContent = '✓ Matched: ' + (match.customerName || '') + ' — ' + (match.lineOfBusiness || '') + ' — ' + (match.company || '');
+        }
 
         if (match.customerName) document.getElementById('customerName' + suffix).value = match.customerName;
         if (match.lineOfBusiness) document.getElementById('lineOfBusiness' + suffix).value = match.lineOfBusiness;
