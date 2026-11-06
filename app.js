@@ -1941,6 +1941,7 @@ async function saveEntry() {
     }
 
     allData.push(entry);
+    vaultEntry(entry);   // own cloud backup of this entry, independent of the book sync
     // The wrapped setItem stores locally THEN pushes to the cloud. When this
     // browser is out of room the local write throws and the push never ran —
     // the entry was simply lost and the Save button looked broken. Free room
@@ -5225,6 +5226,7 @@ function updateEntry() {
     entry.agentCommissionShare  = parseFloat((_commBase * (_hasSecond ? 0.25 : 0.50)).toFixed(2));
     entry.secondAgentCommission = _hasSecond ? parseFloat((_commBase * 0.25).toFixed(2)) : 0;
     entry.updatedAt = Date.now(); // newer revision wins the cross-device merge
+    { const _ed = allData.find(d => String(d.id) === String(editingId)); if (_ed) vaultEntry(_ed); }
     localStorage.setItem('binderData', JSON.stringify(allData));
     // Re-sync to AMS so any contact/source/agent changes propagate
     if (typeof syncEntryToAMS === 'function') syncEntryToAMS(entry);
@@ -13990,6 +13992,149 @@ function importLRCQ1Transactions() {
 
     alert('Import complete! Added ' + added + ' entries for Lazaro. Skipped ' + skipped + ' duplicates.');
 }
+
+// ============================================================
+// ENTRY VAULT — every entry backed up to the cloud on its own
+// ------------------------------------------------------------
+// Each new or edited Binder Book entry is also written to the cloud as its
+// own small row (app_store key "entryVault:<id>"), straight away and apart
+// from the big binderData sync — so a save survives an outdated page, a
+// failed or blocked book sync, or a device that is never opened again.
+// Rows that cannot be sent wait in a device outbox ("uibEntryOutbox"),
+// retried every minute, with a red banner until the cloud confirms them.
+// Whenever the app opens, entries found in the vault but missing from the
+// book (and never deleted) are put back automatically.
+// ============================================================
+const VAULT_PREFIX = 'entryVault:';
+const VAULT_DAYS = 30;                       // well inside the 90-day tombstone window
+let _vaultBusy = false, _vaultLastReconcile = 0;
+
+function _vaultOutbox() { try { return JSON.parse(localStorage.getItem('uibEntryOutbox')) || {}; } catch (e) { return {}; } }
+function _vaultSetOutbox(o) { try { _origSetItem('uibEntryOutbox', JSON.stringify(o)); } catch (e) {} }
+function _vaultDone() { try { return new Set(JSON.parse(localStorage.getItem('uibVaulted')) || []); } catch (e) { return new Set(); } }
+function _vaultSetDone(set) { try { _origSetItem('uibVaulted', JSON.stringify([...set].slice(-3000))); } catch (e) {} }
+function _vaultRecent(e) {
+    const cut = new Date(Date.now() - VAULT_DAYS * 864e5).toISOString().slice(0, 10);
+    return e && e.id != null && String(e.entryDate || '').slice(0, 10) >= cut;
+}
+
+// Queue an entry (new or edited) for the vault and try to send it now.
+function vaultEntry(entry) {
+    if (!entry || entry.id == null) return;
+    const o = _vaultOutbox();
+    o[String(entry.id)] = { entry: entry, queuedAt: new Date().toISOString() };
+    _vaultSetOutbox(o);
+    _vaultShowBanner();
+    return vaultFlush();
+}
+
+async function vaultFlush() {
+    const o = _vaultOutbox();
+    const ids = Object.keys(o);
+    if (!ids.length) { _vaultShowBanner(); return true; }
+    let allOk = true;
+    for (let i = 0; i < ids.length; i += 40) {
+        const chunk = ids.slice(i, i + 40);
+        const rows = chunk.map(id => ({
+            key: VAULT_PREFIX + id,
+            value: { entry: o[id].entry, agent: o[id].entry.agent || '', savedBy: currentUser || '', savedAt: o[id].queuedAt },
+            updated_at: new Date().toISOString()
+        }));
+        try {
+            // Direct write: not gated by the outdated-build lock or the book sync.
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
+                method: 'POST',
+                headers: Object.assign({}, _SB_HEADERS, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+                body: JSON.stringify(rows)
+            });
+            if (!res.ok) { allOk = false; continue; }
+            const cur = _vaultOutbox(), done = _vaultDone();
+            chunk.forEach(id => { if (cur[id] && cur[id].queuedAt === o[id].queuedAt) delete cur[id]; done.add(id); });
+            _vaultSetOutbox(cur); _vaultSetDone(done);
+        } catch (e) { allOk = false; }
+    }
+    _vaultShowBanner();
+    return allOk;
+}
+
+// Any recent entry in this device's book that was never vaulted (made by
+// a path that does not call vaultEntry, or before this existed) is queued.
+function _vaultScan() {
+    if (!Array.isArray(allData) || !allData.length) return;
+    const done = _vaultDone(), o = _vaultOutbox();
+    let added = 0;
+    allData.forEach(e => {
+        if (!_vaultRecent(e) || done.has(String(e.id)) || o[String(e.id)]) return;
+        o[String(e.id)] = { entry: e, queuedAt: new Date().toISOString() }; added++;
+    });
+    if (added) _vaultSetOutbox(o);
+}
+
+// Put back vaulted entries the book is missing (never ones that were deleted).
+async function vaultReconcile() {
+    const since = new Date(Date.now() - VAULT_DAYS * 864e5).toISOString();
+    const have = new Set((allData || []).map(e => String(e.id)));
+    const dead = new Set(_binderTombstones().map(t => String(t.id)));
+    // Keys first (a few bytes each); download only the entries the book lacks.
+    let missing = [];
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=key&key=like.${encodeURIComponent(VAULT_PREFIX)}*&updated_at=gte.${encodeURIComponent(since)}`, { headers: _SB_HEADERS });
+        if (!res.ok) return 0;
+        missing = (await res.json()).map(r => String(r.key).slice(VAULT_PREFIX.length)).filter(id => !have.has(id) && !dead.has(id));
+    } catch (e) { return 0; }
+    if (!missing.length) return 0;
+    const rows = [];
+    for (let i = 0; i < missing.length; i += 40) {
+        const keys = missing.slice(i, i + 40).map(id => '"' + (VAULT_PREFIX + id).replace(/"/g, '') + '"').join(',');
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/app_store?select=key,value&key=in.(${encodeURIComponent(keys)})`, { headers: _SB_HEADERS });
+            if (res.ok) rows.push(...await res.json());
+        } catch (e) {}
+    }
+    const back = rows.map(r => r.value && r.value.entry).filter(e => e && e.id != null && !have.has(String(e.id)) && !dead.has(String(e.id)));
+    if (!back.length) return 0;
+    back.forEach(e => allData.push(e));
+    localStorage.setItem('binderData', JSON.stringify(allData));   // wrapped setItem merges into the cloud book
+    const done = _vaultDone(); back.forEach(e => done.add(String(e.id))); _vaultSetDone(done);
+    console.warn('Entry vault: restored ' + back.length + ' entr' + (back.length === 1 ? 'y' : 'ies') + ' missing from the book', back.map(e => e.id));
+    if (window.UIBAudit) UIBAudit.log('entry_vault_restored', String(back.length), { ids: back.map(e => e.id) });
+    try { if (typeof applyFilters === 'function') applyFilters(); if (typeof loadAdminDashboard === 'function' && isAgentAdmin()) loadAdminDashboard(); } catch (e) {}
+    return back.length;
+}
+
+async function _vaultTick() {
+    if (_vaultBusy || !currentUser) return;
+    _vaultBusy = true;
+    try {
+        _vaultScan();
+        await vaultFlush();
+        if (Date.now() - _vaultLastReconcile > 10 * 60 * 1000) { _vaultLastReconcile = Date.now(); await vaultReconcile(); }
+    } finally { _vaultBusy = false; }
+}
+
+function _vaultShowBanner() {
+    const n = Object.keys(_vaultOutbox()).length;
+    let el = document.getElementById('uibVaultBanner');
+    if (!n) { if (el) el.remove(); return; }
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'uibVaultBanner';
+        el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483646;background:#b91c1c;color:#fff;padding:10px 16px;text-align:center;font:600 13.5px system-ui,Arial,sans-serif;box-shadow:0 -2px 10px rgba(0,0,0,.25);';
+        (document.body || document.documentElement).appendChild(el);
+    }
+    el.innerHTML = `⚠️ ${n} entr${n === 1 ? 'y is' : 'ies are'} saved on this device only and not yet backed up to the cloud. Keep this page open — retrying every minute. ` +
+        `<button onclick="vaultFlush()" style="margin-left:8px;background:#fff;color:#b91c1c;border:none;border-radius:6px;padding:3px 10px;font-weight:800;cursor:pointer;">Retry now</button>`;
+}
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('load', () => {
+        setTimeout(_vaultTick, 8000);
+        setInterval(_vaultTick, 60 * 1000);
+        _vaultShowBanner();
+    });
+    window.addEventListener('online', () => { vaultFlush(); });
+}
+
 
 // ============================================================
 // AUTOMATIC CLOUD BACKUPS  — rolling snapshots in app_store
