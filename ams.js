@@ -2789,7 +2789,7 @@ const ACORD_FORMS = [
       sections:['producer','insured','company','property','coverage','additionalInterest'] },
 
     // General statements
-    { id:'noLoss', num:'No Loss Statement', name:'Statement of No Losses (No Known Loss Letter)', cat:'general', catLabel:'General', icon:'✅',
+    { id:'noLoss', num:'No Loss Statement', name:'Statement of No Losses (No Known Loss Letter)', cat:'general', catLabel:'General', icon:'📄',
       sections:['noLossInfo','noLossStatement','signature'] },
 
     // Claims
