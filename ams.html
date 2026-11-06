@@ -5,7 +5,7 @@
     <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20261029a"></script>
-    <script src="uib-binder-sync.js?v=20261030c"></script>
+    <script src="uib-binder-sync.js?v=20261106t"></script>
     <script src="uib-auth.js?v=20261022c"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
@@ -1781,6 +1781,7 @@
                                             <th>Policy #</th>
                                             <th>Binder #</th>
                                             <th style="text-align:right;">Premium</th>
+                                            <th>Term</th>
                                             <th>Pmt Type</th>
                                             <th>MGA</th>
                                             <th>Status</th>
@@ -1788,7 +1789,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="amsPoliciesBody">
-                                        <tr><td colspan="12" style="text-align:center;padding:32px;color:var(--gray-400);">No policies found.</td></tr>
+                                        <tr><td colspan="13" style="text-align:center;padding:32px;color:var(--gray-400);">No policies found.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -2013,7 +2014,14 @@
                 </div>
                 <div class="info-field">
                     <label>Effective Date</label>
-                    <input type="date" id="mp_effDate">
+                    <input type="date" id="mp_effDate" onchange="amsPolicyTermSync()">
+                </div>
+                <div class="info-field">
+                    <label>Term</label>
+                    <select id="mp_term" onchange="amsPolicyTermSync()">
+                        <option value="12">12 Months</option>
+                        <option value="6">6 Months</option>
+                    </select>
                 </div>
                 <div class="info-field">
                     <label>Expiration Date</label>
@@ -2504,7 +2512,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261030h"></script>
+    <script src="ams.js?v=20261106t"></script>
     <script src="acord25-map.js?v=20261027a"></script>
     <script src="certificates.js?v=20261030b"></script>
     <script src="additional-interests.js?v=20261030b"></script>
@@ -4475,7 +4483,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             set('amsRnwRenewPremium',   parseFloat(src.totalPremium) || '');
             set('amsRnwRenewEff',       src.expirationDate);
             const termEl = document.getElementById('amsRnwRenewTerm');
-            if (termEl) termEl.value = String(_amsRnwTermMonths(src.effectiveDate, src.expirationDate) || 12);
+            if (termEl) termEl.value = String(window.UIBTerm ? window.UIBTerm.of(src) : (_amsRnwTermMonths(src.effectiveDate, src.expirationDate) || 12));
             set('amsRnwRenewMemo', '');
             amsRnwRenewSyncExp();
             amsRnwRenewPremiumChange();
@@ -4549,7 +4557,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             const entry = _amsRnwBuildEntry(src, {
                 policyType:    'Renewal',
                 effectiveDate: newEff,
-                term:          opts.term || _amsRnwTermMonths(src.effectiveDate, newEff),
+                term:          opts.term || (window.UIBTerm ? window.UIBTerm.of(src) : _amsRnwTermMonths(src.effectiveDate, newEff)),
                 policyNumber:  opts.policyNumber != null ? opts.policyNumber : undefined,
                 premium:       opts.premium != null && !isNaN(opts.premium) ? opts.premium : undefined,
                 notes:         'Renewal generated from the AMS — pending completion.' +
@@ -5144,7 +5152,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             set('amsRnwAbPolicyNum', '');
             set('amsRnwAbPremium', parseFloat(src.totalPremium) || '');
             set('amsRnwAbEff', src.expirationDate || _amsRnwToday());
-            set('amsRnwAbTerm', String(_amsRnwTermMonths(src.effectiveDate, src.expirationDate)));
+            set('amsRnwAbTerm', String(window.UIBTerm ? window.UIBTerm.of(src) : _amsRnwTermMonths(src.effectiveDate, src.expirationDate)));
             set('amsRnwAbMemo', '');
             amsRnwAbSyncExp();
             document.getElementById('amsRnwAbModal')?.classList.add('open');

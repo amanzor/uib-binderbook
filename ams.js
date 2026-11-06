@@ -307,7 +307,9 @@ function amsBuildClientIndex() {
     amsBinderCache = binder;
 
     // Correct any Infinity/Kemper entries mislabeled as Homeowners, then persist.
-    if (amsNormalizeRestrictedCarrierLOBs(binder) > 0) {
+    // Also correct expirations that were worked out from the wrong term.
+    const _termFixed = window.UIBTerm ? window.UIBTerm.fixList(binder) : 0;
+    if (amsNormalizeRestrictedCarrierLOBs(binder) > 0 || _termFixed > 0) {
         amsSave('binderData', binder);
     }
 
@@ -1385,7 +1387,7 @@ function amsRenderPolicies(key) {
     if (!tbody) return;
     const policies = (amsClientIndex[key]?.policies || []);
     if (!policies.length) {
-        tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--gray-400);">No policies on record. Click "Add Policy" to create one.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--gray-400);">No policies on record. Click "Add Policy" to create one.</td></tr>`;
         return;
     }
 
@@ -1424,7 +1426,7 @@ function amsRenderPolicies(key) {
 
         const expandRow = hasCarrierData ? `
         <tr id="txn-detail-${p.id}" style="display:none;background:#f8faff;">
-            <td colspan="12" style="padding:0;">
+            <td colspan="13" style="padding:0;">
                 <div style="padding:14px 20px 16px 28px;border-top:1px solid #e0e7ff;">
                     <div style="font-size:11px;font-weight:700;color:#4338ca;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">
                         📋 Carrier File Events
@@ -1486,6 +1488,7 @@ function amsRenderPolicies(key) {
             <td style="font-family:monospace;font-size:11.5px;">${amsEscHtml(p.policyNumber || '—')}</td>
             <td style="font-family:monospace;font-size:11.5px;">${amsEscHtml(p.binderNumber || '—')}</td>
             <td style="text-align:right;font-weight:700;color:var(--navy);">${prem}</td>
+            <td style="white-space:nowrap;">${window.UIBTerm ? window.UIBTerm.of(p) + ' mo' : amsEscHtml(p.term ? p.term + ' mo' : '—')}</td>
             <td>${amsEscHtml(p.paymentType || p.commissionType || '—')}</td>
             <td>${amsEscHtml(p.mga || '—')}</td>
             <td style="white-space:nowrap;">
@@ -1625,9 +1628,10 @@ function amsOpenAddPolicyModal() {
     const fields = ['mp_agent','mp_policyType','mp_lob','mp_carrier','mp_mga','mp_policyNum','mp_binderNum',
                     'mp_down','mp_agencyFee','mp_basePremium','mp_premium',
                     'mp_payMethod','mp_payMethod2','mp_agencyCommission','mp_agentCommission','mp_payType',
-                    'mp_effDate','mp_expDate','mp_policyStatus',
+                    'mp_effDate','mp_term','mp_expDate','mp_policyStatus',
                     'mp_propAddress','mp_propUnit','mp_propCity','mp_propState','mp_propZip','mp_propYearBuilt'];
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    { const tEl = document.getElementById('mp_term'); if (tEl) tEl.value = '12'; }
     document.querySelectorAll('#mp_policyType option[data-legacy]').forEach(o => o.remove());
 
     // Pre-fill the insured property address from the client's contact record so
@@ -1693,6 +1697,7 @@ function amsEditPolicy(policyId) {
         const el = document.getElementById(elId);
         if (el) el.value = entry[field] || '';
     });
+    { const tEl = document.getElementById('mp_term'); if (tEl) tEl.value = String(window.UIBTerm ? window.UIBTerm.of(entry) : (entry.term || 12)); }
     // Transaction type: older AMS entries say "New Business"; a cancellation
     // entry keeps its stored value so saving it does not turn it into a sale.
     const ptSel = document.getElementById('mp_policyType');
@@ -1780,6 +1785,8 @@ function amsSavePolicyModal() {
         paymentType:          v('mp_payType'),
         effectiveDate:        v('mp_effDate'),
         expirationDate:       v('mp_expDate'),
+        term:                 v('mp_term') || '12',
+        termConfirmed:        true,
         policyStatus:         v('mp_policyStatus'),
         // Homeowner policies capture an insured property instead of drivers/vehicles.
         drivers:              isHome ? [] : amsCollectDriverRows(),
@@ -6669,4 +6676,12 @@ async function amsRnwDeleteReport(docId) {
     try { await amsCloudDeleteFile(r.docId, r.storagePath); } catch (e) {}
     _rnwReports = _rnwReports.filter(function (x) { return String(x.docId) !== String(docId); });
     amsRnwRenderReports();
+}
+
+// Policy modal: keep the expiration in step with effective date + term.
+function amsPolicyTermSync() {
+    const eff = document.getElementById('mp_effDate')?.value || '';
+    const term = parseInt(document.getElementById('mp_term')?.value || '12', 10);
+    const exp = document.getElementById('mp_expDate');
+    if (exp && eff && window.UIBTerm) exp.value = window.UIBTerm.addMonths(eff, term);
 }

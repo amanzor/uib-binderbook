@@ -454,3 +454,67 @@
         pullClientData: pullClientData
     };
 })();
+
+// ============================================================
+//  POLICY TERM — one rule for how long a policy runs
+//  ------------------------------------------------------------
+//  Renewals and expiration dates all come from effective date +
+//  term. Lines that are only sold as 12-month policies (Workers
+//  Comp, General Liability, Homeowners, Flood, BOP...) are always
+//  12 months unless someone confirmed a different term on the AMS
+//  Policies tab. Auto lines keep the term they were sold with.
+// ============================================================
+(function () {
+    'use strict';
+    function isDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')); }
+    function addMonths(dateStr, months) {
+        var p = String(dateStr).split('-').map(Number);
+        var base = new Date(p[0], (p[1] - 1) + months, 1);
+        var last = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+        base.setDate(Math.min(p[2], last));
+        return base.getFullYear() + '-' + String(base.getMonth() + 1).padStart(2, '0') + '-' + String(base.getDate()).padStart(2, '0');
+    }
+    // Lines where a 6-month term is normal (or the line is unknown).
+    function canBeShort(lob) {
+        var l = String(lob || '').trim();
+        return !l || /auto|motorcycle|physical damage|renewal|^other$/i.test(l);
+    }
+    function effOf(p) { return isDate(p.effectiveDate) ? p.effectiveDate : (isDate(p.effDate) ? p.effDate : ''); }
+    function termOf(p) {
+        if (!p) return 12;
+        var t = parseInt(p.term, 10);
+        var valid = t >= 1 && t <= 36;
+        if (valid && p.termConfirmed) return t;
+        if (!canBeShort(p.lineOfBusiness)) return 12;
+        if (valid) return t;
+        var eff = effOf(p);
+        if (eff && isDate(p.expirationDate)) {
+            var days = (new Date(p.expirationDate + 'T12:00:00') - new Date(eff + 'T12:00:00')) / 86400000;
+            if (days > 0 && days <= 215) return 6;
+            if (days > 215 && days <= 400) return 12;
+        }
+        return /auto/i.test(String(p.lineOfBusiness || '')) ? 6 : 12;
+    }
+    // Repair entries whose expiration was worked out from the wrong term.
+    // Only touches an expiration that equals effective + stored term, so
+    // a date someone typed in, or a multi-term import timeline, is kept.
+    // Returns how many entries were corrected.
+    function fixList(list) {
+        if (!Array.isArray(list)) return 0;
+        var n = 0, now = Date.now();
+        list.forEach(function (e) {
+            if (!e || typeof e !== 'object' || e.termConfirmed) return;
+            var eff = effOf(e);
+            var t = parseInt(e.term, 10);
+            if (!eff || !(t >= 1) || !isDate(e.expirationDate)) return;
+            var tt = termOf(e);
+            if (tt === t || e.expirationDate !== addMonths(eff, t)) return;
+            e.term = String(tt);
+            e.expirationDate = addMonths(eff, tt);
+            e.updatedAt = now;
+            n++;
+        });
+        return n;
+    }
+    window.UIBTerm = { of: termOf, addMonths: addMonths, fixList: fixList, canBeShort: canBeShort };
+})();

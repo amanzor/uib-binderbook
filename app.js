@@ -881,6 +881,8 @@ function migrateLocationNames() {
         data.forEach(e => {
             if (e && e.location === 'Franchise') { e.location = 'Homestead Location'; changed++; }
         });
+        // Expirations worked out from the wrong term (see UIBTerm).
+        if (window.UIBTerm) changed += window.UIBTerm.fixList(data);
         if (changed > 0) {
             localStorage.setItem('binderData', JSON.stringify(data));
             allData = data;
@@ -14651,7 +14653,7 @@ function _rnwTermMonths(eff, exp) {
 // Build a fresh renewal entry (new term) for the assigned agent to work.
 function buildRenewalEntry(src, todayStr) {
     const origExp = src.expirationDate;
-    const term    = _rnwTermMonths(src.effectiveDate, origExp);
+    const term    = window.UIBTerm ? window.UIBTerm.of(src) : _rnwTermMonths(src.effectiveDate, origExp);
     const newEff  = origExp;                       // new term starts when the old one ends
     const newExp  = _rnwAddMonths(newEff, term);
     const premium = parseFloat(src.totalPremium) || 0;
