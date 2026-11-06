@@ -2789,8 +2789,11 @@ const ACORD_FORMS = [
       sections:['producer','insured','company','property','coverage','additionalInterest'] },
 
     // General statements
-    { id:'noLoss', num:'No Loss Statement', name:'Statement of No Losses (No Known Loss Letter)', cat:'general', catLabel:'General', icon:'📄',
-      sections:['noLossInfo','noLossStatement','signature'] },
+    // ACORD 37 prints on the real ACORD AcroForm (forms/acord37.pdf): each
+    // field's `pdf` is the form's own field name. Kept under the id
+    // 'noLoss' so drafts saved before it was tied to the PDF still open.
+    { id:'noLoss', num:'ACORD 37', name:'Statement of No Loss', cat:'general', catLabel:'General', icon:'📄',
+      pdf:'forms/acord37.pdf', sections:['a37_agency','a37_insured','a37_policy','a37_statement','a37_receipt'] },
 
     // Claims
     { id:'acord1', num:'ACORD 1', name:'Property Loss Notice', cat:'claims', catLabel:'Claims', icon:'⚠️',
@@ -2803,11 +2806,11 @@ const ACORD_FORMS = [
       sections:['employer','employee','injuryInfo','treatment','remarks'] },
 
     // General / Agency
-    { id:'acord35', num:'ACORD 35', name:'Agency - Company Agreement', cat:'general', catLabel:'General', icon:'🤝',
+    { id:'acord35', num:'Agency Agreement', name:'Agency - Company Agreement', cat:'general', catLabel:'General', icon:'🤝',
       sections:['agency','company','terms','signature'] },
-    { id:'acord36', num:'ACORD 36', name:'Agent Statement / Inspection Report', cat:'general', catLabel:'General', icon:'🔍',
-      sections:['applicant','propertyInfo','observations','recommendations','signature'] },
-    { id:'acord37', num:'ACORD 37', name:'Request for Cancellation', cat:'general', catLabel:'General', icon:'❌',
+    { id:'acord36', num:'ACORD 36', name:'Agent / Broker of Record Change', cat:'general', catLabel:'General', icon:'🔁',
+      sections:['insured','policy','producer','remarks','signature'] },
+    { id:'acord37', num:'ACORD 35', name:'Cancellation Request / Policy Release', cat:'general', catLabel:'General', icon:'❌',
       sections:['insured','policy','cancellationInfo','remarks','signature'] },
     { id:'acord38', num:'ACORD 38', name:'Request for Policy Change / Endorsement', cat:'general', catLabel:'General', icon:'✏️',
       sections:['insured','policy','changeDescription','remarks','signature'] },
@@ -3223,22 +3226,47 @@ const ACORD_FORM_SECTIONS = {
     remarks: { title:'Remarks / Special Conditions', fields:[
         {id:'remarks',label:'Remarks',type:'textarea'},
     ]},
-    noLossInfo: { title:'Insured & Policy', fields:[
-        {id:'nlInsuredName',label:'Named Insured',type:'text',map:'name'},
-        {id:'nlAddress',label:'Mailing Address',type:'text',map:'address'},
-        {id:'nlCity',label:'City',type:'text',map:'city'},
-        {id:'nlState',label:'State',type:'text',map:'state'},
-        {id:'nlZip',label:'ZIP',type:'text',map:'zip'},
-        {id:'nlCarrier',label:'Insurance Company',type:'text',map:'company'},
-        {id:'nlPolicyNum',label:'Policy Number',type:'text',map:'policyNumber'},
-        {id:'nlLob',label:'Line of Business',type:'text',map:'lineOfBusiness'},
-        {id:'nlEffDate',label:'Policy Effective Date',type:'date',map:'effDate'},
-        {id:'nlLapseFrom',label:'No losses from (date)',type:'date'},
-        {id:'nlLapseTo',label:'Through (date)',type:'date'},
+    a37_agency: { title:'Agency', fields:[
+        {id:'a37ProdName',label:'Agency',type:'text',pdf:'F[0].P1[0].Producer_FullName_A[0]',map:'prodName'},
+        {id:'a37ProdAddr1',label:'Address line 1',type:'text',pdf:'F[0].P1[0].Producer_MailingAddress_LineOne_A[0]',map:'prodAddr1'},
+        {id:'a37ProdAddr2',label:'Address line 2',type:'text',pdf:'F[0].P1[0].Producer_MailingAddress_LineTwo_A[0]',map:'prodAddr2'},
+        {id:'a37ProdCity',label:'City',type:'text',pdf:'F[0].P1[0].Producer_MailingAddress_CityName_A[0]',map:'prodCity'},
+        {id:'a37ProdState',label:'State',type:'text',pdf:'F[0].P1[0].Producer_MailingAddress_StateOrProvinceCode_A[0]',map:'prodState'},
+        {id:'a37ProdZip',label:'ZIP',type:'text',pdf:'F[0].P1[0].Producer_MailingAddress_PostalCode_A[0]',map:'prodZip'},
+        {id:'a37ProdContact',label:'Contact name',type:'text',pdf:'F[0].P1[0].Producer_ContactPerson_FullName_A[0]',map:'prodContact'},
+        {id:'a37ProdPhone',label:'Phone',type:'text',pdf:'F[0].P1[0].Producer_ContactPerson_PhoneNumber_A[0]',map:'prodPhone'},
+        {id:'a37ProdFax',label:'Fax',type:'text',pdf:'F[0].P1[0].Producer_FaxNumber_A[0]',map:'prodFax'},
+        {id:'a37ProdEmail',label:'E-mail',type:'text',pdf:'F[0].P1[0].Producer_ContactPerson_EmailAddress_A[0]',map:'prodEmail'},
+        {id:'a37Code',label:'Code',type:'text',pdf:'F[0].P1[0].Insurer_ProducerIdentifier_A[0]'},
+        {id:'a37SubCode',label:'Subcode',type:'text',pdf:'F[0].P1[0].Insurer_SubProducerIdentifier_A[0]'},
+        {id:'a37CustId',label:'Agency customer ID',type:'text',pdf:'F[0].P1[0].Producer_CustomerIdentifier_A[0]'},
     ]},
-    noLossStatement: { title:'Statement', fields:[
-        {id:'nlStatement',label:'Statement',type:'textarea',defaultVal:'I, the undersigned, hereby state that to the best of my knowledge there have been no losses, accidents, claims or occurrences that could give rise to a claim under the above policy during the period stated above. I understand that coverage is being reinstated / bound in reliance on this statement, and that any loss occurring during this period will not be covered.'},
-        {id:'nlRemarks',label:'Remarks',type:'textarea'},
+    a37_insured: { title:'Named Insured', fields:[
+        {id:'a37InsName',label:'Named insured',type:'text',pdf:'F[0].P1[0].NamedInsured_FullName_A[0]',map:'name'},
+        {id:'a37InsAddr1',label:'Address line 1',type:'text',pdf:'F[0].P1[0].NamedInsured_MailingAddress_LineOne_A[0]',map:'address'},
+        {id:'a37InsAddr2',label:'Address line 2',type:'text',pdf:'F[0].P1[0].NamedInsured_MailingAddress_LineTwo_A[0]'},
+        {id:'a37InsCity',label:'City',type:'text',pdf:'F[0].P1[0].NamedInsured_MailingAddress_CityName_A[0]',map:'city'},
+        {id:'a37InsState',label:'State',type:'text',pdf:'F[0].P1[0].NamedInsured_MailingAddress_StateOrProvinceCode_A[0]',map:'state'},
+        {id:'a37InsZip',label:'ZIP',type:'text',pdf:'F[0].P1[0].NamedInsured_MailingAddress_PostalCode_A[0]',map:'zip'},
+    ]},
+    a37_policy: { title:'Carrier & Policy', fields:[
+        {id:'a37Carrier',label:'Carrier',type:'text',pdf:'F[0].P1[0].Insurer_FullName_A[0]',map:'company'},
+        {id:'a37Naic',label:'NAIC code',type:'text',pdf:'F[0].P1[0].Insurer_NAICCode_A[0]'},
+        {id:'a37PolicyNum',label:'Policy number',type:'text',pdf:'F[0].P1[0].Policy_PolicyNumberIdentifier_A[0]',map:'policyNumber'},
+        {id:'a37ApprovedBy',label:'Approved by',type:'text',pdf:'F[0].P1[0].Insurer_Underwriter_FullName_A[0]'},
+    ]},
+    a37_statement: { title:'Statement — no losses from 12:01 AM on the cancellation date to the date signed', fields:[
+        {id:'a37CancelDate',label:'Cancellation date',type:'date',pdf:'F[0].P1[0].CancelNonRenew_CancelNonRenewDate_A[0]',mdy:true},
+        {id:'a37SignDate',label:'Date signed',type:'date',pdf:'F[0].P1[0].NamedInsured_SignatureDate_A[0]',mdy:true},
+        {id:'a37SignTime',label:'Time signed',type:'text',pdf:'F[0].P1[0].NamedInsured_SignatureTime_A[0]'},
+        {id:'a37Signature',label:'Applicant signature (leave blank to sign by hand)',type:'text',pdf:'F[0].P1[0].NamedInsured_Signature_A[0]'},
+    ]},
+    a37_receipt: { title:'Receipt', fields:[
+        {id:'a37Amount',label:'Amount received ($)',type:'text',pdf:'F[0].P1[0].Policy_Payment_DepositAmount_A[0]'},
+        {id:'a37ReceivedBy',label:'Received by (producer)',type:'text',pdf:'F[0].P1[0].Producer_AuthorizedRepresentative_FullName_A[0]'},
+        {id:'a37Witness',label:'Witness',type:'text',pdf:'F[0].P1[0].Form_Witness_Signature_A[0]'},
+        {id:'a37WitnessDate',label:'Witness date',type:'date',pdf:'F[0].P1[0].Form_Witness_SignatureDate_A[0]',mdy:true},
+        {id:'a37WitnessTime',label:'Witness time',type:'text',pdf:'F[0].P1[0].Form_Witness_SignatureTime_A[0]'},
     ]},
     signature: { title:'Signature', fields:[
         {id:'sigApplicant',label:'Applicant Signature',type:'text'},
@@ -5249,6 +5277,8 @@ function acordGetClientMapping() {
         company: latestPolicy.company || '',
         lineOfBusiness: latestPolicy.lineOfBusiness || '',
         premium: latestPolicy.basePremium || latestPolicy.totalPremium || '',
+        // The agency, from Agency Profile (the same producer block certificates use).
+        ...((window.UIBCert && UIBCert.producerDefaults) ? (() => { try { return UIBCert.producerDefaults(); } catch (e) { return {}; } })() : {}),
     };
 }
 
@@ -5663,9 +5693,53 @@ function acordSaveForm(formId) {
     alert('Draft saved for ' + form.num + '!');
 }
 
+// Fill the genuine ACORD AcroForm for a PDF-backed form and open it, so
+// what prints is the real ACORD layout, not a lookalike.
+function acordLoadPdfLib() {
+    if (window.PDFLib) return Promise.resolve(window.PDFLib);
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = () => window.PDFLib ? resolve(window.PDFLib) : reject(new Error('pdf-lib did not load'));
+        s.onerror = () => reject(new Error('Could not load the PDF library — check your connection.'));
+        document.head.appendChild(s);
+    });
+}
+function acordPrintPdfForm(form) {
+    const win = window.open('', '_blank');   // opened now so a pop-up blocker allows it
+    const mdy = v => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[2] + '/' + m[3] + '/' + m[1] : String(v || ''); };
+    acordLoadPdfLib().then(PDFLib => fetch(form.pdf).then(r => {
+        if (!r.ok) throw new Error('Could not load ' + form.num + ' (HTTP ' + r.status + ')');
+        return r.arrayBuffer();
+    }).then(bytes => PDFLib.PDFDocument.load(bytes)).then(doc => {
+        const pdfForm = doc.getForm();
+        form.sections.forEach(secKey => {
+            const sec = ACORD_FORM_SECTIONS[secKey];
+            if (!sec) return;
+            sec.fields.forEach(f => {
+                if (!f.pdf) return;
+                let v = document.getElementById('af_' + f.id)?.value || '';
+                if (!v) return;
+                if (f.mdy || f.type === 'date') v = mdy(v);
+                try { pdfForm.getTextField(f.pdf).setText(String(v)); }
+                catch (e) { console.warn(form.num + ': could not set ' + f.pdf, e); }
+            });
+        });
+        return doc.save();
+    })).then(out => {
+        const url = URL.createObjectURL(new Blob([out], { type: 'application/pdf' }));
+        if (win) win.location.href = url; else window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 120000);
+    }).catch(err => {
+        if (win) win.close();
+        alert('Could not build the ' + form.num + ' PDF: ' + (err.message || err));
+    });
+}
+
 function acordPrintForm(formId) {
     const form = acordAllForms().find(f => f.id === formId);
     if (!form) return;
+    if (form.pdf) { acordPrintPdfForm(form); return; }
 
     let html = `<!DOCTYPE html><html><head><title>${form.num} - ${form.name}</title>
     <style>
