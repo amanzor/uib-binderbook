@@ -46,6 +46,13 @@
         'randy@universalinsurancebroker.com': 'Randy Diaz',
         'uri@universalinsurancebroker.com': 'Uriel Rendon'
     };
+    // Employee hierarchy (highest first):
+    //   executive admin: Alberto Manzor, Randy Diaz
+    //   admin:           Amanda Montano, Lazaro Reigoza
+    //   user:            everyone else (regular agents)
+    // Executive admins have every admin permission; use isExecutive() for
+    // anything that should be theirs alone.
+    const EXECUTIVE_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com', 'randy@universalinsurancebroker.com'];
     const ADMIN_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com', 'randy@universalinsurancebroker.com', 'amanda@universalinsurancebroker.com', 'lazaro@universalinsurancebroker.com'];
     const IDLE_MS = 30 * 60 * 1000;
     const REFRESH_AHEAD_S = 120;
@@ -389,6 +396,17 @@
     function pendingMfa() { const s = readSession(); return s ? (s.pendingMfa || null) : null; }
     function isSignedIn() { return !!token() && !pendingMfa(); }
     function isAdmin() { const u = user(); return !!(u && u.role === 'admin'); }
+    // 'executive' | 'admin' | 'user' for the signed-in person.
+    function level() {
+        const u = user();
+        if (!u) return 'user';
+        const em = String(u.email || '').toLowerCase();
+        if (EXECUTIVE_EMAILS.includes(em)) return 'executive';
+        return u.role === 'admin' ? 'admin' : 'user';
+    }
+    function isExecutive() { return level() === 'executive'; }
+    const LEVEL_LABELS = { executive: 'Executive Admin', admin: 'Admin', user: 'User' };
+    function levelLabel(l) { return LEVEL_LABELS[l || level()] || 'User'; }
 
     // ── Every call to the project carries the user's token ─────
     const _fetch = window.fetch;
@@ -434,7 +452,7 @@
         }
     });
 
-    window.UIBAuth = { bridge, adoptSession, signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, KNOWN_AGENTS, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
+    window.UIBAuth = { bridge, adoptSession, signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, level, isExecutive, levelLabel, EXECUTIVE_EMAILS, ADMIN_EMAILS, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, KNOWN_AGENTS, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
 
     // Installed for every page that loads this file, so neither app has
     // to remember to ask for it.

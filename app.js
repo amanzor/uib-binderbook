@@ -1505,7 +1505,7 @@ function showAgentSection(agent) {
     // the device after the tab closes or 30 idle minutes pass.
     try { sessionStorage.setItem('uibCurrentUser', agent); localStorage.removeItem('uibCurrentUser'); } catch (e) {}
     showSection('agentSection');
-    document.getElementById('userDisplay').innerHTML = `👤 Agent: <span style="text-decoration:underline;text-underline-offset:3px;">${String(agent).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</span> <span style="font-size:.8em;opacity:.7;">›</span>`;
+    document.getElementById('userDisplay').innerHTML = `👤 ${(window.UIBAuth && UIBAuth.level && UIBAuth.level() !== 'user') ? UIBAuth.levelLabel() : 'Agent'}: <span style="text-decoration:underline;text-underline-offset:3px;">${String(agent).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</span> <span style="font-size:.8em;opacity:.7;">›</span>`;
     document.getElementById('agentForm').reset();
     populate2ndAgentDropdown('secondAgent', '');
     setTodayDate();

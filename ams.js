@@ -733,7 +733,7 @@ function amsLaunchApp() {
 
     // User chip
     const initials = amsCurrentUser.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-    document.getElementById('amsUserLabel').textContent = amsCurrentUser;
+    document.getElementById('amsUserLabel').textContent = amsCurrentUser + ((window.UIBAuth && UIBAuth.level && UIBAuth.level() !== 'user') ? ' · ' + UIBAuth.levelLabel() : '');
     document.getElementById('amsUserAvatar').textContent = initials;
 
     // Init IndexedDB + sync from Drive, then load UI
