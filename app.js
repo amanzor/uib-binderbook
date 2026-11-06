@@ -4514,7 +4514,11 @@ function _agentDefaultMonth() {
 const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano', 'Lazaro Reigoza'];
 // Agent-admins see every agent's entries: the named list, plus any account
 // Supabase marks as an administrator.
-function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser) || !!(window.UIBAuth && UIBAuth.isAdmin()); }
+function isAgentAdmin() {
+    // Signed in: the "See every agent's commissions" permission decides.
+    if (window.UIBAuth && UIBAuth.can && UIBAuth.user()) return UIBAuth.can('allCommissions');
+    return AGENT_ADMINS.includes(currentUser);
+}
 
 // The entries the current user is allowed to SEE (before UI filters).
 // Renewal transactions live in the AMS (Renewals → Renewed, filed under the
