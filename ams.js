@@ -2573,7 +2573,7 @@ function amsOpenPolicyActionMenu(event, policyId, clientKey, polIdx) {
     //    open to the assigned agent as well.
     if (clientKey != null && polIdx != null) {
         const keyArg   = `'${amsEscJsAttr(clientKey)}', ${polIdx}`;
-        const isRnwAdm = typeof amsIsRenewalAdmin === 'function' && amsIsRenewalAdmin();
+        const isRnwAdm = typeof amsCanRenewalAct === 'function' && amsCanRenewalAct();
         const memoCount = Array.isArray(policy.memos) ? policy.memos.length : 0;
         const item = (label, onclick, color) => `
             <button onclick="document.getElementById('amsPolicyActionMenu')?.remove();${onclick}" style="
