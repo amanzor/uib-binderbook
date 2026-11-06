@@ -4511,7 +4511,7 @@ function _agentDefaultMonth() {
 // Agent admins: log in as regular agents but can view EVERY agent's
 // submissions (extra Agent filter + Agent column). Editing and deleting
 // still applies only to their own entries.
-const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano'];
+const AGENT_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Amanda Montano', 'Lazaro Reigoza'];
 // Agent-admins see every agent's entries: the named list, plus any account
 // Supabase marks as an administrator.
 function isAgentAdmin() { return AGENT_ADMINS.includes(currentUser) || !!(window.UIBAuth && UIBAuth.isAdmin()); }
