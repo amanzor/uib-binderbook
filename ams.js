@@ -261,11 +261,15 @@ function amsIsAdminUser() { return amsCurrentRole === 'admin'; }
 
 // Lock or unlock an agent <select> based on current role.
 // Agents see their own name locked; only admin can change it.
-function amsLockAgentField(sel) {
+function amsIsExecutiveUser() {
+    return !!(window.UIBAuth && UIBAuth.isExecutive && UIBAuth.isExecutive()) || amsCurrentUser === 'Admin';
+}
+function amsLockAgentField(sel, executiveOnly) {
     if (!sel) return;
-    if (!amsIsAdminUser()) {
+    const allowed = executiveOnly ? amsIsExecutiveUser() : amsIsAdminUser();
+    if (!allowed) {
         sel.disabled = true;
-        sel.title    = '🔒 Only Admin can change the assigned agent';
+        sel.title    = executiveOnly ? '🔒 Only Executive Admins can change the Agent of Record' : '🔒 Only Admin can change the assigned agent';
         sel.style.background   = '#f3f4f6';
         sel.style.cursor       = 'not-allowed';
         sel.style.borderColor  = '#d1d5db';
@@ -277,7 +281,7 @@ function amsLockAgentField(sel) {
         if (label && !label.querySelector('.ams-agent-lock-badge')) {
             const badge = document.createElement('span');
             badge.className = 'ams-agent-lock-badge';
-            badge.textContent = '🔒 Admin only';
+            badge.textContent = executiveOnly ? '🔒 Executive Admin only' : '🔒 Admin only';
             badge.style.cssText = 'font-size:11px;color:#dc2626;font-weight:700;margin-left:8px;';
             label.appendChild(badge);
         }
@@ -796,13 +800,24 @@ function amsPopulateCarrierFilter() {
     sel.value = current;
 }
 
+// Every agent name the app knows: logins, Agent Management, the built-in
+// roster and the agents on the book. A device whose login list has not
+// synced still gets a full dropdown.
+function amsAllAgentNames(extra) {
+    const names = new Set(Object.keys(amsGetCredentials() || {}));
+    try { Object.keys(JSON.parse(localStorage.getItem('agentMasterData') || '{}') || {}).forEach(n => names.add(n)); } catch (e) {}
+    Object.values((window.UIBAuth && UIBAuth.KNOWN_AGENTS) || {}).forEach(n => names.add(n));
+    [].concat(extra || []).forEach(n => { if (n) names.add(n); });
+    names.delete('Admin'); names.delete('');
+    return [...names].sort();
+}
+
 function amsPopulateModalDropdowns() {
     // Agent select in policy modal
     const agentSel = document.getElementById('mp_agent');
     if (agentSel) {
         agentSel.innerHTML = '<option value="">— Select Agent —</option>';
-        const creds = amsGetCredentials();
-        Object.keys(creds).sort().forEach(a => {
+        amsAllAgentNames().forEach(a => {
             const o = document.createElement('option'); o.value = a; o.textContent = a; agentSel.appendChild(o);
         });
     }
@@ -832,15 +847,14 @@ function amsPopulateModalDropdowns() {
         if (!sel) return;
         const current = sel.value;
         sel.innerHTML = '<option value="">— Select Agent —</option>';
-        const names = new Set(Object.keys(amsGetCredentials()));
         // Keep a name already on the record even if that login is gone, so
         // opening a client never silently blanks its agent on record.
-        if (current) names.add(current);
-        [...names].sort().forEach(a => {
+        amsAllAgentNames(current).forEach(a => {
             const o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o);
         });
         sel.value = current;
-        amsLockAgentField(sel);
+        // Agent of Record is the Executive Admins' call; other agent fields are any admin's.
+        amsLockAgentField(sel, id === 'ci_csrName');
     });
 }
 
@@ -1575,16 +1589,20 @@ function amsSaveContact() {
     fields.forEach(f => {
         contacts[amsActiveKey][f] = document.getElementById(`ci_${f}`)?.value || '';
     });
-    if (!amsIsAdminUser()) {
+    {
         let blocked = false;
+        // Assigned agent: any admin. Agent of Record: Executive Admins only.
         Object.keys(priorAgents).forEach(f => {
+            if (f === 'assignedAgent' ? amsIsAdminUser() : amsIsExecutiveUser()) return;
             if (contacts[amsActiveKey][f] === priorAgents[f]) return;
             contacts[amsActiveKey][f] = priorAgents[f];
             const el = document.getElementById(`ci_${f}`);
             if (el) el.value = priorAgents[f];
             blocked = true;
         });
-        if (blocked) alert('Only an administrator can change the assigned agent or the agent on record. The rest of your changes were saved.');
+        if (blocked) alert(amsIsAdminUser()
+            ? 'Only an Executive Admin can change the Agent of Record. The rest of your changes were saved.'
+            : 'Only an administrator can change the assigned agent, and only an Executive Admin the Agent of Record. The rest of your changes were saved.');
     }
     contacts[amsActiveKey].updatedAt = new Date().toISOString();
 
@@ -1695,6 +1713,9 @@ function amsEditPolicy(policyId) {
     };
     Object.entries(map).forEach(([elId, field]) => {
         const el = document.getElementById(elId);
+        if (el && elId === 'mp_agent' && entry[field] && ![...el.options].some(o => o.value === entry[field])) {
+            const o = document.createElement('option'); o.value = o.textContent = entry[field]; el.appendChild(o);
+        }
         if (el) el.value = entry[field] || '';
     });
     { const tEl = document.getElementById('mp_term'); if (tEl) tEl.value = String(window.UIBTerm ? window.UIBTerm.of(entry) : (entry.term || 12)); }
