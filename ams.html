@@ -985,16 +985,20 @@
                     </div>
 
                     <!-- ── Claude AI — Renewal Report Processor (admin only) ── -->
-                    <div id="amsRnwAiCard" style="display:none;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;margin-bottom:16px;">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                    <div id="amsRnwAiCard" style="display:none;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:12px 20px;margin-bottom:16px;">
+                        <div id="amsRnwAiHead" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                             <div style="display:flex;align-items:center;gap:10px;">
                                 <svg width="22" height="22" viewBox="0 0 32 32" fill="#D97757" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
                                     <path d="M16 2 C 16.8 6, 18.5 9, 22 11 C 18.5 13, 16.8 16, 16 20 C 15.2 16, 13.5 13, 10 11 C 13.5 9, 15.2 6, 16 2 Z M28 16 C 24.5 16.5, 22 18, 20.5 21 C 22 18, 22.5 16, 22.5 16 C 22.5 16, 22 14, 20.5 11 C 22 14, 24.5 15.5, 28 16 Z M16 30 C 15.2 26, 13.5 23, 10 21 C 13.5 19, 15.2 16, 16 12 C 16.8 16, 18.5 19, 22 21 C 18.5 23, 16.8 26, 16 30 Z M4 16 C 7.5 15.5, 10 14, 11.5 11 C 10 14, 9.5 16, 9.5 16 C 9.5 16, 10 18, 11.5 21 C 10 18, 7.5 16.5, 4 16 Z"/>
                                 </svg>
                                 <span style="font-size:15px;font-weight:700;color:#9a3412;">Claude AI — Renewal Report Processor</span>
                             </div>
-                            <button onclick="rnwNewConversation()" style="background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
+                            <div style="display:flex;gap:6px;">
+                            <button id="amsRnwAiNewBtn" onclick="rnwNewConversation()" style="display:none;background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
+                            <button id="amsRnwAiToggle" onclick="amsRnwAiToggle()" style="background:#c2410c;border:none;color:#fff;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">Show</button>
+                            </div>
                         </div>
+                        <div id="amsRnwAiBody" style="display:none;">
                         <div style="font-size:12px;color:#9a3412;background:#fff;border:1px dashed #f5c19a;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
                             📤 <strong>Upload renewal reports</strong> from any insurance carrier (PDF). Claude will read every policy on the report and import them into the AMS — matching existing clients by policy number or name, updating expiration dates and premiums, and creating new client records for anyone not in the system. You can also just chat and ask questions about your book.
                         </div>
@@ -1009,6 +1013,7 @@
                                 onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();rnwSendMessage();}"></textarea>
                             <button onclick="rnwSendMessage()" id="amsRnwSendBtn"
                                 style="flex-shrink:0;background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;border:none;padding:0 18px;height:42px;border-radius:10px;cursor:pointer;font-weight:700;font-size:14px;">Send</button>
+                        </div>
                         </div>
                     </div>
                     <!-- /Claude AI Renewal Report Processor -->
@@ -3985,6 +3990,27 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // and the agency admins even when they sign in with their agent account.
         // Regular agents remain read-only. Mirrors the Binder Book's AGENT_ADMINS.
         const AMS_RENEWAL_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Lazaro Reigoza'];
+        // Claude AI renewal card: collapsed by default; remembered per device.
+        function amsRnwAiApply(open) {
+            const body = document.getElementById('amsRnwAiBody');
+            const btn  = document.getElementById('amsRnwAiToggle');
+            const nb   = document.getElementById('amsRnwAiNewBtn');
+            const head = document.getElementById('amsRnwAiHead');
+            if (body) body.style.display = open ? '' : 'none';
+            if (btn)  btn.textContent = open ? 'Hide' : 'Show';
+            if (nb)   nb.style.display = open ? '' : 'none';
+            if (head) head.style.marginBottom = open ? '12px' : '0';
+        }
+        function amsRnwAiToggle() {
+            const open = document.getElementById('amsRnwAiBody')?.style.display === 'none';
+            try { localStorage.setItem('amsRnwAiOpen', open ? '1' : '0'); } catch (e) {}
+            amsRnwAiApply(open);
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            let open = false; try { open = localStorage.getItem('amsRnwAiOpen') === '1'; } catch (e) {}
+            amsRnwAiApply(open);
+        });
+
         function amsIsRenewalAdmin() {
             return amsCurrentRole === 'admin' || AMS_RENEWAL_ADMINS.includes(amsCurrentUser);
         }
