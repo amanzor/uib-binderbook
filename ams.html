@@ -2512,7 +2512,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261106t"></script>
+    <script src="ams.js?v=20261106u"></script>
     <script src="acord25-map.js?v=20261027a"></script>
     <script src="certificates.js?v=20261030b"></script>
     <script src="additional-interests.js?v=20261030b"></script>
@@ -3984,6 +3984,11 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsIsRenewalAdmin() {
             return amsCurrentRole === 'admin' || AMS_RENEWAL_ADMINS.includes(amsCurrentUser);
         }
+        // Renew, Renew A-B, Cancel, Calls and Memos are open to every signed-in
+        // user. Only assigning / reassigning the agent stays admin-only.
+        function amsCanRenewalAct() {
+            return !!(amsCurrentRole || amsCurrentUser);
+        }
 
         function amsRnwSelectMonth(monthKey) {
             _amsRnwActiveMonth = monthKey || '';
@@ -4308,7 +4313,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 return;
             }
 
-            const isAdmin   = amsIsRenewalAdmin();
+            const isAdmin   = amsCanRenewalAct();
             const canAssign = amsIsAdminUser();
             _amsRnwBinder = binder;
             _amsRnwRows   = rows;
@@ -4460,7 +4465,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsRnwOpenRenew(rowIdx) { _amsRnwOpenRenewCtx(_amsRnwCtxFromRow(rowIdx)); }
 
         function _amsRnwOpenRenewCtx(ctx) {
-            if (!amsIsRenewalAdmin() || !ctx) return;
+            if (!amsCanRenewalAct() || !ctx) return;
             const src = ctx.entry;
             if (!src.agent) {
                 alert('Assign this policy to an agent first, then click Renew \u2014 the record is sent to that agent\u2019s Binder Book.');
@@ -4503,7 +4508,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         async function amsRnwSubmitRenew() {
-            if (!amsIsRenewalAdmin()) return;
+            if (!amsCanRenewalAct()) return;
             const ctx = _amsRnwCtx;
             if (!ctx || !ctx.entry) return;
             const eff = document.getElementById('amsRnwRenewEff')?.value || '';
@@ -4530,7 +4535,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // `binder` is the array holding src, so the new term is saved alongside it.
         async function _amsRnwRenewEntry(src, binder, btnEl, opts) {
             opts = opts || {};
-            if (!amsIsRenewalAdmin()) return; // admins / agency admins only
+            if (!amsCanRenewalAct()) return; // admins / agency admins only
             if (!src) return;
             if (!src.agent) {
                 alert('Assign this policy to an agent first, then click Renew — the record is sent to that agent\'s Binder Book.');
@@ -5006,7 +5011,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsPolicyCancel(clientKey, polIdx)   { _amsRnwOpenCancelCtx(_amsRnwCtxFromClient(clientKey, polIdx)); }
 
         function _amsRnwOpenCancelCtx(ctx) {
-            if (!amsIsRenewalAdmin() || !ctx) return;
+            if (!amsCanRenewalAct() || !ctx) return;
             _amsRnwCtx = ctx;
             const p = ctx.entry;
             const sub = document.getElementById('amsRnwCancelSubtitle');
@@ -5047,7 +5052,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         async function amsRnwConfirmCancel() {
-            if (!amsIsRenewalAdmin()) return;
+            if (!amsCanRenewalAct()) return;
             const p = _amsRnwCtx?.entry;
             if (!p) return;
             const date   = document.getElementById('amsRnwCancelDate')?.value || '';
@@ -5084,7 +5089,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         async function amsRnwUndoCancel() {
-            if (!amsIsRenewalAdmin()) return;
+            if (!amsCanRenewalAct()) return;
             const p = _amsRnwCtx?.entry;
             if (!p || !confirm('Remove the cancellation from this policy and put it back on the renewals list?')) return;
             const was = p.cancellationDate;
@@ -5124,7 +5129,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         function _amsRnwOpenAbCtx(ctx) {
-            if (!amsIsRenewalAdmin() || !ctx) return;
+            if (!amsCanRenewalAct() || !ctx) return;
             const src = ctx.entry;
             if (!src.agent) {
                 alert('Assign this policy to an agent first, then use Renew A-B — the rewrite is sent to that agent\'s Binder Book.');
@@ -5176,7 +5181,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         async function amsRnwSubmitAB() {
-            if (!amsIsRenewalAdmin()) return;
+            if (!amsCanRenewalAct()) return;
             const src  = _amsRnwCtx?.entry;
             const list = _amsRnwCtx?.list;
             if (!src || !list) return;
