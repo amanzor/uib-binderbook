@@ -6,7 +6,8 @@
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20261029a"></script>
     <script src="uib-binder-sync.js?v=20261106t"></script>
-    <script src="uib-auth.js?v=20261106x"></script>
+    <script src="uib-auth.js?v=20261106y"></script>
+    <script src="uib-perms.js?v=20261106y"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
     <script src="uib-ai.js?v=20261022c"></script>
@@ -787,6 +788,9 @@
                 <button class="btn-sm" onclick="window.open('insured-portal.html','_blank')"
                     style="background:linear-gradient(to right,#047857 0%,#059669 55%,#10b981 100%);color:#fff;border:none;box-shadow:0 1px 3px rgba(5,150,105,.35);">
                     <i data-lucide="shield-check"></i> Insured Login
+                </button>
+                <button class="btn-sm uib-perms-btn" onclick="UIBPerms.open()" style="display:none;background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;border:none;">
+                    <i data-lucide="key-round"></i> User Access Permissions
                 </button>
                 <button class="btn-secondary btn-sm" onclick="amsLogout()">
                     <i data-lucide="log-out"></i> Logout
@@ -3987,7 +3991,13 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // Renew, Renew A-B, Cancel, Calls and Memos are open to every signed-in
         // user. Only assigning / reassigning the agent stays admin-only.
         function amsCanRenewalAct() {
+            if (window.UIBAuth && UIBAuth.can && UIBAuth.user()) return UIBAuth.can('renewalActions');
             return !!(amsCurrentRole || amsCurrentUser);
+        }
+        // Assign / reassign a renewal's agent: the "Assign / reassign renewals" permission.
+        function amsCanReassignRenewal() {
+            if (window.UIBAuth && UIBAuth.can && UIBAuth.user()) return UIBAuth.can('reassignRenewals');
+            return amsIsAdminUser() || amsIsRenewalAdmin();
         }
 
         function amsRnwSelectMonth(monthKey) {
@@ -4105,7 +4115,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsRnwAssignAgent(rowIdx, agent) {
             // Changing who a record belongs to: the Admin login and the
             // renewal admins (AMS_RENEWAL_ADMINS) only.
-            if (!amsIsAdminUser() && !amsIsRenewalAdmin()) return;
+            if (!amsCanReassignRenewal()) return;
             if (!agent) return;
             const p = _amsRnwRows[rowIdx];
             if (!p) return;
@@ -4314,7 +4324,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             }
 
             const isAdmin   = amsCanRenewalAct();
-            const canAssign = amsIsAdminUser() || amsIsRenewalAdmin();
+            const canAssign = amsCanReassignRenewal();
             _amsRnwBinder = binder;
             _amsRnwRows   = rows;
             tbody.innerHTML = rows.map((p, idx) => {

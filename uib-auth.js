@@ -85,13 +85,42 @@
         } catch (err) {}
         return '';
     }
+    // ── User access permissions (set by Executive Admins) ─────
+    // Stored in app_store 'userPermissions' as { email: { perm: bool } }
+    // and cached on the device. A missing value falls back to the
+    // default for the person's level. Executive Admins always have all.
+    const PERM_KEY = 'uibUserPermissions';
+    const PERMISSIONS = [
+        { key: 'admin',            label: 'Admin access',                     desc: 'Admin screens in the Binder Book and AMS (all entries, reports, Agent Management)' },
+        { key: 'allCommissions',   label: "See every agent's commissions",   desc: 'Agent dropdown on My Commissions' },
+        { key: 'renewalActions',   label: 'Renewal actions',                 desc: 'Renew, Renew A-B, Cancel, Calls and Memos on Renewals' },
+        { key: 'reassignRenewals', label: 'Assign / reassign renewals',      desc: 'Change which agent a renewal belongs to' }
+    ];
+    const PERM_DEFAULTS = {
+        admin: { admin: true, allCommissions: true, renewalActions: true, reassignRenewals: true },
+        user:  { admin: false, allCommissions: false, renewalActions: true, reassignRenewals: false }
+    };
+    function readPerms() { try { return JSON.parse(localStorage.getItem(PERM_KEY) || '{}') || {}; } catch (e) { return {}; } }
+    function baseLevelOf(email) {
+        const em = String(email || '').toLowerCase();
+        if (EXECUTIVE_EMAILS.includes(em)) return 'executive';
+        return ADMIN_EMAILS.includes(em) ? 'admin' : 'user';
+    }
+    function permFor(email, perm, appRole, defaultOnly) {
+        const em = String(email || '').toLowerCase();
+        const base = baseLevelOf(em) === 'user' && appRole === 'admin' ? 'admin' : baseLevelOf(em);
+        if (base === 'executive') return true;
+        const ov = defaultOnly ? undefined : (readPerms()[em] || {})[perm];
+        if (typeof ov === 'boolean') return ov;
+        return !!(PERM_DEFAULTS[base] || PERM_DEFAULTS.user)[perm];
+    }
     function profileFrom(user) {
         const meta = (user && user.user_metadata) || {};
         const app = (user && user.app_metadata) || {};
         const email = (user && user.email) || '';
         const onAccount = meta.agent_name || meta.full_name || meta.name || '';
         const name = onAccount || nameFromRoster(email) || '';
-        const role = (app.role === 'admin' || ADMIN_EMAILS.includes(String(email).toLowerCase())) ? 'admin' : 'agent';
+        const role = permFor(email, 'admin', app.role) ? 'admin' : 'agent';
         return { id: user && user.id, email: email, name: name, role: role, onAccount: !!onAccount };
     }
 
@@ -395,14 +424,34 @@
     function user() { const s = readSession(); return (s && !s.pendingMfa) ? s.user : null; }
     function pendingMfa() { const s = readSession(); return s ? (s.pendingMfa || null) : null; }
     function isSignedIn() { return !!token() && !pendingMfa(); }
-    function isAdmin() { const u = user(); return !!(u && u.role === 'admin'); }
+    function isAdmin() { const u = user(); return !!u && permFor(u.email, 'admin', u.role); }
+    // Does the signed-in person have this permission?
+    function can(perm) { const u = user(); return !!u && permFor(u.email, perm, u.role); }
+    // Pull the latest permissions from the cloud into the device cache.
+    function loadPermissions() {
+        return _fetch.call(window, SUPABASE_URL + '/rest/v1/app_store?key=eq.userPermissions&select=value', {
+            headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + (token() || SUPABASE_ANON) }
+        }).then(r => r.ok ? r.json() : null).then(rows => {
+            if (Array.isArray(rows)) { const v = (rows[0] && rows[0].value) || {}; localStorage.setItem(PERM_KEY, JSON.stringify(v)); return v; }
+            return readPerms();
+        }).catch(() => readPerms());
+    }
+    function savePermissions(map) {
+        if (!isExecutive()) return Promise.reject(new Error('Only Executive Admins can change permissions.'));
+        localStorage.setItem(PERM_KEY, JSON.stringify(map || {}));
+        return _fetch.call(window, SUPABASE_URL + '/rest/v1/app_store', {
+            method: 'POST',
+            headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + (token() || SUPABASE_ANON), 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({ key: 'userPermissions', value: map || {} })
+        }).then(r => { if (!r.ok) throw new Error('Cloud save failed (' + r.status + ')'); return true; });
+    }
     // 'executive' | 'admin' | 'user' for the signed-in person.
     function level() {
         const u = user();
         if (!u) return 'user';
         const em = String(u.email || '').toLowerCase();
         if (EXECUTIVE_EMAILS.includes(em)) return 'executive';
-        return u.role === 'admin' ? 'admin' : 'user';
+        return isAdmin() ? 'admin' : 'user';
     }
     function isExecutive() { return level() === 'executive'; }
     const LEVEL_LABELS = { executive: 'Executive Admin', admin: 'Admin', user: 'User' };
@@ -452,7 +501,7 @@
         }
     });
 
-    window.UIBAuth = { bridge, adoptSession, signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, level, isExecutive, levelLabel, EXECUTIVE_EMAILS, ADMIN_EMAILS, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, KNOWN_AGENTS, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
+    window.UIBAuth = { bridge, adoptSession, signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, level, isExecutive, levelLabel, EXECUTIVE_EMAILS, ADMIN_EMAILS, can, permFor, baseLevelOf, loadPermissions, savePermissions, readPerms, PERMISSIONS, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, KNOWN_AGENTS, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
 
     // Installed for every page that loads this file, so neither app has
     // to remember to ask for it.

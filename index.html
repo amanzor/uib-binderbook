@@ -5,7 +5,8 @@
     <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20261029a"></script>
-    <script src="uib-auth.js?v=20261106x"></script>
+    <script src="uib-auth.js?v=20261106y"></script>
+    <script src="uib-perms.js?v=20261106y"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
     <script src="uib-ai.js?v=20261022c"></script>
@@ -3088,6 +3089,7 @@
                     <button class="btn-success" onclick="showCommissionStatements()"><i data-lucide="file-spreadsheet"></i> Commission Statements</button>
                     <button class="btn-primary" onclick="showCarrierManagement()"><i data-lucide="building-2"></i> Carriers</button>
                     <button class="btn-primary" onclick="showAgentManagement()"><i data-lucide="users"></i> Agents</button>
+                    <button class="btn-primary uib-perms-btn" onclick="UIBPerms.open()" style="display:none;"><i data-lucide="key-round"></i> User Access Permissions</button>
                     <button class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Credentials</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#4c1d95 0%,#6d28d9 60%,#a78bfa 100%);" onclick="showAccessLog()" title="Who signed in and who viewed, changed, exported or deleted records"><i data-lucide="shield-check"></i> Access Log</button>
                     <button class="btn-primary" style="background:linear-gradient(to right,#111827 0%,#374151 60%,#6b7280 100%);" onclick="openAiEngine()" title="Choose Claude (cloud) or Ollama (local) for the AI features"><i data-lucide="cpu"></i> AI Engine</button>
@@ -4017,7 +4019,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261106x"></script>
+    <script src="app.js?v=20261106y"></script>
     <script src="uib-binder-sync.js?v=20261106t"></script>
     <script src="monday-import.js?v=20261104a"></script>
     <script src="supabase.js?v=20261027a"></script>
