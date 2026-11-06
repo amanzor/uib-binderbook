@@ -2788,6 +2788,10 @@ const ACORD_FORMS = [
     { id:'acord28', num:'ACORD 28', name:'Evidence of Commercial Property Insurance', cat:'cert', catLabel:'Certificate', icon:'📜',
       sections:['producer','insured','company','property','coverage','additionalInterest'] },
 
+    // General statements
+    { id:'noLoss', num:'No Loss Statement', name:'Statement of No Losses (No Known Loss Letter)', cat:'general', catLabel:'General', icon:'✅',
+      sections:['noLossInfo','noLossStatement','signature'] },
+
     // Claims
     { id:'acord1', num:'ACORD 1', name:'Property Loss Notice', cat:'claims', catLabel:'Claims', icon:'⚠️',
       sections:['insured','policy','lossInfo','propertyDamage','remarks'] },
@@ -3218,6 +3222,23 @@ const ACORD_FORM_SECTIONS = {
     ]},
     remarks: { title:'Remarks / Special Conditions', fields:[
         {id:'remarks',label:'Remarks',type:'textarea'},
+    ]},
+    noLossInfo: { title:'Insured & Policy', fields:[
+        {id:'nlInsuredName',label:'Named Insured',type:'text',map:'name'},
+        {id:'nlAddress',label:'Mailing Address',type:'text',map:'address'},
+        {id:'nlCity',label:'City',type:'text',map:'city'},
+        {id:'nlState',label:'State',type:'text',map:'state'},
+        {id:'nlZip',label:'ZIP',type:'text',map:'zip'},
+        {id:'nlCarrier',label:'Insurance Company',type:'text',map:'company'},
+        {id:'nlPolicyNum',label:'Policy Number',type:'text',map:'policyNumber'},
+        {id:'nlLob',label:'Line of Business',type:'text',map:'lineOfBusiness'},
+        {id:'nlEffDate',label:'Policy Effective Date',type:'date',map:'effDate'},
+        {id:'nlLapseFrom',label:'No losses from (date)',type:'date'},
+        {id:'nlLapseTo',label:'Through (date)',type:'date'},
+    ]},
+    noLossStatement: { title:'Statement', fields:[
+        {id:'nlStatement',label:'Statement',type:'textarea',defaultVal:'I, the undersigned, hereby state that to the best of my knowledge there have been no losses, accidents, claims or occurrences that could give rise to a claim under the above policy during the period stated above. I understand that coverage is being reinstated / bound in reliance on this statement, and that any loss occurring during this period will not be covered.'},
+        {id:'nlRemarks',label:'Remarks',type:'textarea'},
     ]},
     signature: { title:'Signature', fields:[
         {id:'sigApplicant',label:'Applicant Signature',type:'text'},
@@ -5248,7 +5269,7 @@ function clientAppsSavedFor(clientKey) {
         if (k.indexOf(clientKey + '_') !== 0) return;
         if (all[k] && all[k]._deleted) return;          // soft-deleted elsewhere
         var formId = k.slice(clientKey.length + 1);
-        var form   = ACORD_FORMS.find(function (f) { return f.id === formId; });
+        var form   = acordAllForms().find(function (f) { return f.id === formId; });
         if (!form) return;                      // a form we no longer ship
         var data   = all[k] || {};
         var filled = Object.keys(data).filter(function (f) {
@@ -5343,9 +5364,14 @@ function acordRenderFormsList() {
     const search = (document.getElementById('acordFormSearch')?.value || '').toLowerCase();
     const cat = document.getElementById('acordFormCat')?.value || '';
 
-    let forms = ACORD_FORMS;
+    let forms = acordAllForms();
     if (cat) forms = forms.filter(f => f.cat === cat);
-    if (search) forms = forms.filter(f => (f.num + ' ' + f.name).toLowerCase().includes(search));
+    if (search) {
+        // "125", "acord125", "acord 125" and words in the name all match.
+        const squash = t => String(t || '').toLowerCase().replace(/\s+/g, '');
+        const q = squash(search);
+        forms = forms.filter(f => squash(f.num + ' ' + f.name).includes(q) || (f.num + ' ' + f.name + ' ' + (f.catLabel || '')).toLowerCase().includes(search));
+    }
 
     if (!forms.length) {
         el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);">No forms match your search.</div>';
@@ -5371,10 +5397,126 @@ function acordRenderFormsList() {
                     </div>
                 </div>
                 <div style="font-size:12px;color:var(--gray-500);line-height:1.4;">${amsEscHtml(f.name)}</div>
-                <div style="margin-top:8px;font-size:10px;color:var(--gray-400);">${f.sections.length} sections</div>
+                <div style="margin-top:8px;font-size:10px;color:var(--gray-400);display:flex;justify-content:space-between;align-items:center;">
+                    <span>${f.sections.length} sections${f.custom ? ' · custom' : ''}</span>
+                    ${f.custom && amsIsAdminUser() ? `<button type="button" onclick="event.stopPropagation();acordDeleteCustomForm('${f.id}')" style="background:none;border:none;color:#dc2626;font-size:10px;cursor:pointer;text-decoration:underline;">Remove</button>` : ''}
+                </div>
             </div>
         `).join('')}
     </div>`;
+}
+
+// ── Custom ACORD forms (added from Client Apps) ─────────────
+// Stored in the shared acordSavedForms map under "__customForm__<id>" so
+// they sync to every device with the same merge rules as saved apps.
+const ACORD_CUSTOM_PREFIX = '__customForm__';
+function acordCustomForms() {
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem('acordSavedForms') || '{}') || {}; } catch (e) {}
+    const out = [];
+    Object.keys(all).forEach(k => {
+        if (k.indexOf(ACORD_CUSTOM_PREFIX) !== 0) return;
+        const t = all[k];
+        if (!t || t._deleted || !t._template) return;
+        const id = k.slice(ACORD_CUSTOM_PREFIX.length);
+        const secs = Array.isArray(t.sections) ? t.sections.filter(sk => ACORD_FORM_SECTIONS[sk]) : [];
+        if (Array.isArray(t.fields) && t.fields.length) {
+            const sk = 'custom_' + id;
+            ACORD_FORM_SECTIONS[sk] = { title: t.customTitle || 'Form Fields', fields: t.fields };
+            secs.push(sk);
+        }
+        out.push({ id, num: t.num || 'ACORD', name: t.name || '', cat: t.cat || 'general', catLabel: t.catLabel || 'General',
+                   icon: t.icon || '📝', sections: secs, custom: true });
+    });
+    return out.sort((a, b) => a.num.localeCompare(b.num, undefined, { numeric: true }));
+}
+function acordAllForms() {
+    const custom = acordCustomForms();
+    const ids = new Set(custom.map(f => f.id));
+    return ACORD_FORMS.filter(f => !ids.has(f.id)).concat(custom);
+}
+
+// The search bar at the top of Client Apps: opens the form library and filters it.
+function clientAppsSearchForms(val) {
+    const s = document.getElementById('acordFormSearch');
+    if (s) s.value = val;
+    const body = document.getElementById('clientAppsFormsBody');
+    if (val && body && body.style.display === 'none' && typeof clientAppsToggleForms === 'function') clientAppsToggleForms();
+    acordRenderFormsList();
+}
+
+function acordOpenNewFormModal() {
+    let m = document.getElementById('acordNewFormModal');
+    if (!m) {
+        m = document.createElement('div');
+        m.id = 'acordNewFormModal';
+        m.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10050;display:flex;align-items:center;justify-content:center;padding:16px;';
+        document.body.appendChild(m);
+        m.addEventListener('click', e => { if (e.target === m) m.style.display = 'none'; });
+    }
+    const secOpts = Object.keys(ACORD_FORM_SECTIONS).filter(k => k.indexOf('custom_') !== 0)
+        .map(k => ({ k, t: ACORD_FORM_SECTIONS[k].title })).sort((a, b) => a.t.localeCompare(b.t));
+    const inp = 'width:100%;padding:8px 10px;border:1px solid var(--gray-200);border-radius:7px;font-size:13px;font-family:inherit;box-sizing:border-box;';
+    m.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:20px 22px;box-shadow:0 20px 50px rgba(0,0,0,.3);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div style="font-size:17px;font-weight:800;color:var(--navy);">➕ Add New ACORD Form</div>
+            <button type="button" onclick="document.getElementById('acordNewFormModal').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;">×</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <label style="font-size:12px;font-weight:600;color:var(--gray-600);">Form number<input id="anf_num" placeholder="e.g. ACORD 829" style="${inp}"></label>
+            <label style="font-size:12px;font-weight:600;color:var(--gray-600);">Category<select id="anf_cat" style="${inp}">
+                <option value="app">Application</option><option value="auto">Auto</option><option value="home">Homeowners</option>
+                <option value="commercial">Commercial</option><option value="general" selected>General</option><option value="claims">Claims</option>
+                <option value="cert">Certificate</option><option value="life">Life / Health</option></select></label>
+        </div>
+        <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:10px;">Form name<input id="anf_name" placeholder="e.g. Loss Run Request" style="${inp}"></label>
+        <div style="font-size:12px;font-weight:600;color:var(--gray-600);margin-bottom:4px;">Sections to include <span style="font-weight:400;color:var(--gray-400);">(client info fills in automatically)</span></div>
+        <div style="max-height:180px;overflow:auto;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:10px;">
+            ${secOpts.map(o => `<label style="font-size:12px;display:flex;gap:6px;align-items:center;"><input type="checkbox" class="anf_sec" value="${o.k}">${amsEscHtml(o.t)}</label>`).join('')}
+        </div>
+        <label style="font-size:12px;font-weight:600;color:var(--gray-600);display:block;margin-bottom:12px;">Extra fields <span style="font-weight:400;color:var(--gray-400);">(one per line; add ": date" or ": long" for a date or a large text box)</span>
+            <textarea id="anf_fields" rows="5" placeholder="Requested by\nDate needed: date\nNotes: long" style="${inp}resize:vertical;"></textarea></label>
+        <div style="display:flex;justify-content:flex-end;gap:8px;">
+            <button type="button" onclick="document.getElementById('acordNewFormModal').style.display='none'" style="padding:8px 16px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;">Cancel</button>
+            <button type="button" onclick="acordSaveNewForm()" style="padding:8px 18px;border-radius:8px;border:none;background:var(--blue,#1d4ed8);color:#fff;font-weight:700;cursor:pointer;">Add Form</button>
+        </div></div>`;
+    m.style.display = 'flex';
+}
+
+function acordSaveNewForm() {
+    const num  = (document.getElementById('anf_num')?.value || '').trim();
+    const name = (document.getElementById('anf_name')?.value || '').trim();
+    const cat  = document.getElementById('anf_cat')?.value || 'general';
+    if (!num && !name) { alert('Give the form a number or a name.'); return; }
+    const sections = [...document.querySelectorAll('.anf_sec:checked')].map(c => c.value);
+    const fields = (document.getElementById('anf_fields')?.value || '').split('\n').map(l => l.trim()).filter(Boolean).map((l, i) => {
+        const m = l.match(/^(.*?)\s*:\s*(date|long)\s*$/i);
+        const label = (m ? m[1] : l).trim();
+        const type = m ? (m[2].toLowerCase() === 'date' ? 'date' : 'textarea') : 'text';
+        return { id: 'cf' + i + '_' + label.replace(/[^a-z0-9]/gi, '').slice(0, 20), label, type };
+    });
+    if (!sections.length && !fields.length) { alert('Pick at least one section or add at least one field.'); return; }
+    const catLabels = { app:'Application', auto:'Auto', home:'Homeowners', commercial:'Commercial', general:'General', claims:'Claims', cert:'Certificate', life:'Life / Health' };
+    const id = 'custom' + Date.now();
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem('acordSavedForms') || '{}') || {}; } catch (e) {}
+    all[ACORD_CUSTOM_PREFIX + id] = { _template: true, num: num || 'Custom Form', name: name || num, cat, catLabel: catLabels[cat] || 'General',
+        icon: '📝', sections, fields, updatedAt: Date.now(), savedBy: amsCurrentUser || '' };
+    amsSave('acordSavedForms', all);
+    document.getElementById('acordNewFormModal').style.display = 'none';
+    const body = document.getElementById('clientAppsFormsBody');
+    if (body && body.style.display === 'none' && typeof clientAppsToggleForms === 'function') clientAppsToggleForms();
+    acordRenderFormsList();
+    amsFlashBanner('New form added ✓ — it is available for every client');
+}
+
+function acordDeleteCustomForm(id) {
+    if (!confirm('Remove this custom form from the library? Applications already filled with it stay saved.')) return;
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem('acordSavedForms') || '{}') || {}; } catch (e) {}
+    all[ACORD_CUSTOM_PREFIX + id] = { _deleted: true, updatedAt: Date.now(), savedBy: amsCurrentUser || '' };
+    amsSave('acordSavedForms', all);
+    acordRenderFormsList();
 }
 
 function acordFilterForms() {
@@ -5382,7 +5524,7 @@ function acordFilterForms() {
 }
 
 function acordOpenForm(formId) {
-    const form = ACORD_FORMS.find(f => f.id === formId);
+    const form = acordAllForms().find(f => f.id === formId);
     if (!form) return;
 
     const mapping = acordGetClientMapping();
@@ -5459,7 +5601,7 @@ function acordOpenForm(formId) {
 }
 
 function acordAutoFill(formId) {
-    const form = ACORD_FORMS.find(f => f.id === formId);
+    const form = acordAllForms().find(f => f.id === formId);
     if (!form) return;
     const mapping = acordGetClientMapping();
 
@@ -5480,7 +5622,7 @@ function acordAutoFill(formId) {
 }
 
 function acordClearForm(formId) {
-    const form = ACORD_FORMS.find(f => f.id === formId);
+    const form = acordAllForms().find(f => f.id === formId);
     if (!form) return;
     if (!confirm('Clear all fields in this form?')) return;
 
@@ -5495,7 +5637,7 @@ function acordClearForm(formId) {
 }
 
 function acordSaveForm(formId) {
-    const form = ACORD_FORMS.find(f => f.id === formId);
+    const form = acordAllForms().find(f => f.id === formId);
     if (!form || !amsActiveKey) return;
 
     const data = {};
@@ -5522,7 +5664,7 @@ function acordSaveForm(formId) {
 }
 
 function acordPrintForm(formId) {
-    const form = ACORD_FORMS.find(f => f.id === formId);
+    const form = acordAllForms().find(f => f.id === formId);
     if (!form) return;
 
     let html = `<!DOCTYPE html><html><head><title>${form.num} - ${form.name}</title>
