@@ -1382,6 +1382,27 @@
         if (match.mga) document.getElementById('mga' + suffix).value = match.mga;
         if (match.effDate) document.getElementById('effDate' + suffix).value = match.effDate;
         if (match.term) document.getElementById('term' + suffix).value = match.term;
+
+        // Pull the rest of the client's details: take the latest non-empty
+        // value of each field across every entry with this policy number.
+        const _same = policies.filter(e => e.policyNumber === polNum)
+            .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+        const _latest = k => { for (const e of _same) { const v = e[k]; if (v !== undefined && v !== null && String(v).trim() !== '') return v; } return ''; };
+        const _fill = (id, v) => {
+            const el = document.getElementById(id + suffix);
+            if (!el || v === '' || el.value) return;
+            if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === String(v))) {
+                const o = document.createElement('option'); o.value = o.textContent = v; el.appendChild(o);
+            }
+            el.value = v;
+        };
+        _fill('contactName', _latest('contactName'));
+        _fill('customerPhone', _latest('customerPhone'));
+        _fill('customerEmail', _latest('customerEmail'));
+        _fill('source', _latest('source'));
+        _fill('referredBy', _latest('referredBy'));
+        _fill('premiumFinance', _latest('premiumFinance'));
+        if (!match.mga) _fill('mga', _latest('mga'));
     }
 </script>
 <script src="uib-motion.js?v=20261002a"></script>
