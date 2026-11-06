@@ -46,7 +46,7 @@
         'randy@universalinsurancebroker.com': 'Randy Diaz',
         'uri@universalinsurancebroker.com': 'Uriel Rendon'
     };
-    const ADMIN_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com', 'randy@universalinsurancebroker.com', 'amanda@universalinsurancebroker.com'];
+    const ADMIN_EMAILS = ['admin@universalinsurancebroker.com', 'amanzor89@gmail.com', 'randy@universalinsurancebroker.com', 'amanda@universalinsurancebroker.com', 'lazaro@universalinsurancebroker.com'];
     const IDLE_MS = 30 * 60 * 1000;
     const REFRESH_AHEAD_S = 120;
 
