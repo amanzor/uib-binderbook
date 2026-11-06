@@ -421,7 +421,16 @@
     }
 
     function token() { const s = readSession(); return s ? s.access_token : null; }
-    function user() { const s = readSession(); return (s && !s.pendingMfa) ? s.user : null; }
+    // The role saved with a session is from when the person signed in.
+    // Work it out again on every read, so a level or permission change
+    // reaches someone who is already signed in without a sign-out.
+    function user() {
+        const s = readSession();
+        if (!s || s.pendingMfa || !s.user) return null;
+        const u = s.user;
+        const role = permFor(u.email, 'admin', u.appRole || u.role) ? 'admin' : 'agent';
+        return role === u.role ? u : Object.assign({}, u, { role: role, appRole: u.appRole || u.role });
+    }
     function pendingMfa() { const s = readSession(); return s ? (s.pendingMfa || null) : null; }
     function isSignedIn() { return !!token() && !pendingMfa(); }
     function isAdmin() { const u = user(); return !!u && permFor(u.email, 'admin', u.role); }
