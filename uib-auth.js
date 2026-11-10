@@ -101,14 +101,19 @@
         user:  { admin: false, allCommissions: false, renewalActions: true, reassignRenewals: false }
     };
     function readPerms() { try { return JSON.parse(localStorage.getItem(PERM_KEY) || '{}') || {}; } catch (e) { return {}; } }
-    function baseLevelOf(email) {
+    // A level set on the account in Supabase (app_metadata.role:
+    // 'executive' | 'admin' | 'agent', from Manage Users) wins; accounts
+    // with none fall back to the built-in email lists.
+    function baseLevelOf(email, appLevel) {
+        if (appLevel === 'executive' || appLevel === 'admin') return appLevel;
+        if (appLevel === 'agent') return 'user';
         const em = String(email || '').toLowerCase();
         if (EXECUTIVE_EMAILS.includes(em)) return 'executive';
         return ADMIN_EMAILS.includes(em) ? 'admin' : 'user';
     }
     function permFor(email, perm, appRole, defaultOnly) {
         const em = String(email || '').toLowerCase();
-        const base = baseLevelOf(em) === 'user' && appRole === 'admin' ? 'admin' : baseLevelOf(em);
+        const base = baseLevelOf(em, appRole);
         if (base === 'executive') return true;
         const ov = defaultOnly ? undefined : (readPerms()[em] || {})[perm];
         if (typeof ov === 'boolean') return ov;
@@ -120,8 +125,9 @@
         const email = (user && user.email) || '';
         const onAccount = meta.agent_name || meta.full_name || meta.name || '';
         const name = onAccount || nameFromRoster(email) || '';
-        const role = permFor(email, 'admin', app.role) ? 'admin' : 'agent';
-        return { id: user && user.id, email: email, name: name, role: role, onAccount: !!onAccount };
+        const appLevel = app.role || '';
+        const role = permFor(email, 'admin', appLevel) ? 'admin' : 'agent';
+        return { id: user && user.id, email: email, name: name, role: role, appLevel: appLevel, onAccount: !!onAccount };
     }
 
     function storeTokens(tok) {
@@ -428,14 +434,29 @@
         const s = readSession();
         if (!s || s.pendingMfa || !s.user) return null;
         const u = s.user;
-        const role = permFor(u.email, 'admin', u.appRole || u.role) ? 'admin' : 'agent';
-        return role === u.role ? u : Object.assign({}, u, { role: role, appRole: u.appRole || u.role });
+        const role = permFor(u.email, 'admin', u.appLevel) ? 'admin' : 'agent';
+        return role === u.role ? u : Object.assign({}, u, { role: role });
     }
     function pendingMfa() { const s = readSession(); return s ? (s.pendingMfa || null) : null; }
     function isSignedIn() { return !!token() && !pendingMfa(); }
-    function isAdmin() { const u = user(); return !!u && permFor(u.email, 'admin', u.role); }
+    function isAdmin() { const u = user(); return !!u && permFor(u.email, 'admin', u.appLevel); }
     // Does the signed-in person have this permission?
-    function can(perm) { const u = user(); return !!u && permFor(u.email, perm, u.role); }
+    function can(perm) { const u = user(); return !!u && permFor(u.email, perm, u.appLevel); }
+    // Re-read the account's level from Supabase so a role changed in Manage
+    // Users reaches someone already signed in, the next time a page loads.
+    function syncLevel() {
+        const s = readSession();
+        if (!s || !s.access_token || s.pendingMfa || !s.user) return Promise.resolve(null);
+        return _fetch.call(window, SUPABASE_URL + '/auth/v1/user', {
+            headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + s.access_token }
+        }).then(r => r.ok ? r.json() : null).then(u => {
+            if (!u) return null;
+            const lvl = (u.app_metadata && u.app_metadata.role) || '';
+            const cur = readSession();
+            if (cur && cur.user && cur.user.appLevel !== lvl) { cur.user.appLevel = lvl; writeSession(cur); }
+            return lvl;
+        }).catch(() => null);
+    }
     // Pull the latest permissions from the cloud into the device cache.
     function loadPermissions() {
         return _fetch.call(window, SUPABASE_URL + '/rest/v1/app_store?key=eq.userPermissions&select=value', {
@@ -459,7 +480,7 @@
         const u = user();
         if (!u) return 'user';
         const em = String(u.email || '').toLowerCase();
-        if (EXECUTIVE_EMAILS.includes(em)) return 'executive';
+        if (baseLevelOf(em, u.appLevel) === 'executive') return 'executive';
         return isAdmin() ? 'admin' : 'user';
     }
     function isExecutive() { return level() === 'executive'; }
@@ -510,7 +531,7 @@
         }
     });
 
-    window.UIBAuth = { bridge, adoptSession, signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, level, isExecutive, levelLabel, EXECUTIVE_EMAILS, ADMIN_EMAILS, can, permFor, baseLevelOf, loadPermissions, savePermissions, readPerms, PERMISSIONS, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, KNOWN_AGENTS, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
+    window.UIBAuth = { bridge, adoptSession, signIn, completeSignIn, signOut, refresh, ensureFresh, changePassword, resetPasswordEmail, token, user, pendingMfa, isSignedIn, isAdmin, level, isExecutive, levelLabel, syncLevel, EXECUTIVE_EMAILS, ADMIN_EMAILS, can, permFor, baseLevelOf, loadPermissions, savePermissions, readPerms, PERMISSIONS, assuranceLevel, mfaFactors, mfaEnroll, mfaVerify, mfaUnenroll, getMfaRequired, setMfaRequired, adoptName, KNOWN_AGENTS, SUPABASE_URL, SUPABASE_ANON, TURNSTILE_SITE_KEY, MFA_REQUIRED };
 
     // Installed for every page that loads this file, so neither app has
     // to remember to ask for it.
