@@ -4652,6 +4652,14 @@ function _agentVisibleEntries() {
     return isAgentAdmin() ? book : book.filter(d => d.agent === currentUser);
 }
 
+// Renewals stay out of the Binder Book's tables, but picking Type → Renewal
+// lists them on purpose, so an entry that was typed "Renewal" by mistake can
+// be found here and corrected with Edit (it then returns to the normal list).
+function _agentRenewalEntries() {
+    const renewals = allData.filter(isAmsRenewalEntry);
+    return isAgentAdmin() ? renewals : renewals.filter(d => d.agent === currentUser);
+}
+
 function loadAgentData() {
     const monthInput = document.getElementById('agentFilter');
     if (monthInput && !monthInput.value) monthInput.value = _agentDefaultMonth();
@@ -4820,7 +4828,9 @@ function applyAgentFilters() {
     const query = val('agentSubmissionSearch').trim().toLowerCase();
     const agentPick = isAgentAdmin() ? val('agentAgentFilter') : '';
 
-    let entries = _agentVisibleEntries();
+    const renewalView = type === 'Renewal';
+    const base = renewalView ? _agentRenewalEntries() : _agentVisibleEntries();
+    let entries = base;
     if (agentPick) entries = entries.filter(d => d.agent === agentPick);
     if (from || to) {
         if (from) entries = entries.filter(d => d.entryDate && d.entryDate >= from);
@@ -4828,7 +4838,7 @@ function applyAgentFilters() {
     } else if (month) {
         entries = entries.filter(d => d.entryDate && d.entryDate.startsWith(month));
     }
-    if (type)    entries = entries.filter(d => d.policyType === type);
+    if (type && !renewalView) entries = entries.filter(d => d.policyType === type);
     if (lob)     entries = entries.filter(d => d.lineOfBusiness === lob);
     if (carrier) entries = entries.filter(d => d.company === carrier);
     if (payType) entries = entries.filter(d => d.paymentType === payType);
@@ -4847,10 +4857,10 @@ function applyAgentFilters() {
 
     const countEl = document.getElementById('agentFilterCount');
     if (countEl) {
-        const total = _agentVisibleEntries().length;
+        const total = base.length;
         const sum = entries.reduce((s, d) => s + (parseFloat(d.totalPremium) || 0), 0);
         const scopeNote = isAgentAdmin() ? (agentPick ? ` · viewing ${agentPick}` : ' · viewing all agents') : '';
-        countEl.textContent = `${entries.length} of ${total} entries · $${sum.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} total premium${scopeNote}`;
+        countEl.textContent = `${entries.length} of ${total} entries · $${sum.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} total premium${scopeNote}${renewalView ? ' · renewal entries (normally listed in the AMS) — use Edit to correct the type' : ''}`;
     }
 
     renderAgentTable(entries);
