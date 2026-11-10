@@ -3213,7 +3213,7 @@ function uwLogContact(entryId) {
 }
 
 function renderProspectsDashboard() {
-    const all = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const all = (JSON.parse(localStorage.getItem('prospectData')) || []).filter(p => p && p.status !== 'Removed');
 
     // Populate agent filter (once) from data + master agents
     const agentSel = document.getElementById('pdash_agentFilter');
@@ -3597,6 +3597,110 @@ function archiveProspectToAMS(p) {
     }
 }
 
+// ── Report a prospect for removal ────────────────────────────────
+// Anyone can flag a prospect that should not be on the list (a duplicate,
+// a wrong number, someone who asked not to be contacted). The request
+// sits on the record until an Executive Admin removes it or keeps it.
+// Executive Admins see a banner on Prospects and a red count on the
+// Prospects button until every report is handled.
+function _prospectIsExec() { return !!(window.UIBAuth && UIBAuth.isExecutive && UIBAuth.isExecutive()); }
+function _prospectReported(list) { return (list || []).filter(p => p && p.removalRequest && p.status !== 'Removed'); }
+
+function prospectReport(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    const name = _prospectFullName(p) || p.businessName || 'this prospect';
+    const reason = prompt(`Report ${name} for removal from the list.\n\nWhy should it be removed? (e.g. duplicate, wrong number, not interested, already a client)`);
+    if (reason === null) return;
+    if (!reason.trim()) { alert('Please give a short reason so the Executive Admins know why.'); return; }
+    p.removalRequest = { by: currentUser || '', at: new Date().toISOString(), reason: reason.trim() };
+    p.updatedAt = Date.now();
+    _prospectSave(prospects);
+    if (window.UIBAudit) try { UIBAudit.log('prospect_reported', name, { id, reason: reason.trim() }); } catch (e) {}
+    renderProspectsTable();
+    alert(`Reported. The Executive Admins will see ${name} in their removal list.`);
+}
+
+function prospectApproveRemoval(id) {
+    if (!_prospectIsExec()) { alert('Only Executive Admins can remove prospects.'); return; }
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    const name = _prospectFullName(p) || p.businessName || 'this prospect';
+    if (!confirm(`Remove ${name} from the prospect list?\n\nReported by ${p.removalRequest?.by || '—'}: ${p.removalRequest?.reason || ''}`)) return;
+    p.status = 'Removed';
+    p.removedBy = currentUser || '';
+    p.removedAt = new Date().toISOString();
+    p.updatedAt = Date.now();
+    _prospectSave(prospects);
+    if (window.UIBAudit) try { UIBAudit.log('prospect_removed', name, { id }); } catch (e) {}
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+}
+
+function prospectDismissReport(id) {
+    if (!_prospectIsExec()) return;
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    p.reportDismissed = Object.assign({}, p.removalRequest, { keptBy: currentUser || '', keptAt: new Date().toISOString() });
+    delete p.removalRequest;
+    p.updatedAt = Date.now();
+    _prospectSave(prospects);
+    if (window.UIBAudit) try { UIBAudit.log('prospect_report_kept', _prospectFullName(p), { id }); } catch (e) {}
+    renderProspectsTable();
+}
+
+function prospectShowReported() {
+    const f = document.getElementById('prospectFilterStatus'); if (f) f.value = 'all';
+    const s = document.getElementById('prospectSearch'); if (s) s.value = '';
+    const a = document.getElementById('prospectFilterAgent'); if (a) a.value = '';
+    renderProspectsTable();
+    setTimeout(() => document.querySelector('#prospectsTableBody tr[style*="fff5f5"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+}
+
+function _prospectRenderReportBanner(prospects) {
+    const reported = _prospectIsExec() ? _prospectReported(prospects) : [];
+    const tbody = document.getElementById('prospectsTableBody');
+    const table = tbody && tbody.closest('table');
+    const host  = table && (table.parentElement || table);
+    let el = document.getElementById('prospectReportBanner');
+    if (!reported.length) { if (el) el.remove(); _prospectUpdateReportBadges(0); return; }
+    if (!el && host) {
+        el = document.createElement('div');
+        el.id = 'prospectReportBanner';
+        host.parentElement.insertBefore(el, host);
+    }
+    if (el) el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px 16px;margin:0 0 12px;color:#991b1b;font-size:13px;">
+        <div><b>🚩 ${reported.length} prospect${reported.length !== 1 ? 's' : ''} reported for removal.</b>
+        <span style="color:#b45309;">${reported.slice(0, 4).map(p => _esc(_prospectFullName(p) || p.businessName || '—')).join(', ')}${reported.length > 4 ? '…' : ''}</span></div>
+        <button class="btn-danger btn-sm" onclick="prospectShowReported()">Review</button></div>`;
+    _prospectUpdateReportBadges(reported.length);
+}
+
+// A red count on every Prospects button, for Executive Admins only.
+function _prospectUpdateReportBadges(n) {
+    if (n === undefined) {
+        let list = []; try { list = JSON.parse(localStorage.getItem('prospectData')) || []; } catch (e) {}
+        n = _prospectIsExec() ? _prospectReported(list).length : 0;
+    }
+    document.querySelectorAll('button[onclick^="showProspectsSection"]').forEach(b => {
+        let badge = b.querySelector('.prospect-report-badge');
+        if (!n) { if (badge) badge.remove(); return; }
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'prospect-report-badge';
+            badge.style.cssText = 'margin-left:6px;background:#dc2626;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:800;';
+            b.appendChild(badge);
+        }
+        badge.textContent = n;
+        badge.title = n + ' prospect' + (n !== 1 ? 's' : '') + ' reported for removal';
+    });
+}
+setInterval(() => { try { _prospectUpdateReportBadges(); } catch (e) {} }, 30000);
+document.addEventListener('DOMContentLoaded', () => setTimeout(() => { try { _prospectUpdateReportBadges(); } catch (e) {} }, 4000));
+
 function renderProspectsTable() {
     const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
     const search    = (document.getElementById('prospectSearch')?.value || '').toLowerCase();
@@ -3612,6 +3716,7 @@ function renderProspectsTable() {
                 .some(v => String(v || '').toLowerCase().includes(search));
         const matchAgent  = !agentF  || p.agent === agentF;
         const st = p.status || 'Open';
+        if (st === 'Removed') return false;          // removed by an Executive Admin after a report
         const matchStatus = statusF === 'all' ? true
             : statusF ? st === statusF
             : (st !== 'Closed' && st !== 'Lost');   // default view: still-active prospects
@@ -3625,6 +3730,7 @@ function renderProspectsTable() {
     if (!filtered.length) {
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--gray-400);padding:32px;">No prospects found.</td></tr>';
         document.getElementById('prospectCount').textContent = '';
+        _prospectRenderReportBanner(prospects);
         return;
     }
 
@@ -3657,8 +3763,14 @@ function renderProspectsTable() {
                          p.quotedPremium ? `💬 quoted $${Number(p.quotedPremium).toLocaleString('en-US')}` : '',
                          p.dob ? `🎂 ${_esc(p.dob)}` : '']
                         .filter(Boolean).map(t => `<div style="font-size:11px;font-weight:400;color:var(--gray-500);margin-top:2px;">${t}</div>`).join('');
-        return `<tr>
-            <td style="font-weight:600;">${fullName}${detail}${pendingChips ? `<div style="margin-top:3px;font-weight:400;">${pendingChips}</div>` : ''}</td>
+        const rr = p.removalRequest;
+        const reportTag = rr ? `<div style="margin-top:4px;font-weight:400;"><span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;" title="${_esc(rr.reason || '')}">🚩 Reported by ${_esc(rr.by || '—')}${rr.reason ? ': ' + _esc(rr.reason.length > 60 ? rr.reason.slice(0, 60) + '…' : rr.reason) : ''}</span></div>` : '';
+        const reportBtns = rr
+            ? (_prospectIsExec() ? `<button class="btn-danger btn-sm" onclick="prospectApproveRemoval('${p.id}')" title="Remove this prospect from the list">🗑 Remove</button>
+                <button class="btn-sm" onclick="prospectDismissReport('${p.id}')" title="Keep it on the list and clear the report" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;">↩ Keep</button>` : '')
+            : `<button class="btn-sm" onclick="prospectReport('${p.id}')" title="Ask an Executive Admin to remove this prospect from the list" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;">🚩 Report</button>`;
+        return `<tr${rr ? ' style="background:#fff5f5;"' : ''}>
+            <td style="font-weight:600;">${fullName}${detail}${pendingChips ? `<div style="margin-top:3px;font-weight:400;">${pendingChips}</div>` : ''}${reportTag}</td>
             <td>${p.phone || '—'}${p.phone2 ? `<div style="font-size:11px;color:var(--gray-500);">${_esc(p.phone2)}</div>` : ''}</td>
             <td>${p.email || '—'}</td>
             <td>${p.lob || '—'}</td>
@@ -3676,12 +3788,14 @@ function renderProspectsTable() {
                 <button class="btn-sm" onclick="prospectOpenPending('${p.id}')" title="What is still outstanding from this client" style="background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;">📋 Items${pendingCount ? ` (${pendingCount})` : ''}</button>
                 <button class="btn-success btn-sm" onclick="prospectMarkSold('${p.id}')" title="Mark as sold and create the Daily Sales Entry">💰 Sold</button>
                 <button class="btn-danger btn-sm" onclick="prospectMarkLost('${p.id}')" title="Mark as lost and archive into AMS as an Inactive Prospect">✖ Lost</button>`}
+                ${reportBtns}
             </td>
         </tr>`;
     }).join('');
 
     document.getElementById('prospectCount').textContent =
         `Showing ${filtered.length} of ${prospects.length} prospect${prospects.length !== 1 ? 's' : ''}`;
+    _prospectRenderReportBanner(prospects);
 
     if (window.UIBMotion) UIBMotion.animateTableRows(tbody);
 }
