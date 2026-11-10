@@ -892,14 +892,51 @@ function migrateLocationNames() {
 }
 
 function getAllAgents() {
-    // The canonical roster = the Agent Management list. Agent dropdowns
-    // everywhere use this, so they only show registered agents (not names
-    // scraped from old binder entries or leftover login credentials). Falls
-    // back to the built-in list only if no managed agents exist yet.
-    let master = {};
-    try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
-    const names = Object.keys(master);
-    return (names.length ? [...new Set(names)] : AGENTS.slice()).sort();
+    // Every agent the app knows: the built-in roster, the Agent Management
+    // profiles and the sign-in records -- the same people the Agent
+    // Management screen lists. Agent dropdowns everywhere use this.
+    //
+    // This used to return the Agent Management profiles ALONE whenever at
+    // least one existed, falling back to the built-in roster only while there
+    // were none. So saving the first full profile (one new agent) silently
+    // dropped every other agent from every dropdown. Names scraped from old
+    // binder entries are still left out on purpose.
+    const names = new Set();
+    const add = (n) => { n = String(n == null ? '' : n).trim(); if (n && n !== 'Admin') names.add(n); };
+    AGENTS.forEach(add);
+    try { Object.values((window.UIBAuth && UIBAuth.KNOWN_AGENTS) || {}).forEach(add); } catch (e) {}
+    try { Object.keys(JSON.parse(localStorage.getItem('agentMasterData')) || {}).forEach(add); } catch (e) {}
+    try { Object.keys(JSON.parse(localStorage.getItem('agentCredentials')) || {}).forEach(add); } catch (e) {}
+    return [...names].sort();
+}
+
+// An agent's email: their Agent Management profile first, then the sign-in
+// record on this device, then the built-in email list. Most agents have no
+// full profile, so reading the profile alone leaves them without an email.
+function _agentEmailFor(name) {
+    const pick = (obj) => String(((obj || {})[name] || {}).email || '').trim().toLowerCase();
+    let em = '';
+    try { em = pick(JSON.parse(localStorage.getItem('agentMasterData'))); } catch (e) {}
+    if (!em) { try { em = pick(JSON.parse(localStorage.getItem('agentCredentials'))); } catch (e) {} }
+    if (!em) {
+        const known = (window.UIBAuth && UIBAuth.KNOWN_AGENTS) || {};
+        em = Object.keys(known).find(e => known[e] === name) || '';
+    }
+    return em;
+}
+
+// Refill an "All Agents" filter from the shared agent list, keeping the
+// current choice. For the filters whose options were typed into the page.
+function _fillAgentFilter(id) {
+    const sel = document.getElementById(id); if (!sel) return;
+    const agents = getAllAgents();
+    const have = Array.from(sel.options).slice(1).map(o => o.value);
+    if (have.length === agents.length && have.every((v, i) => v === agents[i])) return;
+    const cur = sel.value;
+    sel.innerHTML = '';
+    const all = document.createElement('option'); all.value = ''; all.textContent = 'All Agents'; sel.appendChild(all);
+    agents.forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o); });
+    sel.value = agents.includes(cur) ? cur : '';
 }
 
 // Initialize credentials — structure: { "Agent Name": { email, password } }
@@ -1135,10 +1172,13 @@ async function renderCredentialListPage() {
     const agents = getAllAgents();
     const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
     const byEmail = {}; Object.keys(master).forEach((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); if (em) byEmail[em] = n; });
-    const missing = agents.filter((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); return !users.some((u) => String(u.email).toLowerCase() === em || u.agent_name === n); });
+    // Compare on each agent's known email (profile, sign-in record or built-in
+    // list), not the profile alone: most agents have no full profile, and an
+    // empty email would flag every one of them as having no login.
+    const missing = agents.filter((n) => { const em = _agentEmailFor(n); return !users.some((u) => (em && String(u.email).toLowerCase() === em) || u.agent_name === n || _agentNameForEmail(u.email) === n); });
     const fmt = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
     const rows = users.map((u) => {
-        const linked = u.agent_name || byEmail[String(u.email).toLowerCase()] || '';
+        const linked = u.agent_name || byEmail[String(u.email).toLowerCase()] || _agentNameForEmail(u.email) || '';
         const opts = ['<option value="">— not linked —</option>'].concat(agents.map((n) => `<option value="${_esc(n)}"${n === linked ? ' selected' : ''}>${_esc(n)}</option>`)).join('');
         return `<tr>
             <td style="font-weight:600;">${_esc(u.email)}${u.confirmed ? '' : ' <span style="font-size:11px;color:#b45309;font-weight:700;">(unconfirmed)</span>'}</td>
@@ -1213,7 +1253,7 @@ function openAddCredentialModal() {
     // Agent picker from the roster; email prefills from the agent's record.
     const sel = document.getElementById('newCredAgent');
     const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
-    sel.innerHTML = '<option value="">— Select agent —</option>' + getAllAgents().map((n) => `<option value="${_esc(n)}" data-email="${_esc((master[n] && master[n].email) || '')}">${_esc(n)}</option>`).join('');
+    sel.innerHTML = '<option value="">— Select agent —</option>' + getAllAgents().map((n) => `<option value="${_esc(n)}" data-email="${_esc(_agentEmailFor(n))}">${_esc(n)}</option>`).join('');
     sel.onchange = () => { const o = sel.options[sel.selectedIndex]; const em = o && o.dataset.email; if (em) document.getElementById('newCredEmail').value = em; };
     document.getElementById('newCredEmail').value = '';
     document.getElementById('newCredPassword').value = '';
@@ -3215,7 +3255,7 @@ function uwLogContact(entryId) {
 function renderProspectsDashboard() {
     const all = (JSON.parse(localStorage.getItem('prospectData')) || []).filter(p => p && p.status !== 'Removed');
 
-    // Populate agent filter (once) from data + master agents
+    // Populate agent filter from the shared agent list
     const agentSel = document.getElementById('pdash_agentFilter');
     if (agentSel) {
         const current = agentSel.value;
@@ -3702,6 +3742,7 @@ setInterval(() => { try { _prospectUpdateReportBadges(); } catch (e) {} }, 30000
 document.addEventListener('DOMContentLoaded', () => setTimeout(() => { try { _prospectUpdateReportBadges(); } catch (e) {} }, 4000));
 
 function renderProspectsTable() {
+    _fillAgentFilter('prospectFilterAgent');
     const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
     const search    = (document.getElementById('prospectSearch')?.value || '').toLowerCase();
     const agentF    = document.getElementById('prospectFilterAgent')?.value || '';
@@ -3816,7 +3857,7 @@ function showVerificationLogsSection() {
 function renderVerificationLogsDashboard() {
     const all = JSON.parse(localStorage.getItem('verificationLogs')) || [];
 
-    // Populate agent filter (once) from data + master agents
+    // Populate agent filter from the shared agent list
     const agentSel = document.getElementById('vldash_agentFilter');
     if (agentSel) {
         const current = agentSel.value;
@@ -3919,6 +3960,7 @@ function renderVerificationLogsDashboard() {
 }
 
 function renderVerificationLogsTable() {
+    _fillAgentFilter('vlFilterAgent');
     const logs    = JSON.parse(localStorage.getItem('verificationLogs')) || [];
     const search  = (document.getElementById('vlSearch')?.value || '').toLowerCase();
     const agentF  = document.getElementById('vlFilterAgent')?.value || '';
@@ -4980,7 +5022,7 @@ function populateAgentFilter() {
     const select = document.getElementById('adminAgentFilter');
     if (!select) return;
 
-    // Only the registered agents (Agent Management list).
+    // The shared agent list (same people as Agent Management).
     const allAgents = getAllAgents();
 
     select.innerHTML = '<option value="">All Agents</option>';
@@ -6420,10 +6462,8 @@ function loadCommissionDashboard() {
 
     // Populate agent filter from master list + commission data
     const filterSelect = document.getElementById('commissionAgentFilter');
-    const agentMasterData = JSON.parse(localStorage.getItem('agentMasterData')) || {};
-    const masterAgents = Object.keys(agentMasterData);
     const commissionAgents = Object.keys(commissions);
-    const allAgentNames = [...new Set([...masterAgents, ...commissionAgents])].sort();
+    const allAgentNames = [...new Set([...getAllAgents(), ...commissionAgents])].sort();
 
     filterSelect.innerHTML = '<option value="">All Agents</option>';
     allAgentNames.forEach(agent => {
@@ -6500,7 +6540,7 @@ function displayAllCommissions(commissions) {
 
     // Also collect agent commission share rows
     const filterAgentForShares = filterAgent;
-    AGENTS.forEach(agent => {
+    getAllAgents().forEach(agent => {   // every agent, not only the built-in six
         if (filterAgentForShares && agent !== filterAgentForShares) return;
         const shares = getAgentCommissionShares(agent);
         Object.entries(shares).forEach(([month, data]) => {
@@ -10334,7 +10374,7 @@ function showProductionDashboard() {
     // Refresh allData from localStorage in case it was updated
     allData = JSON.parse(localStorage.getItem('binderData')) || [];
 
-    // Populate Agent filter — merge from data + registered agents
+    // Populate Agent filter from the shared agent list
     const agents = getAllAgents();
     const agentSel = document.getElementById('prodAgentFilter');
     if (agentSel) agentSel.innerHTML =
@@ -15442,7 +15482,7 @@ async function renderAckStatus() {
     const box = document.getElementById('accessLogAcks'); if (!box) return;
     let acks = {}; try { acks = (await UIBAudit.getAcks()) || {}; } catch (e) {}
     const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
-    const rows = getAllAgents().map(n => { const em = ((master[n] && master[n].email) || '').toLowerCase(); const a = em && acks[em]; const ok = a && a.version === UIBAudit.ACK_VERSION; return `<tr><td>${_esc(n)}</td><td style="font-size:12px;">${_esc(em || '—')}</td><td>${ok ? '<span style="color:#166534;font-weight:700;">✓ ' + new Date(a.date).toLocaleDateString() + '</span>' : '<span style="color:#b45309;font-weight:700;">Not yet for ' + UIBAudit.ACK_VERSION + '</span>'}</td></tr>`; }).join('');
+    const rows = getAllAgents().map(n => { const em = _agentEmailFor(n); const a = em && acks[em]; const ok = a && a.version === UIBAudit.ACK_VERSION; return `<tr><td>${_esc(n)}</td><td style="font-size:12px;">${_esc(em || '—')}</td><td>${ok ? '<span style="color:#166534;font-weight:700;">✓ ' + new Date(a.date).toLocaleDateString() + '</span>' : '<span style="color:#b45309;font-weight:700;">Not yet for ' + UIBAudit.ACK_VERSION + '</span>'}</td></tr>`; }).join('');
     box.innerHTML = `<h3 style="margin:22px 0 8px;font-size:15px;">Confidentiality &amp; security acknowledgment (${UIBAudit.ACK_VERSION})</h3><div class="table-container"><table style="width:100%;"><thead><tr><th>Agent</th><th>Email</th><th>Accepted</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function exportAccessLogCSV() {

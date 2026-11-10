@@ -481,7 +481,7 @@ function amsDoLogin() {
         const pw = document.getElementById('amsLoginPassword'); if (pw) pw.value = '';
         amsCurrentUser = (user.name && user.name !== 'Admin') ? user.name : 'Admin';
         amsCurrentRole = user.role;
-        const knownAgents = Object.keys(amsGetCredentials()); if (!knownAgents.length) knownAgents.push('Alberto Manzor', 'Randy Diaz', 'Amanda Montano', 'Uriel Rendon', 'Jorge Castro', 'Lazaro Reigoza');
+        const knownAgents = amsAllAgentNames();   // every known agent, not the Agent Management profiles alone
         if (amsCurrentUser !== 'Admin' && user.role !== 'admin' && !knownAgents.includes(amsCurrentUser)) {
             const creds = amsGetCredentials(); const byEmail = Object.keys(creds).find(n => String(creds[n].email || '').toLowerCase() === String(user.email || '').toLowerCase()) || (UIBAuth.KNOWN_AGENTS || {})[String(user.email || '').toLowerCase()];
             if (byEmail) { amsCurrentUser = byEmail; UIBAuth.adoptName(byEmail); amsLaunchApp(); return; }
@@ -5949,7 +5949,7 @@ function aiFileToBase64(file) {
 function aiBuildContext() {
     const binder  = amsGetBinderData();
     const clients = Object.values(amsClientIndex || {});
-    const agents  = Object.keys(amsGetCredentials());
+    const agents  = amsAllAgentNames();
     const names   = clients.slice(0, 400).map(c => c.displayName);
     return `Agency: Universal Insurance Brokers (UIB).
 Logged-in user: ${amsCurrentUser || 'unknown'} (role: ${amsCurrentRole || 'unknown'}).
@@ -6441,7 +6441,7 @@ function rnwBuildContext() {
         .sort((a, b) => a.expirationDate.localeCompare(b.expirationDate))
         .slice(0, 300)
         .map(p => `${(p.customerName || '').trim()}|policy=${p.policyNumber || ''}|carrier=${p.company || ''}|lob=${p.lineOfBusiness || ''}|agent=${p.agent || ''}|premium=${p.totalPremium || 0}|expires=${p.expirationDate}`);
-    const agents = Object.keys(amsGetCredentials());
+    const agents = amsAllAgentNames();
     return `Agency: Universal Insurance Brokers (UIB). Logged-in user: ${amsCurrentUser || 'unknown'} (role: ${amsCurrentRole || 'unknown'}).
 Total policy entries in AMS: ${binder.length}. Agents: ${agents.join(', ') || '(none)'}.
 POLICIES EXPIRING WITHIN 180 DAYS (pipe-delimited: customer|policy|carrier|lob|agent|premium|expires):
