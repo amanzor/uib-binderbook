@@ -2240,6 +2240,7 @@
                     <div id="bulkDeleteBar" style="display:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;padding:10px 20px;border-radius:10px;margin-bottom:10px;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;">
                         <span style="font-weight:700;font-size:14px;"><span id="bulkSelectedCount">0</span> selected</span>
                         <div style="display:flex;gap:8px;">
+                            <button id="bulkReassignBtn" onclick="bulkReassignSelected()" style="display:none;background:#fff;color:#1d4ed8;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">👤 Reassign Selected</button>
                             <button onclick="bulkDeleteSelected()" style="background:#fff;color:#dc2626;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">🗑️ Delete Selected</button>
                             <button onclick="bulkClearSelection()" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">✕ Cancel</button>
                         </div>
@@ -4024,7 +4025,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261110c"></script>
+    <script src="app.js?v=20261111a"></script>
     <script src="uib-binder-sync.js?v=20261106t"></script>
     <script src="monday-import.js?v=20261104a"></script>
     <script src="supabase.js?v=20261027a"></script>

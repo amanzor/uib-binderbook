@@ -4948,6 +4948,8 @@ function _updateBulkDeleteBar() {
     const bar = document.getElementById('bulkDeleteBar');
     const count = document.getElementById('bulkSelectedCount');
     if (!bar) return;
+    const rb = document.getElementById('bulkReassignBtn');
+    if (rb) rb.style.display = _canReassignEntries() ? '' : 'none';
     if (checked.length > 0) {
         bar.style.display = 'flex';
         if (count) count.textContent = checked.length;
@@ -4967,6 +4969,36 @@ function bulkDeleteSelected() {
     localStorage.setItem('binderData', JSON.stringify(allData));
     loadAgentData();
     if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
+}
+
+// Move the selected entries to another agent (Executive Admins only).
+function bulkReassignSelected() {
+    if (!_canReassignEntries()) { alert('Only Executive Admins can reassign entries.'); return; }
+    const ids = [...document.querySelectorAll('.agent-row-cb:checked')].map(cb => String(cb.value));
+    if (!ids.length) return;
+    const agents = getAllAgents();
+    const pick = prompt(`Reassign ${ids.length} entr${ids.length === 1 ? 'y' : 'ies'} to which agent?\n\n` +
+        agents.map((a, i) => `${i + 1}. ${a}`).join('\n') + '\n\nType the number or the full name:');
+    if (pick === null) return;
+    const t = pick.trim();
+    const to = /^\d+$/.test(t) ? agents[parseInt(t, 10) - 1] : agents.find(a => a.toLowerCase() === t.toLowerCase());
+    if (!to) { alert('No agent matches "' + t + '".'); return; }
+    if (!confirm(`Move ${ids.length} entr${ids.length === 1 ? 'y' : 'ies'} to ${to}?`)) return;
+    let moved = 0;
+    allData.forEach(e => {
+        if (!ids.includes(String(e.id)) || e.agent === to) return;
+        const from = e.agent || '';
+        e.agent = to;
+        e.updatedAt = Date.now();
+        if (typeof vaultEntry === 'function') vaultEntry(e);
+        if (window.UIBAudit) UIBAudit.log('reassign_entry', e.customerName || '', { id: e.id, policyNumber: e.policyNumber || '', from, to });
+        if (typeof syncEntryToAMS === 'function') { try { syncEntryToAMS(e); } catch (err) {} }
+        moved++;
+    });
+    localStorage.setItem('binderData', JSON.stringify(allData));
+    bulkClearSelection();
+    if (currentRole === 'agent') loadAgentData(); else loadAdminDashboard();
+    alert(`${moved} entr${moved === 1 ? 'y' : 'ies'} moved to ${to}.`);
 }
 
 function bulkClearSelection() {
@@ -5277,11 +5309,15 @@ function _isMasterAdmin() {
     const u = window.UIBAuth && UIBAuth.user();
     return !!(u && String(u.email || '').toLowerCase() === MASTER_ADMIN_EMAIL);
 }
+// Reassigning an entry's agent: Executive Admins only (and the master admin login).
+function _canReassignEntries() {
+    return _isMasterAdmin() || !!(window.UIBAuth && UIBAuth.isExecutive && UIBAuth.isExecutive());
+}
 function _setupEditAgentReassign(entry) {
     const grp = document.getElementById('editAgentGroup');
     const sel = document.getElementById('editAgent');
     if (!grp || !sel) return;
-    if (!_isMasterAdmin()) { grp.style.display = 'none'; sel.innerHTML = ''; return; }
+    if (!_canReassignEntries()) { grp.style.display = 'none'; sel.innerHTML = ''; return; }
     const agents = getAllAgents().slice();
     const cur = entry.agent || '';
     if (cur && !agents.includes(cur)) agents.unshift(cur);
@@ -5376,9 +5412,9 @@ function updateEntry() {
     entry.paymentType = document.getElementById('editPaymentType').value;
     entry.documentationStatus = collectEditDocStatus();
     entry.secondAgent = document.getElementById('editSecondAgent')?.value || '';
-    // Reassignment is accepted only from the master admin account.
+    // Reassignment is accepted only from Executive Admins.
     const _newAgent = document.getElementById('editAgent')?.value || '';
-    if (_isMasterAdmin() && _newAgent && _newAgent !== entry.agent) {
+    if (_canReassignEntries() && _newAgent && _newAgent !== entry.agent) {
         const _fromAgent = entry.agent || '';
         entry.agent = _newAgent;
         if (window.UIBAudit) UIBAudit.log('reassign_entry', entry.customerName || '', { id: entry.id, policyNumber: entry.policyNumber || '', from: _fromAgent, to: _newAgent });
