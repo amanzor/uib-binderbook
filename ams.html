@@ -1578,8 +1578,40 @@
                     <!-- ── TAB: Contact Info ── -->
                     <div id="tabContact">
                         <div class="info-card">
-                            <h3><i data-lucide="user"></i> Personal Information</h3>
-                            <div class="info-grid">
+                            <h3 id="ciIdentityTitle"><i data-lucide="user"></i> Personal Information</h3>
+                            <!-- Commercial clients: the business itself. The owner/contact
+                                 person goes under Contact Details. -->
+                            <div class="info-grid ci-com" style="display:none;">
+                                <div class="info-field" style="grid-column:span 2;">
+                                    <label>Company Name</label>
+                                    <input type="text" id="ci_companyName" placeholder="Legal company name">
+                                </div>
+                                <div class="info-field">
+                                    <label>DBA</label>
+                                    <input type="text" id="ci_dba" placeholder="Doing business as">
+                                </div>
+                                <div class="info-field">
+                                    <label>FEIN</label>
+                                    <input type="text" id="ci_fein" placeholder="XX-XXXXXXX" maxlength="10">
+                                </div>
+                                <div class="info-field">
+                                    <label>Entity Type</label>
+                                    <select id="ci_entityType">
+                                        <option value="">— Select —</option>
+                                        <option>LLC</option><option>Corporation</option><option>S-Corp</option>
+                                        <option>Partnership</option><option>Sole Proprietor</option><option>Non-Profit</option><option>Other</option>
+                                    </select>
+                                </div>
+                                <div class="info-field">
+                                    <label>Business Started</label>
+                                    <input type="text" id="ci_yearStarted" placeholder="Year" maxlength="4">
+                                </div>
+                                <div class="info-field" style="grid-column:span 2;">
+                                    <label>Nature of Business</label>
+                                    <input type="text" id="ci_bizDesc" placeholder="e.g. Electrical contractor, restaurant…">
+                                </div>
+                            </div>
+                            <div class="info-grid ci-per">
                                 <div class="info-field">
                                     <label>First Name</label>
                                     <input type="text" id="ci_firstName" placeholder="First name">
@@ -1622,6 +1654,18 @@
                         <div class="info-card">
                             <h3><i data-lucide="phone"></i> Contact Details</h3>
                             <div class="info-grid">
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>Contact First Name</label>
+                                    <input type="text" id="ci_contactFirst" placeholder="Owner / contact first name">
+                                </div>
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>Contact Last Name</label>
+                                    <input type="text" id="ci_contactLast" placeholder="Owner / contact last name">
+                                </div>
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>Title</label>
+                                    <input type="text" id="ci_contactTitle" placeholder="Owner, President, Manager…">
+                                </div>
                                 <div class="info-field">
                                     <label>Phone (Primary)</label>
                                     <input type="tel" id="ci_phone1" placeholder="(305) 555-1234">
@@ -2537,7 +2581,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261110a"></script>
+    <script src="ams.js?v=20261112a"></script>
     <script src="acord25-map.js?v=20261027a"></script>
     <script src="certificates.js?v=20261030b"></script>
     <script src="additional-interests.js?v=20261030b"></script>

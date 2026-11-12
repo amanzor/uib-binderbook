@@ -1257,7 +1257,7 @@ async function amsPerformMerge(primaryKey, sourceKeys) {
     //    concatenate notes, then drop the source contact records.
     const contacts = amsGetClientData();
     const target   = contacts[primaryKey] || {};
-    const contactFields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
+    const contactFields = ['firstName','lastName','companyName','dba','fein','entityType','yearStarted','bizDesc','contactFirst','contactLast','contactTitle','dob','gender','marital','ssn4','phone1','phone2','email',
         'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
         'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
         'privacyNoticeDate','privacyNoticeMethod'];
@@ -1364,8 +1364,18 @@ function amsLoadClientDetail(key) {
     metaItems.push(`<span class="tag ${_statusTag}">${amsEscHtml(_detailStatus)}</span>`);
     document.getElementById('detailMeta').innerHTML = metaItems.join('');
 
+    // Commercial clients: company details on top, owner/contact under Contact Details.
+    const _isCom = (typeof amsBook === 'function' && amsBook() === 'commercial') ||
+        (typeof amsBookOf === 'function' && client.policies.length > 0 &&
+         client.policies.filter(p => amsBookOf(p) === 'commercial').length * 2 >= client.policies.length);
+    amsApplyContactLayout(_isCom);
+    if (_isCom) {
+        const nm = document.getElementById('detailName');
+        if (nm && contact.companyName) nm.textContent = contact.companyName;
+    }
+
     // Populate contact form fields
-    const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
+    const fields = ['firstName','lastName','companyName','dba','fein','entityType','yearStarted','bizDesc','contactFirst','contactLast','contactTitle','dob','gender','marital','ssn4','phone1','phone2','email',
                     'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
                     'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
                     'privacyNoticeDate','privacyNoticeMethod'];
@@ -1383,6 +1393,11 @@ function amsLoadClientDetail(key) {
         }
         el.value = val;
     });
+    // A commercial client saved before the split: offer the business name.
+    if (_isCom) {
+        const cn = document.getElementById('ci_companyName');
+        if (cn && !cn.value) cn.value = client.displayName || `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+    }
 
     amsRenderPolicies(key);
     amsRenderNotes(key);
@@ -1578,7 +1593,7 @@ function amsSaveContact() {
     const contacts = amsGetClientData();
     if (!contacts[amsActiveKey]) contacts[amsActiveKey] = {};
 
-    const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
+    const fields = ['firstName','lastName','companyName','dba','fein','entityType','yearStarted','bizDesc','contactFirst','contactLast','contactTitle','dob','gender','marital','ssn4','phone1','phone2','email',
                     'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
                     'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
                     'privacyNoticeDate','privacyNoticeMethod'];
@@ -6921,4 +6936,14 @@ function amsPolicyTermSync() {
     const term = parseInt(document.getElementById('mp_term')?.value || '12', 10);
     const exp = document.getElementById('mp_expDate');
     if (exp && eff && window.UIBTerm) exp.value = window.UIBTerm.addMonths(eff, term);
+}
+
+// Contact Info layout: personal identity fields vs. company details.
+function amsApplyContactLayout(isCom) {
+    document.querySelectorAll('#tabContact .ci-com').forEach(el => { el.style.display = isCom ? '' : 'none'; });
+    document.querySelectorAll('#tabContact .ci-per').forEach(el => { el.style.display = isCom ? 'none' : ''; });
+    const t = document.getElementById('ciIdentityTitle');
+    if (t) t.innerHTML = isCom ? '<i data-lucide="building-2"></i> Company Details' : '<i data-lucide="user"></i> Personal Information';
+    if (window.lucide) try { lucide.createIcons(); } catch (e) {}
+    window._amsContactIsCom = !!isCom;
 }
