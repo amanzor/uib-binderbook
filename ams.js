@@ -1575,7 +1575,7 @@ function amsRenderNotes(key) {
 
 // ── Tabs ─────────────────────────────────────────────────────
 function amsShowTab(tab) {
-    ['contact','policies','notes','communications','documents','clientApps','certificates','interests','insuredLogin'].forEach(t => {
+    ['contact','policies','notes','communications','documents','clientApps','certificates','interests','maxAi','insuredLogin'].forEach(t => {
         const el = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         if (el) el.style.display = t === tab ? 'block' : 'none';
         document.querySelector(`.ams-tab[data-tab="${t}"]`)?.classList.toggle('active', t === tab);
@@ -1585,6 +1585,7 @@ function amsShowTab(tab) {
     if (tab === 'certificates' && amsActiveKey && typeof certRenderList === 'function') certRenderList();
     if (tab === 'interests' && amsActiveKey && typeof aiRender === 'function') aiRender();
     if (tab === 'insuredLogin' && amsActiveKey && typeof ilRender === 'function') ilRender();
+    if (tab === 'maxAi' && window.MaxAI) MaxAI.mount('tabMaxAi');
     if (tab === 'communications' && amsActiveKey && typeof amsRenderCommunications === 'function') amsRenderCommunications(amsActiveKey);
 }
 
