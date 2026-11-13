@@ -1,0 +1,37 @@
+/* Max AI look for every AI chat box (Binder Book + AMS). Style only — each box keeps its own AI. */
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card){
+  background:#fff!important;border:1px solid #cbd5e1!important;border-radius:16px!important;
+  box-shadow:0 6px 20px rgba(15,23,42,.08)!important;overflow:hidden;padding:0 0 14px!important}
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card)>div:first-child{
+  background:linear-gradient(135deg,#0f172a,#334155)!important;color:#fff!important;padding:12px 14px!important;margin:0 0 12px!important}
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card)>div:first-child :is(span,div,strong){color:#fff!important}
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card)>div:first-child svg{fill:#fff!important}
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card)>div:not(:first-child),
+#amsRnwAiBody>div{margin-left:14px!important;margin-right:14px!important}
+#amsRnwAiBody{margin:0!important}#amsRnwAiBody>div{margin-left:0!important;margin-right:0!important}#amsRnwAiCard>#amsRnwAiBody{padding:0 14px}
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card) [style*="#9a3412"],
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card) [style*="#c2410c"]:not(button):not([style*="#D97757"]):not([style*="#d97757"]){color:#334155!important}
+/* message areas */
+:is(#claudeInlineMessages,#claudeAdminMessages,#claudeRenewalMessages,#amsRnwMessages,#commAiMessages,#aiChatMessages){
+  background:#f8fafc!important;border:1px solid #e2e8f0!important;border-radius:12px!important;font-size:13px!important}
+/* bubbles: user = dark slate, assistant = white */
+:is(#claudeInlineMessages,#claudeAdminMessages,#claudeRenewalMessages,#amsRnwMessages,#commAiMessages) [style*="#D97757"],
+:is(#claudeInlineMessages,#claudeAdminMessages,#claudeRenewalMessages,#amsRnwMessages,#commAiMessages) [style*="#d97757"],
+#aiChatMessages .ai-msg.user{background:#0f172a!important;color:#fff!important;border-radius:12px 12px 2px 12px!important;border:none!important}
+:is(#claudeInlineMessages,#claudeAdminMessages,#claudeRenewalMessages,#amsRnwMessages,#commAiMessages)>div:not([style*="#D97757"]):not([style*="#d97757"]),
+#aiChatMessages .ai-msg.assistant{background:#fff!important;border:1px solid #e2e8f0!important;border-radius:12px 12px 12px 2px!important;color:#0f172a}
+/* inputs + buttons */
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card) textarea,#aiChatInput{
+  border:1.5px solid #cbd5e1!important;border-radius:10px!important}
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card) button[style*="#fff"]{
+  background:#fff!important;border:1px solid #cbd5e1!important;color:#334155!important;border-radius:10px!important}
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card)>div:first-child button[style*="#fff"]{
+  background:rgba(255,255,255,.15)!important;border:1px solid rgba(255,255,255,.3)!important;color:#fff!important}
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card,#aiChatPanel) :is(#claudeInlineSendBtn,#claudeAdminSendBtn,#claudeRenewalSendBtn,#amsRnwSendBtn,#commAiProcessBtn,#aiSendBtn,#amsRnwAiToggle)[id]{
+  background:#0f172a!important;color:#fff!important;border:none!important;border-radius:10px!important}
+:is(#claudeInlineFilePreview,#claudeAdminFilePreview,#claudeRenewalFilePreview,#amsRnwFilePreview,#commAiPreview,#aiFilePreview){
+  background:#f1f5f9!important;border:1px solid #e2e8f0!important;color:#334155!important}
+/* floating AMS assistant */
+#aiChatPanel{border:1px solid #cbd5e1!important;border-radius:16px!important;box-shadow:0 6px 20px rgba(15,23,42,.15)!important}
+#aiChatPanel .ai-chat-header{background:linear-gradient(135deg,#0f172a,#334155)!important}
+#aiBubbleBtn{background:linear-gradient(135deg,#0f172a,#334155)!important}
