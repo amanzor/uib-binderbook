@@ -7020,3 +7020,48 @@ function amsClientActionDelete() {
         window.UIBBinderSync.markDeleted(ids).then(() => window.UIBBinderSync.save('binderData', binder)).then(done, done);
     } else { if (ids.length) amsSave('binderData', binder); done(); }
 }
+
+// ── Browser Back / Forward inside the AMS ───────────────────────
+// The AMS is one page, so Chrome's Back button used to leave it. After
+// every click we note where the user is (book, section, open client,
+// client tab) and add a history step when that changed; Back and Forward
+// then walk those steps instead of leaving the app.
+(function () {
+    let restoring = false, last = '';
+    function snap() {
+        const detail = document.getElementById('amsClientDetail');
+        const open = detail && detail.style.display !== 'none' && typeof amsActiveKey !== 'undefined' ? (amsActiveKey || '') : '';
+        const tab = open ? (document.querySelector('.ams-tabs .ams-tab.active')?.dataset.tab || 'contact') : '';
+        return {
+            book: typeof amsBook === 'function' ? amsBook() : '',
+            sec: typeof amsBookSection === 'function' ? amsBookSection() : '',
+            key: open, tab
+        };
+    }
+    function record() {
+        if (restoring || typeof amsCurrentUser === 'undefined' || !amsCurrentUser) return;
+        const s = snap(), j = JSON.stringify(s);
+        if (j === last) return;
+        if (!last) history.replaceState({ ams: s }, '');
+        else history.pushState({ ams: s }, '');
+        last = j;
+    }
+    function restore(s) {
+        restoring = true;
+        try {
+            if (s.book && typeof amsBook === 'function' && amsBook() !== s.book && typeof amsSetBook === 'function') amsSetBook(s.book);
+            if (s.key && typeof amsClientIndex !== 'undefined' && amsClientIndex[s.key]) {
+                amsLoadClientDetail(s.key);
+                if (s.tab && s.tab !== 'contact') amsShowTab(s.tab);
+            } else if (s.sec && typeof amsSidebarNav === 'function') {
+                amsSidebarNav(s.sec);
+            }
+        } catch (e) { console.warn('AMS back:', e); }
+        last = JSON.stringify(snap());
+        setTimeout(() => { restoring = false; }, 0);
+    }
+    window.addEventListener('popstate', e => { if (e.state && e.state.ams) restore(e.state.ams); });
+    // Record after the click's own handlers have run.
+    document.addEventListener('click', () => setTimeout(record, 60), true);
+    window.addEventListener('load', () => setTimeout(record, 1500));
+})();
