@@ -892,14 +892,51 @@ function migrateLocationNames() {
 }
 
 function getAllAgents() {
-    // The canonical roster = the Agent Management list. Agent dropdowns
-    // everywhere use this, so they only show registered agents (not names
-    // scraped from old binder entries or leftover login credentials). Falls
-    // back to the built-in list only if no managed agents exist yet.
-    let master = {};
-    try { master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) {}
-    const names = Object.keys(master);
-    return (names.length ? [...new Set(names)] : AGENTS.slice()).sort();
+    // Every agent the app knows: the built-in roster, the Agent Management
+    // profiles and the sign-in records -- the same people the Agent
+    // Management screen lists. Agent dropdowns everywhere use this.
+    //
+    // This used to return the Agent Management profiles ALONE whenever at
+    // least one existed, falling back to the built-in roster only while there
+    // were none. So saving the first full profile (one new agent) silently
+    // dropped every other agent from every dropdown. Names scraped from old
+    // binder entries are still left out on purpose.
+    const names = new Set();
+    const add = (n) => { n = String(n == null ? '' : n).trim(); if (n && n !== 'Admin') names.add(n); };
+    AGENTS.forEach(add);
+    try { Object.values((window.UIBAuth && UIBAuth.KNOWN_AGENTS) || {}).forEach(add); } catch (e) {}
+    try { Object.keys(JSON.parse(localStorage.getItem('agentMasterData')) || {}).forEach(add); } catch (e) {}
+    try { Object.keys(JSON.parse(localStorage.getItem('agentCredentials')) || {}).forEach(add); } catch (e) {}
+    return [...names].sort();
+}
+
+// An agent's email: their Agent Management profile first, then the sign-in
+// record on this device, then the built-in email list. Most agents have no
+// full profile, so reading the profile alone leaves them without an email.
+function _agentEmailFor(name) {
+    const pick = (obj) => String(((obj || {})[name] || {}).email || '').trim().toLowerCase();
+    let em = '';
+    try { em = pick(JSON.parse(localStorage.getItem('agentMasterData'))); } catch (e) {}
+    if (!em) { try { em = pick(JSON.parse(localStorage.getItem('agentCredentials'))); } catch (e) {} }
+    if (!em) {
+        const known = (window.UIBAuth && UIBAuth.KNOWN_AGENTS) || {};
+        em = Object.keys(known).find(e => known[e] === name) || '';
+    }
+    return em;
+}
+
+// Refill an "All Agents" filter from the shared agent list, keeping the
+// current choice. For the filters whose options were typed into the page.
+function _fillAgentFilter(id) {
+    const sel = document.getElementById(id); if (!sel) return;
+    const agents = getAllAgents();
+    const have = Array.from(sel.options).slice(1).map(o => o.value);
+    if (have.length === agents.length && have.every((v, i) => v === agents[i])) return;
+    const cur = sel.value;
+    sel.innerHTML = '';
+    const all = document.createElement('option'); all.value = ''; all.textContent = 'All Agents'; sel.appendChild(all);
+    agents.forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o); });
+    sel.value = agents.includes(cur) ? cur : '';
 }
 
 // Initialize credentials — structure: { "Agent Name": { email, password } }
@@ -1141,7 +1178,10 @@ async function renderCredentialListPage() {
     const agents = getAllAgents();
     const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
     const byEmail = {}; Object.keys(master).forEach((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); if (em) byEmail[em] = n; });
-    const missing = agents.filter((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); return !users.some((u) => String(u.email).toLowerCase() === em || u.agent_name === n); });
+    // Compare on each agent's known email (profile, sign-in record or built-in
+    // list), not the profile alone: most agents have no full profile, and an
+    // empty email would flag every one of them as having no login.
+    const missing = agents.filter((n) => { const em = _agentEmailFor(n); return !users.some((u) => (em && String(u.email).toLowerCase() === em) || u.agent_name === n || _agentNameForEmail(u.email) === n); });
     const fmt = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
     const rank = { executive: 0, admin: 1, agent: 2 };
     users.sort((a, b) => (rank[a.role] - rank[b.role]) || String(a.agent_name || a.email).localeCompare(String(b.agent_name || b.email)));
@@ -1150,7 +1190,7 @@ async function renderCredentialListPage() {
     const sel = 'padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;';
     const isMe = (u) => String(u.email).toLowerCase() === String(me.email || '').toLowerCase();
     const rows = users.map((u) => {
-        const linked = u.agent_name || byEmail[String(u.email).toLowerCase()] || '';
+        const linked = u.agent_name || byEmail[String(u.email).toLowerCase()] || _agentNameForEmail(u.email) || '';
         const nameCell = _credCanEdit
             ? `<input value="${_esc(linked)}" list="credAgentNames" placeholder="Full name" onchange="credSetName('${_esc(u.id)}', this.value)" style="${sel}width:170px;">`
             : `<span style="font-weight:600;">${_esc(linked || '—')}</span>`;
@@ -1242,7 +1282,7 @@ function openAddCredentialModal() {
     const dl = document.getElementById('newCredAgentList');
     if (dl) dl.innerHTML = getAllAgents().map((n) => `<option value="${_esc(n)}">`).join('');
     sel.value = '';
-    sel.oninput = () => { const m = master[sel.value]; if (m && m.email) document.getElementById('newCredEmail').value = m.email; };
+    sel.oninput = () => { const em = (typeof _agentEmailFor === 'function') ? _agentEmailFor(sel.value) : ((master[sel.value] || {}).email || ''); if (em) document.getElementById('newCredEmail').value = em; };
     const rs = document.getElementById('newCredRole'); if (rs) rs.value = 'agent';
     document.getElementById('newCredEmail').value = '';
     document.getElementById('newCredPassword').value = '';
@@ -3242,9 +3282,9 @@ function uwLogContact(entryId) {
 }
 
 function renderProspectsDashboard() {
-    const all = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const all = (JSON.parse(localStorage.getItem('prospectData')) || []).filter(p => p && p.status !== 'Removed');
 
-    // Populate agent filter (once) from data + master agents
+    // Populate agent filter from the shared agent list
     const agentSel = document.getElementById('pdash_agentFilter');
     if (agentSel) {
         const current = agentSel.value;
@@ -3626,7 +3666,112 @@ function archiveProspectToAMS(p) {
     }
 }
 
+// ── Report a prospect for removal ────────────────────────────────
+// Anyone can flag a prospect that should not be on the list (a duplicate,
+// a wrong number, someone who asked not to be contacted). The request
+// sits on the record until an Executive Admin removes it or keeps it.
+// Executive Admins see a banner on Prospects and a red count on the
+// Prospects button until every report is handled.
+function _prospectIsExec() { return !!(window.UIBAuth && UIBAuth.isExecutive && UIBAuth.isExecutive()); }
+function _prospectReported(list) { return (list || []).filter(p => p && p.removalRequest && p.status !== 'Removed'); }
+
+function prospectReport(id) {
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    const name = _prospectFullName(p) || p.businessName || 'this prospect';
+    const reason = prompt(`Report ${name} for removal from the list.\n\nWhy should it be removed? (e.g. duplicate, wrong number, not interested, already a client)`);
+    if (reason === null) return;
+    if (!reason.trim()) { alert('Please give a short reason so the Executive Admins know why.'); return; }
+    p.removalRequest = { by: currentUser || '', at: new Date().toISOString(), reason: reason.trim() };
+    p.updatedAt = Date.now();
+    _prospectSave(prospects);
+    if (window.UIBAudit) try { UIBAudit.log('prospect_reported', name, { id, reason: reason.trim() }); } catch (e) {}
+    renderProspectsTable();
+    alert(`Reported. The Executive Admins will see ${name} in their removal list.`);
+}
+
+function prospectApproveRemoval(id) {
+    if (!_prospectIsExec()) { alert('Only Executive Admins can remove prospects.'); return; }
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    const name = _prospectFullName(p) || p.businessName || 'this prospect';
+    if (!confirm(`Remove ${name} from the prospect list?\n\nReported by ${p.removalRequest?.by || '—'}: ${p.removalRequest?.reason || ''}`)) return;
+    p.status = 'Removed';
+    p.removedBy = currentUser || '';
+    p.removedAt = new Date().toISOString();
+    p.updatedAt = Date.now();
+    _prospectSave(prospects);
+    if (window.UIBAudit) try { UIBAudit.log('prospect_removed', name, { id }); } catch (e) {}
+    if (typeof renderProspectsDashboard === 'function') renderProspectsDashboard();
+    renderProspectsTable();
+}
+
+function prospectDismissReport(id) {
+    if (!_prospectIsExec()) return;
+    const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
+    const p = prospects.find(x => x.id === id);
+    if (!p) return;
+    p.reportDismissed = Object.assign({}, p.removalRequest, { keptBy: currentUser || '', keptAt: new Date().toISOString() });
+    delete p.removalRequest;
+    p.updatedAt = Date.now();
+    _prospectSave(prospects);
+    if (window.UIBAudit) try { UIBAudit.log('prospect_report_kept', _prospectFullName(p), { id }); } catch (e) {}
+    renderProspectsTable();
+}
+
+function prospectShowReported() {
+    const f = document.getElementById('prospectFilterStatus'); if (f) f.value = 'all';
+    const s = document.getElementById('prospectSearch'); if (s) s.value = '';
+    const a = document.getElementById('prospectFilterAgent'); if (a) a.value = '';
+    renderProspectsTable();
+    setTimeout(() => document.querySelector('#prospectsTableBody tr[style*="fff5f5"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+}
+
+function _prospectRenderReportBanner(prospects) {
+    const reported = _prospectIsExec() ? _prospectReported(prospects) : [];
+    const tbody = document.getElementById('prospectsTableBody');
+    const table = tbody && tbody.closest('table');
+    const host  = table && (table.parentElement || table);
+    let el = document.getElementById('prospectReportBanner');
+    if (!reported.length) { if (el) el.remove(); _prospectUpdateReportBadges(0); return; }
+    if (!el && host) {
+        el = document.createElement('div');
+        el.id = 'prospectReportBanner';
+        host.parentElement.insertBefore(el, host);
+    }
+    if (el) el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px 16px;margin:0 0 12px;color:#991b1b;font-size:13px;">
+        <div><b>🚩 ${reported.length} prospect${reported.length !== 1 ? 's' : ''} reported for removal.</b>
+        <span style="color:#b45309;">${reported.slice(0, 4).map(p => _esc(_prospectFullName(p) || p.businessName || '—')).join(', ')}${reported.length > 4 ? '…' : ''}</span></div>
+        <button class="btn-danger btn-sm" onclick="prospectShowReported()">Review</button></div>`;
+    _prospectUpdateReportBadges(reported.length);
+}
+
+// A red count on every Prospects button, for Executive Admins only.
+function _prospectUpdateReportBadges(n) {
+    if (n === undefined) {
+        let list = []; try { list = JSON.parse(localStorage.getItem('prospectData')) || []; } catch (e) {}
+        n = _prospectIsExec() ? _prospectReported(list).length : 0;
+    }
+    document.querySelectorAll('button[onclick^="showProspectsSection"]').forEach(b => {
+        let badge = b.querySelector('.prospect-report-badge');
+        if (!n) { if (badge) badge.remove(); return; }
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'prospect-report-badge';
+            badge.style.cssText = 'margin-left:6px;background:#dc2626;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:800;';
+            b.appendChild(badge);
+        }
+        badge.textContent = n;
+        badge.title = n + ' prospect' + (n !== 1 ? 's' : '') + ' reported for removal';
+    });
+}
+setInterval(() => { try { _prospectUpdateReportBadges(); } catch (e) {} }, 30000);
+document.addEventListener('DOMContentLoaded', () => setTimeout(() => { try { _prospectUpdateReportBadges(); } catch (e) {} }, 4000));
+
 function renderProspectsTable() {
+    _fillAgentFilter('prospectFilterAgent');
     const prospects = JSON.parse(localStorage.getItem('prospectData')) || [];
     const search    = (document.getElementById('prospectSearch')?.value || '').toLowerCase();
     const agentF    = document.getElementById('prospectFilterAgent')?.value || '';
@@ -3641,6 +3786,7 @@ function renderProspectsTable() {
                 .some(v => String(v || '').toLowerCase().includes(search));
         const matchAgent  = !agentF  || p.agent === agentF;
         const st = p.status || 'Open';
+        if (st === 'Removed') return false;          // removed by an Executive Admin after a report
         const matchStatus = statusF === 'all' ? true
             : statusF ? st === statusF
             : (st !== 'Closed' && st !== 'Lost');   // default view: still-active prospects
@@ -3654,6 +3800,7 @@ function renderProspectsTable() {
     if (!filtered.length) {
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--gray-400);padding:32px;">No prospects found.</td></tr>';
         document.getElementById('prospectCount').textContent = '';
+        _prospectRenderReportBanner(prospects);
         return;
     }
 
@@ -3686,8 +3833,14 @@ function renderProspectsTable() {
                          p.quotedPremium ? `💬 quoted $${Number(p.quotedPremium).toLocaleString('en-US')}` : '',
                          p.dob ? `🎂 ${_esc(p.dob)}` : '']
                         .filter(Boolean).map(t => `<div style="font-size:11px;font-weight:400;color:var(--gray-500);margin-top:2px;">${t}</div>`).join('');
-        return `<tr>
-            <td style="font-weight:600;">${fullName}${detail}${pendingChips ? `<div style="margin-top:3px;font-weight:400;">${pendingChips}</div>` : ''}</td>
+        const rr = p.removalRequest;
+        const reportTag = rr ? `<div style="margin-top:4px;font-weight:400;"><span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;" title="${_esc(rr.reason || '')}">🚩 Reported by ${_esc(rr.by || '—')}${rr.reason ? ': ' + _esc(rr.reason.length > 60 ? rr.reason.slice(0, 60) + '…' : rr.reason) : ''}</span></div>` : '';
+        const reportBtns = rr
+            ? (_prospectIsExec() ? `<button class="btn-danger btn-sm" onclick="prospectApproveRemoval('${p.id}')" title="Remove this prospect from the list">🗑 Remove</button>
+                <button class="btn-sm" onclick="prospectDismissReport('${p.id}')" title="Keep it on the list and clear the report" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;">↩ Keep</button>` : '')
+            : `<button class="btn-sm" onclick="prospectReport('${p.id}')" title="Ask an Executive Admin to remove this prospect from the list" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;">🚩 Report</button>`;
+        return `<tr${rr ? ' style="background:#fff5f5;"' : ''}>
+            <td style="font-weight:600;">${fullName}${detail}${pendingChips ? `<div style="margin-top:3px;font-weight:400;">${pendingChips}</div>` : ''}${reportTag}</td>
             <td>${p.phone || '—'}${p.phone2 ? `<div style="font-size:11px;color:var(--gray-500);">${_esc(p.phone2)}</div>` : ''}</td>
             <td>${p.email || '—'}</td>
             <td>${p.lob || '—'}</td>
@@ -3705,12 +3858,14 @@ function renderProspectsTable() {
                 <button class="btn-sm" onclick="prospectOpenPending('${p.id}')" title="What is still outstanding from this client" style="background:#f5f3ff;color:#5b21b6;border:1px solid #ddd6fe;">📋 Items${pendingCount ? ` (${pendingCount})` : ''}</button>
                 <button class="btn-success btn-sm" onclick="prospectMarkSold('${p.id}')" title="Mark as sold and create the Daily Sales Entry">💰 Sold</button>
                 <button class="btn-danger btn-sm" onclick="prospectMarkLost('${p.id}')" title="Mark as lost and archive into AMS as an Inactive Prospect">✖ Lost</button>`}
+                ${reportBtns}
             </td>
         </tr>`;
     }).join('');
 
     document.getElementById('prospectCount').textContent =
         `Showing ${filtered.length} of ${prospects.length} prospect${prospects.length !== 1 ? 's' : ''}`;
+    _prospectRenderReportBanner(prospects);
 
     if (window.UIBMotion) UIBMotion.animateTableRows(tbody);
 }
@@ -3731,7 +3886,7 @@ function showVerificationLogsSection() {
 function renderVerificationLogsDashboard() {
     const all = JSON.parse(localStorage.getItem('verificationLogs')) || [];
 
-    // Populate agent filter (once) from data + master agents
+    // Populate agent filter from the shared agent list
     const agentSel = document.getElementById('vldash_agentFilter');
     if (agentSel) {
         const current = agentSel.value;
@@ -3834,6 +3989,7 @@ function renderVerificationLogsDashboard() {
 }
 
 function renderVerificationLogsTable() {
+    _fillAgentFilter('vlFilterAgent');
     const logs    = JSON.parse(localStorage.getItem('verificationLogs')) || [];
     const search  = (document.getElementById('vlSearch')?.value || '').toLowerCase();
     const agentF  = document.getElementById('vlFilterAgent')?.value || '';
@@ -4821,6 +4977,8 @@ function _updateBulkDeleteBar() {
     const bar = document.getElementById('bulkDeleteBar');
     const count = document.getElementById('bulkSelectedCount');
     if (!bar) return;
+    const rb = document.getElementById('bulkReassignBtn');
+    if (rb) rb.style.display = _canReassignEntries() ? '' : 'none';
     if (checked.length > 0) {
         bar.style.display = 'flex';
         if (count) count.textContent = checked.length;
@@ -4840,6 +4998,36 @@ function bulkDeleteSelected() {
     localStorage.setItem('binderData', JSON.stringify(allData));
     loadAgentData();
     if (typeof triggerGoogleDriveSync === 'function') triggerGoogleDriveSync();
+}
+
+// Move the selected entries to another agent (Executive Admins only).
+function bulkReassignSelected() {
+    if (!_canReassignEntries()) { alert('Only Executive Admins can reassign entries.'); return; }
+    const ids = [...document.querySelectorAll('.agent-row-cb:checked')].map(cb => String(cb.value));
+    if (!ids.length) return;
+    const agents = getAllAgents();
+    const pick = prompt(`Reassign ${ids.length} entr${ids.length === 1 ? 'y' : 'ies'} to which agent?\n\n` +
+        agents.map((a, i) => `${i + 1}. ${a}`).join('\n') + '\n\nType the number or the full name:');
+    if (pick === null) return;
+    const t = pick.trim();
+    const to = /^\d+$/.test(t) ? agents[parseInt(t, 10) - 1] : agents.find(a => a.toLowerCase() === t.toLowerCase());
+    if (!to) { alert('No agent matches "' + t + '".'); return; }
+    if (!confirm(`Move ${ids.length} entr${ids.length === 1 ? 'y' : 'ies'} to ${to}?`)) return;
+    let moved = 0;
+    allData.forEach(e => {
+        if (!ids.includes(String(e.id)) || e.agent === to) return;
+        const from = e.agent || '';
+        e.agent = to;
+        e.updatedAt = Date.now();
+        if (typeof vaultEntry === 'function') vaultEntry(e);
+        if (window.UIBAudit) UIBAudit.log('reassign_entry', e.customerName || '', { id: e.id, policyNumber: e.policyNumber || '', from, to });
+        if (typeof syncEntryToAMS === 'function') { try { syncEntryToAMS(e); } catch (err) {} }
+        moved++;
+    });
+    localStorage.setItem('binderData', JSON.stringify(allData));
+    bulkClearSelection();
+    if (currentRole === 'agent') loadAgentData(); else loadAdminDashboard();
+    alert(`${moved} entr${moved === 1 ? 'y' : 'ies'} moved to ${to}.`);
 }
 
 function bulkClearSelection() {
@@ -4895,7 +5083,7 @@ function populateAgentFilter() {
     const select = document.getElementById('adminAgentFilter');
     if (!select) return;
 
-    // Only the registered agents (Agent Management list).
+    // The shared agent list (same people as Agent Management).
     const allAgents = getAllAgents();
 
     select.innerHTML = '<option value="">All Agents</option>';
@@ -5150,11 +5338,15 @@ function _isMasterAdmin() {
     const u = window.UIBAuth && UIBAuth.user();
     return !!(u && String(u.email || '').toLowerCase() === MASTER_ADMIN_EMAIL);
 }
+// Reassigning an entry's agent: Executive Admins only (and the master admin login).
+function _canReassignEntries() {
+    return _isMasterAdmin() || !!(window.UIBAuth && UIBAuth.isExecutive && UIBAuth.isExecutive());
+}
 function _setupEditAgentReassign(entry) {
     const grp = document.getElementById('editAgentGroup');
     const sel = document.getElementById('editAgent');
     if (!grp || !sel) return;
-    if (!_isMasterAdmin()) { grp.style.display = 'none'; sel.innerHTML = ''; return; }
+    if (!_canReassignEntries()) { grp.style.display = 'none'; sel.innerHTML = ''; return; }
     const agents = getAllAgents().slice();
     const cur = entry.agent || '';
     if (cur && !agents.includes(cur)) agents.unshift(cur);
@@ -5249,9 +5441,9 @@ function updateEntry() {
     entry.paymentType = document.getElementById('editPaymentType').value;
     entry.documentationStatus = collectEditDocStatus();
     entry.secondAgent = document.getElementById('editSecondAgent')?.value || '';
-    // Reassignment is accepted only from the master admin account.
+    // Reassignment is accepted only from Executive Admins.
     const _newAgent = document.getElementById('editAgent')?.value || '';
-    if (_isMasterAdmin() && _newAgent && _newAgent !== entry.agent) {
+    if (_canReassignEntries() && _newAgent && _newAgent !== entry.agent) {
         const _fromAgent = entry.agent || '';
         entry.agent = _newAgent;
         if (window.UIBAudit) UIBAudit.log('reassign_entry', entry.customerName || '', { id: entry.id, policyNumber: entry.policyNumber || '', from: _fromAgent, to: _newAgent });
@@ -6335,10 +6527,8 @@ function loadCommissionDashboard() {
 
     // Populate agent filter from master list + commission data
     const filterSelect = document.getElementById('commissionAgentFilter');
-    const agentMasterData = JSON.parse(localStorage.getItem('agentMasterData')) || {};
-    const masterAgents = Object.keys(agentMasterData);
     const commissionAgents = Object.keys(commissions);
-    const allAgentNames = [...new Set([...masterAgents, ...commissionAgents])].sort();
+    const allAgentNames = [...new Set([...getAllAgents(), ...commissionAgents])].sort();
 
     filterSelect.innerHTML = '<option value="">All Agents</option>';
     allAgentNames.forEach(agent => {
@@ -6415,7 +6605,7 @@ function displayAllCommissions(commissions) {
 
     // Also collect agent commission share rows
     const filterAgentForShares = filterAgent;
-    AGENTS.forEach(agent => {
+    getAllAgents().forEach(agent => {   // every agent, not only the built-in six
         if (filterAgentForShares && agent !== filterAgentForShares) return;
         const shares = getAgentCommissionShares(agent);
         Object.entries(shares).forEach(([month, data]) => {
@@ -10249,7 +10439,7 @@ function showProductionDashboard() {
     // Refresh allData from localStorage in case it was updated
     allData = JSON.parse(localStorage.getItem('binderData')) || [];
 
-    // Populate Agent filter — merge from data + registered agents
+    // Populate Agent filter from the shared agent list
     const agents = getAllAgents();
     const agentSel = document.getElementById('prodAgentFilter');
     if (agentSel) agentSel.innerHTML =
@@ -15357,7 +15547,7 @@ async function renderAckStatus() {
     const box = document.getElementById('accessLogAcks'); if (!box) return;
     let acks = {}; try { acks = (await UIBAudit.getAcks()) || {}; } catch (e) {}
     const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
-    const rows = getAllAgents().map(n => { const em = ((master[n] && master[n].email) || '').toLowerCase(); const a = em && acks[em]; const ok = a && a.version === UIBAudit.ACK_VERSION; return `<tr><td>${_esc(n)}</td><td style="font-size:12px;">${_esc(em || '—')}</td><td>${ok ? '<span style="color:#166534;font-weight:700;">✓ ' + new Date(a.date).toLocaleDateString() + '</span>' : '<span style="color:#b45309;font-weight:700;">Not yet for ' + UIBAudit.ACK_VERSION + '</span>'}</td></tr>`; }).join('');
+    const rows = getAllAgents().map(n => { const em = _agentEmailFor(n); const a = em && acks[em]; const ok = a && a.version === UIBAudit.ACK_VERSION; return `<tr><td>${_esc(n)}</td><td style="font-size:12px;">${_esc(em || '—')}</td><td>${ok ? '<span style="color:#166534;font-weight:700;">✓ ' + new Date(a.date).toLocaleDateString() + '</span>' : '<span style="color:#b45309;font-weight:700;">Not yet for ' + UIBAudit.ACK_VERSION + '</span>'}</td></tr>`; }).join('');
     box.innerHTML = `<h3 style="margin:22px 0 8px;font-size:15px;">Confidentiality &amp; security acknowledgment (${UIBAudit.ACK_VERSION})</h3><div class="table-container"><table style="width:100%;"><thead><tr><th>Agent</th><th>Email</th><th>Accepted</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function exportAccessLogCSV() {

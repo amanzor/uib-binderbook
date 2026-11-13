@@ -335,6 +335,7 @@ function amsBuildClientIndex() {
     Object.keys(contacts).forEach(key => {
         // A client record a monday.com import created, since undone.
         if (!index[key] && contacts[key] && contacts[key].importUndone) return;
+        if (contacts[key] && contacts[key]._deleted) { if (index[key]) delete index[key]; return; }
         if (!index[key]) {
             index[key] = {
                 key,
@@ -481,7 +482,7 @@ function amsDoLogin() {
         const pw = document.getElementById('amsLoginPassword'); if (pw) pw.value = '';
         amsCurrentUser = (user.name && user.name !== 'Admin') ? user.name : 'Admin';
         amsCurrentRole = user.role;
-        const knownAgents = Object.keys(amsGetCredentials()); if (!knownAgents.length) knownAgents.push('Alberto Manzor', 'Randy Diaz', 'Amanda Montano', 'Uriel Rendon', 'Jorge Castro', 'Lazaro Reigoza');
+        const knownAgents = amsAllAgentNames();   // every known agent, not the Agent Management profiles alone
         if (amsCurrentUser !== 'Admin' && user.role !== 'admin' && !knownAgents.includes(amsCurrentUser)) {
             const creds = amsGetCredentials(); const byEmail = Object.keys(creds).find(n => String(creds[n].email || '').toLowerCase() === String(user.email || '').toLowerCase()) || (UIBAuth.KNOWN_AGENTS || {})[String(user.email || '').toLowerCase()];
             if (byEmail) { amsCurrentUser = byEmail; UIBAuth.adoptName(byEmail); amsLaunchApp(); return; }
@@ -1118,9 +1119,9 @@ function amsUpdateMergeButton() {
     if (btn) btn.style.display = amsFilteredKeys.filter(k => !amsClientIndex[k]?.isHealth).length >= 2 ? 'inline-flex' : 'none';
 }
 
-function amsOpenMergeModal() {
+function amsOpenMergeModal(keys) {
     // Health Book records keep their own card; they are never merged into a client.
-    _amsMergeKeys = amsFilteredKeys.filter(k => !amsClientIndex[k]?.isHealth);
+    _amsMergeKeys = (Array.isArray(keys) ? keys : amsFilteredKeys).filter(k => amsClientIndex[k] && !amsClientIndex[k].isHealth);
     if (_amsMergeKeys.length < 2) {
         alert('Need at least two clients in the list to merge. Adjust your search or filters first.');
         return;
@@ -1257,7 +1258,7 @@ async function amsPerformMerge(primaryKey, sourceKeys) {
     //    concatenate notes, then drop the source contact records.
     const contacts = amsGetClientData();
     const target   = contacts[primaryKey] || {};
-    const contactFields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
+    const contactFields = ['firstName','lastName','companyName','dba','fein','entityType','yearStarted','bizDesc','contactFirst','contactLast','contactTitle','dob','gender','marital','ssn4','phone1','phone2','email',
         'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
         'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
         'privacyNoticeDate','privacyNoticeMethod'];
@@ -1364,8 +1365,18 @@ function amsLoadClientDetail(key) {
     metaItems.push(`<span class="tag ${_statusTag}">${amsEscHtml(_detailStatus)}</span>`);
     document.getElementById('detailMeta').innerHTML = metaItems.join('');
 
+    // Commercial clients: company details on top, owner/contact under Contact Details.
+    const _isCom = (typeof amsBook === 'function' && amsBook() === 'commercial') ||
+        (typeof amsBookOf === 'function' && client.policies.length > 0 &&
+         client.policies.filter(p => amsBookOf(p) === 'commercial').length * 2 >= client.policies.length);
+    amsApplyContactLayout(_isCom);
+    if (_isCom) {
+        const nm = document.getElementById('detailName');
+        if (nm && contact.companyName) nm.textContent = contact.companyName;
+    }
+
     // Populate contact form fields
-    const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
+    const fields = ['firstName','lastName','companyName','dba','fein','entityType','yearStarted','bizDesc','contactFirst','contactLast','contactTitle','dob','gender','marital','ssn4','phone1','phone2','email',
                     'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
                     'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
                     'privacyNoticeDate','privacyNoticeMethod'];
@@ -1383,6 +1394,11 @@ function amsLoadClientDetail(key) {
         }
         el.value = val;
     });
+    // A commercial client saved before the split: offer the business name.
+    if (_isCom) {
+        const cn = document.getElementById('ci_companyName');
+        if (cn && !cn.value) cn.value = client.displayName || `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+    }
 
     amsRenderPolicies(key);
     amsRenderNotes(key);
@@ -1578,7 +1594,7 @@ function amsSaveContact() {
     const contacts = amsGetClientData();
     if (!contacts[amsActiveKey]) contacts[amsActiveKey] = {};
 
-    const fields = ['firstName','lastName','dob','gender','marital','ssn4','phone1','phone2','email',
+    const fields = ['firstName','lastName','companyName','dba','fein','entityType','yearStarted','bizDesc','contactFirst','contactLast','contactTitle','dob','gender','marital','ssn4','phone1','phone2','email',
                     'prefContact','address','city','state','zip','dlNum','dlState','dlExp','language',
                     'assignedAgent','csrName','dealerLocation','clientSince','referral','clientStatus',
                     'privacyNoticeDate','privacyNoticeMethod'];
@@ -5949,7 +5965,7 @@ function aiFileToBase64(file) {
 function aiBuildContext() {
     const binder  = amsGetBinderData();
     const clients = Object.values(amsClientIndex || {});
-    const agents  = Object.keys(amsGetCredentials());
+    const agents  = amsAllAgentNames();
     const names   = clients.slice(0, 400).map(c => c.displayName);
     return `Agency: Universal Insurance Brokers (UIB).
 Logged-in user: ${amsCurrentUser || 'unknown'} (role: ${amsCurrentRole || 'unknown'}).
@@ -6441,7 +6457,7 @@ function rnwBuildContext() {
         .sort((a, b) => a.expirationDate.localeCompare(b.expirationDate))
         .slice(0, 300)
         .map(p => `${(p.customerName || '').trim()}|policy=${p.policyNumber || ''}|carrier=${p.company || ''}|lob=${p.lineOfBusiness || ''}|agent=${p.agent || ''}|premium=${p.totalPremium || 0}|expires=${p.expirationDate}`);
-    const agents = Object.keys(amsGetCredentials());
+    const agents = amsAllAgentNames();
     return `Agency: Universal Insurance Brokers (UIB). Logged-in user: ${amsCurrentUser || 'unknown'} (role: ${amsCurrentRole || 'unknown'}).
 Total policy entries in AMS: ${binder.length}. Agents: ${agents.join(', ') || '(none)'}.
 POLICIES EXPIRING WITHIN 180 DAYS (pipe-delimited: customer|policy|carrier|lob|agent|premium|expires):
@@ -6922,3 +6938,130 @@ function amsPolicyTermSync() {
     const exp = document.getElementById('mp_expDate');
     if (exp && eff && window.UIBTerm) exp.value = window.UIBTerm.addMonths(eff, term);
 }
+
+// Contact Info layout: personal identity fields vs. company details.
+function amsApplyContactLayout(isCom) {
+    document.querySelectorAll('#tabContact .ci-com').forEach(el => { el.style.display = isCom ? '' : 'none'; });
+    document.querySelectorAll('#tabContact .ci-per').forEach(el => { el.style.display = isCom ? 'none' : ''; });
+    const t = document.getElementById('ciIdentityTitle');
+    if (t) t.innerHTML = isCom ? '<i data-lucide="building-2"></i> Company Details' : '<i data-lucide="user"></i> Personal Information';
+    if (window.lucide) try { lucide.createIcons(); } catch (e) {}
+    window._amsContactIsCom = !!isCom;
+}
+
+// ── Client Actions menu (next to the Insured Login tab) ─────────
+function amsToggleClientActions(ev) {
+    if (ev) ev.stopPropagation();
+    const m = document.getElementById('amsClientActionsMenu');
+    if (!m) return;
+    const open = m.style.display === 'none';
+    m.style.display = open ? 'block' : 'none';
+    const del = document.getElementById('amsClientActDelete');
+    if (del) del.style.display = (window.UIBAuth && UIBAuth.isExecutive && UIBAuth.isExecutive()) ? '' : 'none';
+    if (open) setTimeout(() => document.addEventListener('click', () => { m.style.display = 'none'; }, { once: true }), 0);
+}
+
+function amsClientActionEdit() {
+    amsShowTab('contact');
+    const first = document.querySelector('#tabContact .ci-com:not([style*="none"]) input, #tabContact input');
+    if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => first.focus(), 300); }
+    amsFlashBanner('Edit the details below, then press Save Contact');
+}
+
+// Likely duplicates of the open client: same phone, email, or a close name.
+function amsClientActionMerge() {
+    const key = amsActiveKey; const me = amsClientIndex[key];
+    if (!me) return;
+    const norm = s => String(s || '').toUpperCase().replace(/\b(LLC|L L C|INC|CORP|CORPORATION|CO|COMPANY|THE)\b/g, '').replace(/[^A-Z0-9]/g, '');
+    const digits = s => String(s || '').replace(/\D/g, '').slice(-10);
+    const myName = norm(me.displayName), myPhone = digits(me.contact && me.contact.phone1), myEmail = String(me.contact && me.contact.email || '').toLowerCase();
+    const words = String(me.displayName || '').toUpperCase().split(/\s+/).filter(w => w.length > 2);
+    const cands = Object.keys(amsClientIndex).filter(k => {
+        if (k === key) return false;
+        const c = amsClientIndex[k]; if (!c || c.isHealth) return false;
+        const n = norm(c.displayName);
+        if (myName && n && (n === myName || n.includes(myName) || myName.includes(n))) return true;
+        if (myPhone && myPhone.length === 10 && digits(c.contact && c.contact.phone1) === myPhone) return true;
+        if (myEmail && String(c.contact && c.contact.email || '').toLowerCase() === myEmail) return true;
+        const cw = String(c.displayName || '').toUpperCase().split(/\s+/);
+        return words.length >= 2 && words.filter(w => cw.includes(w)).length >= 2;
+    });
+    if (!cands.length) {
+        if (confirm('No likely duplicates found by name, phone or email.\n\nOpen the merge window for the whole client list instead? (Filter the list first to narrow it down.)')) amsOpenMergeModal();
+        return;
+    }
+    amsOpenMergeModal([key].concat(cands));
+    // Pre-select this client as the one to keep.
+    const chk = document.querySelector('.ams-merge-check[data-idx="0"]');
+    if (chk) { chk.checked = true; amsMergeSelectionChanged(); }
+}
+
+function amsClientActionDelete() {
+    if (!(window.UIBAuth && UIBAuth.isExecutive && UIBAuth.isExecutive())) { alert('Only Executive Admins can delete a client.'); return; }
+    const key = amsActiveKey; const c = amsClientIndex[key];
+    if (!c) return;
+    const n = c.policies.length;
+    if (!confirm(`Delete ${c.displayName} from the system?\n\nThis removes the client record and ${n} polic${n === 1 ? 'y' : 'ies'} from the AMS and the Binder Book. Commission statements are not touched.`)) return;
+    if (prompt(`Type DELETE to confirm deleting ${c.displayName}.`) !== 'DELETE') return;
+    const ids = c.policies.map(p => p.id).filter(id => id != null);
+    const binder = amsGetBinderData().filter(p => !ids.includes(p.id));
+    const contacts = amsGetClientData();
+    contacts[key] = { _deleted: true, updatedAt: new Date().toISOString(), deletedBy: amsCurrentUser || '', name: c.displayName };
+    amsSave('amsClientData', contacts);
+    if (window.UIBAudit) try { UIBAudit.log('client_deleted', c.displayName, { policies: ids.length }); } catch (e) {}
+    const done = () => {
+        amsActiveKey = null;
+        amsBuildClientIndex(); amsRenderClientList();
+        document.getElementById('amsClientDetail').style.display = 'none';
+        const w = document.getElementById('amsWelcome'); if (w) w.style.display = '';
+        amsFlashBanner(c.displayName + ' deleted ✓');
+    };
+    if (window.UIBBinderSync && ids.length) {
+        window.UIBBinderSync.markDeleted(ids).then(() => window.UIBBinderSync.save('binderData', binder)).then(done, done);
+    } else { if (ids.length) amsSave('binderData', binder); done(); }
+}
+
+// ── Browser Back / Forward inside the AMS ───────────────────────
+// The AMS is one page, so Chrome's Back button used to leave it. After
+// every click we note where the user is (book, section, open client,
+// client tab) and add a history step when that changed; Back and Forward
+// then walk those steps instead of leaving the app.
+(function () {
+    let restoring = false, last = '';
+    function snap() {
+        const detail = document.getElementById('amsClientDetail');
+        const open = detail && detail.style.display !== 'none' && typeof amsActiveKey !== 'undefined' ? (amsActiveKey || '') : '';
+        const tab = open ? (document.querySelector('.ams-tabs .ams-tab.active')?.dataset.tab || 'contact') : '';
+        return {
+            book: typeof amsBook === 'function' ? amsBook() : '',
+            sec: typeof amsBookSection === 'function' ? amsBookSection() : '',
+            key: open, tab
+        };
+    }
+    function record() {
+        if (restoring || typeof amsCurrentUser === 'undefined' || !amsCurrentUser) return;
+        const s = snap(), j = JSON.stringify(s);
+        if (j === last) return;
+        if (!last) history.replaceState({ ams: s }, '');
+        else history.pushState({ ams: s }, '');
+        last = j;
+    }
+    function restore(s) {
+        restoring = true;
+        try {
+            if (s.book && typeof amsBook === 'function' && amsBook() !== s.book && typeof amsSetBook === 'function') amsSetBook(s.book);
+            if (s.key && typeof amsClientIndex !== 'undefined' && amsClientIndex[s.key]) {
+                amsLoadClientDetail(s.key);
+                if (s.tab && s.tab !== 'contact') amsShowTab(s.tab);
+            } else if (s.sec && typeof amsSidebarNav === 'function') {
+                amsSidebarNav(s.sec);
+            }
+        } catch (e) { console.warn('AMS back:', e); }
+        last = JSON.stringify(snap());
+        setTimeout(() => { restoring = false; }, 0);
+    }
+    window.addEventListener('popstate', e => { if (e.state && e.state.ams) restore(e.state.ams); });
+    // Record after the click's own handlers have run.
+    document.addEventListener('click', () => setTimeout(record, 60), true);
+    window.addEventListener('load', () => setTimeout(record, 1500));
+})();

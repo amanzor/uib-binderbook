@@ -6,8 +6,8 @@
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20261029a"></script>
     <script src="uib-binder-sync.js?v=20261106t"></script>
-    <script src="uib-auth.js?v=20261110a"></script>
-    <script src="uib-perms.js?v=20261110a"></script>
+    <script src="uib-auth.js?v=20261113m"></script>
+    <script src="uib-perms.js?v=20261113m"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
     <script src="uib-ai.js?v=20261022c"></script>
@@ -15,6 +15,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>UIB AMS — Agency Management System</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20261110a">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20261110a">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png?v=20261110a">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192.png?v=20261110a">
+    <link rel="shortcut icon" href="/favicon.ico?v=20261110a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
@@ -356,14 +361,21 @@
         }
         .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
         .info-field { display: flex; flex-direction: column; gap: 4px; }
-        .info-field label { font-size: 11px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: .5px; }
+        .info-field label { font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .5px; }
+        /* Light silver glass: fields stand out from the white cards. */
         .info-field input, .info-field select, .info-field textarea {
-            padding: 8px 10px; border: 1.5px solid var(--gray-200);
+            padding: 8px 10px; border: 1.5px solid #cfd6e0;
             border-radius: var(--radius-sm); font-family: inherit; font-size: 13px;
-            color: var(--gray-900); transition: border-color .15s;
+            color: var(--gray-900); transition: border-color .15s, box-shadow .15s, background .15s;
+            background: linear-gradient(180deg, rgba(241,244,248,.95) 0%, rgba(228,233,240,.9) 100%);
+            box-shadow: inset 0 1px 2px rgba(15,23,42,.06), inset 0 -1px 0 rgba(255,255,255,.7), 0 1px 0 rgba(255,255,255,.8);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
         }
+        .info-field input::placeholder, .info-field textarea::placeholder { color: #94a0b2; }
+        .info-field input:hover, .info-field select:hover, .info-field textarea:hover { border-color: #b4bfcd; }
         .info-field input:focus, .info-field select:focus, .info-field textarea:focus {
-            outline: none; border-color: var(--blue-light); box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+            outline: none; border-color: var(--blue-light); background: #fff;
+            box-shadow: 0 0 0 3px rgba(59,130,246,.15), inset 0 1px 2px rgba(15,23,42,.04);
         }
         .info-field textarea { resize: vertical; min-height: 80px; }
         .info-field .view-val { font-size: 13px; color: var(--gray-700); font-weight: 500; padding: 2px 0; }
@@ -1568,13 +1580,53 @@
                         <button class="ams-tab"         data-tab="certificates" onclick="amsShowTab('certificates')"><i data-lucide="award"></i> Certificate Master <span id="certTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="interests" onclick="amsShowTab('interests')"><i data-lucide="building-2"></i> Additional Interests <span id="aiTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="insuredLogin" onclick="amsShowTab('insuredLogin')" style="display:none;"><i data-lucide="key-round"></i> Insured Login <span id="ilTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;">ON</span></button>
+                        <div style="position:relative;margin-left:auto;display:flex;align-items:center;">
+                            <button type="button" class="btn-sm" onclick="amsToggleClientActions(event)" style="background:var(--navy,#1e3a8a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;white-space:nowrap;"><i data-lucide="settings-2"></i> Actions ▾</button>
+                            <div id="amsClientActionsMenu" style="display:none;position:absolute;right:0;top:110%;z-index:60;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);min-width:210px;padding:6px;">
+                                <button type="button" onclick="amsClientActionEdit()" style="display:block;width:100%;text-align:left;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;border-radius:6px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">✏️ Edit client info</button>
+                                <button type="button" onclick="amsClientActionMerge()" style="display:block;width:100%;text-align:left;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;border-radius:6px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🔗 Merge duplicates</button>
+                                <button type="button" id="amsClientActDelete" onclick="amsClientActionDelete()" style="display:block;width:100%;text-align:left;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;border-radius:6px;color:#dc2626;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">🗑 Delete client</button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- ── TAB: Contact Info ── -->
                     <div id="tabContact">
                         <div class="info-card">
-                            <h3><i data-lucide="user"></i> Personal Information</h3>
-                            <div class="info-grid">
+                            <h3 id="ciIdentityTitle"><i data-lucide="user"></i> Personal Information</h3>
+                            <!-- Commercial clients: the business itself. The owner/contact
+                                 person goes under Contact Details. -->
+                            <div class="info-grid ci-com" style="display:none;">
+                                <div class="info-field" style="grid-column:span 2;">
+                                    <label>Company Name</label>
+                                    <input type="text" id="ci_companyName" placeholder="Legal company name">
+                                </div>
+                                <div class="info-field">
+                                    <label>DBA</label>
+                                    <input type="text" id="ci_dba" placeholder="Doing business as">
+                                </div>
+                                <div class="info-field">
+                                    <label>FEIN</label>
+                                    <input type="text" id="ci_fein" placeholder="XX-XXXXXXX" maxlength="10">
+                                </div>
+                                <div class="info-field">
+                                    <label>Entity Type</label>
+                                    <select id="ci_entityType">
+                                        <option value="">— Select —</option>
+                                        <option>LLC</option><option>Corporation</option><option>S-Corp</option>
+                                        <option>Partnership</option><option>Sole Proprietor</option><option>Non-Profit</option><option>Other</option>
+                                    </select>
+                                </div>
+                                <div class="info-field">
+                                    <label>Business Started</label>
+                                    <input type="text" id="ci_yearStarted" placeholder="Year" maxlength="4">
+                                </div>
+                                <div class="info-field" style="grid-column:span 2;">
+                                    <label>Nature of Business</label>
+                                    <input type="text" id="ci_bizDesc" placeholder="e.g. Electrical contractor, restaurant…">
+                                </div>
+                            </div>
+                            <div class="info-grid ci-per">
                                 <div class="info-field">
                                     <label>First Name</label>
                                     <input type="text" id="ci_firstName" placeholder="First name">
@@ -1617,17 +1669,31 @@
                         <div class="info-card">
                             <h3><i data-lucide="phone"></i> Contact Details</h3>
                             <div class="info-grid">
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>First Name</label>
+                                    <input type="text" id="ci_contactFirst" placeholder="First name">
+                                </div>
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>Last Name</label>
+                                    <input type="text" id="ci_contactLast" placeholder="Last name">
+                                </div>
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>Title</label>
+                                    <input type="text" id="ci_contactTitle" placeholder="Owner, President, Manager…">
+                                </div>
+                                <div class="ci-com" style="display:none;grid-column:1 / -1;height:0;"></div>
                                 <div class="info-field">
                                     <label>Phone (Primary)</label>
                                     <input type="tel" id="ci_phone1" placeholder="(305) 555-1234">
                                 </div>
-                                <div class="info-field">
-                                    <label>Phone (Secondary)</label>
-                                    <input type="tel" id="ci_phone2" placeholder="(305) 555-5678">
-                                </div>
+                                
                                 <div class="info-field">
                                     <label>Email Address</label>
                                     <input type="email" id="ci_email" placeholder="client@email.com">
+                                </div>
+                                <div class="info-field">
+                                    <label>Phone (Secondary)</label>
+                                    <input type="tel" id="ci_phone2" placeholder="(305) 555-5678">
                                 </div>
                                 <div class="info-field">
                                     <label>Preferred Contact</label>
@@ -2532,7 +2598,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261106s"></script>
+    <script src="ams.js?v=20261113c"></script>
     <script src="acord25-map.js?v=20261027a"></script>
     <script src="certificates.js?v=20261030b"></script>
     <script src="additional-interests.js?v=20261030b"></script>
