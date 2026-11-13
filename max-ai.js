@@ -25,7 +25,7 @@
     function cfg() {
         let c = {};
         try { c = JSON.parse(localStorage.getItem(CFG_KEY) || '{}') || {}; } catch (e) {}
-        return { url: (c.url || 'http://localhost:11434').replace(/\/+$/, ''), model: c.model || 'qwen3.5:4b' };
+        return { engine: c.engine === 'ollama' ? 'ollama' : 'claude', url: (c.url || 'http://localhost:11434').replace(/\/+$/, ''), model: c.model || 'qwen3.5:4b' };
     }
     function saveCfg(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (e) {} }
 
@@ -54,22 +54,14 @@ For a business: put the business in companyName and the owner/contact person in 
     // ── UI ───────────────────────────────────────────────────
     function build() {
         if (document.getElementById('maxAiPanel')) return;
-        const btn = document.createElement('button');
-        btn.id = 'maxAiFab'; btn.type = 'button'; btn.title = 'Max AI — read a screenshot or PDF into this client';
-        btn.innerHTML = '🤖 Max AI';
-        btn.style.cssText = 'position:fixed;right:22px;bottom:96px;z-index:9000;background:linear-gradient(135deg,#0f172a,#334155);color:#fff;border:none;border-radius:999px;padding:10px 16px;font-weight:800;font-size:13px;box-shadow:0 8px 24px rgba(15,23,42,.35);cursor:pointer;';
-        btn.onclick = toggle;
-        document.body.appendChild(btn);
-
         const p = document.createElement('div');
         p.id = 'maxAiPanel';
-        p.style.cssText = 'display:none;position:fixed;right:22px;bottom:150px;z-index:9001;width:440px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 180px);background:#fff;border:1px solid #cbd5e1;border-radius:16px;box-shadow:0 20px 50px rgba(15,23,42,.3);flex-direction:column;overflow:hidden;font-family:inherit;';
+        p.style.cssText = 'display:flex;width:100%;height:620px;max-height:calc(100vh - 220px);min-height:420px;background:#fff;border:1px solid #cbd5e1;border-radius:16px;box-shadow:0 6px 20px rgba(15,23,42,.08);flex-direction:column;overflow:hidden;font-family:inherit;';
         p.innerHTML = `
           <div style="background:linear-gradient(135deg,#0f172a,#334155);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:8px;">
             <div style="flex:1;"><div style="font-weight:800;font-size:15px;">🤖 Max AI</div>
               <div id="maxAiSub" style="font-size:11px;opacity:.8;"></div></div>
             <button type="button" onclick="MaxAI.settings()" title="Settings" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:5px 8px;cursor:pointer;">⚙</button>
-            <button type="button" onclick="MaxAI.toggle()" title="Close" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">×</button>
           </div>
           <div id="maxAiMsgs" style="flex:1;overflow-y:auto;padding:12px;background:#f8fafc;display:flex;flex-direction:column;gap:10px;font-size:13px;"></div>
           <div id="maxAiFiles" style="display:none;padding:6px 12px;background:#eef2ff;font-size:12px;color:#3730a3;"></div>
@@ -79,7 +71,7 @@ For a business: put the business in companyName and the owner/contact person in 
             <textarea id="maxAiInput" rows="2" placeholder="Drop a screenshot or PDF, or ask Max…" style="flex:1;border:1.5px solid #cbd5e1;border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;resize:none;"></textarea>
             <button type="button" id="maxAiSend" onclick="MaxAI.send()" style="flex-shrink:0;height:40px;padding:0 14px;border:none;border-radius:10px;background:#0f172a;color:#fff;font-weight:700;cursor:pointer;">Send</button>
           </div>`;
-        document.body.appendChild(p);
+        (document.getElementById('tabMaxAi') || document.body).appendChild(p);
         document.getElementById('maxAiFile').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
         document.getElementById('maxAiInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
         document.getElementById('maxAiInput').addEventListener('paste', e => {
@@ -88,20 +80,23 @@ For a business: put the business in companyName and the owner/contact person in 
         });
         p.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
         p.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); addFiles(e.dataTransfer.files); });
-        say('assistant', 'Hi! Open a client, then drop a **screenshot or PDF** here (or paste a screenshot with Ctrl+V). I\'ll read it and show you what I\'d update — nothing is saved until you press **Apply**.');
+        say('assistant', 'Hi! Drop a **screenshot or PDF** here (or paste a screenshot with Ctrl+V). I\'ll read it and show you what I\'d update — nothing is saved until you press **Apply**.');
         refreshSub();
     }
     function refreshSub() {
         const s = document.getElementById('maxAiSub'); if (!s) return;
         const c = cfg();
         const client = activeClientName();
-        s.textContent = `${c.model} · ${client ? 'Client: ' + client : 'No client open'}`;
+        s.textContent = `${c.engine === 'ollama' ? 'Qwen (' + c.model + ')' : 'Claude'} · ${client ? 'Client: ' + client : 'No client open'}`;
     }
-    function toggle() {
+    function toggle() { if (typeof amsShowTab === 'function') amsShowTab('maxAi'); }
+    // Place the chat box inside the client page's Max AI tab.
+    function mount(hostId) {
         build();
-        const p = document.getElementById('maxAiPanel');
-        p.style.display = p.style.display === 'none' ? 'flex' : 'none';
+        const host = document.getElementById(hostId), p = document.getElementById('maxAiPanel');
+        if (host && p && p.parentElement !== host) host.appendChild(p);
         refreshSub();
+        setTimeout(() => document.getElementById('maxAiInput')?.focus(), 50);
     }
     function say(who, html, raw) {
         const box = document.getElementById('maxAiMsgs'); if (!box) return null;
@@ -136,9 +131,12 @@ For a business: put the business in companyName and the owner/contact person in 
         for (const f of [...(list || [])]) {
             try {
                 if (/pdf/i.test(f.type) || /\.pdf$/i.test(f.name)) {
-                    const r = await pdfToImages(f); pending.push({ name: f.name, images: r.images, text: r.text });
+                    const r = await pdfToImages(f);
+                    const pdf64 = (await readAsDataURL(f)).split(',')[1];
+                    pending.push({ name: f.name, images: r.images, text: r.text, pdf: pdf64 });
                 } else if (/^image\//.test(f.type)) {
-                    pending.push({ name: f.name || 'screenshot.png', images: [(await readAsDataURL(f)).split(',')[1]], text: '' });
+                    const du = await readAsDataURL(f);
+                    pending.push({ name: f.name || 'screenshot.png', images: [du.split(',')[1]], mime: (du.match(/^data:([^;]+)/) || [])[1] || 'image/png', text: '' });
                 } else { say('assistant', `I can read screenshots and PDFs — "${f.name}" isn't one.`); }
             } catch (e) { say('assistant', 'Could not read ' + f.name + ': ' + (e.message || e)); }
         }
@@ -149,6 +147,24 @@ For a business: put the business in companyName and the owner/contact person in 
     function clearFiles() { pending = []; const fl = document.getElementById('maxAiFiles'); if (fl) fl.style.display = 'none'; }
 
     // ── Ollama ───────────────────────────────────────────────
+    // Claude through the AMS's existing "claude" Supabase helper (works anywhere).
+    async function claudeAsk(system, text, files) {
+        if (typeof aiCallAPI !== 'function') throw new Error('The Claude helper is not available on this page.');
+        const content = [];
+        (files || []).forEach(f => {
+            if (f.pdf) content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.pdf } });
+            else f.images.forEach(b64 => content.push({ type: 'image', source: { type: 'base64', media_type: f.mime || 'image/png', data: b64 } }));
+        });
+        content.push({ type: 'text', text });
+        const r = await aiCallAPI(system, [{ role: 'user', content }], 4000);
+        return String((r && r.text) || '');
+    }
+    async function ask(system, text, files, json) {
+        if (cfg().engine === 'claude') return claudeAsk(system, text, files);
+        const images = (files || []).flatMap(f => f.images);
+        const user = { role: 'user', content: text }; if (images.length) user.images = images;
+        return ollama([{ role: 'system', content: system }, user], json);
+    }
     async function ollama(messages, json) {
         const c = cfg();
         let res;
@@ -178,13 +194,12 @@ For a business: put the business in companyName and the owner/contact person in 
         const files = pending; clearFiles(); input.value = '';
         say('user', (files.length ? files.map(f => '📎 ' + f.name).join('\n') + (text ? '\n' : '') : '') + text);
         busy = true; const sendBtn = document.getElementById('maxAiSend'); sendBtn.disabled = true;
-        const wait = say('assistant', files.length ? '🔎 Reading the document… (a local model can take 20–60 seconds)' : '…');
+        const wait = say('assistant', files.length ? '🔎 Reading the document… (this can take up to a minute)' : '…');
         try {
             if (files.length) {
-                const images = files.flatMap(f => f.images);
-                const pdfText = files.map(f => f.text).filter(Boolean).join('\n');
+                const pdfText = cfg().engine === 'ollama' ? files.map(f => f.text).filter(Boolean).join('\n') : '';
                 const userMsg = (text ? text + '\n\n' : '') + 'Extract the client and policy information from the attached document.' + (pdfText ? '\n\nText found in the PDF:\n' + pdfText : '');
-                const out = await ollama([{ role: 'system', content: SYSTEM }, { role: 'user', content: userMsg, images }], true);
+                const out = await ask(SYSTEM, userMsg, files, true);
                 wait.remove();
                 let obj = null;
                 try { obj = JSON.parse(out); } catch (e) { const m = out.match(/\{[\s\S]*\}/); if (m) try { obj = JSON.parse(m[0]); } catch (e2) {} }
@@ -192,7 +207,7 @@ For a business: put the business in companyName and the owner/contact person in 
                 review(obj);
             } else {
                 const ctx = activeClientName() ? `The user is looking at the AMS client "${activeClientName()}".` : '';
-                const out = await ollama([{ role: 'system', content: 'You are Max, a helpful assistant inside an insurance agency management system. Be brief. ' + ctx }, { role: 'user', content: text }], false);
+                const out = await ask('You are Max, a helpful assistant inside an insurance agency management system. Be brief. ' + ctx, text, [], false);
                 wait.remove(); say('assistant', out || '(no answer)');
             }
         } catch (e) { wait.remove(); say('assistant', '❌ ' + (e.message || e)); }
@@ -275,9 +290,13 @@ For a business: put the business in companyName and the owner/contact person in 
 
     function settings() {
         const c = cfg();
+        const eng = prompt('Which AI should Max use?\n\n1 = Claude (works for everyone, anywhere)\n2 = Qwen on Ollama (only on computers running Ollama)', c.engine === 'ollama' ? '2' : '1');
+        if (eng === null) return;
+        if (String(eng).trim() !== '2') { saveCfg(Object.assign({}, c, { engine: 'claude' })); refreshSub(); say('assistant', 'Using Claude ✓'); return; }
+        c.engine = 'ollama';
         const url = prompt('Ollama address (on this computer it is usually http://localhost:11434):', c.url); if (url === null) return;
         const model = prompt('Model name (must be pulled in Ollama, e.g. qwen3.5:4b):', c.model); if (model === null) return;
-        saveCfg({ url: url.trim() || c.url, model: model.trim() || c.model });
+        saveCfg({ engine: 'ollama', url: url.trim() || c.url, model: model.trim() || c.model });
         refreshSub();
         fetch(cfg().url + '/api/tags').then(r => r.json()).then(d => {
             const names = (d.models || []).map(m => m.name);
@@ -285,12 +304,7 @@ For a business: put the business in companyName and the owner/contact person in 
         }).catch(() => say('assistant', `Can't reach Ollama at ${cfg().url}. Check it's running and OLLAMA_ORIGINS includes ${location.origin}.`));
     }
 
-    window.MaxAI = { toggle, send, apply, settings, clearFiles, addFiles };
-    function boot() {
-        // Only for signed-in AMS users.
-        const tryShow = () => { if (typeof amsCurrentUser !== 'undefined' && amsCurrentUser) build(); else setTimeout(tryShow, 2000); };
-        tryShow();
-        setInterval(refreshSub, 3000);
-    }
+    window.MaxAI = { toggle, mount, send, apply, settings, clearFiles, addFiles };
+    function boot() { setInterval(refreshSub, 3000); }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

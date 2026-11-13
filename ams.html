@@ -1579,6 +1579,7 @@
                         <button class="ams-tab"         data-tab="clientApps" onclick="amsShowTab('clientApps')"><i data-lucide="clipboard-list"></i> Client Apps</button>
                         <button class="ams-tab"         data-tab="certificates" onclick="amsShowTab('certificates')"><i data-lucide="award"></i> Certificate Master <span id="certTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="interests" onclick="amsShowTab('interests')"><i data-lucide="building-2"></i> Additional Interests <span id="aiTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
+                        <button class="ams-tab"         data-tab="maxAi" onclick="amsShowTab('maxAi')"><span style="font-size:14px;">🤖</span> Max AI</button>
                         <button class="ams-tab"         data-tab="insuredLogin" onclick="amsShowTab('insuredLogin')" style="display:none;"><i data-lucide="key-round"></i> Insured Login <span id="ilTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;">ON</span></button>
                         <div style="position:relative;margin-left:auto;display:flex;align-items:center;">
                             <button type="button" class="btn-sm" onclick="amsToggleClientActions(event)" style="background:var(--navy,#1e3a8a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;white-space:nowrap;"><i data-lucide="settings-2"></i> Actions ▾</button>
@@ -1988,6 +1989,7 @@
                     </div>
 
                     <!-- ── TAB: Insured Login (insured-login.js) — commercial clients only ── -->
+                    <div id="tabMaxAi" style="display:none;"></div>
                     <div id="tabInsuredLogin" style="display:none;">
                         <h3 style="color:var(--navy);font-size:16px;margin-bottom:4px;"><i data-lucide="key-round" style="width:16px;height:16px;vertical-align:-3px;"></i> Insured Login</h3>
                         <p style="font-size:11px;color:var(--gray-400);margin-bottom:14px;">
@@ -2598,7 +2600,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261113c"></script>
+    <script src="ams.js?v=20261113d"></script>
     <script src="acord25-map.js?v=20261027a"></script>
     <script src="certificates.js?v=20261030b"></script>
     <script src="additional-interests.js?v=20261030b"></script>
@@ -8948,7 +8950,7 @@ IMPORTANT:
     </script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>
-<script src="max-ai.js?v=20261113a"></script>
+<script src="max-ai.js?v=20261113b"></script>
 <script src="uib-drop.js?v=20261104a"></script>
 </body>
 </html>
