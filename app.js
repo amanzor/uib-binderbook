@@ -12884,7 +12884,7 @@ function claudeInlineGreet() {
 }
 
 async function claudeInlineTest() {
-    claudeInlineAddMessage('assistant', '🔧 Testing connection to Claude AI…');
+    claudeInlineAddMessage('assistant', '🔧 Testing connection to Max AI…');
     try {
         const payload = {
             model: CLAUDE_MODEL,

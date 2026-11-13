@@ -1004,7 +1004,7 @@
                                 <svg width="22" height="22" viewBox="0 0 32 32" fill="#D97757" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
                                     <path d="M16 2 C 16.8 6, 18.5 9, 22 11 C 18.5 13, 16.8 16, 16 20 C 15.2 16, 13.5 13, 10 11 C 13.5 9, 15.2 6, 16 2 Z M28 16 C 24.5 16.5, 22 18, 20.5 21 C 22 18, 22.5 16, 22.5 16 C 22.5 16, 22 14, 20.5 11 C 22 14, 24.5 15.5, 28 16 Z M16 30 C 15.2 26, 13.5 23, 10 21 C 13.5 19, 15.2 16, 16 12 C 16.8 16, 18.5 19, 22 21 C 18.5 23, 16.8 26, 16 30 Z M4 16 C 7.5 15.5, 10 14, 11.5 11 C 10 14, 9.5 16, 9.5 16 C 9.5 16, 10 18, 11.5 21 C 10 18, 7.5 16.5, 4 16 Z"/>
                                 </svg>
-                                <span style="font-size:15px;font-weight:700;color:#9a3412;">Claude AI — Renewal Report Processor</span>
+                                <span style="font-size:15px;font-weight:700;color:#9a3412;">Max AI — Renewal Report Processor</span>
                             </div>
                             <div style="display:flex;gap:6px;">
                             <button id="amsRnwAiNewBtn" onclick="rnwNewConversation()" style="display:none;background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
@@ -1013,7 +1013,7 @@
                         </div>
                         <div id="amsRnwAiBody" style="display:none;">
                         <div style="font-size:12px;color:#9a3412;background:#fff;border:1px dashed #f5c19a;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
-                            📤 <strong>Upload renewal reports</strong> from any insurance carrier (PDF). Claude will read every policy on the report and import them into the AMS — matching existing clients by policy number or name, updating expiration dates and premiums, and creating new client records for anyone not in the system. You can also just chat and ask questions about your book.
+                            📤 <strong>Upload renewal reports</strong> from any insurance carrier (PDF). Max AI will read every policy on the report and import them into the AMS — matching existing clients by policy number or name, updating expiration dates and premiums, and creating new client records for anyone not in the system. You can also just chat and ask questions about your book.
                         </div>
                         <div id="amsRnwMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:140px;max-height:520px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
                         <div id="amsRnwFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#fde4cc;border:1px solid #f5c19a;border-radius:8px;font-size:12px;color:#9a3412;"></div>
@@ -2575,11 +2575,11 @@
         .ai-drop-hint { border: 2px dashed var(--blue-light); background: var(--blue-pale); border-radius: 10px; padding: 10px; text-align: center; font-size: 12px; color: var(--blue); margin-bottom: 10px; }
     </style>
 
-    <button id="aiBubbleBtn" onclick="aiOpenPanel()" title="UIB AI Assistant">✦</button>
+    <button id="aiBubbleBtn" onclick="aiOpenPanel()" title="Max AI">✦</button>
 
     <div id="aiChatPanel">
         <div class="ai-chat-header">
-            <div class="title">✦ UIB AI Assistant
+            <div class="title">✦ Max AI
                 <small>Upload any client document — I'll extract &amp; create the client</small>
             </div>
             <button onclick="aiNewConversation()" title="New conversation">↺ New</button>
@@ -3115,10 +3115,10 @@
         function _commStAiPanelHtml() {
             return `<div class="uib-ai-card" style="margin-top:8px;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                    <span style="font-size:15px;font-weight:700;color:#9a3412;">🤖 Claude AI — Commission Processor</span>
+                    <span style="font-size:15px;font-weight:700;color:#9a3412;">🤖 Max AI — Commission Processor</span>
                 </div>
                 <div style="font-size:12.5px;color:#9a3412;margin-bottom:10px;">
-                    📤 <strong>Upload commission statement PDFs</strong> from any carrier. Claude identifies every transaction,
+                    📤 <strong>Upload commission statement PDFs</strong> from any carrier. Max AI identifies every transaction,
                     matches it to Binder Book entries by policy number or customer name, and credits the <strong>original agent</strong>.
                 </div>
                 <div id="commAiMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:60px;max-height:480px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;font-size:13.5px;"></div>
