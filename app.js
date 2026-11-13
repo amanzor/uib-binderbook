@@ -1159,16 +1159,22 @@ async function _adminUsers(action, extra) {
 }
 const _esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+const CRED_LEVELS = [['executive', 'Executive Admin'], ['admin', 'Admin'], ['agent', 'User']];
+let _credCanEdit = false;
 async function renderCredentialListPage() {
     const container = document.getElementById('credentialListPage');
     if (!container) return;
-    container.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading accounts…</div>';
-    let users = [];
-    try { users = (await _adminUsers('list')).users || []; }
+    container.innerHTML = '<div style="color:var(--gray-500);font-size:14px;padding:12px 0;">Loading users…</div>';
+    let users = [], me = {};
+    try { const r = await _adminUsers('list'); users = r.users || []; me = r.me || {}; }
     catch (e) {
-        container.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 18px;color:#991b1b;font-size:14px;line-height:1.5;"><b>Could not load accounts.</b> ${_esc(e.message || e)}</div>`;
+        container.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 18px;color:#991b1b;font-size:14px;line-height:1.5;"><b>Could not load users.</b> ${_esc(e.message || e)}</div>`;
         return;
     }
+    // Only Executive Admins change anything; Admins see the list read-only.
+    _credCanEdit = !!me.canEdit;
+    const addBtn = document.getElementById('credAddUserBtn');
+    if (addBtn) addBtn.style.display = _credCanEdit ? '' : 'none';
     const agents = getAllAgents();
     const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
     const byEmail = {}; Object.keys(master).forEach((n) => { const em = (master[n] && master[n].email || '').toLowerCase(); if (em) byEmail[em] = n; });
@@ -1177,42 +1183,61 @@ async function renderCredentialListPage() {
     // empty email would flag every one of them as having no login.
     const missing = agents.filter((n) => { const em = _agentEmailFor(n); return !users.some((u) => (em && String(u.email).toLowerCase() === em) || u.agent_name === n || _agentNameForEmail(u.email) === n); });
     const fmt = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
+    const rank = { executive: 0, admin: 1, agent: 2 };
+    users.sort((a, b) => (rank[a.role] - rank[b.role]) || String(a.agent_name || a.email).localeCompare(String(b.agent_name || b.email)));
+    const badge = (lv) => { const t = { executive: ['#ede9fe', '#5b21b6'], admin: ['#dbeafe', '#1e40af'], agent: ['#f1f5f9', '#475569'] }[lv] || ['#f1f5f9', '#475569'];
+        return `<span style="background:${t[0]};color:${t[1]};border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700;white-space:nowrap;">${(CRED_LEVELS.find((l) => l[0] === lv) || [0, 'User'])[1]}</span>`; };
+    const sel = 'padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;';
+    const isMe = (u) => String(u.email).toLowerCase() === String(me.email || '').toLowerCase();
     const rows = users.map((u) => {
         const linked = u.agent_name || byEmail[String(u.email).toLowerCase()] || _agentNameForEmail(u.email) || '';
-        const opts = ['<option value="">— not linked —</option>'].concat(agents.map((n) => `<option value="${_esc(n)}"${n === linked ? ' selected' : ''}>${_esc(n)}</option>`)).join('');
+        const nameCell = _credCanEdit
+            ? `<input value="${_esc(linked)}" list="credAgentNames" placeholder="Full name" onchange="credSetName('${_esc(u.id)}', this.value)" style="${sel}width:170px;">`
+            : `<span style="font-weight:600;">${_esc(linked || '—')}</span>`;
+        const roleCell = _credCanEdit && !isMe(u)
+            ? `<select onchange="credSetRole('${_esc(u.id)}', this.value, '${_esc(u.email)}')" style="${sel}">${CRED_LEVELS.map(([v, l]) => `<option value="${v}"${u.role === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`
+            : badge(u.role) + (isMe(u) ? ' <span style="font-size:11px;color:var(--gray-400);">(you)</span>' : '');
+        const actions = _credCanEdit ? `
+                <button class="btn-primary btn-sm" onclick="credSetPassword('${_esc(u.id)}','${_esc(u.email)}')">Reset password</button>
+                ${u.mfa ? `<button class="btn-secondary btn-sm" onclick="credClearMfa('${_esc(u.id)}','${_esc(u.email)}')">Clear 2-step</button>` : ''}
+                ${isMe(u) ? '' : `<button class="btn-danger btn-sm" onclick="credDelete('${_esc(u.id)}','${_esc(u.email)}')">Remove</button>`}`
+            : '<span style="font-size:12px;color:var(--gray-400);">View only</span>';
         return `<tr>
+            <td>${nameCell}</td>
             <td style="font-weight:600;">${_esc(u.email)}${u.confirmed ? '' : ' <span style="font-size:11px;color:#b45309;font-weight:700;">(unconfirmed)</span>'}</td>
-            <td><select onchange="credSetName('${_esc(u.id)}', this.value)" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;">${opts}</select></td>
-            <td><select onchange="credSetRole('${_esc(u.id)}', this.value)" style="padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;"><option value="agent"${u.role === 'agent' ? ' selected' : ''}>Agent</option><option value="admin"${u.role === 'admin' ? ' selected' : ''}>Admin</option></select></td>
+            <td>${roleCell}</td>
             <td style="font-size:12px;color:var(--gray-500);">${fmt(u.last_sign_in_at)}</td>
             <td style="font-size:12px;">${u.mfa ? '<span style="color:#166534;font-weight:700;">✓ on</span>' : '<span style="color:#b45309;">not set up</span>'}</td>
-            <td style="white-space:nowrap;">
-                <button class="btn-primary btn-xs btn-sm" onclick="credSetPassword('${_esc(u.id)}','${_esc(u.email)}')">Reset password</button>
-                ${u.mfa ? `<button class="btn-secondary btn-sm" onclick="credClearMfa('${_esc(u.id)}','${_esc(u.email)}')">Clear 2-step</button>` : ''}
-                <button class="btn-danger btn-sm" onclick="credDelete('${_esc(u.id)}','${_esc(u.email)}')">Delete</button>
-            </td></tr>`;
+            <td style="white-space:nowrap;">${actions}</td></tr>`;
     }).join('');
     let mfaOn = false; try { mfaOn = await UIBAuth.getMfaRequired(); } catch (e) {}
     container.innerHTML = `
+        <datalist id="credAgentNames">${agents.map((n) => `<option value="${_esc(n)}">`).join('')}</datalist>
+        ${_credCanEdit ? '' : '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:10px 16px;color:#1e40af;font-size:13px;margin-bottom:14px;"><b>View only.</b> Only Executive Admins can add users or change roles and passwords.</div>'}
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:${mfaOn ? '#ecfdf5' : '#f3f4f6'};border:1px solid ${mfaOn ? '#6ee7b7' : '#d1d5db'};border-radius:12px;padding:12px 16px;margin-bottom:14px;">
             <div style="font-size:13px;"><b>2-step verification: ${mfaOn ? 'ON' : 'OFF'}</b><div style="color:var(--gray-500);margin-top:2px;">${mfaOn ? 'Every sign-in needs a 6-digit code from an authenticator app. Accounts without one set it up at their next sign-in.' : 'Sign-in is email + password only. Turn on when everyone is ready; agents set up an authenticator app at their next sign-in.'}</div></div>
-            <button class="${mfaOn ? 'btn-danger' : 'btn-success'} btn-sm" onclick="credToggleMfa(${mfaOn ? 'false' : 'true'})">${mfaOn ? 'Turn off' : 'Turn on'}</button>
+            ${_credCanEdit ? `<button class="${mfaOn ? 'btn-danger' : 'btn-success'} btn-sm" onclick="credToggleMfa(${mfaOn ? 'false' : 'true'})">${mfaOn ? 'Turn off' : 'Turn on'}</button>` : ''}
         </div>
-        ${missing.length ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;color:#92400e;font-size:13px;margin-bottom:14px;"><b>No login yet:</b> ${missing.map(_esc).join(', ')}. Press <b>Add Agent Credential</b> to create one.</div>` : ''}
-        <div class="table-container"><table style="width:100%;">
-            <thead><tr><th>Email (login)</th><th>Agent</th><th>Role</th><th>Last sign-in</th><th>2-step</th><th>Actions</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="6" class="no-data">No accounts yet. Press Add Agent Credential.</td></tr>'}</tbody>
+        ${missing.length && _credCanEdit ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;color:#92400e;font-size:13px;margin-bottom:14px;"><b>No login yet:</b> ${missing.map(_esc).join(', ')}. Press <b>Add User</b> to create one.</div>` : ''}
+        <div class="table-container" style="overflow-x:auto;"><table style="width:100%;min-width:980px;">
+            <thead><tr><th>Name</th><th>Email (login)</th><th>Role</th><th>Last sign-in</th><th>2-step</th><th>Actions</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6" class="no-data">No users yet. Press Add User.</td></tr>'}</tbody>
         </table></div>
-        <p style="font-size:12px;color:var(--gray-500);margin-top:12px;">Passwords are never shown or stored in the app. Give the agent the password you set, and ask them to change it with the Password button once they are in.</p>`;
+        <p style="font-size:12px;color:var(--gray-500);margin-top:12px;">Roles: <b>Executive Admin</b> — everything, including managing users. <b>Admin</b> — admin screens, view users. <b>User</b> — their own work. A role change applies the next time that person opens or refreshes the app. Passwords are never shown or stored in the app.</p>`;
     refreshIcons();
 }
-async function credSetName(id, name) { try { await _adminUsers('setName', { id, agent_name: name }); } catch (e) { alert(e.message || e); } }
+async function credSetName(id, name) { try { await _adminUsers('setName', { id, agent_name: String(name || '').trim() }); } catch (e) { alert(e.message || e); renderCredentialListPage(); } }
 async function credToggleMfa(on) {
     if (!confirm(on ? 'Turn ON 2-step verification for every account? From the next sign-in, each person scans a QR code with an authenticator app and enters a 6-digit code.' : 'Turn OFF 2-step verification? Sign-in goes back to email + password only.')) return;
     try { await UIBAuth.setMfaRequired(on); if (window.UIBAudit) UIBAudit.log('mfa_setting', on ? 'on' : 'off'); renderCredentialListPage(); }
     catch (e) { alert(e.message || e); }
 }
-async function credSetRole(id, role) { try { await _adminUsers('setRole', { id, role }); if (window.UIBAudit) UIBAudit.log('cred_set_role', role, { id }); } catch (e) { alert(e.message || e); renderCredentialListPage(); } }
+async function credSetRole(id, role, email) {
+    const label = (CRED_LEVELS.find((l) => l[0] === role) || [0, 'User'])[1];
+    if (!confirm('Make ' + (email || 'this user') + ' a ' + label + '?')) { renderCredentialListPage(); return; }
+    try { await _adminUsers('setRole', { id, role }); if (window.UIBAudit) UIBAudit.log('cred_set_role', role, { id }); renderCredentialListPage(); }
+    catch (e) { alert(e.message || e); renderCredentialListPage(); }
+}
 async function credSetPassword(id, email) {
     const p1 = prompt('New password for ' + email + ' (at least 10 characters):'); if (p1 == null) return;
     if (p1.length < 10) { alert('Use at least 10 characters.'); return; }
@@ -1224,7 +1249,8 @@ async function credClearMfa(id, email) {
     try { await _adminUsers('clearMfa', { id }); renderCredentialListPage(); } catch (e) { alert(e.message || e); }
 }
 async function credDelete(id, email) {
-    if (!confirm('Delete the login for ' + email + '? Their entries stay in the book; only the sign-in is removed.')) return;
+    if (!confirm('Remove the login for ' + email + '? Their entries stay in the book; only the sign-in is removed.')) return;
+    if (prompt('Type REMOVE to confirm removing ' + email + '.') !== 'REMOVE') return;
     try { await _adminUsers('delete', { id }); if (window.UIBAudit) UIBAudit.log('cred_delete', email); renderCredentialListPage(); } catch (e) { alert(e.message || e); }
 }
 
@@ -1253,8 +1279,11 @@ function openAddCredentialModal() {
     // Agent picker from the roster; email prefills from the agent's record.
     const sel = document.getElementById('newCredAgent');
     const master = (() => { try { return JSON.parse(localStorage.getItem('agentMasterData')) || {}; } catch (e) { return {}; } })();
-    sel.innerHTML = '<option value="">— Select agent —</option>' + getAllAgents().map((n) => `<option value="${_esc(n)}" data-email="${_esc(_agentEmailFor(n))}">${_esc(n)}</option>`).join('');
-    sel.onchange = () => { const o = sel.options[sel.selectedIndex]; const em = o && o.dataset.email; if (em) document.getElementById('newCredEmail').value = em; };
+    const dl = document.getElementById('newCredAgentList');
+    if (dl) dl.innerHTML = getAllAgents().map((n) => `<option value="${_esc(n)}">`).join('');
+    sel.value = '';
+    sel.oninput = () => { const em = (typeof _agentEmailFor === 'function') ? _agentEmailFor(sel.value) : ((master[sel.value] || {}).email || ''); if (em) document.getElementById('newCredEmail').value = em; };
+    const rs = document.getElementById('newCredRole'); if (rs) rs.value = 'agent';
     document.getElementById('newCredEmail').value = '';
     document.getElementById('newCredPassword').value = '';
     if (window.UIBMotion) UIBMotion.animateModalOpen(m);
@@ -1271,7 +1300,7 @@ async function submitAddCredential(e) {
     const email = document.getElementById('newCredEmail').value.trim().toLowerCase();
     const pass  = document.getElementById('newCredPassword').value;
     const role  = document.getElementById('newCredRole') ? document.getElementById('newCredRole').value : 'agent';
-    if (!agent || !email || !pass) { alert('Pick the agent and fill in the email and password.'); return; }
+    if (!agent || !email || !pass) { alert('Fill in the name, email and password.'); return; }
     if (pass.length < 10) { alert('Use a password of at least 10 characters.'); return; }
     const btn = e.target.querySelector('button[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
     try {
@@ -1281,7 +1310,7 @@ async function submitAddCredential(e) {
         try { const master = JSON.parse(localStorage.getItem('agentMasterData')) || {}; if (master[agent] && master[agent].email !== email) { master[agent].email = email; localStorage.setItem('agentMasterData', JSON.stringify(master)); } } catch (err) {}
         closeAddCredentialModal();
         renderCredentialListPage();
-        alert('Login created for ' + agent + '. Give them the email and password; they can change the password after signing in.');
+        alert('User created for ' + agent + '. Give them the email and password; they can change the password after signing in.');
     } catch (err) { alert(err.message || err); }
     finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="save"></i> Save'; refreshIcons(); } }
 }
@@ -6279,7 +6308,7 @@ document.getElementById('manageAgentForm')?.addEventListener('submit', (e) => {
         const btn = e.target.querySelector('button[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Creating login…'; }
         _adminUsers('create', { email: email.toLowerCase(), password: loginPassword, agent_name: agentName, role: loginRole })
             .then(() => { if (window.UIBAudit) UIBAudit.log('cred_create', email.toLowerCase(), { agent: agentName, role: loginRole }); alert(`Agent "${agentName}" saved and their login created.\n\nEmail: ${email}\nTemporary password: the one you typed. They can change it with the Password button after signing in.`); })
-            .catch(err => alert(`Agent "${agentName}" was saved, but the login could not be created: ${err.message || err}\n\nYou can create it later from Manage Login Credentials.`))
+            .catch(err => alert(`Agent "${agentName}" was saved, but the login could not be created: ${err.message || err}\n\nYou can create it later from Manage Users.`))
             .finally(() => { if (btn) { btn.disabled = false; btn.textContent = '💾 Save Agent'; } closeAddEditAgentModal(); loadAgentList(); });
         return;
     }
