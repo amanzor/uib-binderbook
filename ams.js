@@ -335,6 +335,7 @@ function amsBuildClientIndex() {
     Object.keys(contacts).forEach(key => {
         // A client record a monday.com import created, since undone.
         if (!index[key] && contacts[key] && contacts[key].importUndone) return;
+        if (contacts[key] && contacts[key]._deleted) { if (index[key]) delete index[key]; return; }
         if (!index[key]) {
             index[key] = {
                 key,
@@ -1118,9 +1119,9 @@ function amsUpdateMergeButton() {
     if (btn) btn.style.display = amsFilteredKeys.filter(k => !amsClientIndex[k]?.isHealth).length >= 2 ? 'inline-flex' : 'none';
 }
 
-function amsOpenMergeModal() {
+function amsOpenMergeModal(keys) {
     // Health Book records keep their own card; they are never merged into a client.
-    _amsMergeKeys = amsFilteredKeys.filter(k => !amsClientIndex[k]?.isHealth);
+    _amsMergeKeys = (Array.isArray(keys) ? keys : amsFilteredKeys).filter(k => amsClientIndex[k] && !amsClientIndex[k].isHealth);
     if (_amsMergeKeys.length < 2) {
         alert('Need at least two clients in the list to merge. Adjust your search or filters first.');
         return;
@@ -6946,4 +6947,76 @@ function amsApplyContactLayout(isCom) {
     if (t) t.innerHTML = isCom ? '<i data-lucide="building-2"></i> Company Details' : '<i data-lucide="user"></i> Personal Information';
     if (window.lucide) try { lucide.createIcons(); } catch (e) {}
     window._amsContactIsCom = !!isCom;
+}
+
+// ── Client Actions menu (next to the Insured Login tab) ─────────
+function amsToggleClientActions(ev) {
+    if (ev) ev.stopPropagation();
+    const m = document.getElementById('amsClientActionsMenu');
+    if (!m) return;
+    const open = m.style.display === 'none';
+    m.style.display = open ? 'block' : 'none';
+    const del = document.getElementById('amsClientActDelete');
+    if (del) del.style.display = (window.UIBAuth && UIBAuth.isExecutive && UIBAuth.isExecutive()) ? '' : 'none';
+    if (open) setTimeout(() => document.addEventListener('click', () => { m.style.display = 'none'; }, { once: true }), 0);
+}
+
+function amsClientActionEdit() {
+    amsShowTab('contact');
+    const first = document.querySelector('#tabContact .ci-com:not([style*="none"]) input, #tabContact input');
+    if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => first.focus(), 300); }
+    amsFlashBanner('Edit the details below, then press Save Contact');
+}
+
+// Likely duplicates of the open client: same phone, email, or a close name.
+function amsClientActionMerge() {
+    const key = amsActiveKey; const me = amsClientIndex[key];
+    if (!me) return;
+    const norm = s => String(s || '').toUpperCase().replace(/\b(LLC|L L C|INC|CORP|CORPORATION|CO|COMPANY|THE)\b/g, '').replace(/[^A-Z0-9]/g, '');
+    const digits = s => String(s || '').replace(/\D/g, '').slice(-10);
+    const myName = norm(me.displayName), myPhone = digits(me.contact && me.contact.phone1), myEmail = String(me.contact && me.contact.email || '').toLowerCase();
+    const words = String(me.displayName || '').toUpperCase().split(/\s+/).filter(w => w.length > 2);
+    const cands = Object.keys(amsClientIndex).filter(k => {
+        if (k === key) return false;
+        const c = amsClientIndex[k]; if (!c || c.isHealth) return false;
+        const n = norm(c.displayName);
+        if (myName && n && (n === myName || n.includes(myName) || myName.includes(n))) return true;
+        if (myPhone && myPhone.length === 10 && digits(c.contact && c.contact.phone1) === myPhone) return true;
+        if (myEmail && String(c.contact && c.contact.email || '').toLowerCase() === myEmail) return true;
+        const cw = String(c.displayName || '').toUpperCase().split(/\s+/);
+        return words.length >= 2 && words.filter(w => cw.includes(w)).length >= 2;
+    });
+    if (!cands.length) {
+        if (confirm('No likely duplicates found by name, phone or email.\n\nOpen the merge window for the whole client list instead? (Filter the list first to narrow it down.)')) amsOpenMergeModal();
+        return;
+    }
+    amsOpenMergeModal([key].concat(cands));
+    // Pre-select this client as the one to keep.
+    const chk = document.querySelector('.ams-merge-check[data-idx="0"]');
+    if (chk) { chk.checked = true; amsMergeSelectionChanged(); }
+}
+
+function amsClientActionDelete() {
+    if (!(window.UIBAuth && UIBAuth.isExecutive && UIBAuth.isExecutive())) { alert('Only Executive Admins can delete a client.'); return; }
+    const key = amsActiveKey; const c = amsClientIndex[key];
+    if (!c) return;
+    const n = c.policies.length;
+    if (!confirm(`Delete ${c.displayName} from the system?\n\nThis removes the client record and ${n} polic${n === 1 ? 'y' : 'ies'} from the AMS and the Binder Book. Commission statements are not touched.`)) return;
+    if (prompt(`Type DELETE to confirm deleting ${c.displayName}.`) !== 'DELETE') return;
+    const ids = c.policies.map(p => p.id).filter(id => id != null);
+    const binder = amsGetBinderData().filter(p => !ids.includes(p.id));
+    const contacts = amsGetClientData();
+    contacts[key] = { _deleted: true, updatedAt: new Date().toISOString(), deletedBy: amsCurrentUser || '', name: c.displayName };
+    amsSave('amsClientData', contacts);
+    if (window.UIBAudit) try { UIBAudit.log('client_deleted', c.displayName, { policies: ids.length }); } catch (e) {}
+    const done = () => {
+        amsActiveKey = null;
+        amsBuildClientIndex(); amsRenderClientList();
+        document.getElementById('amsClientDetail').style.display = 'none';
+        const w = document.getElementById('amsWelcome'); if (w) w.style.display = '';
+        amsFlashBanner(c.displayName + ' deleted ✓');
+    };
+    if (window.UIBBinderSync && ids.length) {
+        window.UIBBinderSync.markDeleted(ids).then(() => window.UIBBinderSync.save('binderData', binder)).then(done, done);
+    } else { if (ids.length) amsSave('binderData', binder); done(); }
 }
