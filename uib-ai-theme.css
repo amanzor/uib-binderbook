@@ -35,3 +35,6 @@
 #aiChatPanel{border:1px solid #cbd5e1!important;border-radius:16px!important;box-shadow:0 6px 20px rgba(15,23,42,.15)!important}
 #aiChatPanel .ai-chat-header{background:linear-gradient(135deg,#0f172a,#334155)!important}
 #aiBubbleBtn{background:linear-gradient(135deg,#0f172a,#334155)!important}
+
+/* header text always white (beats the orange→slate text rule) */
+:is(#claudeInlineSection,#claudeAdminSection,#claudeRenewalSection,#amsRnwAiCard,.uib-ai-card)>div:first-child :is(span,div,strong,em,i)[style]:not(button):not([style*="#D97757"]):not([style*="#d97757"]){color:#fff!important;opacity:.9}
