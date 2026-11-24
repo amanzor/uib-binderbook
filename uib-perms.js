@@ -138,7 +138,10 @@
 
     function boot() {
         showButtons();
-        if (A() && A().user && A().user()) A().loadPermissions().then(showButtons);
+        if (A() && A().user && A().user()) {
+            A().loadPermissions().then(showButtons);
+            if (A().syncLevel) A().syncLevel().then(showButtons);   // a role changed in Manage Users
+        }
         setInterval(showButtons, 3000);   // sign-in / sign-out happens without a reload
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

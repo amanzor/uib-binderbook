@@ -5,8 +5,8 @@
     <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20261029a"></script>
-    <script src="uib-auth.js?v=20261106z"></script>
-    <script src="uib-perms.js?v=20261106y"></script>
+    <script src="uib-auth.js?v=20261113m"></script>
+    <script src="uib-perms.js?v=20261113m"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
     <script src="uib-ai.js?v=20261022c"></script>
@@ -15,6 +15,11 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>UIB Binder Book - Universal Insurance Brokers</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20261110a">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20261110a">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png?v=20261110a">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192.png?v=20261110a">
+    <link rel="shortcut icon" href="/favicon.ico?v=20261110a">
     <link rel="manifest" href="/manifest.json?v=20261015w">
     <meta name="theme-color" content="#0d1f3c">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -783,6 +788,7 @@
         }
     </style>
     <link rel="stylesheet" href="uib-theme.css?v=20261003a">
+    <link rel="stylesheet" href="uib-ai-theme.css?v=20261113b">
 </head>
 <body>
     <!-- Google Drive Sync Banner -->
@@ -2067,10 +2073,8 @@
                 <div id="claudeInlineSection" style="margin:18px 0 0 0;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;transition:border-color .15s,background .15s;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                         <div style="display:flex;align-items:center;gap:10px;">
-                            <svg width="20" height="20" viewBox="0 0 32 32" fill="#D97757" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
-                                <path d="M16 2 C 16.8 6, 18.5 9, 22 11 C 18.5 13, 16.8 16, 16 20 C 15.2 16, 13.5 13, 10 11 C 13.5 9, 15.2 6, 16 2 Z M28 16 C 24.5 16.5, 22 18, 20.5 21 C 22 18, 22.5 16, 22.5 16 C 22.5 16, 22 14, 20.5 11 C 22 14, 24.5 15.5, 28 16 Z M16 30 C 15.2 26, 13.5 23, 10 21 C 13.5 19, 15.2 16, 16 12 C 16.8 16, 18.5 19, 22 21 C 18.5 23, 16.8 26, 16 30 Z M4 16 C 7.5 15.5, 10 14, 11.5 11 C 10 14, 9.5 16, 9.5 16 C 9.5 16, 10 18, 11.5 21 C 10 18, 7.5 16.5, 4 16 Z"/>
-                            </svg>
-                            <span style="font-size:14px;font-weight:700;color:#9a3412;">Claude AI Assistant</span>
+                            <span style="font-size:20px;line-height:1;flex-shrink:0;">🤖</span>
+                            <span style="font-size:14px;font-weight:700;color:#9a3412;">Max AI</span>
                             <span style="font-size:12px;color:#c2410c;font-style:italic;">— ask anything, or upload a PDF policy</span>
                         </div>
                         <div style="display:flex;gap:6px;">
@@ -2236,6 +2240,7 @@
                     <div id="bulkDeleteBar" style="display:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;padding:10px 20px;border-radius:10px;margin-bottom:10px;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;">
                         <span style="font-weight:700;font-size:14px;"><span id="bulkSelectedCount">0</span> selected</span>
                         <div style="display:flex;gap:8px;">
+                            <button id="bulkReassignBtn" onclick="bulkReassignSelected()" style="display:none;background:#fff;color:#1d4ed8;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">👤 Reassign Selected</button>
                             <button onclick="bulkDeleteSelected()" style="background:#fff;color:#dc2626;border:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">🗑️ Delete Selected</button>
                             <button onclick="bulkClearSelection()" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">✕ Cancel</button>
                         </div>
@@ -2280,11 +2285,11 @@
                 <div class="user-info" style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; align-items:center; gap:10px;">
                         <button class="btn-secondary btn-sm" onclick="showSection('adminSection'); refreshIcons();"><i data-lucide="arrow-left"></i> Back to Admin</button>
-                        <strong><i data-lucide="key"></i> Manage Login Credentials</strong>
+                        <strong><i data-lucide="users"></i> Manage Users</strong>
                     </div>
-                    <button class="btn-success btn-sm" onclick="openAddCredentialModal()"><i data-lucide="user-plus"></i> Add Agent Credential</button>
+                    <button id="credAddUserBtn" class="btn-success btn-sm" style="display:none;" onclick="openAddCredentialModal()"><i data-lucide="user-plus"></i> Add User</button>
                 </div>
-                <div style="max-width:680px; margin:24px auto 0;">
+                <div style="max-width:1240px; margin:24px auto 0; padding:0 16px;">
                     <p style="font-size:13px; color:var(--gray-500); margin-bottom:20px;">Each agent signs in with the email and password set here. Accounts are created in Supabase Auth; the app never stores passwords.</p>
                     <div id="credentialListPage"></div>
                 </div>
@@ -2294,13 +2299,13 @@
             <div id="addCredentialModal" class="modal">
                 <div class="modal-content" style="max-width:420px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                        <h3 style="margin:0;"><i data-lucide="user-plus"></i> Add Agent Credential</h3>
+                        <h3 style="margin:0;"><i data-lucide="user-plus"></i> Add User</h3>
                         <button class="btn-danger btn-sm" onclick="closeAddCredentialModal()">✕ Close</button>
                     </div>
                     <form onsubmit="submitAddCredential(event)">
                         <div class="form-group" style="margin-bottom:14px;">
-                            <label>Agent</label>
-                            <select id="newCredAgent" required style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"></select>
+                            <label>Name</label>
+                            <input id="newCredAgent" list="newCredAgentList" required placeholder="Full name (pick an agent or type a new one)" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"><datalist id="newCredAgentList"></datalist>
                         </div>
                         <div class="form-group" style="margin-bottom:14px;">
                             <label>Email Address</label>
@@ -2314,7 +2319,7 @@
                         </div>
                         <div class="form-group" style="margin-bottom:20px;">
                             <label>Role</label>
-                            <select id="newCredRole" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"><option value="agent">Agent</option><option value="admin">Admin</option></select>
+                            <select id="newCredRole" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:14px;"><option value="agent">User</option><option value="admin">Admin</option><option value="executive">Executive Admin</option></select>
                         </div>
                         <div style="display:flex;gap:10px;">
                             <button type="submit" class="btn-success" style="flex:1;padding:11px;"><i data-lucide="save"></i> Save</button>
@@ -2766,15 +2771,13 @@
                 <div id="claudeAdminSection" style="margin:18px 0 0 0;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;transition:border-color .15s,background .15s;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                         <div style="display:flex;align-items:center;gap:10px;">
-                            <svg width="22" height="22" viewBox="0 0 32 32" fill="#D97757" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
-                                <path d="M16 2 C 16.8 6, 18.5 9, 22 11 C 18.5 13, 16.8 16, 16 20 C 15.2 16, 13.5 13, 10 11 C 13.5 9, 15.2 6, 16 2 Z M28 16 C 24.5 16.5, 22 18, 20.5 21 C 22 18, 22.5 16, 22.5 16 C 22.5 16, 22 14, 20.5 11 C 22 14, 24.5 15.5, 28 16 Z M16 30 C 15.2 26, 13.5 23, 10 21 C 13.5 19, 15.2 16, 16 12 C 16.8 16, 18.5 19, 22 21 C 18.5 23, 16.8 26, 16 30 Z M4 16 C 7.5 15.5, 10 14, 11.5 11 C 10 14, 9.5 16, 9.5 16 C 9.5 16, 10 18, 11.5 21 C 10 18, 7.5 16.5, 4 16 Z"/>
-                            </svg>
-                            <span style="font-size:15px;font-weight:700;color:#9a3412;">Claude AI — Commission Processor</span>
+                            <span style="font-size:20px;line-height:1;flex-shrink:0;">🤖</span>
+                            <span style="font-size:15px;font-weight:700;color:#9a3412;">Max AI — Commission Processor</span>
                         </div>
                         <button onclick="claudeAdminNewConversation()" style="background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
                     </div>
                     <div style="font-size:12px;color:#9a3412;background:#fff;border:1px dashed #f5c19a;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
-                        📤 <strong>Upload commission statements</strong> from any insurance carrier (Progressive, Infinity, United, etc.). Claude will identify each transaction, match it to your BinderBook entries by customer name or policy number, and generate per-agent commission statements. When you save, the original PDFs are filed under the pertaining month below. You can upload multiple PDFs.
+                        📤 <strong>Upload commission statements</strong> from any insurance carrier (Progressive, Infinity, United, etc.). Max AI will identify each transaction, match it to your BinderBook entries by customer name or policy number, and generate per-agent commission statements. When you save, the original PDFs are filed under the pertaining month below. You can upload multiple PDFs.
                     </div>
                     <div id="claudeAdminMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:160px;max-height:560px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
                     <div id="claudeAdminFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#fde4cc;border:1px solid #f5c19a;border-radius:8px;font-size:12px;color:#9a3412;"></div>
@@ -3004,15 +3007,13 @@
                 <div id="claudeRenewalSection" style="margin:18px 0 0 0;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                         <div style="display:flex;align-items:center;gap:10px;">
-                            <svg width="22" height="22" viewBox="0 0 32 32" fill="#D97757" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
-                                <path d="M16 2 C 16.8 6, 18.5 9, 22 11 C 18.5 13, 16.8 16, 16 20 C 15.2 16, 13.5 13, 10 11 C 13.5 9, 15.2 6, 16 2 Z M28 16 C 24.5 16.5, 22 18, 20.5 21 C 22 18, 22.5 16, 22.5 16 C 22.5 16, 22 14, 20.5 11 C 22 14, 24.5 15.5, 28 16 Z M16 30 C 15.2 26, 13.5 23, 10 21 C 13.5 19, 15.2 16, 16 12 C 16.8 16, 18.5 19, 22 21 C 18.5 23, 16.8 26, 16 30 Z M4 16 C 7.5 15.5, 10 14, 11.5 11 C 10 14, 9.5 16, 9.5 16 C 9.5 16, 10 18, 11.5 21 C 10 18, 7.5 16.5, 4 16 Z"/>
-                            </svg>
-                            <span style="font-size:15px;font-weight:700;color:#9a3412;">Claude AI — Renewal Report Processor</span>
+                            <span style="font-size:20px;line-height:1;flex-shrink:0;">🤖</span>
+                            <span style="font-size:15px;font-weight:700;color:#9a3412;">Max AI — Renewal Report Processor</span>
                         </div>
                         <button onclick="claudeRenewalNewConversation()" style="background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
                     </div>
                     <div style="font-size:12px;color:#9a3412;background:#fff;border:1px dashed #f5c19a;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
-                        📤 <strong>Upload renewal reports</strong> from any insurance carrier (PDF). Claude will read every policy on the report and import them into the Binder Book — matching existing entries by policy number or name, updating expiration dates and premiums, and creating new entries for anyone not in the system. You can also just chat and ask questions about your book.
+                        📤 <strong>Upload renewal reports</strong> from any insurance carrier (PDF). Max AI will read every policy on the report and import them into the Binder Book — matching existing entries by policy number or name, updating expiration dates and premiums, and creating new entries for anyone not in the system. You can also just chat and ask questions about your book.
                     </div>
                     <div id="claudeRenewalMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:140px;max-height:520px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
                     <div id="claudeRenewalFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#fde4cc;border:1px solid #f5c19a;border-radius:8px;font-size:12px;color:#9a3412;"></div>
@@ -3801,7 +3802,7 @@
             <h3><i data-lucide="users"></i> Agent Management</h3>
             <div class="modal-actions" style="margin-bottom: 20px;">
                 <button type="button" class="btn-success" onclick="openAddAgentModal()"><i data-lucide="user-plus"></i> Add New Agent</button>
-                <button type="button" class="btn-primary" onclick="openCredentialManager()"><i data-lucide="key"></i> Manage Login Credentials</button>
+                <button type="button" class="btn-primary" onclick="openCredentialManager()"><i data-lucide="users"></i> Manage Users</button>
                 <button type="button" class="btn-secondary" onclick="closeAgentManagement()">Close</button>
             </div>
             <div class="table-container">
@@ -4020,7 +4021,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
     <script src="motion.js?v=20260615w"></script>
-    <script src="app.js?v=20261110c"></script>
+    <script src="app.js?v=20261124a"></script>
     <script src="uib-binder-sync.js?v=20261106t"></script>
     <script src="monday-import.js?v=20261104a"></script>
     <script src="supabase.js?v=20261027a"></script>

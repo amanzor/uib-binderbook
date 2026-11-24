@@ -6,8 +6,8 @@
     <script src="lz-string.min.js"></script>
     <script src="storage-codec.js?v=20261029a"></script>
     <script src="uib-binder-sync.js?v=20261106t"></script>
-    <script src="uib-auth.js?v=20261106z"></script>
-    <script src="uib-perms.js?v=20261106y"></script>
+    <script src="uib-auth.js?v=20261113m"></script>
+    <script src="uib-perms.js?v=20261113m"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
     <script src="uib-ai.js?v=20261022c"></script>
@@ -15,6 +15,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>UIB AMS — Agency Management System</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20261110a">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20261110a">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png?v=20261110a">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192.png?v=20261110a">
+    <link rel="shortcut icon" href="/favicon.ico?v=20261110a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
@@ -356,14 +361,21 @@
         }
         .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
         .info-field { display: flex; flex-direction: column; gap: 4px; }
-        .info-field label { font-size: 11px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: .5px; }
+        .info-field label { font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .5px; }
+        /* Light silver glass: fields stand out from the white cards. */
         .info-field input, .info-field select, .info-field textarea {
-            padding: 8px 10px; border: 1.5px solid var(--gray-200);
+            padding: 8px 10px; border: 1.5px solid #cfd6e0;
             border-radius: var(--radius-sm); font-family: inherit; font-size: 13px;
-            color: var(--gray-900); transition: border-color .15s;
+            color: var(--gray-900); transition: border-color .15s, box-shadow .15s, background .15s;
+            background: linear-gradient(180deg, rgba(241,244,248,.95) 0%, rgba(228,233,240,.9) 100%);
+            box-shadow: inset 0 1px 2px rgba(15,23,42,.06), inset 0 -1px 0 rgba(255,255,255,.7), 0 1px 0 rgba(255,255,255,.8);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
         }
+        .info-field input::placeholder, .info-field textarea::placeholder { color: #94a0b2; }
+        .info-field input:hover, .info-field select:hover, .info-field textarea:hover { border-color: #b4bfcd; }
         .info-field input:focus, .info-field select:focus, .info-field textarea:focus {
-            outline: none; border-color: var(--blue-light); box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+            outline: none; border-color: var(--blue-light); background: #fff;
+            box-shadow: 0 0 0 3px rgba(59,130,246,.15), inset 0 1px 2px rgba(15,23,42,.04);
         }
         .info-field textarea { resize: vertical; min-height: 80px; }
         .info-field .view-val { font-size: 13px; color: var(--gray-700); font-weight: 500; padding: 2px 0; }
@@ -688,6 +700,7 @@
         h3 svg.lucide { width: 17px; height: 17px; vertical-align: -0.22em; }
     </style>
     <link rel="stylesheet" href="uib-theme.css?v=20261003a">
+    <link rel="stylesheet" href="uib-ai-theme.css?v=20261113b">
 </head>
 <body>
 
@@ -988,10 +1001,8 @@
                     <div id="amsRnwAiCard" style="display:none;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:12px 20px;margin-bottom:16px;">
                         <div id="amsRnwAiHead" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                             <div style="display:flex;align-items:center;gap:10px;">
-                                <svg width="22" height="22" viewBox="0 0 32 32" fill="#D97757" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
-                                    <path d="M16 2 C 16.8 6, 18.5 9, 22 11 C 18.5 13, 16.8 16, 16 20 C 15.2 16, 13.5 13, 10 11 C 13.5 9, 15.2 6, 16 2 Z M28 16 C 24.5 16.5, 22 18, 20.5 21 C 22 18, 22.5 16, 22.5 16 C 22.5 16, 22 14, 20.5 11 C 22 14, 24.5 15.5, 28 16 Z M16 30 C 15.2 26, 13.5 23, 10 21 C 13.5 19, 15.2 16, 16 12 C 16.8 16, 18.5 19, 22 21 C 18.5 23, 16.8 26, 16 30 Z M4 16 C 7.5 15.5, 10 14, 11.5 11 C 10 14, 9.5 16, 9.5 16 C 9.5 16, 10 18, 11.5 21 C 10 18, 7.5 16.5, 4 16 Z"/>
-                                </svg>
-                                <span style="font-size:15px;font-weight:700;color:#9a3412;">Claude AI — Renewal Report Processor</span>
+                                <span style="font-size:20px;line-height:1;flex-shrink:0;">🤖</span>
+                                <span style="font-size:15px;font-weight:700;color:#9a3412;">Max AI — Renewal Report Processor</span>
                             </div>
                             <div style="display:flex;gap:6px;">
                             <button id="amsRnwAiNewBtn" onclick="rnwNewConversation()" style="display:none;background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
@@ -1000,7 +1011,7 @@
                         </div>
                         <div id="amsRnwAiBody" style="display:none;">
                         <div style="font-size:12px;color:#9a3412;background:#fff;border:1px dashed #f5c19a;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
-                            📤 <strong>Upload renewal reports</strong> from any insurance carrier (PDF). Claude will read every policy on the report and import them into the AMS — matching existing clients by policy number or name, updating expiration dates and premiums, and creating new client records for anyone not in the system. You can also just chat and ask questions about your book.
+                            📤 <strong>Upload renewal reports</strong> from any insurance carrier (PDF). Max AI will read every policy on the report and import them into the AMS — matching existing clients by policy number or name, updating expiration dates and premiums, and creating new client records for anyone not in the system. You can also just chat and ask questions about your book.
                         </div>
                         <div id="amsRnwMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:140px;max-height:520px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
                         <div id="amsRnwFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#fde4cc;border:1px solid #f5c19a;border-radius:8px;font-size:12px;color:#9a3412;"></div>
@@ -1567,14 +1578,55 @@
                         <button class="ams-tab"         data-tab="clientApps" onclick="amsShowTab('clientApps')"><i data-lucide="clipboard-list"></i> Client Apps</button>
                         <button class="ams-tab"         data-tab="certificates" onclick="amsShowTab('certificates')"><i data-lucide="award"></i> Certificate Master <span id="certTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="interests" onclick="amsShowTab('interests')"><i data-lucide="building-2"></i> Additional Interests <span id="aiTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
+                        <button class="ams-tab"         data-tab="maxAi" onclick="amsShowTab('maxAi')"><span style="font-size:14px;">🤖</span> Max AI</button>
                         <button class="ams-tab"         data-tab="insuredLogin" onclick="amsShowTab('insuredLogin')" style="display:none;"><i data-lucide="key-round"></i> Insured Login <span id="ilTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;">ON</span></button>
+                        <div style="position:relative;margin-left:auto;display:flex;align-items:center;">
+                            <button type="button" class="btn-sm" onclick="amsToggleClientActions(event)" style="background:var(--navy,#1e3a8a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;white-space:nowrap;"><i data-lucide="settings-2"></i> Actions ▾</button>
+                            <div id="amsClientActionsMenu" style="display:none;position:absolute;right:0;top:110%;z-index:60;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);min-width:210px;padding:6px;">
+                                <button type="button" onclick="amsClientActionEdit()" style="display:block;width:100%;text-align:left;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;border-radius:6px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">✏️ Edit client info</button>
+                                <button type="button" onclick="amsClientActionMerge()" style="display:block;width:100%;text-align:left;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;border-radius:6px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🔗 Merge duplicates</button>
+                                <button type="button" id="amsClientActDelete" onclick="amsClientActionDelete()" style="display:block;width:100%;text-align:left;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;border-radius:6px;color:#dc2626;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">🗑 Delete client</button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- ── TAB: Contact Info ── -->
                     <div id="tabContact">
                         <div class="info-card">
-                            <h3><i data-lucide="user"></i> Personal Information</h3>
-                            <div class="info-grid">
+                            <h3 id="ciIdentityTitle"><i data-lucide="user"></i> Personal Information</h3>
+                            <!-- Commercial clients: the business itself. The owner/contact
+                                 person goes under Contact Details. -->
+                            <div class="info-grid ci-com" style="display:none;">
+                                <div class="info-field" style="grid-column:span 2;">
+                                    <label>Company Name</label>
+                                    <input type="text" id="ci_companyName" placeholder="Legal company name">
+                                </div>
+                                <div class="info-field">
+                                    <label>DBA</label>
+                                    <input type="text" id="ci_dba" placeholder="Doing business as">
+                                </div>
+                                <div class="info-field">
+                                    <label>FEIN</label>
+                                    <input type="text" id="ci_fein" placeholder="XX-XXXXXXX" maxlength="10">
+                                </div>
+                                <div class="info-field">
+                                    <label>Entity Type</label>
+                                    <select id="ci_entityType">
+                                        <option value="">— Select —</option>
+                                        <option>LLC</option><option>Corporation</option><option>S-Corp</option>
+                                        <option>Partnership</option><option>Sole Proprietor</option><option>Non-Profit</option><option>Other</option>
+                                    </select>
+                                </div>
+                                <div class="info-field">
+                                    <label>Business Started</label>
+                                    <input type="text" id="ci_yearStarted" placeholder="Year" maxlength="4">
+                                </div>
+                                <div class="info-field" style="grid-column:span 2;">
+                                    <label>Nature of Business</label>
+                                    <input type="text" id="ci_bizDesc" placeholder="e.g. Electrical contractor, restaurant…">
+                                </div>
+                            </div>
+                            <div class="info-grid ci-per">
                                 <div class="info-field">
                                     <label>First Name</label>
                                     <input type="text" id="ci_firstName" placeholder="First name">
@@ -1617,17 +1669,31 @@
                         <div class="info-card">
                             <h3><i data-lucide="phone"></i> Contact Details</h3>
                             <div class="info-grid">
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>First Name</label>
+                                    <input type="text" id="ci_contactFirst" placeholder="First name">
+                                </div>
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>Last Name</label>
+                                    <input type="text" id="ci_contactLast" placeholder="Last name">
+                                </div>
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>Title</label>
+                                    <input type="text" id="ci_contactTitle" placeholder="Owner, President, Manager…">
+                                </div>
+                                <div class="ci-com" style="display:none;grid-column:1 / -1;height:0;"></div>
                                 <div class="info-field">
                                     <label>Phone (Primary)</label>
                                     <input type="tel" id="ci_phone1" placeholder="(305) 555-1234">
                                 </div>
-                                <div class="info-field">
-                                    <label>Phone (Secondary)</label>
-                                    <input type="tel" id="ci_phone2" placeholder="(305) 555-5678">
-                                </div>
+                                
                                 <div class="info-field">
                                     <label>Email Address</label>
                                     <input type="email" id="ci_email" placeholder="client@email.com">
+                                </div>
+                                <div class="info-field">
+                                    <label>Phone (Secondary)</label>
+                                    <input type="tel" id="ci_phone2" placeholder="(305) 555-5678">
                                 </div>
                                 <div class="info-field">
                                     <label>Preferred Contact</label>
@@ -1922,6 +1988,7 @@
                     </div>
 
                     <!-- ── TAB: Insured Login (insured-login.js) — commercial clients only ── -->
+                    <div id="tabMaxAi" style="display:none;"></div>
                     <div id="tabInsuredLogin" style="display:none;">
                         <h3 style="color:var(--navy);font-size:16px;margin-bottom:4px;"><i data-lucide="key-round" style="width:16px;height:16px;vertical-align:-3px;"></i> Insured Login</h3>
                         <p style="font-size:11px;color:var(--gray-400);margin-bottom:14px;">
@@ -2506,11 +2573,11 @@
         .ai-drop-hint { border: 2px dashed var(--blue-light); background: var(--blue-pale); border-radius: 10px; padding: 10px; text-align: center; font-size: 12px; color: var(--blue); margin-bottom: 10px; }
     </style>
 
-    <button id="aiBubbleBtn" onclick="aiOpenPanel()" title="UIB AI Assistant">✦</button>
+    <button id="aiBubbleBtn" onclick="aiOpenPanel()" title="Max AI">🤖</button>
 
     <div id="aiChatPanel">
         <div class="ai-chat-header">
-            <div class="title">✦ UIB AI Assistant
+            <div class="title">🤖 Max AI
                 <small>Upload any client document — I'll extract &amp; create the client</small>
             </div>
             <button onclick="aiNewConversation()" title="New conversation">↺ New</button>
@@ -2532,7 +2599,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261106s"></script>
+    <script src="ams.js?v=20261113d"></script>
     <script src="acord25-map.js?v=20261027a"></script>
     <script src="certificates.js?v=20261030b"></script>
     <script src="additional-interests.js?v=20261030b"></script>
@@ -3044,12 +3111,12 @@
         let _commAiBusy = false;
 
         function _commStAiPanelHtml() {
-            return `<div style="margin-top:8px;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;">
+            return `<div class="uib-ai-card" style="margin-top:8px;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                    <span style="font-size:15px;font-weight:700;color:#9a3412;">🤖 Claude AI — Commission Processor</span>
+                    <span style="font-size:15px;font-weight:700;color:#9a3412;">🤖 Max AI — Commission Processor</span>
                 </div>
                 <div style="font-size:12.5px;color:#9a3412;margin-bottom:10px;">
-                    📤 <strong>Upload commission statement PDFs</strong> from any carrier. Claude identifies every transaction,
+                    📤 <strong>Upload commission statement PDFs</strong> from any carrier. Max AI identifies every transaction,
                     matches it to Binder Book entries by policy number or customer name, and credits the <strong>original agent</strong>.
                 </div>
                 <div id="commAiMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:60px;max-height:480px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;font-size:13.5px;"></div>
@@ -8882,6 +8949,7 @@ IMPORTANT:
     </script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>
+<script src="max-ai.js?v=20261113b"></script>
 <script src="uib-drop.js?v=20261104a"></script>
 </body>
 </html>
