@@ -256,22 +256,38 @@
                             : '<div class="ah-kpi-sub">' + fmt(Math.max(g.value - have, 0)) + ' to go</div>') +
                       '<button class="ah-link" onclick="amsHomeSetGoal()">Set goal</button></div></div>';
             } },
-        trend: { title: 'Premium by month', icon: '📈', kind: 'chart', note: 'last 12 months',
-            render: function () { return '<div class="ah-chart" style="height:220px;"><canvas id="ahc_trend"></canvas></div>'; },
+        trend: { title: 'Premium by month', icon: '📈', kind: 'chart',
+            titleFn: function () { return (trendCfg().measure === 'policies' ? 'Policies' : 'Premium') + ' by month'; },
+            noteFn: function () { return 'last ' + trendCfg().months + ' months'; },
+            render: function () {
+                var t = trendCfg();
+                var seg = function (k, v, lbl) {
+                    return '<button type="button" class="ah-seg' + (t[k] === v ? ' ah-seg-on' : '') + '" onclick="amsHomeTrend(\'' + k + '\',\'' + v + '\')">' + lbl + '</button>';
+                };
+                return '<div class="ah-trend-ctl">' +
+                    '<span class="ah-segs">' + seg('measure', 'premium', '$ Premium') + seg('measure', 'policies', '# Policies') + '</span>' +
+                    '<span class="ah-segs">' + seg('months', '6', '6 mo') + seg('months', '12', '12 mo') + seg('months', '24', '24 mo') + '</span>' +
+                    '<span class="ah-segs">' + seg('type', 'bar', 'Bars') + seg('type', 'line', 'Line') + '</span>' +
+                    '</div><div class="ah-chart" style="height:220px;"><canvas id="ahc_trend"></canvas></div>';
+            },
             draw: function (c) {
+                var t = trendCfg(), n = +t.months, isPol = t.measure === 'policies';
                 var months = [], d = new Date(todayStr().slice(0, 7) + '-01T12:00:00');
-                for (var i = 11; i >= 0; i--) {
+                for (var i = n - 1; i >= 0; i--) {
                     var m = new Date(d); m.setMonth(d.getMonth() - i);
                     months.push(m.toISOString().slice(0, 7));
                 }
                 var vals = months.map(function (k) {
-                    return sum(c.base.filter(function (e) { return entryDay(e).slice(0, 7) === k && !isCancel(e); }), prem);
+                    var l = c.base.filter(function (e) { return entryDay(e).slice(0, 7) === k && !isCancel(e); });
+                    return isPol ? l.length : sum(l, prem);
                 });
                 var labels = months.map(function (k) { return new Date(k + '-15T12:00:00').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }); });
-                chart('trend', { type: 'bar', data: { labels: labels, datasets: [{ data: vals, label: 'Premium',
-                    backgroundColor: months.map(function (k, i) { return i === 11 ? '#2a78d6' : '#2a78d6a6'; }),
+                var line = t.type === 'line';
+                chart('trend', { type: line ? 'line' : 'bar', data: { labels: labels, datasets: [{ data: vals, label: isPol ? 'Policies' : 'Premium',
+                    backgroundColor: line ? '#2a78d622' : months.map(function (k, i) { return i === n - 1 ? '#2a78d6' : '#2a78d6a6'; }),
+                    borderColor: '#2a78d6', borderWidth: line ? 2.5 : 0, fill: line, tension: .3, pointRadius: line ? 3 : 0,
                     borderRadius: 4, borderSkipped: 'start', maxBarThickness: 34 }] },
-                    options: baseOpts({ money: true }) });
+                    options: baseOpts({ money: !isPol }) });
             } },
         lob: { title: 'Mix by line of business', icon: '🧩', kind: 'chart',
             render: function (c) { return c.sales.length ? '<div class="ah-chart" style="height:220px;"><canvas id="ahc_lob"></canvas></div>' : empty(); },
@@ -398,6 +414,8 @@
     function injectCss() {
         if (document.getElementById('ahStyles')) return;
         var css = '' +
+        '.ah-trend-ctl{display:flex;flex-wrap:wrap;gap:8px;margin:-2px 0 10px;}.ah-segs{display:inline-flex;background:#f1f5f9;border-radius:8px;padding:2px;}' +
+        '.ah-seg{border:none;background:none;padding:4px 10px;font-size:11.5px;font-weight:600;color:#475569;border-radius:6px;cursor:pointer;}.ah-seg-on{background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(15,23,42,.15);}' +
         '.ah{max-width:1320px;margin:0 auto;}' +
         '.ah-hero{position:relative;overflow:hidden;border-radius:18px;padding:24px 28px;color:#fff;margin-bottom:16px;' +
           'background:radial-gradient(1200px 300px at 110% -40%,rgba(103,232,249,.35),transparent 60%),linear-gradient(135deg,#0d1f3c 0%,#1d4ed8 100%);' +
@@ -564,8 +582,8 @@
         return '<div class="ah-card ah-' + item.size + '" data-id="' + item.id + '" style="animation-delay:' + (i * 35) + 'ms"' +
             (_editing ? ' draggable="true" ondragstart="amsHomeDrag(event,\'' + item.id + '\')" ondragover="amsHomeDragOver(event)" ondragleave="this.classList.remove(\'ah-over\')" ondrop="amsHomeDrop(event,\'' + item.id + '\')" ondragend="amsHomeDragEnd()"' : '') + '>' +
             '<div class="ah-card-head"><span class="ah-ico" style="background:' + tint + '1a;">' + def.icon + '</span>' +
-              '<span class="ah-card-title">' + esc(def.title) + '</span>' +
-              (def.note ? '<span class="ah-card-note">' + esc(def.note) + '</span>' : '') +
+              '<span class="ah-card-title">' + esc(def.titleFn ? def.titleFn() : def.title) + '</span>' +
+              ((def.noteFn || def.note) ? '<span class="ah-card-note">' + esc(def.noteFn ? def.noteFn() : def.note) + '</span>' : '') +
               '<span class="ah-tools">' +
                 '<button title="Move left" onclick="amsHomeMove(\'' + item.id + '\',-1)">◀</button>' +
                 '<button title="Move right" onclick="amsHomeMove(\'' + item.id + '\',1)">▶</button>' +
@@ -617,6 +635,14 @@
     function idx(id) { for (var i = 0; i < _prefs.cards.length; i++) if (_prefs.cards[i].id === id) return i; return -1; }
     function closeGallery() { var m = document.getElementById('ahGallery'); if (m) m.remove(); }
 
+    function trendCfg() {
+        var t = (_prefs && _prefs.trend) || {};
+        return { measure: t.measure === 'policies' ? 'policies' : 'premium', months: ({ '6': '6', '24': '24' })[t.months] || '12', type: t.type === 'line' ? 'line' : 'bar' };
+    }
+    window.amsHomeTrend = function (k, v) {
+        if (!_prefs) return;
+        _prefs.trend = Object.assign(trendCfg(), _prefs.trend || {}); _prefs.trend[k] = v; savePrefs(); render();
+    };
     window.amsHomeRender = render;
     window.amsHomeSetPeriod = function (p) { _f.period = p; _prefs.period = p; savePrefs(); render(); };
     window.amsHomeFilter = function (k, v) { _f[k] = v; render(); };
