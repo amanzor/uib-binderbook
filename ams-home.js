@@ -268,10 +268,12 @@
                     '<span class="ah-segs">' + seg('measure', 'premium', '$ Premium') + seg('measure', 'policies', '# Policies') + '</span>' +
                     '<span class="ah-segs">' + seg('months', '6', '6 mo') + seg('months', '12', '12 mo') + seg('months', '24', '24 mo') + '</span>' +
                     '<span class="ah-segs">' + seg('type', 'bar', 'Bars') + seg('type', 'line', 'Line') + '</span>' +
+                    (isAdmin() ? '<button type="button" class="ah-seg ah-edit-btn" onclick="amsHomeEditMonths()">✎ Edit numbers</button>' : '') +
                     '</div><div class="ah-chart" style="height:220px;"><canvas id="ahc_trend"></canvas></div>';
             },
             draw: function (c) {
-                var t = trendCfg(), n = +t.months, isPol = t.measure === 'policies';
+                var t = trendCfg(), n = +t.months, isPol = t.measure === 'policies', edited = {};
+                _trendBase = c.base;
                 var months = [], d = new Date(todayStr().slice(0, 7) + '-01T12:00:00');
                 for (var i = n - 1; i >= 0; i--) {
                     var m = new Date(d); m.setMonth(d.getMonth() - i);
@@ -279,12 +281,15 @@
                 }
                 var vals = months.map(function (k) {
                     var l = c.base.filter(function (e) { return entryDay(e).slice(0, 7) === k && !isCancel(e); });
-                    return isPol ? l.length : sum(l, prem);
+                    var v = isPol ? l.length : sum(l, prem);
+                    var o = useOverrides() && monthOverrides()[k];
+                    if (o && o[t.measure] != null && o[t.measure] !== '' && isFinite(+o[t.measure])) { edited[k] = true; return +o[t.measure]; }
+                    return v;
                 });
                 var labels = months.map(function (k) { return new Date(k + '-15T12:00:00').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }); });
                 var line = t.type === 'line';
                 chart('trend', { type: line ? 'line' : 'bar', data: { labels: labels, datasets: [{ data: vals, label: isPol ? 'Policies' : 'Premium',
-                    backgroundColor: line ? '#2a78d622' : months.map(function (k, i) { return i === n - 1 ? '#2a78d6' : '#2a78d6a6'; }),
+                    backgroundColor: line ? '#2a78d622' : months.map(function (k, i) { return edited[k] ? '#f59e0b' : i === n - 1 ? '#2a78d6' : '#2a78d6a6'; }),
                     borderColor: '#2a78d6', borderWidth: line ? 2.5 : 0, fill: line, tension: .3, pointRadius: line ? 3 : 0,
                     borderRadius: 4, borderSkipped: 'start', maxBarThickness: 34 }] },
                     options: baseOpts({ money: !isPol }) });
@@ -597,6 +602,7 @@
         if (!host) return;
         injectCss();
         if (!_prefs) { _prefs = loadPrefs(); _f.period = _prefs.period || 'month'; }
+        pullOverrides();
         var c = context();
         var cards = _prefs.cards.filter(function (x) { return CARDS[x.id]; });
         host.innerHTML = '<div class="ah' + (_editing ? ' ah-editing' : '') + '">' + heroHtml(c) + filterBar(c) +
@@ -639,6 +645,65 @@
         var t = (_prefs && _prefs.trend) || {};
         return { measure: t.measure === 'policies' ? 'policies' : 'premium', months: ({ '6': '6', '24': '24' })[t.months] || '12', type: t.type === 'line' ? 'line' : 'bar' };
     }
+    // Typed-in monthly numbers (agency totals). Shared through the cloud.
+    var OV_KEY = 'amsChartOverrides', _ovPulled = false, _trendBase = [];
+    function monthOverrides() { try { return JSON.parse(localStorage.getItem(OV_KEY) || '{}') || {}; } catch (e) { return {}; } }
+    function useOverrides() { return isAdmin() && !_f.agent && !_f.lob && !_f.location; }
+    function pullOverrides() {
+        if (_ovPulled || !window.UIBBinderSync || !UIBBinderSync.readCloud) return;
+        _ovPulled = true;
+        UIBBinderSync.readCloud(OV_KEY).then(function (r) {
+            if (!r || !r.ok || !r.value || typeof r.value !== 'object') return;
+            var loc = monthOverrides(), merged = Object.assign({}, loc);
+            Object.keys(r.value).forEach(function (k) { if (!loc[k] || (r.value[k].updatedAt || '') > (loc[k].updatedAt || '')) merged[k] = r.value[k]; });
+            if (JSON.stringify(merged) !== JSON.stringify(loc)) {
+                (window.uibCloud && uibCloud.rawSet ? uibCloud.rawSet : localStorage.setItem.bind(localStorage))(OV_KEY, JSON.stringify(merged));
+                render();
+            }
+        }).catch(function () {});
+    }
+    window.amsHomeEditMonths = function () {
+        if (!isAdmin()) return;
+        var t = trendCfg(), n = +t.months, ov = monthOverrides();
+        var d = new Date(todayStr().slice(0, 7) + '-01T12:00:00'), rows = '';
+        for (var i = n - 1; i >= 0; i--) {
+            var m = new Date(d); m.setMonth(d.getMonth() - i);
+            var k = m.toISOString().slice(0, 7);
+            var l = _trendBase.filter(function (e) { return entryDay(e).slice(0, 7) === k && !isCancel(e); });
+            var o = ov[k] || {};
+            rows += '<tr data-k="' + k + '"><td style="padding:6px 8px;font-weight:600;">' + new Date(k + '-15T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) + '</td>' +
+                '<td style="padding:6px 8px;color:#64748b;">' + money(sum(l, prem)) + '</td>' +
+                '<td><input type="number" min="0" step="0.01" class="ah-ov-p" value="' + (o.premium != null ? o.premium : '') + '" placeholder="calculated" style="width:120px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;"></td>' +
+                '<td style="padding:6px 8px;color:#64748b;">' + l.length + '</td>' +
+                '<td><input type="number" min="0" step="1" class="ah-ov-c" value="' + (o.policies != null ? o.policies : '') + '" placeholder="calculated" style="width:90px;padding:6px;border:1px solid #cbd5e1;border-radius:6px;"></td></tr>';
+        }
+        var m = document.getElementById('ahOvModal');
+        if (!m) { m = document.createElement('div'); m.id = 'ahOvModal'; document.body.appendChild(m); }
+        m.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;';
+        m.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3);">' +
+            '<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;"><div style="font-size:17px;font-weight:800;color:#0f172a;">✎ Edit monthly numbers</div>' +
+            '<div style="font-size:12px;color:#64748b;margin-top:2px;">Type the correct agency totals. Leave a box empty to use the calculated number. Edited months show in orange on the chart (agency view, no filters).</div></div>' +
+            '<div style="overflow:auto;padding:8px 14px;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="text-align:left;color:#334155;font-size:12px;">' +
+            '<th style="padding:6px 8px;">Month</th><th style="padding:6px 8px;">Calculated $</th><th>Your premium $</th><th style="padding:6px 8px;">Calculated #</th><th>Your policies #</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+            '<div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;gap:10px;justify-content:flex-end;">' +
+            '<button type="button" onclick="document.getElementById(\'ahOvModal\').remove()" style="padding:8px 16px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;">Cancel</button>' +
+            '<button type="button" onclick="amsHomeSaveMonths()" style="padding:8px 18px;border-radius:8px;border:none;background:#0f172a;color:#fff;font-weight:700;cursor:pointer;">Save</button></div></div>';
+        m.onclick = function (e) { if (e.target === m) m.remove(); };
+    };
+    window.amsHomeSaveMonths = function () {
+        var ov = monthOverrides(), now = new Date().toISOString();
+        var who = (window.UIBAuth && UIBAuth.user && UIBAuth.user() && UIBAuth.user().email) || '';
+        document.querySelectorAll('#ahOvModal tr[data-k]').forEach(function (tr) {
+            var k = tr.getAttribute('data-k'), p = tr.querySelector('.ah-ov-p').value.trim(), c = tr.querySelector('.ah-ov-c').value.trim();
+            var old = ov[k] || {};
+            if (p === '' && c === '') { if (ov[k]) ov[k] = { premium: null, policies: null, updatedAt: now, by: who }; return; }
+            var nv = { premium: p === '' ? null : +p, policies: c === '' ? null : Math.round(+c), updatedAt: now, by: who };
+            if (nv.premium !== old.premium || nv.policies !== old.policies) ov[k] = nv;
+        });
+        localStorage.setItem(OV_KEY, JSON.stringify(ov));
+        document.getElementById('ahOvModal').remove();
+        render();
+    };
     window.amsHomeTrend = function (k, v) {
         if (!_prefs) return;
         _prefs.trend = Object.assign(trendCfg(), _prefs.trend || {}); _prefs.trend[k] = v; savePrefs(); render();
