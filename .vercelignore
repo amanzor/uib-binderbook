@@ -17,6 +17,7 @@ backups/
 # fine locally — so add any future form here deliberately, never by relaxing
 # the *.pdf rule.
 !forms/acord25.pdf
+!forms/acord37.pdf
 binder_may26_import.json
 jorge_import.json
 

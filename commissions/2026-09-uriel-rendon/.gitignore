@@ -1,0 +1,6 @@
+# Source statements, the binder export and intermediates are not committed
+# (client PII / office source documents / regenerable).
+sep/
+work/
+raw_*.json
+*.json

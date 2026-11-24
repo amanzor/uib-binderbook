@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
-    <script src="storage-codec.js?v=20261026a"></script>
-    <script src="uib-auth.js?v=20261022c"></script>
+    <script src="storage-codec.js?v=20261029a"></script>
+    <script src="uib-auth.js?v=20261113m"></script>
     <script src="uib-audit.js?v=20261013j"></script>
     <script src="uib-ai.js?v=20261022c"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,6 +13,11 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Daily Sales Entry - UIB Binder Book</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20261110a">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20261110a">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png?v=20261110a">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192.png?v=20261110a">
+    <link rel="shortcut icon" href="/favicon.ico?v=20261110a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
@@ -382,7 +387,11 @@
                     </div>
                     <div class="form-group" style="margin:0;">
                         <label>Referred By <span style="font-size:11px;color:#1d4ed8;font-weight:500;">(optional)</span></label>
-                        <input type="text" id="referredBy" placeholder="Name of referrer (optional)">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="text" id="referredBy" placeholder="Name of referrer (optional)" style="flex:1;min-width:0;">
+                            <label for="giftCard" title="A gift card was given for this referral" style="display:flex;align-items:center;gap:6px;margin:0;white-space:nowrap;font-size:12.5px;font-weight:600;color:#374151;cursor:pointer;">
+                                <input type="checkbox" id="giftCard" style="width:16px;height:16px;accent-color:#1d4ed8;cursor:pointer;"> 🎁 Gift Card</label>
+                        </div>
                     </div>
                     <div class="form-group" style="margin:0;">
                         <label>Phone Number *</label>
@@ -412,7 +421,6 @@
                             <option value="New">New</option>
                             <option value="Rewrite">Rewrite</option>
                             <option value="Renew A-B">Renew A-B</option>
-                            <option value="Renewal">Renewal</option>
                             <option value="Endorsement">Endorsement</option>
                             <option value="Miscellaneous">Miscellaneous</option>
                         </select>
@@ -482,7 +490,7 @@
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
                     <div class="form-group" style="margin:0;">
                         <label>Policy Number</label>
-                        <input type="text" id="policyNumber">
+                        <input type="text" id="policyNumber" onchange="txnAutoMatch(this.value)">
                     </div>
                     <div class="form-group" style="margin:0;">
                         <label>Binder Number <span style="font-size:11px;color:#7c3aed;font-weight:600;">(Auto-Generated)</span></label>
@@ -770,7 +778,11 @@
                     </div>
                     <div class="form-group" style="margin:0;">
                         <label>Referred By <span style="font-size:11px;color:#1d4ed8;font-weight:500;">(optional)</span></label>
-                        <input type="text" id="referredByCom" placeholder="Name of referrer (optional)">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="text" id="referredByCom" placeholder="Name of referrer (optional)" style="flex:1;min-width:0;">
+                            <label for="giftCardCom" title="A gift card was given for this referral" style="display:flex;align-items:center;gap:6px;margin:0;white-space:nowrap;font-size:12.5px;font-weight:600;color:#374151;cursor:pointer;">
+                                <input type="checkbox" id="giftCardCom" style="width:16px;height:16px;accent-color:#1d4ed8;cursor:pointer;"> 🎁 Gift Card</label>
+                        </div>
                     </div>
                     <div class="form-group" style="margin:0;">
                         <label>Phone Number *</label>
@@ -800,7 +812,6 @@
                             <option value="New">New</option>
                             <option value="Rewrite">Rewrite</option>
                             <option value="Renew A-B">Renew A-B</option>
-                            <option value="Renewal">Renewal</option>
                             <option value="Endorsement">Endorsement</option>
                             <option value="Miscellaneous">Miscellaneous</option>
                         </select>
@@ -872,7 +883,7 @@
                         <label>Policy Number * <span style="font-size:11px;color:#7c3aed;font-weight:500;">(must match existing policy)</span></label>
                         <input type="text" id="policyNumberCom" required autocomplete="off"
                             oninput="txnPolicySearch(this.value,'Com')"
-                            onblur="setTimeout(()=>{document.getElementById('policySearchDropdownCom').style.display='none'},200)">
+                            onchange="txnAutoMatch(this.value,'Com')" onblur="setTimeout(()=>{document.getElementById('policySearchDropdownCom').style.display='none'},200)">
                         <div id="policySearchDropdownCom" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;background:#fff;border:1.5px solid #c4b5fd;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;margin-top:3px;"></div>
                         <div id="policyValidationMsgCom" style="display:none;margin-top:4px;font-size:12px;font-weight:600;border-radius:6px;padding:4px 10px;"></div>
                     </div>
@@ -1086,6 +1097,8 @@
                         <input type="checkbox" class="doc-status-cb" value="Premium Finance Set Up" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Premium Finance Set Up</label>
                     <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
                         <input type="checkbox" class="doc-status-cb" value="Invoice to be paid" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Invoice to be paid</label>
+                    <label class="doc-status-label" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
+                        <input type="checkbox" class="doc-status-cb" value="Clean" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#16a34a;cursor:pointer;"> Clean</label>
                     <div class="doc-status-label" style="grid-column:1/-1;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 12px;">
                         <label style="display:flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:600;color:#374151;cursor:pointer;white-space:nowrap;">
                             <input type="checkbox" class="doc-status-cb" value="Other" onchange="docStatusUpdate()" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer;"> Other</label>
@@ -1240,14 +1253,17 @@
 <span id="userDisplay" style="display:none;"></span>
 <input type="hidden" id="prospectDateAdded">
 
-<script src="app.js?v=20261029a"></script>
+<script src="app.js?v=20261124a"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="motion.js"></script>
 <script>
     // Auth check — redirect to main app if not logged in
     document.addEventListener('DOMContentLoaded', () => {
         const authUser = (window.UIBAuth && UIBAuth.user()) || null;
-        const savedUser = authUser ? (authUser.role === 'admin' ? 'Admin' : authUser.name) : null;
+        // An admin account with a name (Alberto, Randy, Amanda) records entries
+        // under that name; only a nameless admin login is "Admin" — the same
+        // rule as the main page.
+        const savedUser = authUser ? ((authUser.role === 'admin' && (!authUser.name || authUser.name === 'Admin')) ? 'Admin' : authUser.name) : null;
         if (!savedUser) {
             window.location.href = './';
             return;
@@ -1255,7 +1271,7 @@
 
         // Restore currentUser so app.js functions work correctly
         currentUser = savedUser;
-        currentRole = savedUser === 'Admin' ? 'admin' : 'agent';
+        currentRole = (savedUser === 'Admin' || (authUser && authUser.role === 'admin')) ? 'admin' : 'agent';
 
         // Update display
         const userDisplay = document.getElementById('userDisplay');
@@ -1344,10 +1360,20 @@
         dd.style.display = 'block';
     }
 
+    // Typed (or pasted) a full policy number without picking it from the
+    // list: if it matches exactly one existing policy, treat it as picked.
+    function txnAutoMatch(val, suffix = '') {
+        const v = String(val || '').trim().toLowerCase();
+        if (!v) return;
+        const nums = [...new Set((JSON.parse(localStorage.getItem('binderData')) || [])
+            .map(e => e.policyNumber).filter(p => p && String(p).trim().toLowerCase() === v))];
+        if (nums.length === 1) txnSelectPolicy(nums[0], suffix);
+    }
+
     function txnSelectPolicy(polNum, suffix = '') {
         const dd = document.getElementById('policySearchDropdown' + suffix);
         const msg = document.getElementById('policyValidationMsg' + suffix);
-        dd.style.display = 'none';
+        if (dd) dd.style.display = 'none';
 
         document.getElementById('policyNumber' + suffix).value = polNum;
 
@@ -1357,10 +1383,12 @@
 
         _txnSelectedPolicy = match;
 
+        if (msg) {
         msg.style.display = 'block';
         msg.style.background = '#ecfdf5';
         msg.style.color = '#065f46';
         msg.textContent = '✓ Matched: ' + (match.customerName || '') + ' — ' + (match.lineOfBusiness || '') + ' — ' + (match.company || '');
+        }
 
         if (match.customerName) document.getElementById('customerName' + suffix).value = match.customerName;
         if (match.lineOfBusiness) document.getElementById('lineOfBusiness' + suffix).value = match.lineOfBusiness;
@@ -1371,8 +1399,30 @@
         if (match.mga) document.getElementById('mga' + suffix).value = match.mga;
         if (match.effDate) document.getElementById('effDate' + suffix).value = match.effDate;
         if (match.term) document.getElementById('term' + suffix).value = match.term;
+
+        // Pull the rest of the client's details: take the latest non-empty
+        // value of each field across every entry with this policy number.
+        const _same = policies.filter(e => e.policyNumber === polNum)
+            .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+        const _latest = k => { for (const e of _same) { const v = e[k]; if (v !== undefined && v !== null && String(v).trim() !== '') return v; } return ''; };
+        const _fill = (id, v) => {
+            const el = document.getElementById(id + suffix);
+            if (!el || v === '' || el.value) return;
+            if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === String(v))) {
+                const o = document.createElement('option'); o.value = o.textContent = v; el.appendChild(o);
+            }
+            el.value = v;
+        };
+        _fill('contactName', _latest('contactName'));
+        _fill('customerPhone', _latest('customerPhone'));
+        _fill('customerEmail', _latest('customerEmail'));
+        _fill('source', _latest('source'));
+        _fill('referredBy', _latest('referredBy'));
+        _fill('premiumFinance', _latest('premiumFinance'));
+        if (!match.mga) _fill('mga', _latest('mga'));
     }
 </script>
 <script src="uib-motion.js?v=20261002a"></script>
+<script src="uib-drop.js?v=20261104a"></script>
 </body>
 </html>

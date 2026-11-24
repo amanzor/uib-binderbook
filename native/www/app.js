@@ -27,7 +27,7 @@ const _SB_HEADERS = {
 //  the new file. APP_BUILD must be a monotonically increasing integer
 //  (yyyymmdd, plus a trailing digit if you ship twice in a day).
 // ============================================================
-const APP_BUILD = 202610273;
+const APP_BUILD = 202610300;
 
 let _appOutdated = false;
 // Check for a newer published build as soon as any page opens, so a phone
@@ -54,6 +54,10 @@ async function _cloudAppBuild() {
 
 // Advertise this build as the fleet's latest (only ever raises the number).
 async function _publishAppBuild() {
+    // Only the live site may advertise its build: preview deployments of
+    // unmerged branches share this database and would mark everyone outdated.
+    if (typeof location !== 'undefined' && /^https?:$/.test(location.protocol) &&
+        location.hostname !== 'uib-binderbook.vercel.app') return;
     try {
         await fetch(`${SUPABASE_URL}/rest/v1/app_store`, {
             method: 'POST',

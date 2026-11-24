@@ -90,8 +90,13 @@ async function agentDirectory(): Promise<Record<string, string>> {
 // Field order shown in the email. Keys match what the Binder Book sends.
 const FIELDS: Array<[string, string]> = [
   ["name", "Name"],
+  ["businessName", "Business"],
   ["phone", "Phone"],
+  ["phone2", "Alternate Phone"],
   ["email", "Email"],
+  ["address", "Address"],
+  ["currentCoverage", "Current Coverage"],
+  ["quotedPremium", "Quoted Premium"],
   ["lob", "Line of Business"],
   ["source", "Source"],
   ["referredBy", "Referred By"],
@@ -146,6 +151,17 @@ Deno.serve(async (req) => {
     name: full,
     phone: String(p.phone ?? "").trim(),
     email: String(p.email ?? "").trim(),
+    businessName: String(p.businessName ?? "").trim(),
+    phone2: String(p.phone2 ?? "").trim(),
+    address: [p.address, p.city, [p.state, p.zip].filter(Boolean).join(" ")]
+      .map((v) => String(v ?? "").trim()).filter(Boolean).join(", "),
+    currentCoverage: [
+      String(p.currentCarrier ?? "").trim(),
+      p.currentPolicyNumber ? `#${String(p.currentPolicyNumber).trim()}` : "",
+      p.policyExpiration ? `expires ${String(p.policyExpiration).trim()}` : "",
+      Number(p.currentPremium) ? `$${Number(p.currentPremium).toLocaleString("en-US")}` : "",
+    ].filter(Boolean).join(" · "),
+    quotedPremium: Number(p.quotedPremium) ? `$${Number(p.quotedPremium).toLocaleString("en-US")}` : "",
     lob: String(p.lob ?? "").trim(),
     source: String(p.source ?? "").trim(),
     referredBy: String(p.referredBy ?? "").trim(),

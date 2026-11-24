@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <script src="uib-config.js?v=20261022a"></script>
     <script src="lz-string.min.js"></script>
-    <script src="storage-codec.js?v=20261026a"></script>
-    <script src="uib-binder-sync.js?v=20261027a"></script>
-    <script src="uib-auth.js?v=20261022c"></script>
+    <script src="storage-codec.js?v=20261029a"></script>
+    <script src="uib-binder-sync.js?v=20261106t"></script>
+    <script src="uib-auth.js?v=20261113m"></script>
+    <script src="uib-perms.js?v=20261113m"></script>
     <script src="uib-mfa.js?v=20261013e"></script>
     <script src="uib-audit.js?v=20261013j"></script>
     <script src="uib-ai.js?v=20261022c"></script>
@@ -14,6 +15,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>UIB AMS — Agency Management System</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20261110a">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20261110a">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png?v=20261110a">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/favicon-192.png?v=20261110a">
+    <link rel="shortcut icon" href="/favicon.ico?v=20261110a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
@@ -156,6 +162,73 @@
         }
         .ams-tab-btn svg { flex-shrink: 0; }
 
+        /* ── Book tabs (top) and section list (left pane) ─────────── */
+        .ams-tabbar { padding-left: 14px; }
+        .ams-header .logo-img { width: 26px; height: 26px; border-radius: 6px; object-fit: contain; background: #fff; padding: 2px; }
+        .ams-profile-btn { display: flex; align-items: center; gap: 10px; background: none; border: 1px solid transparent; border-radius: 999px;
+            padding: 3px 4px 3px 12px; cursor: pointer; font-family: inherit; transition: background .15s, border-color .15s; }
+        .ams-profile-btn:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.25); }
+        .ams-top-search { position: relative; width: 360px; max-width: 40vw; margin-left: 14px; align-self: center; flex-shrink: 1; }
+        .ams-top-search input { width: 100%; padding: 8px 12px 8px 33px; border: 1px solid var(--gray-200); border-radius: 999px; font-size: 13px;
+            font-family: inherit; background: var(--gray-50, #f8fafc); color: var(--navy); }
+        .ams-top-search input:focus { outline: none; border-color: var(--blue); background: #fff; box-shadow: 0 0 0 3px rgba(29,78,216,.12); }
+        .ams-top-search .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--gray-400); pointer-events: none; display: flex; }
+        .ams-logo-section { margin-left: auto; padding-left: 12px; flex-shrink: 0; align-self: center; }
+        .ams-logo-card { display: flex; align-items: center; gap: 9px; padding: 4px 12px 4px 5px; border: 1px solid var(--gray-200); border-radius: 12px;
+            background: linear-gradient(135deg,#f8fafc,#eef4ff); cursor: pointer; font-family: inherit; text-align: left; transition: box-shadow .15s, border-color .15s, transform .15s; }
+        .ams-logo-card:hover { border-color: #93c5fd; box-shadow: 0 8px 20px -12px rgba(13,31,60,.45); transform: translateY(-1px); }
+        .ams-logo-card img { width: 30px; height: 30px; object-fit: contain; border-radius: 10px; background: #fff; padding: 3px; box-shadow: 0 1px 3px rgba(15,23,42,.12); flex-shrink: 0; }
+        .ams-logo-card span { display: flex; flex-direction: column; min-width: 0; }
+        .ams-logo-card b { font-size: 12.5px; color: var(--navy); line-height: 1.2; }
+        .ams-logo-card small { font-size: 10.5px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ams-logo-card .ams-logo-initials { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,#0d1f3c,#1d4ed8); color: #fff;
+            font-weight: 800; font-size: 12px; align-items: center; justify-content: center; flex-shrink: 0; }
+        .ams-book-tabs { display: flex; gap: 4px; height: 100%; align-items: flex-end; }
+        .ams-book-tab {
+            display: flex; align-items: center; gap: 8px; padding: 10px 22px 11px; border: none; background: none;
+            border-bottom: 3px solid transparent; font-family: inherit; font-size: 13.5px; font-weight: 700;
+            color: var(--gray-500); cursor: pointer; border-radius: 8px 8px 0 0; transition: color .12s, background .12s, border-color .12s;
+        }
+        .ams-book-tab:hover { background: var(--blue-pale); color: var(--navy); }
+        .ams-book-tab.active { color: var(--navy); border-bottom-color: var(--blue); background: linear-gradient(to top, rgba(29,78,216,.08), transparent); }
+        .ams-book-sep { width: 1px; height: 24px; background: var(--gray-200); margin: 0 8px 12px; align-self: flex-end; }
+        .ams-book-health { color: #e11d48; }
+        .ams-book-health:hover { background: #fff1f2; color: #be123c; }
+        .ams-book-health.active { color: #be123c; border-bottom-color: #e11d48; background: linear-gradient(to top, rgba(225,29,72,.08), transparent); }
+        .ams-sidenav { display: flex; flex-direction: column; gap: 2px; padding: 12px 10px; border-bottom: 1px solid var(--gray-200); flex-shrink: 0; }
+        .ams-sidenav .ams-tab-btn { width: 100%; justify-content: flex-start; padding: 9px 12px; font-size: 13.5px; }
+        body[data-book="health"] .ams-sidenav .ams-tab-btn.active { background: linear-gradient(to right,#be123c 0%,#e11d48 60%,#fb7185 100%); box-shadow: 0 2px 8px rgba(225,29,72,.3); }
+
+        body.ams-home-on .ams-main { background: #f4f7fb; }
+
+        .fc-share { display: block; width: 100%; margin-top: 6px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--gray-200); background: #f8fafc;
+            color: var(--gray-500); font-size: 10.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .fc-share.on { background: #dcfce7; border-color: #86efac; color: #166534; }
+        .fc-share-note { margin-top: 6px; font-size: 10px; color: var(--gray-400); }
+        /* ── Clients view in the main area ── */
+        #amsClientsPanel .ams-clients-head h2 { display: flex; align-items: center; gap: 8px; font-size: 20px; color: var(--navy); margin: 0 0 12px; }
+        #amsClientsPanel .sidebar-toolbar { border: 1px solid var(--gray-200); border-radius: 12px; background: #fff; margin-bottom: 14px; padding: 14px; display: grid;
+            grid-template-columns: minmax(220px, 1.4fr) minmax(320px, 2fr) auto auto auto; gap: 10px; align-items: center; }
+        #amsClientsPanel .sidebar-toolbar > * { margin: 0 !important; }
+        #amsClientsPanel .sidebar-filters { display: flex; gap: 8px; }
+        #amsClientsPanel .sidebar-filters select { flex: 1; }
+        #amsClientsPanel .client-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; overflow: visible; }
+        #amsClientsPanel .client-card { border: 1px solid var(--gray-200); border-radius: 12px; background: #fff; }
+        @media (max-width: 1100px) { #amsClientsPanel .sidebar-toolbar { grid-template-columns: 1fr 1fr; } }
+        .ams-recent { padding: 12px 10px 80px; overflow-y: auto; flex: 1; }
+        .ams-recent-title { font-size: 10.5px; font-weight: 800; color: var(--gray-500); text-transform: uppercase; letter-spacing: .6px; padding: 0 6px 6px; }
+        .ams-recent-row { width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 8px; border: none; background: none; border-radius: 9px; cursor: pointer;
+            font-family: inherit; text-align: left; }
+        .ams-recent-row:hover { background: var(--blue-pale); }
+        .ams-recent-row.active { background: #eef4ff; box-shadow: inset 3px 0 0 var(--blue); }
+        .ams-recent-row .av { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg,var(--blue),var(--navy)); color: #fff; font-size: 10.5px;
+            font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .ams-recent-row b { display: block; font-size: 12.5px; color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ams-recent-row small { font-size: 10.5px; color: var(--gray-400); }
+        .ams-back-clients { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 12px; padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: 999px;
+            background: #fff; color: var(--navy); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .ams-back-clients:hover { background: var(--blue-pale); }
+
         /* ── MAIN BODY LAYOUT ─────────────────────────────────────── */
         .ams-body { display: flex; flex: 1; padding-top: calc(var(--header-h) + var(--tabbar-h)); min-height: 100vh; }
 
@@ -288,14 +361,21 @@
         }
         .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
         .info-field { display: flex; flex-direction: column; gap: 4px; }
-        .info-field label { font-size: 11px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: .5px; }
+        .info-field label { font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .5px; }
+        /* Light silver glass: fields stand out from the white cards. */
         .info-field input, .info-field select, .info-field textarea {
-            padding: 8px 10px; border: 1.5px solid var(--gray-200);
+            padding: 8px 10px; border: 1.5px solid #cfd6e0;
             border-radius: var(--radius-sm); font-family: inherit; font-size: 13px;
-            color: var(--gray-900); transition: border-color .15s;
+            color: var(--gray-900); transition: border-color .15s, box-shadow .15s, background .15s;
+            background: linear-gradient(180deg, rgba(241,244,248,.95) 0%, rgba(228,233,240,.9) 100%);
+            box-shadow: inset 0 1px 2px rgba(15,23,42,.06), inset 0 -1px 0 rgba(255,255,255,.7), 0 1px 0 rgba(255,255,255,.8);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
         }
+        .info-field input::placeholder, .info-field textarea::placeholder { color: #94a0b2; }
+        .info-field input:hover, .info-field select:hover, .info-field textarea:hover { border-color: #b4bfcd; }
         .info-field input:focus, .info-field select:focus, .info-field textarea:focus {
-            outline: none; border-color: var(--blue-light); box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+            outline: none; border-color: var(--blue-light); background: #fff;
+            box-shadow: 0 0 0 3px rgba(59,130,246,.15), inset 0 1px 2px rgba(15,23,42,.04);
         }
         .info-field textarea { resize: vertical; min-height: 80px; }
         .info-field .view-val { font-size: 13px; color: var(--gray-700); font-weight: 500; padding: 2px 0; }
@@ -620,6 +700,7 @@
         h3 svg.lucide { width: 17px; height: 17px; vertical-align: -0.22em; }
     </style>
     <link rel="stylesheet" href="uib-theme.css?v=20261003a">
+    <link rel="stylesheet" href="uib-ai-theme.css?v=20261113b">
 </head>
 <body>
 
@@ -708,24 +789,21 @@
 
         <!-- Header -->
         <header class="ams-header">
-            <div class="logo" onclick="amsSidebarNav('agency')" role="button" tabindex="0"
-                 title="Agency Profile" style="cursor:pointer;"
-                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();amsSidebarNav('agency');}">
-                <i data-lucide="building-2" style="width:20px;height:20px;"></i>
+            <div class="logo">
+                <img src="icons/uib-96.png" alt="" class="logo-img">
                 UIB AMS
-                <span class="badge">Agency Management</span>
-            </div>
-            <div class="search-wrap">
-                <span class="search-icon"><i data-lucide="search" style="width:14px;height:14px;"></i></span>
-                <input type="text" id="amsGlobalSearch" placeholder="Search clients by name, phone, policy #…"
-                    onfocus="amsSidebarNav('search')" oninput="amsSearch(this.value)">
             </div>
             <div class="user-chip">
-                <span id="amsUserLabel">—</span>
-                <div class="avatar" id="amsUserAvatar">?</div>
+                <button type="button" class="ams-profile-btn" id="amsProfileBtn" onclick="amsOpenMyProfile()" title="My agent profile">
+                    <span id="amsUserLabel">—</span>
+                    <div class="avatar" id="amsUserAvatar">?</div>
+                </button>
                 <button class="btn-sm" onclick="window.open('insured-portal.html','_blank')"
                     style="background:linear-gradient(to right,#047857 0%,#059669 55%,#10b981 100%);color:#fff;border:none;box-shadow:0 1px 3px rgba(5,150,105,.35);">
                     <i data-lucide="shield-check"></i> Insured Login
+                </button>
+                <button class="btn-sm uib-perms-btn" onclick="UIBPerms.open()" style="display:none;background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;border:none;">
+                    <i data-lucide="key-round"></i> User Access Permissions
                 </button>
                 <button class="btn-secondary btn-sm" onclick="amsLogout()">
                     <i data-lucide="log-out"></i> Logout
@@ -733,28 +811,16 @@
             </div>
         </header>
 
-        <!-- Section tab bar (below header) -->
+        <!-- Book tabs (below header): Personal / Commercial / Health — ams-books.js -->
         <nav class="ams-tabbar" id="amsTabbar">
-            <div class="ams-nav-group" style="position:relative;display:flex;align-items:center;flex-shrink:0;">
-                <button class="ams-tab-btn" id="sidebarNavDashboard" onclick="amsSidebarNav('dashboard')">
-                    <i data-lucide="layout-dashboard" style="width:15px;height:15px;"></i> Dashboard
-                </button>
+            <div class="ams-book-tabs" id="amsBookTabs" role="tablist" aria-label="Book of business"></div>
+            <div class="ams-top-search">
+                <span class="search-icon"><i data-lucide="search" style="width:14px;height:14px;"></i></span>
+                <input type="text" id="amsGlobalSearch" placeholder="Search clients by name, phone, policy #…"
+                    onfocus="amsSidebarNav('search')" oninput="amsSearch(this.value)">
             </div>
-            <button class="ams-tab-btn" id="sidebarNavReports" onclick="amsSidebarNav('reports')">
-                <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i> Reports
-            </button>
-            <button class="ams-tab-btn" id="sidebarNavRenewals" onclick="amsSidebarNav('renewals')">
-                <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i> Renewals
-            </button>
-            <button class="ams-tab-btn" id="sidebarNavAccounting" onclick="amsSidebarNav('accounting')">
-                <i data-lucide="dollar-sign" style="width:15px;height:15px;"></i> Accounting
-            </button>
-            <button class="ams-tab-btn" id="sidebarNavDownload" onclick="amsSidebarNav('download')">
-                <i data-lucide="download" style="width:15px;height:15px;"></i> Download
-            </button>
-            <button class="ams-tab-btn" id="sidebarNavRealtime" onclick="amsSidebarNav('realtime')">
-                <i data-lucide="zap" style="width:15px;height:15px;"></i> Real Time
-            </button>
+            <!-- Agency Management (managers) / Agent Management (agents) — agency.js -->
+            <div class="ams-logo-section" id="amsLogoSection"></div>
         </nav>
 
         <!-- Body -->
@@ -763,6 +829,45 @@
             <!-- ── LEFT SIDEBAR ── -->
             <aside class="ams-sidebar">
 
+                <!-- Sections: each opens on the right -->
+                <nav class="ams-sidenav" aria-label="Sections">
+                <button class="ams-tab-btn" id="sidebarNavClients" data-section="clients" onclick="amsSidebarNav('clients')">
+                    <i data-lucide="users" style="width:16px;height:16px;"></i> Clients
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavDashboard" data-section="dashboard" onclick="amsSidebarNav('dashboard')">
+                    <i data-lucide="layout-dashboard" style="width:16px;height:16px;"></i> Dashboard
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavReports" data-section="reports" onclick="amsSidebarNav('reports')">
+                    <i data-lucide="bar-chart-2" style="width:16px;height:16px;"></i> Reports
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavRenewals" data-section="renewals" onclick="amsSidebarNav('renewals')">
+                    <i data-lucide="refresh-cw" style="width:16px;height:16px;"></i> Renewals
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavAccounting" data-section="accounting" onclick="amsSidebarNav('accounting')">
+                    <i data-lucide="dollar-sign" style="width:16px;height:16px;"></i> Accounting
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavDownload" data-section="download" onclick="amsSidebarNav('download')">
+                    <i data-lucide="download" style="width:16px;height:16px;"></i> Download
+                </button>
+                <button class="ams-tab-btn" id="sidebarNavRealtime" data-section="realtime" onclick="amsSidebarNav('realtime')">
+                    <i data-lucide="zap" style="width:16px;height:16px;"></i> Real Time
+                </button>
+                </nav>
+
+                <div class="sidebar-panel-nav" id="amsPanelNav"></div>
+
+                <!-- Recently opened clients (ams-books.js) -->
+                <div class="ams-recent" id="amsRecentClients"></div>
+            </aside>
+
+            <!-- ── MAIN DETAIL ── -->
+            <main class="ams-main">
+
+                <!-- Clients: filters and the client list (opened by Clients) -->
+                <div id="amsClientsPanel" style="display:none;">
+                    <div class="ams-clients-head">
+                        <h2><i data-lucide="users" style="width:20px;height:20px;"></i> Clients</h2>
+                    </div>
                 <div class="sidebar-toolbar" id="sidebarSearchToolbar">
                     <div class="sidebar-search">
                         <span class="s-icon"><i data-lucide="search" style="width:13px;height:13px;"></i></span>
@@ -775,6 +880,13 @@
                         </select>
                         <select id="amsCarrierFilter" onchange="amsApplyFilters()">
                             <option value="">All Carriers</option>
+                        </select>
+                        <select id="amsTypeFilter" onchange="amsApplyFilters()" title="Clients, prospects or Health Book clients">
+                            <option value="">All Records</option>
+                            <option value="clients">Clients</option>
+                            <option value="prospects">Prospects</option>
+                            <option value="inactive">Inactive clients</option>
+                            <option value="health">Health</option>
                         </select>
                     </div>
                     <label class="related-toggle" title="Also surface clients linked to your matches by a shared phone, email, address, or referral">
@@ -794,11 +906,7 @@
                 </div>
 
                 <!-- Active panel's buttons live here — see amsMountPanelNav() -->
-                <div class="sidebar-panel-nav" id="amsPanelNav"></div>
-            </aside>
-
-            <!-- ── MAIN DETAIL ── -->
-            <main class="ams-main">
+                </div>
 
                 <!-- Welcome state -->
                 <div class="ams-welcome" id="amsWelcome">
@@ -861,9 +969,15 @@
                         <button class="report-tab" onclick="amsShowReport('lob')">📊 By Line of Business</button>
                         <button class="report-tab" onclick="amsShowReport('carrier')">🏢 Carrier Summary</button>
                         <button class="report-tab" onclick="amsShowReport('newvsrenewal')">🔄 New vs Renewals</button>
+                        <button class="report-tab" onclick="amsSidebarNav('renewals')">🔁 Renewals</button>
                         <button class="report-tab" onclick="amsShowReport('commission')">💰 Commission Report</button>
                         <button class="report-tab" onclick="amsShowReport('monthly')">📅 Monthly Trend</button>
                         <button class="report-tab" onclick="amsShowReport('paymethod')">💳 Payment Methods</button>
+                        <button class="report-tab" onclick="amsShowReport('prospects')">🎯 Prospects</button>
+                        <button class="report-tab" onclick="amsShowReport('inactive')">💤 Inactive Clients</button>
+                        <button class="report-tab" onclick="amsShowReport('missinglob')">🧩 Missing Line of Business</button>
+                        <button class="report-tab" onclick="amsSidebarNav('health'); healthTab('report');" style="color:#be123c;">❤️ Health Insurance</button>
+                        <button class="report-tab" onclick="amsSidebarNav('health'); healthTab('commissions');" style="color:#be123c;">❤️ Health Commissions</button>
                     </div>
                     <div class="report-body" id="amsReportBody">
                         <div class="rpt-no-data" style="margin-top:60px;">
@@ -884,18 +998,20 @@
                     </div>
 
                     <!-- ── Claude AI — Renewal Report Processor (admin only) ── -->
-                    <div id="amsRnwAiCard" style="display:none;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;margin-bottom:16px;">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                    <div id="amsRnwAiCard" style="display:none;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:12px 20px;margin-bottom:16px;">
+                        <div id="amsRnwAiHead" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                             <div style="display:flex;align-items:center;gap:10px;">
-                                <svg width="22" height="22" viewBox="0 0 32 32" fill="#D97757" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
-                                    <path d="M16 2 C 16.8 6, 18.5 9, 22 11 C 18.5 13, 16.8 16, 16 20 C 15.2 16, 13.5 13, 10 11 C 13.5 9, 15.2 6, 16 2 Z M28 16 C 24.5 16.5, 22 18, 20.5 21 C 22 18, 22.5 16, 22.5 16 C 22.5 16, 22 14, 20.5 11 C 22 14, 24.5 15.5, 28 16 Z M16 30 C 15.2 26, 13.5 23, 10 21 C 13.5 19, 15.2 16, 16 12 C 16.8 16, 18.5 19, 22 21 C 18.5 23, 16.8 26, 16 30 Z M4 16 C 7.5 15.5, 10 14, 11.5 11 C 10 14, 9.5 16, 9.5 16 C 9.5 16, 10 18, 11.5 21 C 10 18, 7.5 16.5, 4 16 Z"/>
-                                </svg>
-                                <span style="font-size:15px;font-weight:700;color:#9a3412;">Claude AI — Renewal Report Processor</span>
+                                <span style="font-size:20px;line-height:1;flex-shrink:0;">🤖</span>
+                                <span style="font-size:15px;font-weight:700;color:#9a3412;">Max AI — Renewal Report Processor</span>
                             </div>
-                            <button onclick="rnwNewConversation()" style="background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
+                            <div style="display:flex;gap:6px;">
+                            <button id="amsRnwAiNewBtn" onclick="rnwNewConversation()" style="display:none;background:#fff;border:1px solid #f5c19a;color:#c2410c;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">+ New chat</button>
+                            <button id="amsRnwAiToggle" onclick="amsRnwAiToggle()" style="background:#c2410c;border:none;color:#fff;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">Show</button>
+                            </div>
                         </div>
+                        <div id="amsRnwAiBody" style="display:none;">
                         <div style="font-size:12px;color:#9a3412;background:#fff;border:1px dashed #f5c19a;border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
-                            📤 <strong>Upload renewal reports</strong> from any insurance carrier (PDF). Claude will read every policy on the report and import them into the AMS — matching existing clients by policy number or name, updating expiration dates and premiums, and creating new client records for anyone not in the system. You can also just chat and ask questions about your book.
+                            📤 <strong>Upload renewal reports</strong> from any insurance carrier (PDF). Max AI will read every policy on the report and import them into the AMS — matching existing clients by policy number or name, updating expiration dates and premiums, and creating new client records for anyone not in the system. You can also just chat and ask questions about your book.
                         </div>
                         <div id="amsRnwMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:140px;max-height:520px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;font-size:14px;"></div>
                         <div id="amsRnwFilePreview" style="display:none;margin-top:8px;padding:8px 12px;background:#fde4cc;border:1px solid #f5c19a;border-radius:8px;font-size:12px;color:#9a3412;"></div>
@@ -908,6 +1024,7 @@
                                 onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();rnwSendMessage();}"></textarea>
                             <button onclick="rnwSendMessage()" id="amsRnwSendBtn"
                                 style="flex-shrink:0;background:linear-gradient(135deg,#D97757,#c2410c);color:#fff;border:none;padding:0 18px;height:42px;border-radius:10px;cursor:pointer;font-weight:700;font-size:14px;">Send</button>
+                        </div>
                         </div>
                     </div>
                     <!-- /Claude AI Renewal Report Processor -->
@@ -970,6 +1087,25 @@
                         </div>
                     </div>
 
+                    <!-- Uploaded renewal reports, kept one year -->
+                    <div id="amsRnwReportsCard" style="display:none;background:#fff;border:1px solid var(--gray-200);
+                                border-radius:12px;padding:14px 16px;margin-bottom:16px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;cursor:pointer;"
+                             onclick="amsRnwToggleReports()">
+                            <div>
+                                <div style="font-size:13px;font-weight:800;color:var(--navy);">
+                                    &#128193; Renewal Reports <span id="amsRnwReportsCount" style="font-weight:600;color:var(--gray-500);"></span>
+                                </div>
+                                <div style="font-size:11.5px;color:var(--gray-500);margin-top:2px;">
+                                    Every report uploaded above is filed here by month, with who uploaded it. Kept for one year.
+                                </div>
+                            </div>
+                            <button type="button" id="amsRnwReportsToggle" style="padding:6px 14px;border:1px solid var(--gray-200);
+                                    border-radius:7px;background:#fff;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">Show</button>
+                        </div>
+                        <div id="amsRnwReportsBody" style="display:none;margin-top:12px;"></div>
+                    </div>
+
                     <!-- Looking forward (the default) or back -->
                     <div style="display:flex;gap:6px;margin-bottom:10px;">
                         <button type="button" id="amsRnwScopeUpcoming" onclick="amsRnwSetScope(false)"
@@ -979,6 +1115,10 @@
                             title="Policies whose expiration has already passed, and what happened to each"
                             style="padding:6px 16px;border-radius:999px;border:1px solid var(--gray-200);background:#fff;
                                    font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">Past</button>
+                        <button type="button" id="amsRnwScopeRenewed" onclick="amsRnwSetScope('renewed')"
+                            title="Every renewal transaction, filed under the month it renewed (its effective date)"
+                            style="padding:6px 16px;border-radius:999px;border:1px solid var(--gray-200);background:#fff;
+                                   font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">Renewed</button>
                     </div>
 
                     <!-- Month view buttons -->
@@ -1020,6 +1160,18 @@
                             <h3 style="color:var(--gray-500);margin-bottom:8px;">Select an Accounting Report</h3>
                             <p>Choose a section from the tabs above.</p>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Health panel (Health Book clients, reports, carriers, statements — health.js) -->
+                <!-- Home panel (ams-home.js): the signed-in agent's own production -->
+                <div id="amsHomePanel" style="display:none;">
+                    <div id="amsHomeBody"></div>
+                </div>
+
+                <div id="amsHealthPanel" style="display:none;" class="reports-panel">
+                    <div style="flex:1;padding:24px;overflow-y:auto;">
+                        <div id="amsHealthBody"></div>
                     </div>
                 </div>
 
@@ -1424,14 +1576,57 @@
                         <button class="ams-tab"         data-tab="communications" onclick="amsShowTab('communications')"><i data-lucide="history"></i> Activity <span id="commTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="documents" onclick="amsShowTab('documents')"><i data-lucide="folder-open"></i> Documents <span id="docTabBadge" style="display:none;background:var(--blue);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
                         <button class="ams-tab"         data-tab="clientApps" onclick="amsShowTab('clientApps')"><i data-lucide="clipboard-list"></i> Client Apps</button>
-                        <button class="ams-tab"         data-tab="certificates" onclick="amsShowTab('certificates')"><i data-lucide="award"></i> Certificate Master</button>
+                        <button class="ams-tab"         data-tab="certificates" onclick="amsShowTab('certificates')"><i data-lucide="award"></i> Certificate Master <span id="certTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
+                        <button class="ams-tab"         data-tab="interests" onclick="amsShowTab('interests')"><i data-lucide="building-2"></i> Additional Interests <span id="aiTabBadge" style="display:none;background:#0891b2;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
+                        <button class="ams-tab"         data-tab="maxAi" onclick="amsShowTab('maxAi')"><span style="font-size:14px;">🤖</span> Max AI</button>
+                        <button class="ams-tab"         data-tab="insuredLogin" onclick="amsShowTab('insuredLogin')" style="display:none;"><i data-lucide="key-round"></i> Insured Login <span id="ilTabBadge" style="display:none;background:#15803d;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;">ON</span></button>
+                        <div style="position:relative;margin-left:auto;display:flex;align-items:center;">
+                            <button type="button" class="btn-sm" onclick="amsToggleClientActions(event)" style="background:var(--navy,#1e3a8a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;white-space:nowrap;"><i data-lucide="settings-2"></i> Actions ▾</button>
+                            <div id="amsClientActionsMenu" style="display:none;position:absolute;right:0;top:110%;z-index:60;background:#fff;border:1px solid var(--gray-200);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);min-width:210px;padding:6px;">
+                                <button type="button" onclick="amsClientActionEdit()" style="display:block;width:100%;text-align:left;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;border-radius:6px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">✏️ Edit client info</button>
+                                <button type="button" onclick="amsClientActionMerge()" style="display:block;width:100%;text-align:left;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;border-radius:6px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🔗 Merge duplicates</button>
+                                <button type="button" id="amsClientActDelete" onclick="amsClientActionDelete()" style="display:block;width:100%;text-align:left;padding:9px 12px;border:none;background:none;cursor:pointer;font-size:13px;border-radius:6px;color:#dc2626;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">🗑 Delete client</button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- ── TAB: Contact Info ── -->
                     <div id="tabContact">
                         <div class="info-card">
-                            <h3><i data-lucide="user"></i> Personal Information</h3>
-                            <div class="info-grid">
+                            <h3 id="ciIdentityTitle"><i data-lucide="user"></i> Personal Information</h3>
+                            <!-- Commercial clients: the business itself. The owner/contact
+                                 person goes under Contact Details. -->
+                            <div class="info-grid ci-com" style="display:none;">
+                                <div class="info-field" style="grid-column:span 2;">
+                                    <label>Company Name</label>
+                                    <input type="text" id="ci_companyName" placeholder="Legal company name">
+                                </div>
+                                <div class="info-field">
+                                    <label>DBA</label>
+                                    <input type="text" id="ci_dba" placeholder="Doing business as">
+                                </div>
+                                <div class="info-field">
+                                    <label>FEIN</label>
+                                    <input type="text" id="ci_fein" placeholder="XX-XXXXXXX" maxlength="10">
+                                </div>
+                                <div class="info-field">
+                                    <label>Entity Type</label>
+                                    <select id="ci_entityType">
+                                        <option value="">— Select —</option>
+                                        <option>LLC</option><option>Corporation</option><option>S-Corp</option>
+                                        <option>Partnership</option><option>Sole Proprietor</option><option>Non-Profit</option><option>Other</option>
+                                    </select>
+                                </div>
+                                <div class="info-field">
+                                    <label>Business Started</label>
+                                    <input type="text" id="ci_yearStarted" placeholder="Year" maxlength="4">
+                                </div>
+                                <div class="info-field" style="grid-column:span 2;">
+                                    <label>Nature of Business</label>
+                                    <input type="text" id="ci_bizDesc" placeholder="e.g. Electrical contractor, restaurant…">
+                                </div>
+                            </div>
+                            <div class="info-grid ci-per">
                                 <div class="info-field">
                                     <label>First Name</label>
                                     <input type="text" id="ci_firstName" placeholder="First name">
@@ -1474,17 +1669,31 @@
                         <div class="info-card">
                             <h3><i data-lucide="phone"></i> Contact Details</h3>
                             <div class="info-grid">
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>First Name</label>
+                                    <input type="text" id="ci_contactFirst" placeholder="First name">
+                                </div>
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>Last Name</label>
+                                    <input type="text" id="ci_contactLast" placeholder="Last name">
+                                </div>
+                                <div class="info-field ci-com" style="display:none;">
+                                    <label>Title</label>
+                                    <input type="text" id="ci_contactTitle" placeholder="Owner, President, Manager…">
+                                </div>
+                                <div class="ci-com" style="display:none;grid-column:1 / -1;height:0;"></div>
                                 <div class="info-field">
                                     <label>Phone (Primary)</label>
                                     <input type="tel" id="ci_phone1" placeholder="(305) 555-1234">
                                 </div>
-                                <div class="info-field">
-                                    <label>Phone (Secondary)</label>
-                                    <input type="tel" id="ci_phone2" placeholder="(305) 555-5678">
-                                </div>
+                                
                                 <div class="info-field">
                                     <label>Email Address</label>
                                     <input type="email" id="ci_email" placeholder="client@email.com">
+                                </div>
+                                <div class="info-field">
+                                    <label>Phone (Secondary)</label>
+                                    <input type="tel" id="ci_phone2" placeholder="(305) 555-5678">
                                 </div>
                                 <div class="info-field">
                                     <label>Preferred Contact</label>
@@ -1641,12 +1850,13 @@
                                         <tr>
                                             <th>Date</th>
                                             <th>Agent</th>
-                                            <th>Policy Type</th>
+                                            <th>Transaction Type</th>
                                             <th>LOB</th>
                                             <th>Carrier</th>
                                             <th>Policy #</th>
                                             <th>Binder #</th>
                                             <th style="text-align:right;">Premium</th>
+                                            <th>Term</th>
                                             <th>Pmt Type</th>
                                             <th>MGA</th>
                                             <th>Status</th>
@@ -1654,7 +1864,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="amsPoliciesBody">
-                                        <tr><td colspan="12" style="text-align:center;padding:32px;color:var(--gray-400);">No policies found.</td></tr>
+                                        <tr><td colspan="13" style="text-align:center;padding:32px;color:var(--gray-400);">No policies found.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1693,6 +1903,7 @@
                                     <option>Vehicle Documents</option>
                                     <option>Claims</option>
                                     <option>Correspondence</option>
+                                    <option>Client Uploads</option>
                                     <option>Other</option>
                                 </select>
                             </div>
@@ -1735,6 +1946,7 @@
                                     <option>Vehicle Documents</option>
                                     <option>Claims</option>
                                     <option>Correspondence</option>
+                                    <option>Client Uploads</option>
                                 </select>
                             </div>
 
@@ -1745,21 +1957,45 @@
                         </div>
                     </div><!-- /tabDocuments -->
 
-                    <!-- ── TAB: Forms ── -->
+                    <!-- ── TAB: Certificate Master (certificates-ui.js) ── -->
                     <div id="tabCertificates" style="display:none;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:12px;flex-wrap:wrap;">
                             <h3 style="color:var(--navy);font-size:16px;"><i data-lucide="award" style="width:16px;height:16px;vertical-align:-3px;"></i> Certificate Master</h3>
-                            <div style="display:flex;gap:8px;">
-                                <button onclick="certEditProducer()" style="padding:7px 13px;background:#fff;color:var(--navy);border:1px solid var(--gray-200);border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;">Agency details</button>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button onclick="certSendPicker()" style="padding:7px 13px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">✉ Send Certificate</button>
                                 <button onclick="certNewForClient()" style="padding:7px 14px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">+ New certificate</button>
                             </div>
                         </div>
                         <p style="font-size:11px;color:var(--gray-400);margin-bottom:14px;">
-                            Certificates of Liability Insurance for this client. Each one prints on the official
-                            ACORD 25 (2025/12) form — the agency's own form file is filled directly, so what the
-                            holder receives is the real ACORD document.
+                            Certificates of insurance for this client. Each one prints on the official ACORD form for its
+                            type — the agency's own form file is filled directly, so what the holder receives is the real
+                            ACORD document.
                         </p>
                         <div id="certMasterList"></div>
+                    </div>
+
+                    <!-- ── TAB: Additional Interests (additional-interests.js) ── -->
+                    <div id="tabInterests" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:12px;flex-wrap:wrap;">
+                            <h3 style="color:var(--navy);font-size:16px;"><i data-lucide="building-2" style="width:16px;height:16px;vertical-align:-3px;"></i> Additional Interests</h3>
+                            <button onclick="aiOpenEditor()" style="padding:7px 14px;background:linear-gradient(135deg,#0d1f3c,#1d4ed8);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">+ Add New</button>
+                        </div>
+                        <p style="font-size:11px;color:var(--gray-400);margin-bottom:14px;">
+                            Certificate holders, additional insureds, loss payees, mortgagees and lienholders for this client.
+                            Pick one as the Certificate Holder on a certificate and its name, address and e-mail fill in.
+                        </p>
+                        <div id="aiListBody"></div>
+                    </div>
+
+                    <!-- ── TAB: Insured Login (insured-login.js) — commercial clients only ── -->
+                    <div id="tabMaxAi" style="display:none;"></div>
+                    <div id="tabInsuredLogin" style="display:none;">
+                        <h3 style="color:var(--navy);font-size:16px;margin-bottom:4px;"><i data-lucide="key-round" style="width:16px;height:16px;vertical-align:-3px;"></i> Insured Login</h3>
+                        <p style="font-size:11px;color:var(--gray-400);margin-bottom:14px;">
+                            The client's sign-in to the Client Portal and what it lets them see: policies, documents,
+                            file uploads, certificates and certificate holders.
+                        </p>
+                        <div id="ilBody"></div>
                     </div>
 
                     <div id="tabClientApps" style="display:none;">
@@ -1767,6 +2003,17 @@
                         <p style="font-size:11px;color:var(--gray-400);margin-bottom:16px;">
                             Applications filled out for this client, and the blank ACORD forms to start a new one.
                         </p>
+
+                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+                            <div style="flex:1;min-width:220px;position:relative;">
+                                <i data-lucide="search" style="width:15px;height:15px;position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--gray-400);"></i>
+                                <input type="text" id="clientAppsSearch" oninput="clientAppsSearchForms(this.value)" placeholder="Search ACORD forms by name or number (e.g. 125, Workers Comp, No Loss)…"
+                                    style="width:100%;box-sizing:border-box;padding:10px 12px 10px 34px;border:1.5px solid var(--gray-200);border-radius:9px;font-size:13px;font-family:inherit;">
+                            </div>
+                            <button type="button" onclick="acordOpenNewFormModal()" class="btn-primary btn-sm" style="white-space:nowrap;padding:10px 14px;">
+                                <i data-lucide="plus"></i> Add New ACORD
+                            </button>
+                        </div>
 
                         <!-- Everything already filled for this client, newest first. -->
                         <div id="clientAppsSaved" style="margin-bottom:18px;"></div>
@@ -1786,7 +2033,7 @@
 
                         <div id="clientAppsFormsBody" style="display:none;padding-top:14px;">
                             <div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
-                                <input type="text" id="acordFormSearch" oninput="acordFilterForms()" placeholder="Search forms..." style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;width:180px;">
+                                <input type="text" id="acordFormSearch" oninput="var t=document.getElementById('clientAppsSearch');if(t)t.value=this.value;acordFilterForms()" placeholder="Search forms..." style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;width:180px;">
                                 <select id="acordFormCat" onchange="acordFilterForms()" style="padding:6px 10px;border:1px solid var(--gray-200);border-radius:6px;font-size:11px;">
                                     <option value="">All Categories</option>
                                     <option value="app">Applications</option>
@@ -1821,14 +2068,15 @@
                     <select id="mp_agent"></select>
                 </div>
                 <div class="info-field">
-                    <label>Policy Type <span style="color:var(--red)">*</span></label>
+                    <label>Transaction Type <span style="color:var(--red)">*</span></label>
                     <select id="mp_policyType">
                         <option value="">— Select —</option>
-                        <option>New Business</option>
-                        <option>Renewal</option>
-                        <option>Endorsement</option>
-                        <option>Rewrite</option>
-                        <option>Cancellation</option>
+                        <option value="New">New</option>
+                        <option value="Renewal">Renew</option>
+                        <option value="Endorsement">Endorsement</option>
+                        <option value="Rewrite">Rewrite</option>
+                        <option value="Renew A-B">Renew A-B</option>
+                        <option value="Miscellaneous">Miscellaneous</option>
                     </select>
                 </div>
                 <div class="info-field">
@@ -1853,7 +2101,14 @@
                 </div>
                 <div class="info-field">
                     <label>Effective Date</label>
-                    <input type="date" id="mp_effDate">
+                    <input type="date" id="mp_effDate" onchange="amsPolicyTermSync()">
+                </div>
+                <div class="info-field">
+                    <label>Term</label>
+                    <select id="mp_term" onchange="amsPolicyTermSync()">
+                        <option value="12">12 Months</option>
+                        <option value="6">6 Months</option>
+                    </select>
                 </div>
                 <div class="info-field">
                     <label>Expiration Date</label>
@@ -2099,8 +2354,9 @@
                 <textarea id="amsRnwRenewMemo" placeholder="What the insured was told, quoted premium, anything the agent should know…"></textarea>
             </div>
             <div style="margin-top:12px;font-size:12px;color:var(--gray-500);">
-                Files a <strong>Renewal</strong> in the assigned agent's Binder Book for the new term, adds it to the
-                client's profile, and leaves a memo on the expiring policy.
+                Files a <strong>Renewal</strong> for the new term under the assigned agent (it shows in
+                Renewals &rarr; Renewed, under the month it renews), adds it to the client's profile, and
+                leaves a memo on the expiring policy.
             </div>
             <div class="modal-actions">
                 <button class="btn-secondary" onclick="amsRnwCloseRenew()">Close</button>
@@ -2317,11 +2573,11 @@
         .ai-drop-hint { border: 2px dashed var(--blue-light); background: var(--blue-pale); border-radius: 10px; padding: 10px; text-align: center; font-size: 12px; color: var(--blue); margin-bottom: 10px; }
     </style>
 
-    <button id="aiBubbleBtn" onclick="aiOpenPanel()" title="UIB AI Assistant">✦</button>
+    <button id="aiBubbleBtn" onclick="aiOpenPanel()" title="Max AI">🤖</button>
 
     <div id="aiChatPanel">
         <div class="ai-chat-header">
-            <div class="title">✦ UIB AI Assistant
+            <div class="title">🤖 Max AI
                 <small>Upload any client document — I'll extract &amp; create the client</small>
             </div>
             <button onclick="aiNewConversation()" title="New conversation">↺ New</button>
@@ -2343,11 +2599,16 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="ams.js?v=20261027b"></script>
+    <script src="ams.js?v=20261113d"></script>
     <script src="acord25-map.js?v=20261027a"></script>
-    <script src="certificates.js?v=20261027a"></script>
-    <script src="certificates-ui.js?v=20261027a"></script>
-    <script src="agency.js?v=20261029a"></script>
+    <script src="certificates.js?v=20261030b"></script>
+    <script src="additional-interests.js?v=20261030b"></script>
+    <script src="certificates-ui.js?v=20261030b"></script>
+    <script src="insured-login.js?v=20261030b"></script>
+    <script src="agency.js?v=20261124a"></script>
+    <script src="health.js?v=20261030a"></script>
+    <script src="ams-home.js?v=20261030b"></script>
+    <script src="ams-books.js?v=20261030c"></script>
     <script src="supabase.js?v=20261027a"></script>
     <script>
         // Track Chart.js instances so we can destroy before re-rendering
@@ -2392,9 +2653,9 @@
         function amsSidebarNav(section) {
             // 'search' has no tab button of its own — it's reached via the header
             // search box (onfocus) — so it's excluded from the active-tab toggle.
-            const sections = ['dashboard','reports','renewals','accounting','commissions','download','realtime','agency'];
+            const sections = ['search','dashboard','reports','renewals','health','accounting','commissions','download','realtime','agency'];
             sections.forEach(s => {
-                const btn = document.getElementById('sidebarNav' + s.charAt(0).toUpperCase() + s.slice(1));
+                const btn = document.getElementById('sidebarNav' + (s === 'search' ? 'Clients' : s.charAt(0).toUpperCase() + s.slice(1)));
                 if (btn) btn.classList.toggle('active', s === section);
             });
 
@@ -2406,12 +2667,15 @@
             const acctPanel     = document.getElementById('amsAccountingPanel');
             const commPanel     = document.getElementById('amsCommissionsPanel');
             const agencyPanel   = document.getElementById('amsAgencyPanel');
+            const healthPanel   = document.getElementById('amsHealthPanel');
+            const homePanel     = document.getElementById('amsHomePanel');
             const dlPanel       = document.getElementById('amsDownloadPanel');
             const rtPanel       = document.getElementById('amsRealtimePanel');
             const welcome       = document.getElementById('amsWelcome');
             const detail        = document.getElementById('amsClientDetail');
 
             amsMountPanelNav(section);
+            document.body.classList.toggle('ams-home-on', section === 'home');
 
             toolbar.style.display      = 'none';
             clientList.style.display   = 'none';
@@ -2421,6 +2685,8 @@
             acctPanel.style.display    = 'none';
             commPanel.style.display    = 'none';
             if (agencyPanel) agencyPanel.style.display = 'none';
+            if (healthPanel) healthPanel.style.display = 'none';
+            if (homePanel) homePanel.style.display = 'none';
             dlPanel.style.display      = 'none';
             rtPanel.style.display      = 'none';
             welcome.style.display      = 'none';
@@ -2431,6 +2697,9 @@
                 clientList.style.display = '';
                 if (amsActiveKey) { detail.style.display  = 'block'; }
                 else              { welcome.style.display = ''; }
+            } else if (section === 'home') {
+                if (homePanel) homePanel.style.display = 'block';
+                if (typeof amsHomeRender === 'function') amsHomeRender();
             } else if (section === 'dashboard') {
                 dashPanel.style.display = 'block';
                 amsRenderDashboard();
@@ -2445,6 +2714,10 @@
             } else if (section === 'accounting') {
                 acctPanel.style.display = 'flex';
                 if (!_activeAcct) amsShowAccounting('overview');
+            } else if (section === 'health') {
+                if (healthPanel) healthPanel.style.display = 'flex';
+                if (typeof healthRender === 'function') healthRender();
+                lucide.createIcons();
             } else if (section === 'agency') {
                 if (agencyPanel) agencyPanel.style.display = 'block';
                 if (typeof agencyRender === 'function') agencyRender();
@@ -2838,12 +3111,12 @@
         let _commAiBusy = false;
 
         function _commStAiPanelHtml() {
-            return `<div style="margin-top:8px;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;">
+            return `<div class="uib-ai-card" style="margin-top:8px;background:linear-gradient(135deg,#fef7f0,#fde4cc);border:1.5px solid #f5c19a;border-radius:14px;padding:18px 20px;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                    <span style="font-size:15px;font-weight:700;color:#9a3412;">🤖 Claude AI — Commission Processor</span>
+                    <span style="font-size:15px;font-weight:700;color:#9a3412;">🤖 Max AI — Commission Processor</span>
                 </div>
                 <div style="font-size:12.5px;color:#9a3412;margin-bottom:10px;">
-                    📤 <strong>Upload commission statement PDFs</strong> from any carrier. Claude identifies every transaction,
+                    📤 <strong>Upload commission statement PDFs</strong> from any carrier. Max AI identifies every transaction,
                     matches it to Binder Book entries by policy number or customer name, and credits the <strong>original agent</strong>.
                 </div>
                 <div id="commAiMessages" style="background:#fff;border:1px solid #fcd9b6;border-radius:10px;min-height:60px;max-height:480px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;font-size:13.5px;"></div>
@@ -3523,6 +3796,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsRenderDashboard() {
             let binder = JSON.parse(localStorage.getItem('binderData') || '[]');
             if (!Array.isArray(binder)) binder = binder.value || Object.values(binder) || [];
+            if (typeof amsBookFilter === 'function') binder = amsBookFilter(binder);
             const today  = new Date();
 
             // ── Active = not a cancellation & (no expDate OR expDate >= today) ──
@@ -3697,7 +3971,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsShowReport(type) {
             _activeReport = type;
             document.querySelectorAll('.report-tab').forEach(b => b.classList.remove('active'));
-            const tabMap = {expiring:0,production:1,lob:2,carrier:3,newvsrenewal:4,commission:5,monthly:6,paymethod:7};
+            const tabMap = {expiring:0,production:1,lob:2,carrier:3,newvsrenewal:4,commission:5,monthly:6,paymethod:7,prospects:8,inactive:9,missinglob:10};
             const tabs   = document.querySelectorAll('.report-tab');
             if (tabs[tabMap[type]]) tabs[tabMap[type]].classList.add('active');
             Object.keys(_rptCharts).forEach(id => _rptDestroyChart(id));
@@ -3709,7 +3983,10 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 newvsrenewal: amsReportNewVsRenewal,
                 commission:   amsReportCommission,
                 monthly:      amsReportMonthly,
-                paymethod:    amsReportPayMethod
+                paymethod:    amsReportPayMethod,
+                prospects:    amsReportProspects,
+                inactive:     amsReportInactive,
+                missinglob:   amsReportMissingLob
             }[type];
             if (fn) fn();
         }
@@ -3790,9 +4067,41 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // Who can manage renewals (assign + Renew): the password "Admin" login,
         // and the agency admins even when they sign in with their agent account.
         // Regular agents remain read-only. Mirrors the Binder Book's AGENT_ADMINS.
-        const AMS_RENEWAL_ADMINS = ['Alberto Manzor', 'Randy Diaz'];
+        const AMS_RENEWAL_ADMINS = ['Alberto Manzor', 'Randy Diaz', 'Lazaro Reigoza'];
+        // Claude AI renewal card: collapsed by default; remembered per device.
+        function amsRnwAiApply(open) {
+            const body = document.getElementById('amsRnwAiBody');
+            const btn  = document.getElementById('amsRnwAiToggle');
+            const nb   = document.getElementById('amsRnwAiNewBtn');
+            const head = document.getElementById('amsRnwAiHead');
+            if (body) body.style.display = open ? '' : 'none';
+            if (btn)  btn.textContent = open ? 'Hide' : 'Show';
+            if (nb)   nb.style.display = open ? '' : 'none';
+            if (head) head.style.marginBottom = open ? '12px' : '0';
+        }
+        function amsRnwAiToggle() {
+            const open = document.getElementById('amsRnwAiBody')?.style.display === 'none';
+            try { localStorage.setItem('amsRnwAiOpen', open ? '1' : '0'); } catch (e) {}
+            amsRnwAiApply(open);
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            let open = false; try { open = localStorage.getItem('amsRnwAiOpen') === '1'; } catch (e) {}
+            amsRnwAiApply(open);
+        });
+
         function amsIsRenewalAdmin() {
             return amsCurrentRole === 'admin' || AMS_RENEWAL_ADMINS.includes(amsCurrentUser);
+        }
+        // Renew, Renew A-B, Cancel, Calls and Memos are open to every signed-in
+        // user. Only assigning / reassigning the agent stays admin-only.
+        function amsCanRenewalAct() {
+            if (window.UIBAuth && UIBAuth.can && UIBAuth.user()) return UIBAuth.can('renewalActions');
+            return !!(amsCurrentRole || amsCurrentUser);
+        }
+        // Assign / reassign a renewal's agent: the "Assign / reassign renewals" permission.
+        function amsCanReassignRenewal() {
+            if (window.UIBAuth && UIBAuth.can && UIBAuth.user()) return UIBAuth.can('reassignRenewals');
+            return amsIsAdminUser() || amsIsRenewalAdmin();
         }
 
         function amsRnwSelectMonth(monthKey) {
@@ -3807,10 +4116,19 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // expiration has already gone by -- they are still in the book, the
         // list simply stops at today -- so you can see what happened to them.
         let _amsRnwPast = false;
-        function amsRnwSetScope(past) {
-            past = !!past;
-            if (past === _amsRnwPast) return;
+        // Renewed: the renewal transactions themselves (policy type
+        // "Renewal" -- swept out of the Binder Book), filed under the month
+        // each one renewed rather than the month it next expires.
+        let _amsRnwRenewed = false;
+        function _amsRnwRenewedOn(p) {
+            return String(p.effectiveDate || p.effDate || p.entryDate || '').slice(0, 10);
+        }
+        function amsRnwSetScope(mode) {
+            const past    = mode === true || mode === 'past';
+            const renewed = mode === 'renewed';
+            if (past === _amsRnwPast && renewed === _amsRnwRenewed) return;
             _amsRnwPast       = past;
+            _amsRnwRenewed    = renewed;
             _amsRnwActiveMonth = '';     // months differ between the two views
             _amsRnwOpenYears   = null;   // let the accordion re-seed
             amsRenewalsRender();
@@ -3899,9 +4217,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         let _amsRnwRows   = [];
 
         function amsRnwAssignAgent(rowIdx, agent) {
-            // Changing who a record belongs to is the Admin login's alone — a
-            // stricter rule than the other renewal actions on purpose.
-            if (!amsIsAdminUser()) return;
+            // Changing who a record belongs to: the Admin login and the
+            // renewal admins (AMS_RENEWAL_ADMINS) only.
+            if (!amsCanReassignRenewal()) return;
             if (!agent) return;
             const p = _amsRnwRows[rowIdx];
             if (!p) return;
@@ -3935,7 +4253,10 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
 
             // Every non-cancelled upcoming renewal — the pool the dropdowns and
             // both views draw from, before the middle filter bar is applied.
-            const pool = binder.filter(p => {
+            const pool = _amsRnwRenewed
+                ? binder.filter(p => String(p.policyType || '').trim().toLowerCase() === 'renewal' &&
+                                     /^\d{4}-\d{2}/.test(_amsRnwRenewedOn(p)))
+                : binder.filter(p => {
                 if (!p.expirationDate || (p.policyType || '').toLowerCase() === 'cancellation') return false;
                 // Past keeps cancelled policies: what happened to them is
                 // exactly what this view is for.
@@ -3979,7 +4300,11 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             // highlighted. No "All" button — clearing the month (or the active
             // month toggled off) falls back to the expiring-within-window view.
             // Paint the active scope and retitle the column it changes.
-            [['amsRnwScopeUpcoming', !_amsRnwPast], ['amsRnwScopePast', _amsRnwPast]].forEach(([id, on]) => {
+            // The month a row files under, and whether the list reads newest-first.
+            const rnwKey   = p => (_amsRnwRenewed ? _amsRnwRenewedOn(p) : p.expirationDate).slice(0, 7);
+            const lookBack = _amsRnwPast || _amsRnwRenewed;
+            [['amsRnwScopeUpcoming', !_amsRnwPast && !_amsRnwRenewed], ['amsRnwScopePast', _amsRnwPast],
+             ['amsRnwScopeRenewed', _amsRnwRenewed]].forEach(([id, on]) => {
                 const el = document.getElementById(id);
                 if (!el) return;
                 el.style.background  = on ? 'var(--navy)' : '#fff';
@@ -3987,30 +4312,36 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 el.style.borderColor = on ? 'var(--navy)' : 'var(--gray-200)';
             });
             const thTime = document.getElementById('amsRnwThTime');
-            if (thTime) thTime.textContent = _amsRnwPast ? 'Outcome' : 'Time Left';
+            if (thTime) thTime.textContent = _amsRnwRenewed ? 'Renewed' : _amsRnwPast ? 'Outcome' : 'Time Left';
             // The forward window means nothing looking back, and a live-looking
             // control that changes nothing is worse than a disabled one.
             const winSel = document.getElementById('amsRnwWindow');
             if (winSel) {
-                winSel.disabled = _amsRnwPast;
-                winSel.style.opacity = _amsRnwPast ? '0.45' : '';
-                winSel.title = _amsRnwPast
-                    ? 'Not used in Past — pick a month on the left to narrow the history'
+                winSel.disabled = lookBack;
+                winSel.style.opacity = lookBack ? '0.45' : '';
+                winSel.title = lookBack
+                    ? `Not used in ${_amsRnwRenewed ? 'Renewed' : 'Past'} — pick a month on the left to narrow the list`
                     : '';
+            }
+
+            // Load the filed reports once the renewals view is up.
+            if (!window.__rnwReportsLoaded) {
+                window.__rnwReportsLoaded = true;
+                if (typeof amsRnwLoadReports === 'function') amsRnwLoadReports();
             }
 
             const tabsEl = document.getElementById('amsRnwMonthTabs');
             if (tabsEl) {
                 const byYear = {};
                 upcoming.forEach(p => {
-                    const key = p.expirationDate.slice(0, 7);       // YYYY-MM
+                    const key = rnwKey(p);                          // YYYY-MM
                     const yr  = key.slice(0, 4);
                     (byYear[yr] = byYear[yr] || {});
                     byYear[yr][key] = (byYear[yr][key] || 0) + 1;
                 });
                 // Looking back, the most recent year and month come first.
                 const years = Object.keys(byYear).sort();
-                if (_amsRnwPast) years.reverse();
+                if (lookBack) years.reverse();
 
                 // Drop an active month that no longer exists under the filters.
                 if (_amsRnwActiveMonth && !years.some(y => byYear[y][_amsRnwActiveMonth])) _amsRnwActiveMonth = '';
@@ -4040,7 +4371,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     </button>`;
                     if (!open) return `<div style="margin-bottom:6px;">${header}</div>`;
                     const monthKeys = Object.keys(byYear[yr]).sort();
-                    if (_amsRnwPast) monthKeys.reverse();
+                    if (lookBack) monthKeys.reverse();
                     const months = monthKeys.map(key => {
                         const active = _amsRnwActiveMonth === key;
                         return `<button onclick="amsRnwToggleMonth('${key}')"
@@ -4052,26 +4383,32 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     }).join('');
                     return `<div style="margin-bottom:6px;">${header}
                         <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">${months}</div></div>`;
-                }).join('') || `<div style="padding:12px;color:var(--gray-400);font-size:12.5px;font-style:italic;">No upcoming renewals match these filters.</div>`;
+                }).join('') || `<div style="padding:12px;color:var(--gray-400);font-size:12.5px;font-style:italic;">No ${_amsRnwRenewed ? 'renewal transactions' : _amsRnwPast ? 'past renewals' : 'upcoming renewals'} match these filters.</div>`;
             }
 
             const monthLabel = _amsRnwActiveMonth
                 ? new Date(_amsRnwActiveMonth + '-01T12:00:00').toLocaleString('en-US', { month: 'long', year: 'numeric' })
                 : '';
             const allRows = upcoming.filter(p => _amsRnwActiveMonth
-                ? p.expirationDate.slice(0, 7) === _amsRnwActiveMonth
-                : (_amsRnwPast ? true : p.expirationDate <= cutoffStr)
-            ).sort((a, b) => _amsRnwPast
+                ? rnwKey(p) === _amsRnwActiveMonth
+                : (lookBack ? true : p.expirationDate <= cutoffStr)
+            ).sort((a, b) => _amsRnwRenewed
+                ? _amsRnwRenewedOn(b).localeCompare(_amsRnwRenewedOn(a)) // most recent renewal first
+                : _amsRnwPast
                 ? b.expirationDate.localeCompare(a.expirationDate)   // newest first looking back
                 : a.expirationDate.localeCompare(b.expirationDate));
             // A whole book's history is far more than anyone reads at once;
             // pick a month from the list to see the rest.
             const PAST_CAP = 500;
-            const capped = _amsRnwPast && !_amsRnwActiveMonth && allRows.length > PAST_CAP;
+            const capped = lookBack && !_amsRnwActiveMonth && allRows.length > PAST_CAP;
             const rows = capped ? allRows.slice(0, PAST_CAP) : allRows;
 
             const badge = document.getElementById('amsRnwBadge');
-            if (badge) badge.textContent = _amsRnwPast
+            if (badge) badge.textContent = _amsRnwRenewed
+                ? (_amsRnwActiveMonth
+                    ? `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} renewed in ${monthLabel}`
+                    : `${capped ? 'showing ' + rows.length + ' of ' + allRows.length : allRows.length} renewal${allRows.length === 1 ? '' : 's'} on record`)
+                : _amsRnwPast
                 ? (_amsRnwActiveMonth
                     ? `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expired in ${monthLabel}`
                     : `${capped ? 'showing ' + rows.length + ' of ' + allRows.length : allRows.length} past ${allRows.length === 1 ? 'policy' : 'policies'}`)
@@ -4080,7 +4417,9 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     : `${rows.length} ${rows.length === 1 ? 'policy' : 'policies'} expiring within ${days} days`);
 
             if (!rows.length) {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">${_amsRnwPast
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">${_amsRnwRenewed
+                    ? (_amsRnwActiveMonth ? `No renewals recorded in ${monthLabel}.` : 'No renewal transactions on record.')
+                    : _amsRnwPast
                     ? (_amsRnwActiveMonth ? `Nothing expired in ${monthLabel}.` : 'No past renewals on record.')
                     : (_amsRnwActiveMonth
                         ? `No renewals due in ${monthLabel}.`
@@ -4088,8 +4427,8 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 return;
             }
 
-            const isAdmin   = amsIsRenewalAdmin();
-            const canAssign = amsIsAdminUser();
+            const isAdmin   = amsCanRenewalAct();
+            const canAssign = amsCanReassignRenewal();
             _amsRnwBinder = binder;
             _amsRnwRows   = rows;
             tbody.innerHTML = rows.map((p, idx) => {
@@ -4107,9 +4446,11 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 const actBtn = (label, title, onclick, bg) => `
                         <button class="btn-sm" onclick="${onclick}" title="${title}"
                         style="background:${bg};color:#fff;border:none;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">${label}</button>`;
-                const renewBtn  = isAdmin ? actBtn('🔄 Renew', "Send this renewal to the assigned agent's Binder Book",
+                // A renewal transaction has just been renewed: Renew / Renew A-B
+                // belong to it once it comes up again under Upcoming.
+                const renewBtn  = isAdmin && !_amsRnwRenewed ? actBtn('🔄 Renew', 'Renew this policy for the assigned agent',
                                         `amsRnwRenew(${idx}, this)`, 'linear-gradient(135deg,#047857,#059669)') : '';
-                const abBtn     = isAdmin ? actBtn('🔀 Renew A-B', 'Rewrite this policy with a different carrier (A → B)',
+                const abBtn     = isAdmin && !_amsRnwRenewed ? actBtn('🔀 Renew A-B', 'Rewrite this policy with a different carrier (A → B)',
                                         `amsRnwOpenAB(${idx})`, 'linear-gradient(135deg,#1d4ed8,#3b82f6)') : '';
                 const cancelBtn = isAdmin ? actBtn(p.cancellationDate ? '🚫 Cancellation ✎' : '🚫 Cancel',
                                         p.cancellationDate ? `Cancellation set for ${p.cancellationDate} — edit or undo` : 'Cancel this policy and record the cancellation date',
@@ -4131,8 +4472,10 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                     <td>${_rptEsc(p.company || '—')}</td>
                     <td style="font-family:monospace;font-size:11px;">${_rptEsc(p.policyNumber || '—')}</td>
                     <td>${_rptFmt$(p.totalPremium)}</td>
-                    <td><strong>${p.expirationDate}</strong></td>
-                    <td>${_amsRnwPast
+                    <td><strong>${_rptEsc(p.expirationDate || '—')}</strong></td>
+                    <td>${_amsRnwRenewed
+                        ? `<span style="background:#ffedd5;color:#9a3412;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${_rptEsc(_amsRnwRenewedOn(p))}</span>${p.renewalOfPolicy ? `<div style="margin-top:3px;font-size:10.5px;color:var(--gray-500);">renews ${_rptEsc(p.renewalOfPolicy)}</div>` : ''}`
+                        : _amsRnwPast
                         ? `<span style="background:${outcome.bg};color:${outcome.fg};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;" title="${_rptEsc(outcome.note || '').replace(/"/g, '&quot;')}">${outcome.label}</span>${outcome.note ? `<div style="margin-top:3px;font-size:10.5px;color:var(--gray-500);">${_rptEsc(outcome.note)}</div>` : ''}`
                         : `<span style="background:${tlBg};color:${tlColor};border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;">${daysLeft} day${daysLeft === 1 ? '' : 's'}</span>`}</td>
                     <td>${amsAgentLink(p.agent, _rptEsc(p.agent || '—'))}</td>
@@ -4236,7 +4579,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsRnwOpenRenew(rowIdx) { _amsRnwOpenRenewCtx(_amsRnwCtxFromRow(rowIdx)); }
 
         function _amsRnwOpenRenewCtx(ctx) {
-            if (!amsIsRenewalAdmin() || !ctx) return;
+            if (!amsCanRenewalAct() || !ctx) return;
             const src = ctx.entry;
             if (!src.agent) {
                 alert('Assign this policy to an agent first, then click Renew \u2014 the record is sent to that agent\u2019s Binder Book.');
@@ -4259,7 +4602,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             set('amsRnwRenewPremium',   parseFloat(src.totalPremium) || '');
             set('amsRnwRenewEff',       src.expirationDate);
             const termEl = document.getElementById('amsRnwRenewTerm');
-            if (termEl) termEl.value = String(_amsRnwTermMonths(src.effectiveDate, src.expirationDate) || 12);
+            if (termEl) termEl.value = String(window.UIBTerm ? window.UIBTerm.of(src) : (_amsRnwTermMonths(src.effectiveDate, src.expirationDate) || 12));
             set('amsRnwRenewMemo', '');
             amsRnwRenewSyncExp();
             amsRnwRenewPremiumChange();
@@ -4279,7 +4622,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         async function amsRnwSubmitRenew() {
-            if (!amsIsRenewalAdmin()) return;
+            if (!amsCanRenewalAct()) return;
             const ctx = _amsRnwCtx;
             if (!ctx || !ctx.entry) return;
             const eff = document.getElementById('amsRnwRenewEff')?.value || '';
@@ -4306,7 +4649,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         // `binder` is the array holding src, so the new term is saved alongside it.
         async function _amsRnwRenewEntry(src, binder, btnEl, opts) {
             opts = opts || {};
-            if (!amsIsRenewalAdmin()) return; // admins / agency admins only
+            if (!amsCanRenewalAct()) return; // admins / agency admins only
             if (!src) return;
             if (!src.agent) {
                 alert('Assign this policy to an agent first, then click Renew — the record is sent to that agent\'s Binder Book.');
@@ -4333,7 +4676,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             const entry = _amsRnwBuildEntry(src, {
                 policyType:    'Renewal',
                 effectiveDate: newEff,
-                term:          opts.term || _amsRnwTermMonths(src.effectiveDate, newEff),
+                term:          opts.term || (window.UIBTerm ? window.UIBTerm.of(src) : _amsRnwTermMonths(src.effectiveDate, newEff)),
                 policyNumber:  opts.policyNumber != null ? opts.policyNumber : undefined,
                 premium:       opts.premium != null && !isNaN(opts.premium) ? opts.premium : undefined,
                 notes:         'Renewal generated from the AMS — pending completion.' +
@@ -4369,7 +4712,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🔄 Send Renewal'; }
 
             _amsRnwRefreshViews();
-            if (ok) amsFlashBanner(`Renewal sent to ${src.agent}'s Binder Book \u2713`);
+            if (ok) amsFlashBanner(`Renewal filed for ${src.agent} \u2014 see Renewals \u2192 Renewed \u2713`);
             else alert(`Saved locally, but the cloud sync to ${src.agent}'s Binder Book FAILED — check your connection and click Renew again.`);
         }
 
@@ -4782,7 +5125,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         function amsPolicyCancel(clientKey, polIdx)   { _amsRnwOpenCancelCtx(_amsRnwCtxFromClient(clientKey, polIdx)); }
 
         function _amsRnwOpenCancelCtx(ctx) {
-            if (!amsIsRenewalAdmin() || !ctx) return;
+            if (!amsCanRenewalAct() || !ctx) return;
             _amsRnwCtx = ctx;
             const p = ctx.entry;
             const sub = document.getElementById('amsRnwCancelSubtitle');
@@ -4823,7 +5166,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         async function amsRnwConfirmCancel() {
-            if (!amsIsRenewalAdmin()) return;
+            if (!amsCanRenewalAct()) return;
             const p = _amsRnwCtx?.entry;
             if (!p) return;
             const date   = document.getElementById('amsRnwCancelDate')?.value || '';
@@ -4860,7 +5203,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         async function amsRnwUndoCancel() {
-            if (!amsIsRenewalAdmin()) return;
+            if (!amsCanRenewalAct()) return;
             const p = _amsRnwCtx?.entry;
             if (!p || !confirm('Remove the cancellation from this policy and put it back on the renewals list?')) return;
             const was = p.cancellationDate;
@@ -4900,7 +5243,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         function _amsRnwOpenAbCtx(ctx) {
-            if (!amsIsRenewalAdmin() || !ctx) return;
+            if (!amsCanRenewalAct() || !ctx) return;
             const src = ctx.entry;
             if (!src.agent) {
                 alert('Assign this policy to an agent first, then use Renew A-B — the rewrite is sent to that agent\'s Binder Book.');
@@ -4928,7 +5271,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
             set('amsRnwAbPolicyNum', '');
             set('amsRnwAbPremium', parseFloat(src.totalPremium) || '');
             set('amsRnwAbEff', src.expirationDate || _amsRnwToday());
-            set('amsRnwAbTerm', String(_amsRnwTermMonths(src.effectiveDate, src.expirationDate)));
+            set('amsRnwAbTerm', String(window.UIBTerm ? window.UIBTerm.of(src) : _amsRnwTermMonths(src.effectiveDate, src.expirationDate)));
             set('amsRnwAbMemo', '');
             amsRnwAbSyncExp();
             document.getElementById('amsRnwAbModal')?.classList.add('open');
@@ -4952,7 +5295,7 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
         }
 
         async function amsRnwSubmitAB() {
-            if (!amsIsRenewalAdmin()) return;
+            if (!amsCanRenewalAct()) return;
             const src  = _amsRnwCtx?.entry;
             const list = _amsRnwCtx?.list;
             if (!src || !list) return;
@@ -5836,6 +6179,290 @@ If multiple PDFs are uploaded, output one JSON block per carrier statement.`;
                 <button class="btn-secondary btn-sm" onclick="window.print()" style="font-size:11px;">🖨 Print</button>
             </div>`;
         }
+
+        // ══════════════════════════════════════════════════════
+        // 9. PROSPECTS — every Prospect / Inactive Prospect record in
+        //    the AMS client database (New Prospects, monday imports,
+        //    and prospects archived as lost).
+        // ══════════════════════════════════════════════════════
+        function _rptProspectDate(c) {
+            if (c.prospectSinceDate) return c.prospectSinceDate;
+            const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(c.prospectSince || '');
+            if (m) return `${m[3]}-${m[1]}-${m[2]}`;
+            return String(c.createdAt || '').slice(0, 10);
+        }
+        function _rptProspectRows() {
+            const contacts = amsGetClientData();
+            const status = document.getElementById('rptProsStatus')?.value || 'open';
+            const agent  = document.getElementById('rptProsAgent')?.value  || '';
+            const source = document.getElementById('rptProsSource')?.value || '';
+            const q      = (document.getElementById('rptProsSearch')?.value || '').trim().toLowerCase();
+            const from   = document.getElementById('rptProsFrom')?.value || '';
+            const to     = document.getElementById('rptProsTo')?.value   || '';
+            const binderKeys = new Set(_rptBinder().map(p => amsClientKey(p.customerName)));
+            const all = Object.keys(contacts).map(key => ({ key, c: contacts[key] || {} }))
+                .filter(({ key, c }) => !c.importUndone && (
+                    (c.prospectStatus && c.prospectStatus !== 'Closed') ||
+                    (/prospect/i.test(c.clientStatus || '') && !binderKeys.has(key))));
+            const lost = c => c.prospectStatus === 'Lost' || (!c.prospectStatus && /inactive/i.test(c.clientStatus || ''));
+            return {
+                all,
+                rows: all.filter(({ c }) => {
+                    if (status === 'open' && lost(c)) return false;
+                    if (status === 'inactive' && !lost(c)) return false;
+                    if (agent && (c.assignedAgent || '') !== agent) return false;
+                    if (source && (c.referralSource || '') !== source) return false;
+                    const d = _rptProspectDate(c);
+                    if (from && d && d < from) return false;
+                    if (to && d && d > to) return false;
+                    if (q) {
+                        const hay = [c.firstName, c.lastName, c.phone1, c.phone2, c.email, c.address, c.city, c.zip,
+                                     c.currentCarrier, c.prospectLob].join(' ').toLowerCase();
+                        if (!hay.includes(q)) return false;
+                    }
+                    return true;
+                })
+            };
+        }
+        function amsReportProspects() {
+            const body = document.getElementById('amsReportBody');
+            const keep = id => document.getElementById(id)?.value;
+            const prev = { status: keep('rptProsStatus') || 'open', agent: keep('rptProsAgent') || '', source: keep('rptProsSource') || '',
+                           q: keep('rptProsSearch') || '', from: keep('rptProsFrom') || '', to: keep('rptProsTo') || '' };
+            const { all, rows } = _rptProspectRows();
+            const agents  = [...new Set(all.map(r => r.c.assignedAgent).filter(Boolean))].sort();
+            const sources = [...new Set(all.map(r => r.c.referralSource).filter(Boolean))].sort();
+            const opt = (list, sel, label) => `<option value="">${label}</option>` +
+                list.map(v => `<option value="${_rptEsc(v)}"${v === sel ? ' selected' : ''}>${_rptEsc(v)}</option>`).join('');
+            const tally = f => { const m = {}; rows.forEach(({ c }) => { const k = f(c) || '—'; m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
+            const byAgent = tally(c => c.assignedAgent), bySource = tally(c => c.referralSource), byLob = tally(c => c.prospectLob);
+            const open = rows.filter(r => !(r.c.prospectStatus === 'Lost' || (!r.c.prospectStatus && /inactive/i.test(r.c.clientStatus || '')))).length;
+            const statusOf = c => c.prospectStatus
+                ? (c.prospectStatus === 'Lost' ? 'Lost' : 'Open') + (/active/i.test(c.clientStatus || '') && !/prospect|inactive/i.test(c.clientStatus || '') ? ' · former client' : '')
+                : (c.clientStatus || '');
+            const name = c => `${c.firstName || ''} ${c.lastName || ''}`.trim();
+            const small = (title, list) => `<div class="rpt-section" style="flex:1;min-width:240px;"><div class="rpt-section-title">${title}</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl"><tbody>${list.slice(0, 12).map(([k, n]) => `<tr><td>${_rptEsc(k)}</td><td style="text-align:right;font-weight:700;">${n}</td></tr>`).join('')}</tbody></table></div></div>`;
+            body.innerHTML = `
+            <div class="rpt-filters">
+                <div class="rpt-filter-group"><label>Status</label>
+                    <select id="rptProsStatus" onchange="amsReportProspects()">
+                        <option value="open"${prev.status === 'open' ? ' selected' : ''}>Open prospects</option>
+                        <option value="inactive"${prev.status === 'inactive' ? ' selected' : ''}>Inactive (lost)</option>
+                        <option value="all"${prev.status === 'all' ? ' selected' : ''}>All prospects</option>
+                    </select></div>
+                <div class="rpt-filter-group"><label>Agent</label><select id="rptProsAgent" onchange="amsReportProspects()">${opt(agents, prev.agent, 'All agents')}</select></div>
+                <div class="rpt-filter-group"><label>Source</label><select id="rptProsSource" onchange="amsReportProspects()">${opt(sources, prev.source, 'All sources')}</select></div>
+                <div class="rpt-filter-group"><label>Added from</label><input type="date" id="rptProsFrom" value="${prev.from}" onchange="amsReportProspects()"></div>
+                <div class="rpt-filter-group"><label>to</label><input type="date" id="rptProsTo" value="${prev.to}" onchange="amsReportProspects()"></div>
+                <div class="rpt-filter-group"><label>Search</label><input type="text" id="rptProsSearch" value="${_rptEsc(prev.q)}" placeholder="name, phone, carrier…" onchange="amsReportProspects()"></div>
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvProspects')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid #6d28d9;"><div class="rk-label">Prospects</div><div class="rk-val">${rows.length}</div><div class="rk-sub">${open} open · ${rows.length - open} inactive</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--blue);"><div class="rk-label">With a phone</div><div class="rk-val">${rows.filter(r => r.c.phone1).length}</div><div class="rk-sub">ready to call</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);"><div class="rk-label">With an email</div><div class="rk-val">${rows.filter(r => r.c.email).length}</div><div class="rk-sub">ready to email</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);"><div class="rk-label">No agent</div><div class="rk-val">${rows.filter(r => !r.c.assignedAgent).length}</div><div class="rk-sub">to assign</div></div>
+            </div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;">${small('By agent', byAgent)}${small('By source', bySource)}${small('By line of business', byLob)}</div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Prospect list (${rows.length})</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>Name</th><th>Status</th><th>Agent</th><th>Phone</th><th>Email</th><th>Address</th><th>Line</th><th>Current carrier</th><th>Source</th><th>Added</th></tr></thead>
+                    <tbody>${rows.slice(0, 500).map(({ key, c }) => `<tr style="cursor:pointer;" onclick="amsSidebarNav('search'); amsLoadClientDetail('${amsEscHtml(amsEsc(key))}')">
+                        <td><strong>${_rptEsc(name(c) || key)}</strong></td><td>${_rptEsc(statusOf(c))}</td><td>${_rptEsc(c.assignedAgent)}</td>
+                        <td>${_rptEsc(c.phone1)}</td><td>${_rptEsc(c.email)}</td>
+                        <td>${_rptEsc([c.address, c.city, [c.state, c.zip].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</td>
+                        <td>${_rptEsc(c.prospectLob)}</td><td>${_rptEsc(c.currentCarrier)}</td><td>${_rptEsc(c.referralSource)}</td>
+                        <td>${_rptEsc(_rptProspectDate(c))}</td></tr>`).join('')}
+                    ${rows.length > 500 ? `<tr><td colspan="10" style="color:var(--gray-500);">Showing 500 of ${rows.length} — export the CSV for the full list.</td></tr>` : ''}</tbody>
+                </table></div>
+            </div>`;
+        }
+        // ══════════════════════════════════════════════════════
+        // 10. INACTIVE CLIENTS — every policy canceled or expired
+        //     (amsClientActivity in ams.js decides).
+        // ══════════════════════════════════════════════════════
+        function _rptInactiveRows() {
+            const agent  = document.getElementById('rptInAgent')?.value  || '';
+            const reason = document.getElementById('rptInReason')?.value || '';
+            const q      = (document.getElementById('rptInSearch')?.value || '').trim().toLowerCase();
+            const all = Object.values(amsClientIndex).filter(c => !c.isHealth && c.policies.length).map(c => ({ c, a: amsClientActivity(c) }))
+                .filter(x => x.a.inactive)
+                .filter(x => typeof amsBookMatch !== 'function' || x.c.policies.some(p => amsBookMatch(p)))
+                .map(x => {
+                    const last = x.c.policies.slice().sort((p, q2) => String(q2.entryDate || '').localeCompare(String(p.entryDate || '')))[0] || {};
+                    return Object.assign(x, { last, agent: (x.c.contact && x.c.contact.assignedAgent) || last.agent || '' });
+                });
+            const rows = all.filter(x => {
+                if (agent && x.agent !== agent) return false;
+                if (reason && x.a.reason !== reason) return false;
+                if (q) {
+                    const hay = [x.c.displayName, x.c.contact?.phone1, x.c.contact?.email, x.last.company, x.last.lineOfBusiness].join(' ').toLowerCase();
+                    if (!hay.includes(q)) return false;
+                }
+                return true;
+            }).sort((a, b) => String(b.a.lastDate).localeCompare(String(a.a.lastDate)));
+            return { all, rows };
+        }
+        function amsReportInactive() {
+            const body = document.getElementById('amsReportBody');
+            const keep = id => document.getElementById(id)?.value || '';
+            const prev = { agent: keep('rptInAgent'), reason: keep('rptInReason'), q: keep('rptInSearch') };
+            const { all, rows } = _rptInactiveRows();
+            const agents = [...new Set(all.map(x => x.agent).filter(Boolean))].sort();
+            const opt = (list, sel, label) => `<option value="">${label}</option>` + list.map(v => `<option value="${_rptEsc(v)}"${v === sel ? ' selected' : ''}>${_rptEsc(v)}</option>`).join('');
+            const count = r => rows.filter(x => x.a.reason === r).length;
+            body.innerHTML = `
+            <div class="rpt-filters">
+                <div class="rpt-filter-group"><label>Agent</label><select id="rptInAgent" onchange="amsReportInactive()">${opt(agents, prev.agent, 'All agents')}</select></div>
+                <div class="rpt-filter-group"><label>Why inactive</label><select id="rptInReason" onchange="amsReportInactive()">${opt(['Canceled', 'Expired', 'Canceled & expired'], prev.reason, 'Canceled or expired')}</select></div>
+                <div class="rpt-filter-group"><label>Search</label><input type="text" id="rptInSearch" value="${_rptEsc(prev.q)}" placeholder="name, phone, carrier…" onchange="amsReportInactive()"></div>
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvInactive')} ${_rptPrintBtn()}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid #64748b;"><div class="rk-label">Inactive clients</div><div class="rk-val">${rows.length}</div><div class="rk-sub">no policy in force</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--red);"><div class="rk-label">Canceled</div><div class="rk-val">${count('Canceled')}</div><div class="rk-sub">every policy canceled</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid #7c3aed;"><div class="rk-label">Expired</div><div class="rk-val">${count('Expired')}</div><div class="rk-sub">never renewed</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);"><div class="rk-label">With a phone</div><div class="rk-val">${rows.filter(x => x.c.contact?.phone1).length}</div><div class="rk-sub">ready to win back</div></div>
+            </div>
+            <div class="rpt-section">
+                <div class="rpt-section-title">Inactive clients (${rows.length})</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">
+                    <thead><tr><th>Client</th><th>Why</th><th>Agent</th><th>Last policy</th><th>Carrier</th><th>Line</th><th>Last date</th><th>Phone</th><th>Email</th></tr></thead>
+                    <tbody>${rows.slice(0, 500).map(x => `<tr style="cursor:pointer;" onclick="amsSidebarNav('search'); amsLoadClientDetail('${amsEscHtml(amsEsc(x.c.key))}')">
+                        <td><strong>${_rptEsc(x.c.displayName)}</strong></td>
+                        <td><span style="background:${x.a.reason === 'Expired' ? '#ede9fe;color:#6d28d9' : '#fee2e2;color:#b91c1c'};border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;">${_rptEsc(x.a.reason)}</span></td>
+                        <td>${_rptEsc(x.agent)}</td><td>${_rptEsc(x.last.policyNumber || '')}</td><td>${_rptEsc(x.last.company || '')}</td>
+                        <td>${_rptEsc(x.last.lineOfBusiness || '')}</td><td>${_rptEsc(x.a.lastDate)}</td>
+                        <td>${_rptEsc(x.c.contact?.phone1 || '')}</td><td>${_rptEsc(x.c.contact?.email || '')}</td></tr>`).join('')}
+                    ${rows.length > 500 ? `<tr><td colspan="9" style="color:var(--gray-500);">Showing 500 of ${rows.length} — export the CSV for the full list.</td></tr>` : ''}</tbody>
+                </table></div>
+            </div>`;
+        }
+        window._csvInactive = function () {
+            const { rows } = _rptInactiveRows();
+            _rptExportCSV(['Client', 'Why inactive', 'Agent', 'Last policy #', 'Carrier', 'Line of business', 'Last date', 'Phone', 'Email', 'Address', 'City', 'State', 'ZIP'],
+                rows.map(x => [x.c.displayName, x.a.reason, x.agent, x.last.policyNumber, x.last.company, x.last.lineOfBusiness, x.a.lastDate,
+                               x.c.contact?.phone1, x.c.contact?.email, x.c.contact?.address, x.c.contact?.city, x.c.contact?.state, x.c.contact?.zip]),
+                'inactive_clients.csv');
+        };
+
+        // ══════════════════════════════════════════════════════
+        // 11. MISSING LINE OF BUSINESS — entries with no line of business,
+        //     each with the line the rest of the book points to. Only the
+        //     confident ones are filled, and only when an admin says so;
+        //     the rest are listed to pick by hand.
+        // ══════════════════════════════════════════════════════
+        function _lobAll() { let d = typeof amsGetBinderData === 'function' ? amsGetBinderData() : JSON.parse(localStorage.getItem('binderData') || '[]'); return Array.isArray(d) ? d : []; }
+        function _lobSuggest() {
+            const book = _lobAll();
+            const has = e => String(e.lineOfBusiness || '').trim();
+            const known = book.filter(has);
+            const byPol = {}, byCarrier = {}, byClientCarrier = {};
+            const key = s => String(s || '').trim().toUpperCase();
+            known.forEach(e => {
+                const l = has(e);
+                const pn = key(e.policyNumber);
+                if (pn) (byPol[pn] = byPol[pn] || {})[l] = ((byPol[pn] || {})[l] || 0) + 1;
+                const c = key(e.company);
+                if (c) (byCarrier[c] = byCarrier[c] || {})[l] = ((byCarrier[c] || {})[l] || 0) + 1;
+                const cc = key(e.customerName) + '|' + c;
+                if (c) (byClientCarrier[cc] = byClientCarrier[cc] || {})[l] = ((byClientCarrier[cc] || {})[l] || 0) + 1;
+            });
+            const top = m => { const e = Object.entries(m || {}).sort((a, b) => b[1] - a[1]); const n = e.reduce((s, x) => s + x[1], 0); return e.length ? { lob: e[0][0], share: e[0][1] / n, n, kinds: e.length } : null; };
+            return book.filter(e => !has(e)).map(e => {
+                const pn = key(e.policyNumber), c = key(e.company);
+                let t;
+                if (pn && (t = top(byPol[pn])) && t.kinds === 1) return { e, lob: t.lob, sure: true, why: 'Same policy # on another entry' };
+                if (c && (t = top(byClientCarrier[key(e.customerName) + '|' + c])) && t.kinds === 1) return { e, lob: t.lob, sure: true, why: 'This client\u2019s other ' + e.company + ' policy' };
+                if (c && (t = top(byCarrier[c]))) {
+                    const pct = Math.round(t.share * 100);
+                    if (t.share >= 0.95 && t.n >= 5) return { e, lob: t.lob, sure: true, why: e.company + ' is ' + t.lob + ' on ' + pct + '% of ' + t.n + ' entries' };
+                    return { e, lob: t.lob, sure: false, why: 'Best guess: ' + e.company + ' is ' + t.lob + ' on ' + pct + '% of ' + t.n + ' entries' };
+                }
+                return { e, lob: '', sure: false, why: e.company ? 'No other ' + e.company + ' entry has a line of business' : 'No carrier or policy # to go on' };
+            });
+        }
+        function _lobOptions(sel) {
+            const std = ['BOP', 'Boat', 'Builders Risk', 'Business Owner', 'Classic Collectors', 'Commercial Auto', 'Commercial Property', 'Flood',
+                'Garage Keepers', 'General Liability', 'Home Owners DP1', 'Home Owners DP2', 'Home Owners DP3', 'Home Owners H3', 'Home Owners H4',
+                'Home Owners H6', 'Home Owners H8', 'Inland Marine', 'Motorcycle/ATV', 'Non-Trucking Liability', 'Personal Auto', 'Pollution Liability',
+                'Professional Liability', 'Renters', 'Surety Bond', 'Trucking', 'Umbrella', 'Workers Comp'];
+            const seen = [...new Set(std.concat(_lobAll().map(e => String(e.lineOfBusiness || '').trim()).filter(Boolean)))].sort();
+            return '<option value="">— pick —</option>' + seen.map(l => `<option${l === sel ? ' selected' : ''}>${_rptEsc(l)}</option>`).join('');
+        }
+        function amsReportMissingLob() {
+            const body = document.getElementById('amsReportBody');
+            const list = _lobSuggest();
+            const sure = list.filter(x => x.sure), unsure = list.filter(x => !x.sure);
+            const admin = amsIsAdminUser();
+            const row = (x, i, pick) => `<tr>
+                <td>${_rptEsc(x.e.entryDate || '')}</td><td><strong>${_rptEsc(x.e.customerName || '')}</strong></td><td>${_rptEsc(x.e.agent || '')}</td>
+                <td>${_rptEsc(x.e.company || '')}</td><td style="font-family:monospace;">${_rptEsc(x.e.policyNumber || '')}</td>
+                <td>${_rptEsc(amsTxnTypeLabel(x.e, _lobAll()) || x.e.policyType || '')}</td>
+                <td>${pick && admin ? `<select data-lobfix="${_rptEsc(String(x.e.id))}" style="padding:4px 6px;border:1px solid var(--gray-200);border-radius:6px;font-size:12px;">${_lobOptions(x.lob)}</select>`
+                                     : `<strong style="color:var(--navy);">${_rptEsc(x.lob || '—')}</strong>`}</td>
+                <td style="font-size:11.5px;color:var(--gray-500);">${_rptEsc(x.why)}</td></tr>`;
+            const head = '<thead><tr><th>Entered</th><th>Client</th><th>Agent</th><th>Carrier</th><th>Policy #</th><th>Transaction</th><th>Line of business</th><th>Why</th></tr></thead>';
+            body.innerHTML = `
+            <div class="rpt-filters">
+                <div style="font-size:12.5px;color:var(--gray-600);flex:1;min-width:260px;">Every entry with no line of business, with the line the rest of the book points to.
+                    ${admin ? 'Confident matches are filled only when you click <b>Fill confident matches</b>; pick the others by hand and click <b>Save my picks</b>.' : 'An admin applies these.'}</div>
+                <div class="rpt-filter-actions">${_rptExportBtn('_csvMissingLob', 'Export list')}
+                    ${admin && sure.length ? `<button class="btn-sm" style="background:var(--green);color:#fff;border:none;" onclick="amsLobApply('sure')">✓ Fill ${sure.length} confident match${sure.length === 1 ? '' : 'es'}</button>` : ''}
+                    ${admin && unsure.length ? `<button class="btn-sm" style="background:var(--navy);color:#fff;border:none;" onclick="amsLobApply('picks')">💾 Save my picks</button>` : ''}</div>
+            </div>
+            <div class="rpt-kpis">
+                <div class="rpt-kpi" style="border-top:4px solid var(--navy);"><div class="rk-label">Missing a line</div><div class="rk-val">${list.length}</div><div class="rk-sub">entries in the book</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid var(--green);"><div class="rk-label">Confident</div><div class="rk-val">${sure.length}</div><div class="rk-sub">same policy #, same client & carrier, or a single-line carrier</div></div>
+                <div class="rpt-kpi" style="border-top:4px solid #d97706;"><div class="rk-label">Not sure</div><div class="rk-val">${unsure.length}</div><div class="rk-sub">listed below to pick by hand</div></div>
+            </div>
+            ${unsure.length ? `<div class="rpt-section"><div class="rpt-section-title">⚠️ Not sure — please check (${unsure.length})</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">${head}<tbody>${unsure.slice(0, 500).map((x, i) => row(x, i, true)).join('')}</tbody></table></div></div>` : ''}
+            ${sure.length ? `<div class="rpt-section"><div class="rpt-section-title">✓ Confident (${sure.length})</div>
+                <div class="rpt-tbl-wrap"><table class="rpt-tbl">${head}<tbody>${sure.slice(0, 500).map((x, i) => row(x, i, false)).join('')}</tbody></table></div></div>` : ''}
+            ${!list.length ? '<div class="rpt-no-data" style="margin-top:40px;">Every entry has a line of business. 🎉</div>' : ''}`;
+        }
+        window._csvMissingLob = function () {
+            _rptExportCSV(['Entered', 'Client', 'Agent', 'Carrier', 'Policy #', 'Transaction', 'Suggested line of business', 'Confidence', 'Why', 'Entry id'],
+                _lobSuggest().map(x => [x.e.entryDate, x.e.customerName, x.e.agent, x.e.company, x.e.policyNumber, x.e.policyType, x.lob,
+                                        x.sure ? 'Confident' : 'Not sure', x.why, x.e.id]),
+                'missing_line_of_business.csv');
+        };
+        window.amsLobApply = function (which) {
+            if (!amsIsAdminUser()) return;
+            const picks = {};
+            if (which === 'sure') _lobSuggest().filter(x => x.sure).forEach(x => { picks[String(x.e.id)] = { lob: x.lob, why: x.why }; });
+            else document.querySelectorAll('[data-lobfix]').forEach(s => { if (s.value) picks[s.getAttribute('data-lobfix')] = { lob: s.value, why: 'Picked by ' + (amsCurrentUser || 'admin') }; });
+            const n = Object.keys(picks).length;
+            if (!n) { alert(which === 'sure' ? 'Nothing confident to fill.' : 'Pick a line of business on at least one row first.'); return; }
+            if (!confirm('Fill the line of business on ' + n + ' entr' + (n === 1 ? 'y' : 'ies') + '?\n\nOnly entries with no line of business are touched.')) return;
+            const book = _lobAll();
+            const stamp = new Date().toISOString();
+            let done = 0;
+            book.forEach(e => {
+                const p = picks[String(e.id)];
+                if (!p || String(e.lineOfBusiness || '').trim()) return;
+                e.lineOfBusiness = p.lob;
+                e.lobFilledBy = (amsCurrentUser || 'admin') + ' · ' + stamp.slice(0, 10);
+                e.lobFilledWhy = p.why;
+                done++;
+            });
+            amsSave('binderData', book);
+            amsBuildClientIndex();
+            amsReportMissingLob();
+            if (typeof amsFlashBanner === 'function') amsFlashBanner('Line of business filled on ' + done + ' entr' + (done === 1 ? 'y' : 'ies') + ' ✓');
+        };
+
+        window._csvProspects = function () {
+            const { rows } = _rptProspectRows();
+            _rptExportCSV(['First Name', 'Last Name', 'Status', 'Agent', 'Phone', 'Phone 2', 'Email', 'Address', 'City', 'State', 'ZIP',
+                           'DOB', 'Line of Business', 'Current Carrier', 'Source', 'Added'],
+                rows.map(({ c }) => [c.firstName, c.lastName, c.prospectStatus || c.clientStatus, c.assignedAgent, c.phone1, c.phone2, c.email, c.address,
+                                     c.city, c.state, c.zip, c.dob, c.prospectLob, c.currentCarrier, c.referralSource, _rptProspectDate(c)]),
+                'prospects_report.csv');
+        };
 
         function amsShowAccounting(section) {
             _activeAcct = section;
@@ -8322,5 +8949,7 @@ IMPORTANT:
     </script>
 <script src="https://cdn.jsdelivr.net/npm/motion@12/dist/motion.js"></script>
 <script src="uib-motion.js?v=20261002a"></script>
+<script src="max-ai.js?v=20261113b"></script>
+<script src="uib-drop.js?v=20261104a"></script>
 </body>
 </html>
