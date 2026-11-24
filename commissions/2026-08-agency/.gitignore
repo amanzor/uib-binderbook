@@ -1,0 +1,4 @@
+# Source statements, the binder/AMS exports and intermediates are not committed
+# (client PII / regenerable).
+aug/
+*.json
