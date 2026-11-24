@@ -5338,6 +5338,7 @@ function openEditModal(id) {
     refreshAllCarrierDropdowns(); // ensure options are current before setting value
     populateSourceDropdown('editSource', entry.source || '');
     populateEditReferralDropdown(entry.referredBy || '');
+    { const gc = document.getElementById('editGiftCard'); if (gc) gc.checked = !!entry.giftCard; }
     cancelEditNewSource();
     cancelEditNewReferral();
     document.getElementById('editCustomerName').value = entry.customerName || '';
@@ -5463,6 +5464,7 @@ function updateEntry() {
     entry.location = document.getElementById('editLocation')?.value || entry.location || '';
     entry.source = document.getElementById('editSource').value;
     entry.referredBy = toTitleCase(document.getElementById('editReferredBy').value);
+    { const gc = document.getElementById('editGiftCard'); if (gc) entry.giftCard = gc.checked; }
     entry.policyType = document.getElementById('editPolicyType').value;
     entry.lineOfBusiness = document.getElementById('editLineOfBusiness').value;
     entry.company = toTitleCase(document.getElementById('editCompany').value);
@@ -10683,7 +10685,7 @@ function prodRenderTable(data) {
             <td style="padding:9px 12px;">${typeBadge}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;">${d.location||'—'}</td>
             <td style="padding:9px 12px;">${srcBadge}</td>
-            <td style="padding:9px 12px;font-size:12px;color:#334155;">${d.referredBy||'—'}</td>
+            <td style="padding:9px 12px;font-size:12px;color:#334155;">${d.referredBy||'—'}${d.giftCard?' <span title="Gift card given" style="display:inline-block;margin-left:4px;padding:1px 6px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:10.5px;font-weight:700;white-space:nowrap;">🎁 Gift Card</span>':''}</td>
             <td style="padding:9px 12px;font-size:13px;font-weight:700;color:#059669;text-align:right;white-space:nowrap;">
                 $${tp.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
             </td>
@@ -10856,7 +10858,7 @@ function prodExportCSV() {
     const data = prodGetFilteredData();
     if (data.length === 0) { alert('No data to export for this period.'); return; }
 
-    const headers = ['Date','Effective Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
+    const headers = ['Date','Effective Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Gift Card','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
     const rows = data.map(d => [
         d.entryDate         || '',
         d.effDate || d.effectiveDate || '',
@@ -10871,6 +10873,7 @@ function prodExportCSV() {
         d.mga               || '',
         d.source            || '',
         d.referredBy        || '',
+        d.giftCard ? 'Yes' : '',
         d.down              || 0,
         d.agencyFee         || 0,
         d.basePremium       || 0,
@@ -11122,7 +11125,7 @@ function apdRenderTable(data) {
             <td style="padding:9px 12px;">${typeBadge}</td>
             <td style="padding:9px 12px;font-size:12px;color:#64748b;">${d.location||'—'}</td>
             <td style="padding:9px 12px;">${srcBadge}</td>
-            <td style="padding:9px 12px;font-size:12px;color:#334155;">${d.referredBy||'—'}</td>
+            <td style="padding:9px 12px;font-size:12px;color:#334155;">${d.referredBy||'—'}${d.giftCard?' <span title="Gift card given" style="display:inline-block;margin-left:4px;padding:1px 6px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:10.5px;font-weight:700;white-space:nowrap;">🎁 Gift Card</span>':''}</td>
             <td style="padding:9px 12px;font-size:13px;font-weight:700;color:#059669;text-align:right;white-space:nowrap;">
                 $${tp.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
             </td>
@@ -11287,7 +11290,7 @@ function apdExportCSV() {
     const data = apdGetFilteredData();
     if (data.length === 0) { alert('No data to export for this period.'); return; }
 
-    const headers = ['Date','Effective Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
+    const headers = ['Date','Effective Date','Agent','Client Name','Policy #','Binder #','Carrier','LOB','Policy Type','Location','MGA','Referral Source','Referred By','Gift Card','Down','Agency Fee','Base Premium','Total Premium','Payment Type'];
     const rows = data.map(d => [
         d.entryDate         || '',
         d.effDate || d.effectiveDate || '',
@@ -11302,6 +11305,7 @@ function apdExportCSV() {
         d.mga               || '',
         d.source            || '',
         d.referredBy        || '',
+        d.giftCard ? 'Yes' : '',
         d.down              || 0,
         d.agencyFee         || 0,
         d.basePremium       || 0,
